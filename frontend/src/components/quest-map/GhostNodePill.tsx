@@ -1,0 +1,3 @@
+import { LockKeyhole, Check } from 'lucide-react'
+import { Handle, Position } from '@xyflow/react'
+export function GhostNodePill({done=false, title}: {done?: boolean; title: string}) { return done ? <div className="done-node"><Handle id="target" type="target" position={Position.Left}/><Check size={25}/><b>{title}</b><small>Alex Kim</small><Handle id="source" type="source" position={Position.Right}/></div> : <div className="ghost-node"><Handle id="target" type="target" position={Position.Left}/><LockKeyhole size={16}/><span>{title}</span><small>Waiting for 2 nodes</small><Handle id="source" type="source" position={Position.Right}/></div> }
