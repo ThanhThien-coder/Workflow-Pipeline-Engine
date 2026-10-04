@@ -11,6 +11,16 @@ import type {
   PublishPipelineResult,
   ProjectStatus,
 } from '../../types/settings.types'
+import type {
+  AuthCredentialsDto,
+  AuthResponseDto,
+  RegisterUserCommand,
+  UserDto,
+} from '../../types/auth.types'
+import type {
+  CreateProjectCommand,
+  ProjectSummaryDto,
+} from '../../types/workspace.types'
 
 export type { MacroPhase } from '../../types/workflow.types'
 
@@ -24,6 +34,16 @@ export interface CreatePhaseDto {
 }
 
 export interface IWorkflowService {
+  // Auth contracts
+  login(credentials: AuthCredentialsDto): Promise<AuthResponseDto>
+  register(cmd: RegisterUserCommand): Promise<AuthResponseDto>
+  getCurrentUser(): Promise<UserDto>
+  logout(): Promise<void>
+
+  // Workspace contracts
+  getProjectsList(): Promise<readonly ProjectSummaryDto[]>
+  createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto>
+
   getMacroPhases(): Promise<MacroPhase[]>
   getPhaseEdges(): Promise<[string, string][]>
   getPhaseGraph(phaseId: string): Promise<PhaseTreeData>

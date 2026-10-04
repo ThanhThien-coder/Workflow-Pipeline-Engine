@@ -7,10 +7,20 @@ import { createOverviewSlice, type OverviewSlice } from './slices/overviewSlice'
 import { createKanbanSlice, type KanbanSlice } from './slices/kanbanSlice'
 import { createSettingsSlice, type SettingsSlice } from './slices/settingsSlice'
 import { createDevSlice, type DevSlice } from './slices/devSlice'
+import { createAuthSlice, type AuthSlice } from './slices/authSlice'
+import { createWorkspaceSlice, type WorkspaceSlice } from './slices/workspaceSlice'
+import { createUiSlice, type UiSlice } from './slices/uiSlice'
 
 export type NavigationTab = 'overview' | 'workflow' | 'my-tasks' | 'settings'
 
-export interface WorkflowState extends OverviewSlice, KanbanSlice, SettingsSlice, DevSlice {
+export interface WorkflowState
+  extends OverviewSlice,
+    KanbanSlice,
+    SettingsSlice,
+    DevSlice,
+    AuthSlice,
+    WorkspaceSlice,
+    UiSlice {
   activeTab: NavigationTab
   macroPhases: MacroPhase[]
   workflowEdges: [string, string][]
@@ -32,6 +42,9 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   ...createKanbanSlice(set, get),
   ...createSettingsSlice(set, get),
   ...createDevSlice(set, get),
+  ...createAuthSlice(set, get),
+  ...createWorkspaceSlice(set, get),
+  ...createUiSlice(set, get),
   activeTab: 'workflow',
   macroPhases: [],
   workflowEdges: [],

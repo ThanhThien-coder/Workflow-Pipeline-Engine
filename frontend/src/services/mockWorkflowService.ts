@@ -6,6 +6,8 @@ import type { GuestAccessState, OverviewData } from '../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../types/kanban.types'
 import { MockTaskApi } from './mock/MockWorkflowService.tasks'
 import { MockSettingsApi } from './mock/MockWorkflowService.settings'
+import { MockAuthApi } from './mock/MockWorkflowService.auth'
+import { MockWorkspaceApi } from './mock/MockWorkflowService.workspace'
 import { MockConfig } from './mock/MockConfig'
 import type {
   ProjectSettingsDto,
@@ -17,6 +19,16 @@ import type {
   PublishPipelineResult,
   ProjectStatus,
 } from '../types/settings.types'
+import type {
+  AuthCredentialsDto,
+  AuthResponseDto,
+  RegisterUserCommand,
+  UserDto,
+} from '../types/auth.types'
+import type {
+  CreateProjectCommand,
+  ProjectSummaryDto,
+} from '../types/workspace.types'
 
 export const PHASES: MacroPhase[] = [
   { id: 'p1', name: 'PHASE 1', sub: 'Nền tảng (Foundation)', status: 'COMPLETED', pct: 100, accent: 'emerald', x: 20, y: 140, w: 250, h: 220, parentPhaseIds: [] },
@@ -93,6 +105,34 @@ export class MockWorkflowService implements IWorkflowService {
   private readonly overviewApi = new MockOverviewApi()
   private readonly taskApi = new MockTaskApi()
   private readonly settingsApi = new MockSettingsApi()
+  private readonly authApi = new MockAuthApi()
+  private readonly workspaceApi = new MockWorkspaceApi()
+
+  // Auth contracts
+  login(credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
+    return this.authApi.login(credentials)
+  }
+
+  register(cmd: RegisterUserCommand): Promise<AuthResponseDto> {
+    return this.authApi.register(cmd)
+  }
+
+  getCurrentUser(): Promise<UserDto> {
+    return this.authApi.getCurrentUser()
+  }
+
+  logout(): Promise<void> {
+    return this.authApi.logout()
+  }
+
+  // Workspace contracts
+  getProjectsList(): Promise<readonly ProjectSummaryDto[]> {
+    return this.workspaceApi.getProjectsList()
+  }
+
+  createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto> {
+    return this.workspaceApi.createProject(cmd)
+  }
 
   async getMacroPhases(): Promise<MacroPhase[]> {
     return this.phases.map((phase) => ({ ...phase }))
