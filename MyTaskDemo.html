@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workflow Pipeline Engine · My Tasks</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  html, body, #root { height: 100%; }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .fade-up { animation: fadeUp .22s ease-out both; }
+  @keyframes popIn { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+  .pop-in { animation: popIn .15s ease-out both; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .fade-in { animation: fadeIn .15s ease-out both; }
+  .col-scroll::-webkit-scrollbar { width: 6px; }
+  .col-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo, useEffect, useRef } = React;
+
+/* ---------- Icons ---------- */
+const Icon = ({ d, className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    {[].concat(d).map((p, i) => <path key={i} d={p} />)}
+  </svg>
+);
+const I = {
+  cal: ["M8 3v3M16 3v3", "M4 8h16", "M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z"],
+  search: ["M11 18a7 7 0 100-14 7 7 0 000 14z", "M21 21l-4.3-4.3"],
+  chev: "M6 9l6 6 6-6",
+  check: "M5 12l5 5L20 7",
+  play: "M7 4l13 8-13 8z",
+  upload: ["M12 16V4", "M7 9l5-5 5 5", "M4 20h16"],
+  clip: "M21 12.5l-8.5 8.5a5 5 0 01-7-7L14 5.5a3.3 3.3 0 014.7 4.7L10 19a1.7 1.7 0 01-2.4-2.4l7.5-7.5",
+  x: "M6 6l12 12M18 6L6 18",
+  back: ["M9 14L4 9l5-5", "M4 9h10a6 6 0 010 12h-3"],
+  lock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 018 0v3"],
+  clock: ["M12 6v6l4 2", "M12 21a9 9 0 100-18 9 9 0 000 18z"],
+  alert: ["M12 9v4M12 17h.01", "M10.3 4L2.6 17.5A2 2 0 004.3 20h15.4a2 2 0 001.7-2.5L13.7 4a2 2 0 00-3.4 0z"],
+};
+
+/* ---------- Mock data ---------- */
+const TODAY = new Date("2026-10-02T00:00:00");
+const USERS = [
+  { id: "u1", name: "Sarah Chen", role: "Frontend Dev", ini: "SC", color: "bg-indigo-500", isOwner: false },
+  { id: "u2", name: "Marcus Liu", role: "Backend Dev",  ini: "ML", color: "bg-rose-500",   isOwner: false },
+  { id: "u3", name: "Alex Kim",   role: "Project Lead / Owner", ini: "AK", color: "bg-emerald-500", isOwner: true },
+];
+const PHASES = {
+  P1:  "Phase 1 · Foundation",
+  P2A: "Phase 2A · Auth",
+  P2B: "Phase 2B · Core",
+  P3:  "Phase 3 · QA & Release",
+};
+const PHASE_FILTERS = [
+  { key: "ALL", label: "Tất cả" }, { key: "P1", label: "Phase 1" }, { key: "P2A", label: "Phase 2A" },
+  { key: "P2B", label: "Phase 2B" }, { key: "P3", label: "Phase 3" },
+];
+const T = (id, code, title, desc, phase, status, assignedUserId, due, prereq, artifact = null) =>
+  ({ id, code, title, desc, phase, status, assignedUserId, due, prereq, artifact });
+
+const INITIAL = [
+  // Sarah Chen (5)
+  T(1, "WPE-021", "Thiết kế UI Form đăng nhập", "Dựng form Login/Register theo bản Figma, có validate phía client.", "P2A", "TODO", "u1", "2026-10-06", "AND-Join: 2 tiền đề đã xong"),
+  T(2, "WPE-017", "Bộ component Button / Input", "Chuẩn hóa design token và các biến thể component dùng chung.", "P1", "DONE", "u1", "2026-09-20", "Artifact: Figma specs", { label: "Figma specs", url: "https://figma.com/file/ds-core", type: "Figma URL", note: "" }),
+  T(3, "WPE-023", "Layout Dashboard Overview", "Lưới KPI, biểu đồ cột Weekly Velocity và cột phải.", "P2B", "IN_PROGRESS", "u1", "2026-10-01", "Artifact: PR Merged"),
+  T(4, "WPE-025", "Form khởi tạo dự án", "Tạo dự án mới hoặc clone Template quy trình chuẩn.", "P2B", "REVIEW", "u1", "2026-10-04", "AND-Join: 1 tiền đề đã xong", { label: "PR #42", url: "https://github.com/wpe/web/pull/42", type: "GitHub PR Link", note: "Đã tự test trên Chrome/Safari." }),
+  T(5, "WPE-028", "Gắn dữ liệu vào Canvas React Flow", "Map NODE / NODE_DEPENDENCY sang node & edge, lưu toạ độ ui_metadata.", "P2B", "TODO", "u1", "2026-10-10", "OR-Join: 1/2 tiền đề đã xong"),
+  // Marcus Liu (6)
+  T(6, "WPE-014", "Dịch vụ cấp phát JWT", "Sinh/xác minh JWT, refresh token và chặn tài khoản bị khóa.", "P2A", "IN_PROGRESS", "u2", "2026-09-28", "Artifact: PR Merged"),
+  T(7, "WPE-012", "API Auth endpoints", "POST /auth/register, /auth/login, GET /auth/me kèm DTO tách biệt Entity.", "P2A", "REVIEW", "u2", "2026-10-01", "AND-Join: 2 tiền đề đã xong", { label: "PR #38", url: "https://github.com/wpe/api/pull/38", type: "GitHub PR Link", note: "Cần Lead soát lại thời hạn JWT." }),
+  T(8, "WPE-009", "Thiết kế Data Schema PostgreSQL", "8 bảng chuẩn hóa, JSONB cho guest_access / ui_metadata.", "P1", "DONE", "u2", "2026-09-18", "Artifact: Tài liệu API", { label: "Schema v1.0", url: "https://docs.wpe.io/schema", type: "Tài liệu API", note: "" }),
+  T(9, "WPE-016", "Claim Node bằng Optimistic Locking", "UPDATE ... WHERE status='TODO' AND version=:v, trả 409 nếu 0 dòng.", "P2B", "TODO", "u2", "2026-10-08", "AND-Join: 2 tiền đề đã xong"),
+  T(10, "WPE-019", "Thuật toán Kahn kiểm tra chu trình", "Chặn DRAFT → ACTIVE nếu đồ thị có vòng, trả danh sách node vi phạm.", "P2B", "IN_PROGRESS", "u2", "2026-10-07", "Artifact: PR Merged"),
+  T(11, "WPE-030", "Scheduled Job quét trễ hạn", "Gán is_overdue cho node IN_PROGRESS / REVIEW quá due_date.", "P3", "TODO", "u2", "2026-10-14", "OR-Join: 1/2 tiền đề đã xong"),
+  // Alex Kim (3)
+  T(12, "WPE-005", "Kickoff & chốt SSOT", "Chốt phạm vi MVP, RBAC matrix và vòng đời trạng thái.", "P1", "DONE", "u3", "2026-09-10", "Artifact: Tài liệu API", { label: "SSOT v1", url: "https://docs.wpe.io/ssot", type: "Tài liệu API", note: "" }),
+  T(13, "WPE-032", "Rà soát chính sách nghiệm thu Artifact", "Thống nhất định dạng minh chứng bắt buộc trước khi Review.", "P2B", "REVIEW", "u3", "2026-10-03", "Artifact: Tài liệu API", { label: "Review policy", url: "https://docs.wpe.io/review-policy", type: "Tài liệu API", note: "Bản nháp chờ chốt." }),
+  T(14, "WPE-034", "Checklist phát hành bản MVP", "Danh mục kiểm tra trước khi chuyển Phase 3 sang Release.", "P3", "TODO", "u3", "2026-10-12", "AND-Join: 3 tiền đề đã xong"),
+];
+
+const COLUMNS = [
+  { key: "TODO", title: "Chờ thực hiện", en: "To Do", head: "bg-sky-100 text-sky-800", badge: "bg-sky-200 text-sky-800", dot: "bg-sky-400", ring: "ring-sky-300" },
+  { key: "IN_PROGRESS", title: "Đang thực hiện", en: "In Progress", head: "bg-blue-600 text-white", badge: "bg-white/25 text-white", dot: "bg-blue-600", ring: "ring-blue-300" },
+  { key: "REVIEW", title: "Chờ duyệt", en: "In Review", head: "bg-violet-100 text-violet-800", badge: "bg-violet-200 text-violet-800", dot: "bg-violet-500", ring: "ring-violet-300" },
+  { key: "DONE", title: "Hoàn thành", en: "Done", head: "bg-emerald-100 text-emerald-800", badge: "bg-emerald-200 text-emerald-800", dot: "bg-emerald-500", ring: "ring-emerald-300" },
+];
+const ARTIFACT_TYPES = ["GitHub PR Link", "Figma URL", "Tài liệu API", "Zip"];
+
+const fmtDate = (s) => { const [, m, d] = s.split("-"); return `${d}/${m}`; };
+const isOverdue = (t) => t.status !== "DONE" && new Date(t.due + "T23:59:59") < TODAY ;
+const daysLeft = (t) => Math.ceil((new Date(t.due + "T23:59:59") - TODAY) / 86400000);
+const artifactLabel = (type, url) => {
+  const m = url.match(/\/pull\/(\d+)/);
+  if (type === "GitHub PR Link" && m) return `PR #${m[1]}`;
+  if (type === "Figma URL") return "Figma specs";
+  if (type === "Zip") return "File .zip";
+  return type;
+};
+
+/* ---------- Avatar ---------- */
+const Avatar = ({ u, size = "w-6 h-6 text-[10px]" }) => (
+  <span className={`${size} ${u.color} rounded-full text-white font-bold flex items-center justify-center shrink-0`}>{u.ini}</span>
+);
+
+/* ---------- User switcher ---------- */
+function UserSwitcher({ users, current, counts, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const key = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", down);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}
+        className={`flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-full border text-sm transition ${open ? "bg-indigo-50 border-indigo-400 ring-2 ring-indigo-100" : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"}`}>
+        <Avatar u={current} size="w-7 h-7 text-[11px]" />
+        <span className="text-left leading-tight">
+          <span className="block font-semibold text-slate-800">{current.name}</span>
+          <span className="block text-[11px] text-slate-500">{current.role}</span>
+        </span>
+        <Icon d={I.chev} className={`w-4 h-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div role="listbox" className="pop-in absolute right-0 top-full mt-2 w-72 z-40 bg-white border border-slate-200 rounded-2xl shadow-2xl p-1.5" style={{ transformOrigin: "top right" }}>
+          <div className="px-3 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Xem với tư cách (giả lập)</div>
+          {users.map((u) => (
+            <button key={u.id} role="option" aria-selected={u.id === current.id}
+              onClick={() => { onSelect(u.id); setOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${u.id === current.id ? "bg-indigo-50" : "hover:bg-slate-50"}`}>
+              <Avatar u={u} size="w-8 h-8 text-xs" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold">👤 {u.name}</span>
+                <span className="block text-xs text-slate-500">{u.role}</span>
+              </span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{counts[u.id]} tasks</span>
+              {u.id === current.id && <Icon d={I.check} className="w-4 h-4 text-indigo-600" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Task card ---------- */
+function TaskCard({ t, owner, user, canDrag, onDragStart, onDragEnd, dragging, actions }) {
+  const over = isOverdue(t);
+  const frozen = t.status === "DONE";
+  return (
+    <article draggable={canDrag}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(t.id)); onDragStart(t.id); }}
+      onDragEnd={onDragEnd}
+      className={`fade-up bg-white rounded-xl border p-4 shadow-sm transition ${frozen ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200 hover:shadow-md hover:border-slate-300"} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${dragging ? "opacity-40" : ""}`}>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">{t.code}</span>
+        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{PHASES[t.phase]}</span>
+        {over && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 flex items-center gap-1"><Icon d={I.alert} className="w-3 h-3" />Trễ hạn</span>}
+        {frozen && <span className="ml-auto w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center"><Icon d={I.check} className="w-3 h-3" /></span>}
+      </div>
+
+      <h3 className={`mt-2.5 text-sm font-bold leading-snug ${frozen ? "text-slate-600" : "text-slate-900"}`}>{t.title}</h3>
+      <p className="mt-1 text-xs text-slate-500 leading-relaxed line-clamp-2">{t.desc}</p>
+
+      <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2 py-1">
+        <Icon d={frozen ? I.lock : I.check} className="w-3 h-3 shrink-0" />{t.prereq}
+      </div>
+
+      {t.artifact && (
+        <a href={t.artifact.url} target="_blank" rel="noreferrer" onClick={(e) => e.preventDefault()} title={t.artifact.url}
+          className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-md bg-violet-50 text-violet-700 border border-violet-100">
+          <Icon d={I.clip} className="w-3 h-3" />{t.artifact.label}
+        </a>
+      )}
+
+      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`flex items-center gap-1 text-xs font-medium ${over ? "text-red-600" : "text-slate-500"}`}>
+            <Icon d={I.cal} className="w-3.5 h-3.5" />{fmtDate(t.due)}
+          </span>
+          <span className="flex items-center gap-1 text-xs text-slate-500 min-w-0"><Avatar u={owner} /><b className="font-semibold text-slate-600">{owner.ini}</b></span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">{actions}</div>
+      </div>
+    </article>
+  );
+}
+
+const Btn = ({ onClick, cls, children }) => (
+  <button onClick={onClick} className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition ${cls}`}>{children}</button>
+);
+
+/* ---------- Submit modal ---------- */
+function SubmitModal({ task, onClose, onSubmit }) {
+  const [type, setType] = useState(ARTIFACT_TYPES[0]);
+  const [url, setUrl] = useState("");
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    const key = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, []);
+  const submit = () => {
+    if (!/^https?:\/\/\S+\.\S+/.test(url.trim())) { setErr("Vui lòng nhập URL hợp lệ (bắt đầu bằng http:// hoặc https://)."); return; }
+    onSubmit({ type, url: url.trim(), note: note.trim(), label: artifactLabel(type, url.trim()) });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fade-in absolute inset-0 bg-slate-900/40" onMouseDown={onClose} />
+      <div role="dialog" aria-label="Nộp kết quả" className="pop-in relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200">
+        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-bold">Nộp kết quả (Submit Artifact)</h2>
+            <p className="text-xs text-slate-500 mt-1"><b className="font-mono">{task.code}</b> · {task.title}</p>
+          </div>
+          <button onClick={onClose} aria-label="Đóng" className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Icon d={I.x} /></button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-slate-600">Loại tài liệu</label>
+            <select value={type} onChange={(e) => setType(e.target.value)} className="mt-1.5 w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              {ARTIFACT_TYPES.map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600">URL minh chứng <span className="text-red-500">*</span></label>
+            <input value={url} onChange={(e) => { setUrl(e.target.value); setErr(""); }} placeholder="https://github.com/repo/pull/128"
+              className={`mt-1.5 w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${err ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-indigo-200 focus:border-indigo-400"}`} />
+            {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600">Ghi chú bàn giao</label>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Tóm tắt phạm vi đã làm, điểm Lead cần lưu ý…"
+              className="mt-1.5 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/70 rounded-b-2xl">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg hover:bg-slate-100">Hủy</button>
+          <button onClick={submit} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg bg-violet-600 hover:bg-violet-700 shadow-sm">
+            <Icon d={I.upload} />Nộp nghiệm thu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- App ---------- */
+function App() {
+  const [tasks, setTasks] = useState(INITIAL);
+  const [userId, setUserId] = useState("u1");
+  const [q, setQ] = useState("");
+  const [phase, setPhase] = useState("ALL");
+  const [dragId, setDragId] = useState(null);
+  const [overCol, setOverCol] = useState(null);
+  const [submitFor, setSubmitFor] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const user = USERS.find((u) => u.id === userId);
+  const counts = useMemo(() => Object.fromEntries(USERS.map((u) => [u.id, tasks.filter((t) => t.assignedUserId === u.id).length])), [tasks]);
+
+  useEffect(() => { if (!toast) return; const x = setTimeout(() => setToast(null), 2600); return () => clearTimeout(x); }, [toast]);
+
+  // Lọc BẮT BUỘC theo assignedUserId === currentUser.id, sau đó mới áp search/phase
+  const mine = useMemo(() => tasks.filter((t) => t.assignedUserId === user.id), [tasks, user.id]);
+  const visible = useMemo(() => {
+    const k = q.trim().toLowerCase();
+    return mine.filter((t) => (phase === "ALL" || t.phase === phase) && (!k || t.title.toLowerCase().includes(k) || t.code.toLowerCase().includes(k)));
+  }, [mine, q, phase]);
+
+  const stats = { total: mine.length, doing: mine.filter((t) => t.status === "IN_PROGRESS").length, late: mine.filter(isOverdue).length };
+
+  const setStatus = (id, status, extra = {}) => setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, status, ...extra } : t)));
+
+  /* Máy trạng thái: kiểm tra mọi chuyển trạng thái tại một nơi duy nhất */
+  const requestMove = (id, to) => {
+    const t = tasks.find((x) => x.id === id);
+    if (!t || t.assignedUserId !== user.id || t.status === to) return;
+    const from = t.status;
+    if (from === "DONE") return setToast("Task đã DONE nên bị đóng băng, không thể thay đổi.");
+    if (to === "DONE") {
+      if (!user.isOwner) return setToast("Chỉ Owner mới có quyền duyệt sang DONE (Strict Review Constraint).");
+      if (from !== "REVIEW") return setToast("Task phải qua bước Chờ duyệt trước khi Owner nghiệm thu.");
+      setStatus(id, "DONE"); return setToast(`Đã duyệt ${t.code}: chuyển sang Hoàn thành.`);
+    }
+    if (from === "TODO" && to === "IN_PROGRESS") { setStatus(id, "IN_PROGRESS"); return setToast(`Bắt đầu làm ${t.code}.`); }
+    if (from === "TODO" && to === "REVIEW") return setToast("Cần bắt đầu làm trước khi nộp kết quả.");
+    if (from === "IN_PROGRESS" && to === "TODO") { setStatus(id, "TODO"); return setToast(`Đã hủy nhận ${t.code}, trả về Chờ thực hiện.`); }
+    if (from === "IN_PROGRESS" && to === "REVIEW") return setSubmitFor(t);   // bắt buộc có Artifact
+    if (from === "REVIEW" && to === "IN_PROGRESS") {
+      if (!user.isOwner) return setToast("Chỉ Owner mới có thể yêu cầu làm lại task đang chờ duyệt.");
+      setStatus(id, "IN_PROGRESS"); return setToast(`${t.code} bị trả lại để chỉnh sửa.`);
+    }
+    if (from === "REVIEW" && to === "TODO") return setToast("Không thể trả task đang chờ duyệt về Chờ thực hiện.");
+  };
+
+  const onDrop = (e, col) => {
+    e.preventDefault();
+    const id = dragId ?? Number(e.dataTransfer.getData("text/plain"));
+    setDragId(null); setOverCol(null);
+    requestMove(id, col);
+  };
+
+  const actionsFor = (t) => {
+    if (t.status === "TODO") return <Btn onClick={() => requestMove(t.id, "IN_PROGRESS")} cls="text-white bg-blue-600 hover:bg-blue-700"><Icon d={I.play} className="w-3 h-3" />Bắt đầu làm</Btn>;
+    if (t.status === "IN_PROGRESS") return (<>
+      <Btn onClick={() => requestMove(t.id, "TODO")} cls="text-slate-600 bg-slate-100 hover:bg-slate-200"><Icon d={I.back} className="w-3 h-3" />Hủy nhận</Btn>
+      <Btn onClick={() => requestMove(t.id, "REVIEW")} cls="text-white bg-violet-600 hover:bg-violet-700"><Icon d={I.upload} className="w-3 h-3" />Nộp kết quả</Btn>
+    </>);
+    if (t.status === "REVIEW") return user.isOwner ? (<>
+      <Btn onClick={() => requestMove(t.id, "IN_PROGRESS")} cls="text-slate-600 bg-slate-100 hover:bg-slate-200">Làm lại</Btn>
+      <Btn onClick={() => requestMove(t.id, "DONE")} cls="text-white bg-emerald-600 hover:bg-emerald-700"><Icon d={I.check} className="w-3 h-3" />Duyệt</Btn>
+    </>) : <span className="flex items-center gap-1 text-[11px] font-medium text-violet-600"><Icon d={I.clock} className="w-3 h-3" />Chờ Lead nghiệm thu</span>;
+    return <span className="text-[11px] font-semibold text-emerald-600">Đã nghiệm thu</span>;
+  };
+
+  return (
+    <div className="h-full overflow-hidden flex flex-col p-6 bg-slate-50">
+      {/* HEADER */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">My Tasks</h1>
+          <p className="text-xs text-slate-500 mt-1">Bảng Kanban cá nhân · Marketing Campaign Q4 · Task do Lead giao hiển thị trực tiếp, không cần xác nhận</p>
+        </div>
+        <UserSwitcher users={USERS} current={user} counts={counts} onSelect={(id) => { setUserId(id); setQ(""); setPhase("ALL"); }} />
+      </div>
+
+      {/* TOOLBAR */}
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon d={I.search} /></span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm theo tiêu đề hoặc mã task…"
+            className="w-72 pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+        </div>
+        <div className="flex bg-slate-100 rounded-lg p-1">
+          {PHASE_FILTERS.map((p) => (
+            <button key={p.key} onClick={() => setPhase(p.key)}
+              className={`px-3 py-1.5 text-sm rounded-md font-medium transition ${phase === p.key ? "bg-white shadow text-indigo-700" : "text-slate-500 hover:text-slate-800"}`}>{p.label}</button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2 text-sm bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-slate-600">
+          <span>Tổng: <b className="text-slate-900">{stats.total}</b> việc</span><span className="text-slate-300">|</span>
+          <span>Đang làm: <b className="text-blue-600">{stats.doing}</b></span><span className="text-slate-300">|</span>
+          <span>Trễ hạn: <b className={stats.late ? "text-red-600" : "text-slate-900"}>{stats.late}</b></span>
+        </div>
+      </div>
+
+      {/* KANBAN */}
+      <div className="mt-5 flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {COLUMNS.map((c) => {
+          const items = visible.filter((t) => t.status === c.key);
+          return (
+            <section key={c.key}
+              onDragOver={(e) => { e.preventDefault(); setOverCol(c.key); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverCol(null); }}
+              onDrop={(e) => onDrop(e, c.key)}
+              className={`flex flex-col rounded-2xl bg-slate-100/70 border transition ${overCol === c.key && dragId ? `ring-2 ${c.ring} border-transparent bg-white` : "border-slate-200"}`}>
+              <header className={`flex items-center justify-between px-4 py-3 rounded-t-2xl ${c.head}`}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${c.key === "IN_PROGRESS" ? "bg-white" : c.dot}`} />
+                  <h2 className="text-sm font-bold">{c.title}</h2>
+                  <span className="text-[11px] font-medium opacity-70">{c.en}</span>
+                </div>
+                <span className={`text-xs font-bold min-w-[22px] text-center px-1.5 py-0.5 rounded-full ${c.badge}`}>{items.length}</span>
+              </header>
+              <div className="col-scroll p-3 space-y-3 overflow-y-auto max-h-[calc(100vh-220px)] flex-1">
+                {items.map((t) => (
+                  <TaskCard key={t.id} t={t} owner={USERS.find((u) => u.id === t.assignedUserId)} user={user}
+                    canDrag={t.status !== "DONE"} dragging={dragId === t.id}
+                    onDragStart={setDragId} onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                    actions={actionsFor(t)} />
+                ))}
+                {items.length === 0 && (
+                  <div className="text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-xl py-8">
+                    {mine.length && (q || phase !== "ALL") ? "Không có task khớp bộ lọc" : "Chưa có task"}
+                  </div>
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {submitFor && (
+        <SubmitModal task={submitFor} onClose={() => setSubmitFor(null)}
+          onSubmit={(a) => { setStatus(submitFor.id, "REVIEW", { artifact: a }); setToast(`Đã nộp ${submitFor.code}: chờ Lead nghiệm thu.`); setSubmitFor(null); }} />
+      )}
+      {toast && <div className="fade-up fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-xl z-[70]">{toast}</div>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

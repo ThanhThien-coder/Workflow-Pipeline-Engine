@@ -1,27 +1,111 @@
-import { useEffect, useState } from 'react'
-import { LayoutDashboard, Network, Map, ClipboardList, MessageSquare, Settings, ChevronLeft, Sparkles, Save, Plus, Search, Bell, ChevronDown } from 'lucide-react'
-import { CanvasView } from './views/CanvasView'
-import { QuestMapView } from './views/QuestMapView'
-import { OverviewView } from './views/OverviewView'
-import { Task } from './types/workflow'
-import { useWorkflowStore } from './store/useWorkflowStore'
+import { Bell, ChevronDown, ChevronLeft, ClipboardList, LayoutDashboard, Network, Search, Settings, Sparkles } from 'lucide-react'
+import { WorkflowView } from './components/views/WorkflowView'
+import { MyTasksView } from './views/MyTasksView'
+import SettingsView from './views/SettingsView'
+import { OverviewView as OverviewScreen } from './components/views/OverviewView'
+import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
+import { DevToolbar } from './components/dev/DevToolbar'
+import { DEV_PERSONAS } from './store/slices/devSlice'
 
-type View = 'overview' | 'canvas' | 'quest'
-const nav = [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'canvas', label: 'Canvas', icon: Network }, { id: 'quest', label: 'Quest Map', icon: Map }, { id: 'tasks', label: 'Tasks', icon: ClipboardList }, { id: 'feedback', label: 'Feedback', icon: MessageSquare }, { id: 'settings', label: 'Settings', icon: Settings }]
-function App() {
-  const [view, setView] = useState<View>('canvas')
-  const [selected, setSelected] = useState<Task | null>(null)
-  const canvasNodes = useWorkflowStore((state) => state.nodes)
-  const loadCanvas = useWorkflowStore((state) => state.loadCanvas)
-  const loadQuestMap = useWorkflowStore((state) => state.loadQuestMap)
-  const saveLayout = useWorkflowStore((state) => state.saveLayout)
-  const users = canvasNodes.flatMap((node) => node.data.task?.assignee ?? []).filter((user, index, all) => all.findIndex((candidate) => candidate.id === user.id) === index)
-  useEffect(() => { void loadCanvas(2026); void loadQuestMap(2026, 1) }, [loadCanvas, loadQuestMap])
-  const onSave = () => { void saveLayout(2026) }
-  const current = view === 'quest' ? 'Quest Map' : view === 'canvas' ? 'Canvas' : 'Overview'
-  return <div className="app-shell">
-    <div className="top-strip"><b>WPE DEMO</b><span>Login</span><span>Dashboard</span><span>Overview</span><span className={view === 'canvas' ? 'active' : ''}>Canvas</span><span>Kanban</span><span className={view === 'quest' ? 'active' : ''}>Quest Map</span><span>Feedback</span><span>Guest</span><span>Admin</span></div>
-    <header className="topbar"><div className="brand"><div className="brand-mark"><Sparkles size={17}/></div><strong>Pipeline Engine</strong></div><div className="search"><Search size={17}/><span>Search projects, tasks, nodes...</span><kbd>⌘K</kbd></div><div className="account"><Bell size={18}/><span className="notif-dot"/><div className="avatar">AK</div><b>Alex Kim</b><ChevronDown size={14}/></div></header>
-    <div className="workspace"><aside className="sidebar"><div className="project"><ChevronLeft size={16}/><div className="project-icon">✣</div><b>Marketing Q4</b></div><div className="phase-label">PHASE <span>2 · Published</span></div><nav>{nav.map(item => { const Icon = item.icon; const id = item.id as View; return <button key={item.id} className={(current === item.label ? 'selected ' : '') + 'nav-item'} onClick={() => ['overview','canvas','quest'].includes(item.id) && setView(id)}><Icon size={17}/>{item.label}{item.id === 'feedback' && <em>3</em>}</button>})}</nav><div className="team"><small>TEAM</small><div className="team-stack">{users.map(u => <div key={u.id} className="mini-avatar" style={{background: u.color}}>{u.initials}</div>)}<div className="mini-avatar plus">+2</div></div></div></aside><main className="main-area">{view !== 'quest' && <div className="view-header"><div><h1>{current}</h1><span>Marketing Q4 <i>·</i> Updated Sep 22, 2026</span></div>{view === 'canvas' && <div className="header-actions"><button className="button ghost"><Plus size={16}/> Add Node</button><button className="button primary" onClick={onSave}><Save size={16}/> Save</button></div>}</div>    }{view === 'canvas' && <CanvasView selected={selected} onSelect={setSelected}/>} {view === 'quest' && <QuestMapView/>}{view === 'overview' && <OverviewView/>}</main></div></div>
-    }
-export default App
+const navigation: { id: NavigationTab; label: string; icon: typeof LayoutDashboard }[] = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'workflow', label: 'Workflow', icon: Network },
+  { id: 'my-tasks', label: 'My Tasks', icon: ClipboardList },
+  { id: 'settings', label: 'Settings', icon: Settings },
+]
+
+export default function App() {
+  const activeTab = useWorkflowStore((state) => state.activeTab)
+  const setActiveTab = useWorkflowStore((state) => state.setActiveTab)
+  const currentUserId = useWorkflowStore((state) => state.kanban.currentUserId)
+  const activePersona = DEV_PERSONAS.find((p) => p.id === currentUserId) || DEV_PERSONAS[0]
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-800">
+      <aside className="hidden w-60 shrink-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+        <div className="flex h-14 items-center gap-2 border-b border-slate-200 px-4">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white">
+            <Sparkles size={17} />
+          </div>
+          <strong className="text-sm">Pipeline Engine</strong>
+        </div>
+        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-4">
+          <ChevronLeft size={16} className="text-slate-400" />
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-600">✣</div>
+          <div>
+            <b className="block text-sm">Marketing Q4</b>
+            <span className="text-[11px] text-slate-400">PHASE 2 · Published</span>
+          </div>
+        </div>
+        <nav className="space-y-1 p-3">
+          {navigation.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                activeTab === id
+                  ? 'bg-indigo-50 font-semibold text-indigo-700'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              <Icon size={17} />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="mt-auto border-t border-slate-100 p-4">
+          <small className="font-semibold tracking-widest text-slate-400">TEAM</small>
+          <div className="mt-3 flex -space-x-1">
+            <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-blue-400 text-[10px] font-bold text-white">
+              AK
+            </span>
+            <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-emerald-400 text-[10px] font-bold text-white">
+              SC
+            </span>
+            <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-slate-400 text-[10px] font-bold text-white">
+              +2
+            </span>
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5">
+          <div className="flex items-center gap-3 text-slate-400">
+            <Search size={17} />
+            <span className="hidden text-sm md:inline">Search projects, tasks, nodes...</span>
+            <kbd className="hidden rounded border border-slate-200 px-1.5 text-[10px] md:inline">⌘K</kbd>
+          </div>
+          <div className="flex items-center gap-3 text-slate-500">
+            <Bell size={18} />
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            <div
+              className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold text-white shadow-xs ${
+                activePersona.avatarClass || 'bg-indigo-600'
+              }`}
+            >
+              {activePersona.initials}
+            </div>
+            <b className="hidden text-sm text-slate-700 sm:inline">{activePersona.name}</b>
+            <ChevronDown size={14} />
+          </div>
+        </header>
+
+        <main className="relative h-full min-h-0 flex-1 overflow-hidden">
+          <div className={`h-full ${activeTab === 'workflow' ? '' : 'hidden'}`}>
+            <WorkflowView />
+          </div>
+          {activeTab === 'overview' && <OverviewScreen projectId="1" />}
+          {activeTab === 'my-tasks' && <MyTasksView />}
+          {activeTab === 'settings' && <SettingsView />}
+        </main>
+      </div>
+
+      {/* Dev floating panel - Tự động bị loại bỏ hoàn toàn khi build production hoặc khi VITE_USE_MOCK=false */}
+      {import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true' && (
+        <DevToolbar />
+      )}
+    </div>
+  )
+}

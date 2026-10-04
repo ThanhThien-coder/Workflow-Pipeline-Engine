@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .bar { transform-origin: bottom; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+.workflow-surface {
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-color: #f8fafc;
+}
+
+[data-node-id][data-rel="self"] { box-shadow: 0 0 0 2px rgba(99,102,241,.6) !important; }
+[data-node-id][data-rel="up"] { box-shadow: 0 0 0 2px rgba(37,99,235,.7), 0 0 14px rgba(37,99,235,.28) !important; }
+[data-node-id][data-rel="down"] { box-shadow: 0 0 0 2px rgba(16,185,129,.7), 0 0 14px rgba(16,185,129,.28) !important; }
+[data-node-id][data-flash="1"] { animation: nflash 1.2s ease-out; }
+@keyframes nflash {
+  0% { box-shadow: 0 0 0 0 rgba(99,102,241,.85); }
+  70% { box-shadow: 0 0 0 14px rgba(99,102,241,0); }
+  100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+}
+
+/* ───────────────────────────────────────────────────
+   Directional Staggered Cascade Animation
+   - enterFromBottom: scroll-down → cards slide up
+   - enterFromTop:    scroll-up   → cards slide down
+   Total budget: 200ms animation + 3×35ms stagger = 305ms max
+   Using cubic-bezier(0.16, 1, 0.3, 1) for snappy deceleration
+   ─────────────────────────────────────────────────── */
+@keyframes enterFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes enterFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-cascade-down {
+  animation: enterFromBottom 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-cascade-up {
+  animation: enterFromTop 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}

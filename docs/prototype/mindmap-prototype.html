@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Auth Module · DAG Mindmap (Clean Wires)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<style>
+  :root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  html{scroll-padding-top:env(safe-area-inset-top,0px)}
+  body{margin:0;background:#f8fafc;color:#1e293b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  .canvas{background:radial-gradient(#cbd5e1 1px,transparent 1px) 0 0/22px 22px,#f8fafc}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  [data-node-id][data-rel="self"]{box-shadow:0 0 0 2px rgba(99,102,241,.6)!important}
+  [data-node-id][data-rel="up"]{box-shadow:0 0 0 2px rgba(37,99,235,.7),0 0 14px rgba(37,99,235,.28)!important}
+  [data-node-id][data-rel="down"]{box-shadow:0 0 0 2px rgba(16,185,129,.7),0 0 14px rgba(16,185,129,.28)!important}
+  [data-node-id][data-flash="1"]{animation:nflash 1.2s ease-out}
+  @keyframes nflash{0%{box-shadow:0 0 0 0 rgba(99,102,241,.85)}70%{box-shadow:0 0 0 14px rgba(99,102,241,0)}100%{box-shadow:0 0 0 0 rgba(99,102,241,0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useMemo,useRef,useEffect}=React,h=React.createElement;
+// Sau một thao tác kéo/click trên nút (+), trình duyệt vẫn bắn thêm sự kiện `click` lên tổ tiên chung → chặn trong 80ms.
+let suppressClickUntil=0;
+const uid=()=>'id'+Math.random().toString(36).slice(2,9);
+const P={lock:'<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+check:'<path d="M20 6 9 17l-5-5"/>',x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',minus:'<path d="M5 12h14"/>',
+git:'<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>',
+link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+cal:'<rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>',
+alert:'<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+chev:'<path d="m9 18 6-6-6-6"/>',trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+merge:'<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v6a3 3 0 0 0 3 3h3"/><path d="M18 9V6"/>',down:'<path d="m6 9 6 6 6-6"/>',anchor:'<path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><circle cx="12" cy="5" r="3"/>',zap:'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',link2:'<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>',ext:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'};
+const I=({p,s=14,c=''})=>h('svg',{width:s,height:s,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round',className:c,dangerouslySetInnerHTML:{__html:P[p]}});
+
+/* ---------- Macro canvas (unchanged) ---------- */
+const ACCENT={emerald:{bar:'bg-emerald-400',pill:'bg-emerald-50 text-emerald-600 border-emerald-200',track:'bg-emerald-400'},
+blue:{bar:'bg-blue-400',pill:'bg-blue-50 text-blue-600 border-blue-200',track:'bg-blue-400'},
+slate:{bar:'bg-slate-300',pill:'bg-slate-100 text-slate-400 border-slate-300',track:'bg-slate-300'}};
+const PHASES=[
+ {id:'p1',name:'PHASE 1',sub:'Nền tảng (Foundation)',status:'COMPLETED',pct:100,accent:'emerald',x:20,y:140,w:250,h:220},
+ {id:'p2a',name:'PHASE 2A',sub:'Cụm Xác thực (Auth)',status:'IN PROGRESS',pct:70,accent:'blue',x:360,y:40,w:440,h:170},
+ {id:'p2b',name:'PHASE 2B',sub:'Cụm Giỏ hàng (Cart)',status:'TODO',pct:0,accent:'slate',x:360,y:290,w:440,h:170},
+ {id:'p3',name:'PHASE 3',sub:'Tích hợp Toàn hệ thống',status:'LOCKED',pct:0,accent:'slate',x:890,y:140,w:250,h:220,locked:true}
+];
+const CANVAS_EDGES=[['p1','p2a'],['p1','p2b'],['p2a','p3'],['p2b','p3']];
+const CW=1220,CH=520;
+
+/* ---------- Flat graph data: every node has parentIds:[] ---------- */
+let CODE_SEQ=0;
+const n_=(o)=>({kind:'branch',code:'WPE-'+String(++CODE_SEQ).padStart(3,'0'),description:'',isTrack:false,progress:undefined,assignee:null,due:null,blocker:'Không có',joinPolicy:null,parentIds:[],...o});
+const art=(id,parentId,title)=>({id,kind:'artifact',parentIds:[parentId],title});
+
+function seedP2A(){
+  const nodes={};
+  const put=x=>nodes[x.id]=x;
+  put({id:'root',kind:'root',parentIds:[],title:'Phase 2A: Auth Module'});
+  put(n_({id:'trk_db',isTrack:true,title:'Track 1: Cơ sở dữ liệu',status:'DONE',parentIds:['root']}));
+  put(n_({id:'t_db',title:'Thiết kế Session Schema',status:'DONE',assignee:'Sarah Chen',due:'2026-09-20',parentIds:['trk_db']}));
+  put(art('a1','t_db','PR merged'));
+  put(n_({id:'trk_api',isTrack:true,title:'Track 2: API Services',status:'IN_PROGRESS',parentIds:['root']}));
+  put(n_({id:'t_login',title:'POST /login API',status:'DONE',assignee:'Alex Kim',due:'2026-09-18',parentIds:['trk_api']}));
+  put(art('a2','t_login','Unit Test ≥ 80%')); put(art('a3','t_login','PR merged'));
+  put(n_({id:'t_register',title:'POST /register API',status:'IN_PROGRESS',progress:80,assignee:'Marcus Liu',due:'2026-09-29',blocker:'Chờ review schema xác thực email',parentIds:['trk_api']}));
+  put(art('a4','t_register','Unit Test ≥ 80%')); put(art('a5','t_register','Postman collection'));
+  put(n_({id:'t_jwt',title:'JWT Refresh Token flow',status:'TODO',assignee:'Marcus Liu',due:'2026-10-05',blocker:'Chờ /register API hoàn tất',parentIds:['trk_api']}));
+  put(art('a6','t_jwt','API contract review'));
+  put(n_({id:'trk_ui',isTrack:true,title:'Track 3: Giao diện Form UI',status:'IN_PROGRESS',parentIds:['root']}));
+  put(n_({id:'t_loginform',title:'Login Form Component',status:'IN_PROGRESS',progress:60,assignee:'Jamie Doe',due:'2026-09-27',parentIds:['trk_ui']}));
+  put(art('a7','t_loginform','Figma specs approved')); put(art('a8','t_loginform','Unit Test ≥ 80%'));
+  put(n_({id:'t_oauth',title:'OAuth Google Button',status:'TODO',assignee:'Jamie Doe',due:'2026-10-03',blocker:'Chờ Login Form xong',parentIds:['trk_ui']}));
+  put(art('a9','t_oauth','Figma specs approved'));
+  put(n_({id:'trk_e2e',isTrack:true,title:'Track 4: Kiểm thử E2E',status:'LOCKED',parentIds:['root']}));
+  // Preseeded many-to-one demo: 3 prerequisites, 2 of them cross-track (AND-join)
+  put(n_({id:'t_e2e',title:'Test Tích hợp E2E',status:'LOCKED',blocker:'Chờ JWT flow & Login Form đều DONE',
+    parentIds:['trk_e2e','t_jwt','t_loginform'],joinPolicy:'AND'}));
+  put(art('a10','t_e2e','Chờ prerequisites'));
+  // Ghost demo: (1) Phase 1 → t_db (tiền đề, ghost là cha), (2) t_e2e → Phase 3 (ghost là con)
+  put(ghostNode('g_p1',['root'],'p1','x1','up'));
+  nodes.t_db={...nodes.t_db,parentIds:['trk_db','g_p1'],joinPolicy:'AND'};
+  put(ghostNode('g_p3',['t_e2e'],'p3','x1','down'));
+  return nodes;
+}
+function seedSimple(title,breadcrumb,pct,gate,trackTitle,trackStatus,taskTitle,taskStatus,assignee,due,blocker){
+  const nodes={}; const put=x=>nodes[x.id]=x;
+  put({id:'root',kind:'root',parentIds:[],title});
+  put(n_({id:'trk1',isTrack:true,title:trackTitle,status:trackStatus,parentIds:['root']}));
+  put(n_({id:'x1',title:taskTitle,status:taskStatus,assignee,due,blocker,parentIds:['trk1']}));
+  put(art('ax1','x1', taskStatus==='DONE'?'PR merged':'Chờ bàn giao'));
+  return {title,breadcrumb,pct,gate,nodes};
+}
+const TREES={
+ p2a:{title:'Phase 2A: Auth Module',breadcrumb:'Dự án Marketing Q4 › Phase 2A · Cụm Xác thực (Auth Group)',pct:70,gate:{prLink:'#142',prMerged:true,swagger:''},nodes:seedP2A()},
+ p1:seedSimple('Phase 1: Foundation','Dự án Marketing Q4 › Phase 1 · Nền tảng',100,{prLink:'#128',prMerged:true,swagger:''},'Track: Kiến trúc & DB','DONE','Core DB Schema','DONE','Sarah Chen','2026-09-14','Không có'),
+ p2b:seedSimple('Phase 2B: Cart Module','Dự án Marketing Q4 › Phase 2B · Cụm Giỏ hàng',0,{prLink:null,prMerged:false,swagger:''},'Track: Giỏ hàng','TODO','Thiết kế Cart Schema','TODO','Alex Kim','2026-10-10','Chờ Phase 1 bàn giao'),
+ p3:seedSimple('Phase 3: Tích hợp Toàn hệ thống','Dự án Marketing Q4 › Phase 3 · Tích hợp',0,{prLink:null,prMerged:false,swagger:''},'Track: Tích hợp','LOCKED','Test Tích hợp Toàn hệ thống','LOCKED','Marcus Liu','2026-10-25','Chờ Phase 2A & 2B')
+};
+TREES.p2b.nodes.x2=n_({id:'x2',title:'Thiết kế Payment Flow',status:'TODO',assignee:'Marcus Liu',due:'2026-10-14',parentIds:['trk1']});
+
+const ST={DONE:{c:'text-emerald-600 bg-emerald-50 border-emerald-200',bd:'border-emerald-300',lbl:'Done'},
+IN_PROGRESS:{c:'text-blue-600 bg-blue-50 border-blue-200',bd:'border-blue-300',lbl:'In progress'},
+TODO:{c:'text-sky-600 bg-sky-50 border-sky-200',bd:'border-sky-300',lbl:'To do'},
+LOCKED:{c:'text-slate-400 bg-slate-100 border-slate-200',bd:'border-slate-200',lbl:'Locked'}};
+const EDGE={DONE:'#6ee7b7',IN_PROGRESS:'#93c5fd',TODO:'#7dd3fc',LOCKED:'#cbd5e1'};
+const STATUS_LBL={TODO:'TODO',IN_PROGRESS:'IN PROGRESS',DONE:'DONE',LOCKED:'LOCKED'};
+const PHASE_LABEL={p1:'Phase 1: Nền tảng',p2a:'Phase 2A: Auth',p2b:'Phase 2B: Giỏ hàng',p3:'Phase 3: Tích hợp'};
+
+/* ---------- Ghost Node (proxy tới task của Phase khác) ---------- */
+const isLaneGhost=n=>n.kind==='ghost'&&n.parentIds[0]==='root'; // Ghost tiền đề → ghim vào Ghost Lane
+function ghostNode(id,parentIds,refPhase,refId,dir){ return {id,kind:'ghost',parentIds,refPhase,refId,dir,title:'',joinPolicy:null}; }
+const pctOf=n=>n.status==='DONE'?100:(typeof n.progress==='number'?n.progress:(n.status==='IN_PROGRESS'?null:0));
+function ghostInfo(trees,g){ // trạng thái LIVE từ Phase gốc
+  const src=trees[g.refPhase]&&trees[g.refPhase].nodes[g.refId];
+  return {title:src?src.title:'(Task gốc đã bị xóa)',status:src?src.status:'LOCKED',pct:src?pctOf(src):null,phase:PHASE_LABEL[g.refPhase]||g.refPhase,missing:!src};
+}
+// AND/OR-join với Ghost cha: chưa thỏa → task TODO/IN_PROGRESS tự LOCKED; thỏa → task bị khóa-do-ghost tự mở về TODO.
+function applyGhostGates(trees){
+  let out=trees;
+  Object.keys(trees).forEach(pid=>{
+    const nodes=trees[pid].nodes; let nn=nodes;
+    Object.values(nodes).forEach(n=>{
+      if(n.kind!=='branch') return;
+      const gs=n.parentIds.map(p=>nodes[p]).filter(p=>p&&p.kind==='ghost'); if(!gs.length) return;
+      const done=g=>ghostInfo(trees,g).status==='DONE';
+      const ok=n.joinPolicy==='OR'?gs.some(done):gs.every(done); let patch=null;
+      if(!ok&&(n.status==='TODO'||n.status==='IN_PROGRESS')) patch={status:'LOCKED',lockedByGhost:true,blocker:'Chờ Ghost Node (Phase khác) hoàn tất'};
+      else if(ok&&n.status==='LOCKED'&&n.lockedByGhost) patch={status:'TODO',lockedByGhost:false,blocker:'Không có'};
+      if(patch){ if(nn===nodes) nn={...nodes}; nn[n.id]={...n,...patch}; }
+    });
+    if(nn!==nodes){ if(out===trees) out={...trees}; out[pid]={...trees[pid],nodes:nn}; }
+  });
+  return out;
+}
+
+/* ---------- Graph helpers ---------- */
+// childrenOf: ANY parent match (used for cycle-check + drag-connect semantics — a merge edge
+// still counts as a real dependency even though it doesn't affect this node's tree position).
+function childrenOf(nodes,id){ return Object.values(nodes).filter(n=>n.parentIds.includes(id)); }
+function isAncestor(nodes,targetId,sourceId){ // path targetId -> ... -> sourceId ?
+  const queue=[targetId], seen=new Set([targetId]);
+  while(queue.length){ const cur=queue.shift(); if(cur===sourceId) return true;
+    for(const c of childrenOf(nodes,cur)){ if(!seen.has(c.id)){ seen.add(c.id); queue.push(c.id); } } }
+  return false;
+}
+// Layout uses a SPANNING TREE: each node's on-screen position/subtree membership is driven only
+// by its PRIMARY parent (parentIds[0]). Extra parents (index 1+, added via drag-connect or
+// multi-select merge) never affect layout — they only draw an extra converging Bézier edge.
+// This is what makes sibling groups push down correctly: a node's vertical footprint is the
+// full recursive height of its primary-children, computed bottom-up before anything is placed.
+function primaryParentOf(nodes,id){ const n=nodes[id]; return n&&n.parentIds.length?n.parentIds[0]:null; }
+function childrenOfPrimary(nodes,id){ return Object.values(nodes).filter(n=>primaryParentOf(nodes,n.id)===id); }
+function computeVisible(nodes,collapsed){
+  const cache={};
+  function vis(id){ if(id in cache) return cache[id];
+    if(id==='root'){ cache[id]=true; return true; }
+    const p=primaryParentOf(nodes,id);
+    const r = p? (vis(p)&&!collapsed.has(p)) : false; cache[id]=r; return r; }
+  Object.keys(nodes).forEach(vis); return cache;
+}
+function deleteNodeCascade(nodes,id){
+  let next={...nodes}; const removed=new Set([id]); let changed=true;
+  while(changed){ changed=false;
+    Object.keys(next).forEach(k=>{ if(removed.has(k)) return;
+      const f=next[k].parentIds.filter(p=>!removed.has(p));
+      if(f.length!==next[k].parentIds.length) next[k]={...next[k],parentIds:f}; });
+    Object.keys(next).forEach(k=>{ if(k!=='root'&&!removed.has(k)&&next[k].parentIds.length===0){ removed.add(k); changed=true; } });
+  }
+  removed.forEach(r=>delete next[r]); return next;
+}
+
+/* ---------- Layout: recursive flex (no manual pixel math) ---------- */
+// Mỗi nhánh = 1 hàng flex [Card cha] ──> [Cột con]. Chiều cao hàng = max(card thật, tổng cột con),
+// nên cụm anh em phía dưới luôn bị đẩy xuống theo chiều cao THỰC của DOM (kể cả title xuống dòng, badge, input edit).
+const GAP_X=56;
+const W={track:180,task:220,artifact:172,root:190,ghost:220};
+
+/* ---------- Inline-editable title ---------- */
+function EditableTitle({title,editing,value,onChange,onCommit,onCancel,cls}){
+  const ref=useRef(null);
+  useEffect(()=>{ if(editing&&ref.current){ ref.current.focus(); ref.current.select(); } },[editing]);
+  if(!editing) return h('div',{className:cls},title||'—');
+  return h('input',{ref,value,onChange:e=>onChange(e.target.value),
+    onKeyDown:e=>{ if(e.key==='Enter') onCommit(); if(e.key==='Escape') onCancel(); },
+    onBlur:onCommit,placeholder:'Tên tác vụ mới…',onClick:e=>e.stopPropagation(),onMouseDown:e=>e.stopPropagation(),onDoubleClick:e=>e.stopPropagation(),
+    className:'w-full text-[12px] font-semibold text-slate-800 bg-white border-2 border-blue-400 rounded px-1.5 py-0.5 outline-none'});
+}
+
+/* ---------- Node card ---------- */
+function BranchCard({chips,n,edit,merge,selectedId,setSelected,onSpawnDown,onDelete,onToggle,hasChildren,open}){
+  const isTrack=n.isTrack, s=ST[n.status]||ST.TODO, editingThis=edit.id===n.id, selected=selectedId===n.id;
+  const inMerge=!isTrack&&merge.selection.has(n.id), pCount=n.parentIds.length;
+  return h('div',{'data-node-id':n.id,'data-parents':n.parentIds.join(','),'data-primary':n.parentIds[0]||'','data-status':n.status,style:{width:isTrack?W.track:W.task},
+    className:'group relative shrink-0 rounded-xl bg-white border shadow-sm transition-colors '+(isTrack?'px-3 py-2.5':'p-2.5 cursor-pointer')+' '+
+      (inMerge?'border-amber-300 ring-2 ring-amber-100':selected?'border-indigo-300 ring-2 ring-indigo-100':s.bd+' hover:shadow-md'),
+    onClick:isTrack?undefined:e=>{ if(performance.now()<suppressClickUntil) return;
+      if(e.target.closest('button,input,textarea')) return; // chỉ thân thẻ mới mở Node Properties
+      if(e.shiftKey) merge.toggle(n.id); else setSelected(n.id); }},
+    hasChildren&&h('button',{onClick:e=>{e.stopPropagation();onToggle();},
+      className:'absolute -left-2.5 top-1/2 -translate-y-1/2 grid place-items-center w-5 h-5 rounded-full border border-slate-300 bg-white text-slate-500 hover:bg-slate-100 z-10'},
+      h(I,{p:open?'minus':'plus',s:10})),
+    !isTrack&&h('button',{onClick:e=>{e.stopPropagation();merge.toggle(n.id);},title:'Chọn để hội tụ',
+      className:'absolute -top-2 -left-2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-5 h-5 rounded-full bg-white border '+(inMerge?'border-amber-400 text-amber-500 opacity-100':'border-slate-300 text-slate-300')+' z-10'},
+      h(I,{p:'check',s:10})),
+    h('button',{onClick:e=>{e.stopPropagation();onDelete();},title:'Xóa',
+      className:'absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-5 h-5 rounded-full bg-white border border-slate-300 text-slate-400 hover:text-rose-500 hover:border-rose-300 z-10'},
+      h(I,{p:'trash',s:10})),
+    h('button',{onMouseDown:e=>onSpawnDown(e,n.id),onClick:e=>{e.stopPropagation();e.preventDefault();},title:'Kéo để nối cha khác · Click để tạo con',
+      className:'absolute -right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-6 h-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 shadow z-10 cursor-grab active:cursor-grabbing'},
+      h(I,{p:'plus',s:13})),
+    h('div',{className:'flex items-center justify-between gap-2'},
+      h('span',{className:'inline-flex items-center gap-1 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 border '+s.c},
+        n.status==='LOCKED'&&h(I,{p:'lock',s:9}),s.lbl),
+      !isTrack&&n.assignee&&h('span',{style:{width:18,height:18},className:'rounded-full bg-gradient-to-br from-slate-300 to-slate-400 text-white text-[8px] font-bold grid place-items-center'},n.assignee[0])),
+    pCount>=2&&h('button',{onClick:e=>{e.stopPropagation();merge.toggleJoin(n.id);},title:'Đổi AND/OR',
+      className:'mt-1 inline-flex items-center gap-1 text-[8.5px] font-bold text-purple-600 bg-purple-50 border border-purple-200 rounded-full px-1.5 py-0.5'},
+      h(I,{p:'merge',s:9}),(n.joinPolicy||'AND')+'-Join · '+pCount+' prerequisites'),
+    h('div',{onDoubleClick:e=>{e.stopPropagation();edit.start(n.id,n.title,false);},className:'mt-1.5'},
+      h(EditableTitle,{title:n.title,editing:editingThis,value:edit.value,onChange:edit.setValue,onCommit:edit.commit,onCancel:edit.cancel,
+        cls:isTrack?'text-[12px] font-semibold text-slate-800 leading-tight':'text-[12px] font-semibold text-slate-800 leading-snug'})),
+    typeof n.progress==='number'&&h('div',{className:'mt-1.5'},
+      h('div',{className:'h-1 rounded-full bg-slate-100 overflow-hidden'},h('div',{className:'h-full rounded-full bg-blue-400',style:{width:n.progress+'%'}})),
+      h('div',{className:'text-[9px] text-slate-400 mt-0.5'},n.progress+'%')),
+    chips);
+}
+
+/* ---------- Mindmap: recursive flex tree + Bézier đo từ DOM thật ---------- */
+function TreeBranch({id,ctx}){
+  const {nodes,collapsed,toggle,selectedId,setSelected,edit,mutate,merge,connect,ghostApi,focus}=ctx;
+  const n=nodes[id];
+  const allKids=childrenOfPrimary(nodes,id).filter(k=>!isLaneGhost(k));
+  const kids=collapsed.has(id)?[]:allKids;
+  const par=(isLaneGhost(n)?n.parentIds.filter(p=>p!=='root'):n.parentIds).join(','), prim=isLaneGhost(n)?'':(n.parentIds[0]||'');
+  const chips=(n.kind==='branch'||n.kind==='ghost')?h(Chips,{id,nodes,trees:ghostApi.trees,focus}):null;
+  let card;
+  if(n.kind==='root') card=h('div',{'data-node-id':'root',style:{width:W.root},
+    className:'relative shrink-0 rounded-2xl bg-indigo-900 text-white shadow-lg px-4 py-3'},
+    h('div',{className:'text-[10px] uppercase tracking-widest text-indigo-300 font-bold'},'Root'),
+    h('div',{className:'text-sm font-semibold mt-0.5 leading-snug'},n.title));
+  else if(n.kind==='artifact') card=h('div',{'data-node-id':id,'data-parents':par,'data-primary':prim,style:{width:W.artifact},
+    className:'relative shrink-0 rounded-md border border-dashed border-slate-300 bg-slate-50 text-slate-500 text-[10.5px] px-2 py-1 flex items-center gap-1.5'},
+    h('span',{className:'text-emerald-400'},h(I,{p:'check',s:11})),h('span',{className:'truncate'},n.title));
+  else if(n.kind==='ghost') card=h(GhostCard,{n,par,prim,chips,gi:ghostInfo(ghostApi.trees,n),connect,onDelete:()=>mutate.remove(id),onOpen:r=>ghostApi.openInfo(id,r)});
+  else card=h(BranchCard,{chips,n,edit,merge,selectedId,setSelected,onToggle:()=>toggle(id),
+    hasChildren:allKids.length>0,open:!collapsed.has(id),onDelete:()=>mutate.remove(id),
+    onSpawnDown:(e,srcId)=>connect.startDrag(e,srcId,pos=>{
+      const child=n_({id:uid(),title:'',status:n.status==='DONE'?'TODO':'LOCKED',parentIds:[srcId]});
+      mutate.add(child); edit.start(child.id,'',true); if(collapsed.has(srcId)) toggle(srcId);
+      ghostApi.openChip(srcId,pos);
+    })});
+  const colGap=kids.length&&kids.every(k=>k.kind==='artifact')?'gap-y-1.5':(id==='root'?'gap-y-5':'gap-y-3');
+  return h('div',{className:'flex items-center shrink-0',style:{gap:GAP_X}},
+    card,
+    kids.length>0&&h('div',{className:'flex flex-col items-start '+colGap},
+      kids.map(k=>h(TreeBranch,{key:k.id,id:k.id,ctx}))));
+}
+
+function MindmapTree({nodes,collapsed,toggle,selectedId,setSelected,edit,mutate,merge,connect,ghostApi}){
+  const wrapRef=useRef(null),svgRef=useRef(null),topRef=useRef(null),hoverRef=useRef(null),posRef=useRef(new Map()),rafRef=useRef(0);
+  const fx=useRef({}), focus={enter:(a,b)=>fx.current.enter(a,b),leave:()=>fx.current.leave(),go:a=>fx.current.go(a)};
+  const ctx={nodes,collapsed,toggle,selectedId,setSelected,edit,mutate,merge,connect,ghostApi,focus};
+
+  // Vẽ cạnh từ bounding box thực của DOM. Idle: chỉ dây trực tiếp cha→con (nằm gọn trong rãnh giữa 2 cột).
+  // Dây xuyên track/Ghost KHÔNG vẽ (đã có chip); chỉ hiện thành "tia định vị" khi hover node/chip.
+  const drawEdges=()=>{
+    const wrap=wrapRef.current,svg=svgRef.current,top=topRef.current; if(!wrap||!svg||!top) return;
+    const wr=wrap.getBoundingClientRect(),els=[...wrap.querySelectorAll('[data-node-id]')],R={};
+    els.forEach(el=>{const r=el.getBoundingClientRect(); R[el.dataset.nodeId]={l:r.left-wr.left,r:r.right-wr.left,cy:(r.top+r.bottom)/2-wr.top,g:el.dataset.ghost==='1'};});
+    const hv=hoverRef.current, H=hv&&R[hv.id]?hv.id:null, T=H&&hv.target&&R[hv.target]?hv.target:null, rel={};
+    if(H) rel[H]='self';
+    let dim='',lit='',beam='';
+    els.forEach(el=>{ const ps=el.dataset.parents; if(!ps) return; const cid=el.dataset.nodeId,c=R[cid];
+      ps.split(',').forEach(pid=>{ const p=R[pid]; if(!p) return;
+        const direct=el.dataset.primary===pid, gh=p.g||c.g; let mode=null;
+        if(H){ if(T){ if(cid===H&&pid===T) mode='up'; else if(pid===H&&cid===T) mode='down'; }
+               else if(cid===H) mode='up'; else if(pid===H) mode='down'; }
+        if(mode){ const k=mode==='up'?pid:cid; if(!rel[k]) rel[k]=mode; }
+        if(!direct&&!mode) return;
+        const dx=Math.max((c.l-p.r)*.5,48), d='M'+p.r+' '+p.cy+' C'+(p.r+dx)+' '+p.cy+' '+(c.l-dx)+' '+c.cy+' '+c.l+' '+c.cy;
+        if(mode){ const up=mode==='up';
+          const path='<path d="'+d+'" fill="none" stroke="'+(up?'#2563eb':'#10b981')+'" stroke-width="2.5" stroke-linecap="round"'+(direct?'':' stroke-dasharray="6 4"')+' style="filter:drop-shadow(0 0 3px '+(up?'rgba(37,99,235,.65)':'rgba(16,185,129,.65)')+')"/>';
+          if(direct) lit+=path; else beam+=path; }
+        else dim+='<path d="'+d+'" fill="none" stroke="'+(gh?'#a5a3d4':'#cbd5e1')+'" stroke-width="1.5"'+(gh?' stroke-dasharray="4 4"':'')+(H?' opacity=".06"':'')+'/>';
+      }); });
+    els.forEach(el=>{ const r=rel[el.dataset.nodeId]; if(r) el.dataset.rel=r; else delete el.dataset.rel; });
+    [[svg,dim+lit],[top,beam]].forEach(([e,html])=>{ e.setAttribute('width',wr.width); e.setAttribute('height',wr.height); e.innerHTML=html; });
+  };
+  fx.current={
+    enter:(id,target)=>{ hoverRef.current={id,target}; drawEdges(); },
+    leave:()=>{ if(hoverRef.current){ hoverRef.current={id:hoverRef.current.id}; drawEdges(); } },
+    go:id=>{ const el=wrapRef.current&&wrapRef.current.querySelector('[data-node-id="'+id+'"]'); if(!el) return;
+      el.scrollIntoView({behavior:'smooth',block:'center',inline:'center'}); el.dataset.flash='1'; setTimeout(()=>{ delete el.dataset.flash; },1300); }
+  };
+
+  // Sau mỗi lần render: FLIP (card cũ trượt mượt tới vị trí mới, card mới fade-in) + cạnh bám theo từng frame.
+  React.useLayoutEffect(()=>{
+    const wrap=wrapRef.current; if(!wrap) return;
+    const els=[...wrap.querySelectorAll('[data-node-id]')];
+    els.forEach(el=>el.getAnimations().forEach(a=>a.cancel()));
+    const wr=wrap.getBoundingClientRect(),prev=posRef.current,next=new Map();
+    els.forEach(el=>{const r=el.getBoundingClientRect(),id=el.dataset.nodeId,x=r.left-wr.left,y=r.top-wr.top; next.set(id,{x,y});
+      const o=prev.get(id);
+      if(o&&(Math.abs(o.x-x)>1||Math.abs(o.y-y)>1)) el.animate([{transform:'translate('+(o.x-x)+'px,'+(o.y-y)+'px)'},{transform:'none'}],{duration:300,easing:'cubic-bezier(.2,.7,.2,1)'});
+      else if(!o&&prev.size) el.animate([{opacity:0,transform:'scale(.92)'},{opacity:1,transform:'none'}],{duration:250,easing:'ease-out'});});
+    posRef.current=next;
+    drawEdges();
+    cancelAnimationFrame(rafRef.current); const t0=performance.now();
+    const tick=()=>{drawEdges(); if(performance.now()-t0<340) rafRef.current=requestAnimationFrame(tick);};
+    rafRef.current=requestAnimationFrame(tick);
+    const ro=new ResizeObserver(drawEdges); ro.observe(wrap); els.forEach(el=>ro.observe(el));
+    return ()=>{ro.disconnect(); cancelAnimationFrame(rafRef.current);};
+  });
+
+  const lane=Object.values(nodes).filter(isLaneGhost);
+  return h('div',{ref:wrapRef,className:'relative w-max',
+    onMouseOver:e=>{ const el=e.target.closest&&e.target.closest('[data-node-id]'), id=el?el.dataset.nodeId:null;
+      if((hoverRef.current&&hoverRef.current.id)===id) return; hoverRef.current=id?{id}:null; drawEdges(); },
+    onMouseLeave:()=>{ if(hoverRef.current){ hoverRef.current=null; drawEdges(); } }},
+    h('svg',{ref:svgRef,className:'absolute left-0 top-0 pointer-events-none overflow-visible'}),
+    h('div',{className:'relative flex items-start',style:{gap:GAP_X}},
+      lane.length>0&&h('div',{className:'shrink-0 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/30 px-3 pt-3 pb-4',style:{width:W.ghost+24}},
+        h('div',{className:'text-[9.5px] font-bold tracking-widest text-indigo-400 mb-4'},'GHOST LANE · TIỀN ĐỀ PHASE KHÁC'),
+        h('div',{className:'flex flex-col gap-y-4'},lane.map(g=>h(TreeBranch,{key:g.id,id:g.id,ctx})))),
+      h('div',null,
+      h(TreeBranch,{id:'root',ctx}),
+      h('div',{className:'mt-5 flex flex-col items-start gap-2',style:{marginLeft:W.root+GAP_X}},
+        h('button',{onClick:()=>{const t=n_({id:uid(),isTrack:true,title:'',status:'TODO',parentIds:['root']}); mutate.add(t); edit.start(t.id,'',true);},
+          style:{width:W.track},
+          className:'px-3 py-2.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-400 hover:text-slate-600 rounded-xl border border-dashed border-slate-300 bg-white/60 hover:bg-slate-50'},
+          h(I,{p:'plus',s:12}),'Thêm Track chức năng mới'),
+        h('button',{onClick:e=>{const r=e.currentTarget.getBoundingClientRect(); ghostApi.openPicker(null,{x:r.left,y:r.bottom+6});},
+          className:'px-3 py-2.5 flex items-center gap-1.5 text-[11px] font-medium text-indigo-500 hover:text-indigo-700 rounded-xl border-2 border-dashed border-indigo-300/80 bg-white/60 hover:bg-indigo-50/60'},
+          h(I,{p:'link2',s:12}),'Thêm Ghost Node (Tham chiếu Phase khác)')))),
+    h('svg',{ref:topRef,className:'absolute left-0 top-0 pointer-events-none overflow-visible z-20'}));
+}
+
+/* ---------- Node Properties modal ---------- */
+const STATUS_OPTS=[{value:'TODO',label:'TODO',dot:'bg-sky-400'},{value:'IN_PROGRESS',label:'IN PROGRESS',dot:'bg-blue-500'},
+ {value:'DONE',label:'DONE',dot:'bg-emerald-500'},{value:'LOCKED',label:'LOCKED',icon:'lock'}];
+const PEOPLE_OPTS=['Jamie Doe','Alex Kim','Marcus Liu','Sarah Chen','Unassigned'].map(p=>({value:p,label:p}));
+const INPUT='w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
+
+function Select({value,options,onChange,icon}){
+  const [open,setOpen]=useState(false),ref=useRef(null);
+  useEffect(()=>{ if(!open) return;
+    const f=e=>{ if(ref.current&&!ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown',f); return ()=>document.removeEventListener('mousedown',f); },[open]);
+  const pre=o=>o.icon?h('span',{className:'text-slate-500 shrink-0'},h(I,{p:o.icon,s:13})):
+    o.dot?h('span',{className:'w-2.5 h-2.5 rounded-full shrink-0 '+o.dot}):
+    icon?h('span',{className:'text-slate-400 shrink-0'},h(I,{p:icon,s:14})):null;
+  const cur=options.find(o=>o.value===value)||options[0];
+  return h('div',{ref,className:'relative'},
+    h('button',{type:'button',onClick:()=>setOpen(o=>!o),
+      className:'w-full flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-[13px] text-slate-700 text-left transition-colors '+(open?'border-blue-400 ring-2 ring-blue-100':'border-slate-200 hover:border-slate-300')},
+      pre(cur),h('span',{className:'flex-1 truncate'},cur.label),h('span',{className:'text-slate-400 shrink-0'},h(I,{p:'down',s:14}))),
+    open&&h('div',{className:'absolute z-20 left-0 right-0 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg py-1 max-h-56 overflow-auto'},
+      options.map(o=>h('button',{key:o.value,type:'button',onClick:()=>{onChange(o.value);setOpen(false);},
+        className:'w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left hover:bg-slate-50 '+(o.value===value?'bg-blue-50 text-blue-700 font-medium':'text-slate-700')},
+        pre(o),h('span',{className:'flex-1 truncate'},o.label),o.value===value&&h(I,{p:'check',s:13})))));
+}
+const Field=({label,children})=>h('div',null,h('label',{className:'block text-[12px] font-semibold text-slate-600 mb-1.5'},label),children);
+
+function NodeProperties({node,onClose,onSave,onDelete}){
+  const [d,setD]=useState({title:node.title,assignee:node.assignee||'Unassigned',status:node.status,due:node.due||'',
+    join:node.joinPolicy==='OR'?'ANY':'ALL',desc:node.description||''});
+  const [confirm,setConfirm]=useState(false);
+  const set=(k,v)=>setD(o=>({...o,[k]:v}));
+  useEffect(()=>{ const f=e=>{ if(e.key==='Escape') onClose(); };
+    window.addEventListener('keydown',f); return ()=>window.removeEventListener('keydown',f); },[]);
+  const save=()=>{ const st=d.status;
+    onSave({title:d.title.trim()||node.title,assignee:d.assignee==='Unassigned'?null:d.assignee,status:st,due:d.due||null,
+      joinPolicy:d.join==='ANY'?'OR':'AND',description:d.desc,
+      progress:typeof node.progress==='number'?(st==='DONE'?100:(st==='TODO'||st==='LOCKED'?undefined:node.progress)):undefined}); };
+  const radio=(v,label,sub)=>h('label',{key:v,className:'flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition-colors '+(d.join===v?'border-indigo-300 bg-indigo-50/60':'border-slate-200 hover:bg-slate-50')},
+    h('input',{type:'radio',name:'join-'+node.id,checked:d.join===v,onChange:()=>set('join',v),className:'mt-0.5 accent-indigo-600'}),
+    h('div',null,h('div',{className:'text-[12.5px] font-semibold '+(d.join===v?'text-indigo-700':'text-slate-700')},label),
+      h('div',{className:'text-[11px] text-slate-400 mt-0.5'},sub)));
+  return h('div',{className:'fixed inset-0 z-50 grid place-items-center p-4 bg-slate-900/30',onMouseDown:e=>{ if(e.target===e.currentTarget) onClose(); }},
+    h('div',{className:'w-full max-w-md max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200'},
+      h('div',{className:'flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0'},
+        h('h3',{className:'text-[15px] font-bold text-slate-800'},'Node Properties'),
+        h('button',{onClick:onClose,title:'Đóng',className:'grid place-items-center w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600'},h(I,{p:'x',s:18}))),
+      h('div',{className:'flex-1 overflow-auto px-5 py-4 space-y-4'},
+        h(Field,{label:'Task Name'},h('input',{value:d.title,onChange:e=>set('title',e.target.value),onKeyDown:e=>{ if(e.key==='Enter') save(); },placeholder:'Build UI Library',className:INPUT})),
+        h(Field,{label:'Node ID'},h('input',{value:node.code,readOnly:true,disabled:true,className:'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-500 font-mono cursor-not-allowed'})),
+        h(Field,{label:'Assignee'},h(Select,{value:d.assignee,options:PEOPLE_OPTS,onChange:v=>set('assignee',v),icon:'user'})),
+        h(Field,{label:'Status'},h(Select,{value:d.status,options:STATUS_OPTS,onChange:v=>set('status',v)}),node.lockedByGhost&&h('div',{className:'mt-1.5 text-[11px] text-amber-600'},'Đang bị khóa tự động: chờ Ghost Node (Phase khác) hoàn tất.')),
+        h(Field,{label:'Deadline'},h('div',{className:'relative'},
+          h('span',{className:'absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none'},h(I,{p:'cal',s:14})),
+          h('input',{type:'date',value:d.due,onChange:e=>set('due',e.target.value),className:INPUT+' pl-9'}))),
+        h(Field,{label:'Join Logic'},h('div',{className:'space-y-2'},
+          radio('ALL','ALL COMPLETED','All upstream nodes must complete'),
+          radio('ANY','ANY COMPLETED','Only one upstream node needs to complete'))),
+        h(Field,{label:'Description'},h('textarea',{rows:4,value:d.desc,onChange:e=>set('desc',e.target.value),
+          placeholder:'Build reusable components, state management, and design tokens...',className:INPUT+' resize-none leading-relaxed'}))),
+      h('div',{className:'flex items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-200 bg-slate-50/60 rounded-b-2xl shrink-0'},
+        h('button',{onClick:()=>confirm?onDelete():setConfirm(true),onBlur:()=>setConfirm(false),
+          className:'flex items-center gap-1.5 text-[12.5px] font-semibold rounded-lg px-3 py-2 transition-colors '+(confirm?'bg-rose-500 text-white hover:bg-rose-600':'text-rose-500 bg-rose-50 hover:bg-rose-100')},
+          h(I,{p:'trash',s:13}),confirm?'Xác nhận xóa?':'Delete Node'),
+        h('button',{onClick:save,className:'text-[12.5px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-2 shadow-sm'},'Save Changes'))));
+}
+
+/* ---------- Ghost card / popovers ---------- */
+function GhostCard({n,gi,par,prim,chips,connect,onDelete,onOpen}){
+  const s=ST[gi.status]||ST.TODO;
+  return h('div',{'data-node-id':n.id,'data-parents':par,'data-primary':prim,'data-status':gi.status,'data-ghost':'1',style:{width:W.ghost},
+    onClick:e=>{ if(performance.now()<suppressClickUntil) return; if(e.target.closest('button')) return; onOpen(e.currentTarget.getBoundingClientRect()); },
+    className:'group relative shrink-0 rounded-xl border-2 border-dashed border-indigo-300/80 bg-slate-50/70 backdrop-blur-[1px] px-2.5 pt-4 pb-2.5 cursor-pointer hover:bg-indigo-50/60 transition-colors'},
+    h('span',{className:'absolute -top-2.5 left-2 max-w-[calc(100%-2.5rem)] truncate text-[9px] font-bold tracking-wide text-indigo-500 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5'},'[GHOST · '+gi.phase+']'),
+    h('button',{onClick:e=>{e.stopPropagation();onDelete();},title:'Xóa Ghost Node',
+      className:'absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-5 h-5 rounded-full bg-white border border-slate-300 text-slate-400 hover:text-rose-500 hover:border-rose-300 z-10'},h(I,{p:'trash',s:10})),
+    h('button',{onMouseDown:e=>connect.startDrag(e,n.id,()=>{}),onClick:e=>{e.stopPropagation();e.preventDefault();},title:'Kéo sang Task nội bộ để nối phụ thuộc',
+      className:'absolute -right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-6 h-6 rounded-full bg-indigo-400 text-white hover:bg-indigo-500 shadow z-10 cursor-grab active:cursor-grabbing'},h(I,{p:'plus',s:13})),
+    h('div',{className:'flex items-center justify-between gap-2'},
+      h('span',{className:'inline-flex items-center gap-1 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 border '+s.c},
+        gi.status==='LOCKED'&&h(I,{p:'lock',s:9}),STATUS_LBL[gi.status]+(gi.pct!=null?' · '+gi.pct+'%':'')),
+      h('span',{className:'text-indigo-400'},h(I,{p:'ext',s:12}))),
+    h('div',{className:'mt-1.5 flex items-start gap-1.5'},
+      h('span',{className:'text-indigo-400 mt-0.5 shrink-0'},h(I,{p:'link2',s:12})),
+      h('div',{className:'text-[12px] font-semibold leading-snug '+(gi.missing?'text-rose-500 italic':'text-slate-700')},gi.title)),
+    chips);
+}
+function Chips({id,nodes,trees,focus}){ // Dependency Portals thay cho dây xuyên track
+  const items=[], nm=x=>x.kind==='ghost'?ghostInfo(trees,x).title:(x.title||'(chưa đặt tên)');
+  nodes[id].parentIds.slice(1).forEach(pid=>{ const p=nodes[pid]; if(p&&p.kind!=='root') items.push({t:'pre',id:pid,label:nm(p)}); });
+  Object.values(nodes).forEach(x=>{ if(x.kind!=='artifact'&&x.parentIds.includes(id)&&x.parentIds[0]!==id) items.push({t:'post',id:x.id,label:nm(x)}); });
+  if(!items.length) return null;
+  const shown=items.slice(0,3), more=items.length-shown.length;
+  return h('div',{className:'mt-2 flex flex-wrap gap-1'},
+    shown.map(it=>{ const pre=it.t==='pre', txt=(pre?'Chờ: ':'Mở khóa: ')+it.label;
+      return h('button',{key:it.t+it.id,type:'button',title:txt+' — hover: tia định vị · click: cuộn tới',
+        onMouseEnter:()=>focus.enter(id,it.id),onMouseLeave:()=>focus.leave(),onClick:e=>{ e.stopPropagation(); focus.go(it.id); },
+        className:'inline-flex items-center gap-1 max-w-full text-[9.5px] font-medium rounded-full border px-1.5 py-0.5 transition-colors '+(pre?'bg-violet-50 text-violet-600 border-violet-200 hover:bg-violet-100':'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100')},
+        h(I,{p:pre?'anchor':'zap',s:9,c:'shrink-0'}),h('span',{className:'truncate'},txt)); }),
+    more>0&&h('span',{className:'text-[9.5px] text-slate-400 self-center'},'+'+more));
+}
+function Popover({x,y,w,onClose,children}){
+  const ref=useRef(null);
+  useEffect(()=>{ const f=e=>{ if(ref.current&&!ref.current.contains(e.target)) onClose(); }, k=e=>{ if(e.key==='Escape') onClose(); };
+    document.addEventListener('mousedown',f); window.addEventListener('keydown',k);
+    return ()=>{ document.removeEventListener('mousedown',f); window.removeEventListener('keydown',k); }; },[]);
+  const left=Math.max(8,Math.min(x,window.innerWidth-w-8)), top=Math.max(8,Math.min(y,window.innerHeight-380));
+  return h('div',{ref,style:{position:'fixed',left,top,width:w},className:'z-50 rounded-xl bg-white border border-slate-200 shadow-2xl p-3'},children);
+}
+function GhostInfo({gi,onOpen}){
+  const s=ST[gi.status]||ST.TODO;
+  return h('div',{className:'space-y-2.5'},
+    h('div',{className:'flex items-center gap-1.5 text-[10px] font-bold tracking-wide text-indigo-500'},h(I,{p:'link2',s:12}),'GHOST NODE · READ-ONLY'),
+    h('div',{className:'text-[13px] font-semibold text-slate-800 leading-snug'},gi.title),
+    h('div',{className:'text-[12px] text-slate-500'},'Task gốc thuộc: ',h('span',{className:'font-semibold text-slate-700'},gi.phase.replace(': ',' · '))),
+    h('div',{className:'flex items-center gap-2 text-[12px] text-slate-500'},'Trạng thái hiện tại:',
+      h('span',{className:'text-[10px] font-bold rounded-full px-2 py-0.5 border '+s.c},STATUS_LBL[gi.status]+(gi.pct!=null?' ('+gi.pct+'%)':''))),
+    h('div',{className:'text-[11px] text-slate-400'},'Tên và Deadline do Phase gốc quản lý — không thể chỉnh sửa tại đây.'),
+    h('button',{onClick:onOpen,className:'w-full text-[12px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg px-3 py-2'},'Mở Phase gốc để xem chi tiết ↗'));
+}
+function GhostPicker({trees,currentPhase,anchor,onConfirm,onClose}){
+  const phases=Object.keys(PHASE_LABEL).filter(p=>p!==currentPhase&&trees[p]);
+  const tasksOf=p=>Object.values(trees[p].nodes).filter(n=>n.kind==='branch'&&!n.isTrack&&n.title);
+  const [ph,setPh]=useState(phases[0]),[task,setTask]=useState((tasksOf(phases[0])[0]||{}).id),[dir,setDir]=useState('up');
+  const tOpts=tasksOf(ph).map(n=>({value:n.id,label:n.title+' ('+STATUS_LBL[n.status]+')'}));
+  const dirBtn=(v,label)=>h('label',{key:v,className:'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer text-[11.5px] '+(dir===v?'border-indigo-300 bg-indigo-50/60 text-indigo-700 font-medium':'border-slate-200 text-slate-600 hover:bg-slate-50')},
+    h('input',{type:'radio',name:'gdir',checked:dir===v,onChange:()=>setDir(v),className:'mt-0.5 accent-indigo-600'}),h('span',null,label));
+  return h('div',{className:'space-y-3'},
+    h('div',{className:'flex items-center gap-1.5 text-[12px] font-bold text-slate-800'},h(I,{p:'link2',s:13}),'Thêm Ghost Node (Tham chiếu Phase khác)'),
+    h(Field,{label:'1. Phase nguồn'},h(Select,{value:ph,options:phases.map(p=>({value:p,label:PHASE_LABEL[p]})),onChange:v=>{ setPh(v); setTask((tasksOf(v)[0]||{}).id); }})),
+    h(Field,{label:'2. Task nguồn'},tOpts.length?h(Select,{value:task,options:tOpts,onChange:setTask}):h('div',{className:'text-[12px] text-slate-400 italic'},'Phase này chưa có task nào.')),
+    anchor&&h(Field,{label:'Hướng phụ thuộc'},h('div',{className:'space-y-1.5'},
+      dirBtn('up','Phase khác → «'+(anchor.title||'task này')+'» (tiền đề)'),dirBtn('down','«'+(anchor.title||'task này')+'» → Phase khác (kế tiếp)'))),
+    h('div',{className:'flex justify-end gap-2 pt-1'},
+      h('button',{onClick:onClose,className:'text-[12px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg px-3 py-1.5'},'Hủy'),
+      h('button',{disabled:!tOpts.length,onClick:()=>onConfirm({refPhase:ph,refId:task,dir,anchorId:anchor?anchor.id:null}),
+        className:'text-[12px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-lg px-3.5 py-1.5'},'3. Xác nhận')));
+}
+
+/* ---------- Resizable panel ---------- */
+function useResizable(defaultW){
+  const [w,setW]=useState(defaultW),[dragging,setDragging]=useState(false); const drag=useRef(false);
+  useEffect(()=>{
+    const onMove=e=>{ if(!drag.current) return; const min=window.innerWidth*.35,max=window.innerWidth*.8;
+      setW(Math.min(max,Math.max(min,window.innerWidth-e.clientX))); };
+    const onUp=()=>{ if(drag.current){ drag.current=false; setDragging(false); document.body.style.cursor=''; document.body.style.userSelect=''; } };
+    window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);
+    return ()=>{ window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); };
+  },[]);
+  const onMouseDown=e=>{ drag.current=true; setDragging(true); document.body.style.cursor='col-resize'; document.body.style.userSelect='none'; e.preventDefault(); };
+  return {w,dragging,onMouseDown};
+}
+
+/* ---------- Connect-drag (drag-to-add-parent) overlay ---------- */
+function useConnectDrag(nodes,setNodes){
+  const [line,setLine]=useState(null);   // {x1,y1,x2,y2}
+  const [err,setErr]=useState(null);     // {x,y,msg}
+  const startDrag=(e,sourceId,onClick)=>{
+    e.stopPropagation(); e.preventDefault();
+    const r=e.currentTarget.getBoundingClientRect(), sx=r.left+r.width/2, sy=r.top+r.height/2;
+    const sx0=e.clientX, sy0=e.clientY; let dragged=false;
+    const onMove=ev=>{ if(!dragged && Math.hypot(ev.clientX-sx0,ev.clientY-sy0)>6) dragged=true;
+      if(dragged) setLine({x1:sx,y1:sy,x2:ev.clientX,y2:ev.clientY}); };
+    const onUp=ev=>{
+      window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); setLine(null); suppressClickUntil=performance.now()+80;
+      if(!dragged){ onClick({x:sx,y:sy}); return; }
+      const el=document.elementFromPoint(ev.clientX,ev.clientY);
+      const targetEl=el&&el.closest('[data-node-id]'); const targetId=targetEl&&targetEl.getAttribute('data-node-id');
+      const flash=msg=>{ setErr({x:ev.clientX,y:ev.clientY,msg}); setTimeout(()=>setErr(null),1600); };
+      if(!targetId||targetId===sourceId) return;
+      const t=nodes[targetId];
+      if(!t||(t.kind!=='branch'&&t.kind!=='ghost')) return;
+      if(t.kind==='ghost'&&nodes[sourceId]&&nodes[sourceId].kind==='ghost') return;
+      if(t.parentIds.includes(sourceId)){ flash('Liên kết đã tồn tại'); return; }
+      if(isAncestor(nodes,targetId,sourceId)){ flash('Không thể nối ngược (tránh chu trình lặp)'); return; }
+      setNodes(prev=>({...prev,[targetId]:{...prev[targetId],parentIds:[...prev[targetId].parentIds,sourceId],joinPolicy:prev[targetId].joinPolicy||'AND'}}));
+    };
+    window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);
+  };
+  return {line,err,startDrag};
+}
+function ConnectOverlay({line,err}){
+  return h(React.Fragment,null,
+    line&&h('svg',{className:'fixed inset-0 pointer-events-none z-40',width:'100vw',height:'100vh'},
+      h('line',{x1:line.x1,y1:line.y1,x2:line.x2,y2:line.y2,stroke:'#3b82f6',strokeWidth:2.5,strokeDasharray:'6 5'}),
+      h('circle',{cx:line.x2,cy:line.y2,r:4,fill:'#3b82f6'})),
+    err&&h('div',{style:{position:'fixed',left:err.x+10,top:err.y+10},className:'z-50 flex items-center gap-1.5 text-[11px] font-medium text-white bg-rose-500 rounded-lg px-2.5 py-1.5 shadow-lg pointer-events-none'},
+      h(I,{p:'alert',s:12}),err.msg));
+}
+
+/* ---------- Panel ---------- */
+function Panel({phaseId,onClose,panel,onOpenPhase}){
+  const [treesState,setTreesState]=useState(TREES);
+  const [collapsedByPhase,setCollapsedByPhase]=useState({});
+  const [selectedByPhase,setSelectedByPhase]=useState({});
+  const [mergeByPhase,setMergeByPhase]=useState({});
+  const [editId,setEditId]=useState(null),[editValue,setEditValue]=useState('');
+  const newIdsRef=useRef(new Set());
+
+  const tree=phaseId?treesState[phaseId]:null;
+  const nodes=tree?tree.nodes:{};
+  const collapsed=collapsedByPhase[phaseId]||new Set();
+  const toggle=id=>setCollapsedByPhase(o=>{const s=new Set(o[phaseId]||[]); s.has(id)?s.delete(id):s.add(id); return {...o,[phaseId]:s};});
+  const selectedId=selectedByPhase[phaseId]||null;
+  const setSelected=id=>setSelectedByPhase(o=>({...o,[phaseId]:id}));
+  const mergeSel=mergeByPhase[phaseId]||new Set();
+  const setMergeSel=fn=>setMergeByPhase(o=>({...o,[phaseId]:fn(o[phaseId]||new Set())}));
+
+  const setNodes=updater=>setTreesState(o=>({...o,[phaseId]:{...o[phaseId],nodes:typeof updater==='function'?updater(o[phaseId].nodes):updater}}));
+  const mutate={
+    add:node=>setNodes(ns=>({...ns,[node.id]:node})),
+    remove:id=>setNodes(ns=>deleteNodeCascade(ns,id))
+  };
+  const startEdit=(id,val,isNew)=>{ setEditId(id); setEditValue(val); if(isNew) newIdsRef.current.add(id); };
+  const commitEdit=()=>{ const val=editValue.trim(); if(!editId) return;
+    if(!val){ if(newIdsRef.current.has(editId)) mutate.remove(editId); }
+    else setNodes(ns=>({...ns,[editId]:{...ns[editId],title:val}}));
+    newIdsRef.current.delete(editId); setEditId(null); setEditValue(''); };
+  const cancelEdit=()=>{ if(editId&&newIdsRef.current.has(editId)) mutate.remove(editId); newIdsRef.current.delete(editId); setEditId(null); setEditValue(''); };
+  const edit={id:editId,value:editValue,setValue:setEditValue,start:startEdit,commit:commitEdit,cancel:cancelEdit};
+
+  const merge={selection:mergeSel,
+    toggle:id=>setMergeSel(s=>{const n=new Set(s); n.has(id)?n.delete(id):n.add(id); return n;}),
+    toggleJoin:id=>setNodes(ns=>({...ns,[id]:{...ns[id],joinPolicy:ns[id].joinPolicy==='OR'?'AND':'OR'}}))};
+
+  const connect=useConnectDrag(nodes,setNodes);
+
+  const [pop,setPop]=useState(null);
+  useEffect(()=>{ const nx=applyGhostGates(treesState); if(nx!==treesState) setTreesState(nx); },[treesState]);
+  const ghostApi={trees:treesState,
+    openInfo:(id,r)=>setPop({type:'info',id,x:r.right+8,y:r.top}),
+    openChip:(srcId,pos)=>setPop({type:'chip',srcId,x:pos.x+16,y:pos.y+18}),
+    openPicker:(anchorId,pos)=>setPop({type:'picker',anchorId,x:pos.x,y:pos.y})};
+  const addGhost=({refPhase,refId,dir,anchorId})=>{
+    setNodes(ns=>{ const nx={...ns};
+      if(anchorId&&dir==='down'){ const g=ghostNode(uid(),[anchorId],refPhase,refId,'down'); nx[g.id]=g; return nx; }
+      let g=Object.values(ns).find(x=>x.kind==='ghost'&&x.refPhase===refPhase&&x.refId===refId&&x.dir==='up');
+      if(!g){ g=ghostNode(uid(),['root'],refPhase,refId,'up'); nx[g.id]=g; }
+      if(anchorId&&!nx[anchorId].parentIds.includes(g.id)&&!isAncestor(nx,anchorId,g.id))
+        nx[anchorId]={...nx[anchorId],parentIds:[...nx[anchorId].parentIds,g.id],joinPolicy:nx[anchorId].joinPolicy||'AND'};
+      return nx; });
+    if(anchorId&&dir==='down'&&collapsed.has(anchorId)) toggle(anchorId);
+    setPop(null);
+  };
+  const renderPop=()=>{
+    if(!pop) return null; const close=()=>setPop(null);
+    if(pop.type==='info'){ const g=nodes[pop.id]; if(!g) return null;
+      return h(Popover,{key:'i'+pop.id,x:pop.x,y:pop.y,w:290,onClose:close},h(GhostInfo,{gi:ghostInfo(treesState,g),onOpen:()=>{ close(); onOpenPhase&&onOpenPhase(g.refPhase); }})); }
+    if(pop.type==='chip') return h(Popover,{key:'c'+pop.srcId,x:pop.x,y:pop.y,w:250,onClose:close},
+      h('button',{onMouseDown:e=>e.preventDefault(),onClick:()=>{ edit.cancel(); setPop({type:'picker',anchorId:pop.srcId,x:pop.x,y:pop.y}); },
+        className:'w-full flex items-center gap-2 text-left text-[12px] font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg px-2 py-1.5'},h(I,{p:'link2',s:13}),'Gắn phụ thuộc từ Phase khác (Ghost Node)'));
+    if(pop.type==='picker') return h(Popover,{key:'p',x:pop.x,y:pop.y,w:310,onClose:close},
+      h(GhostPicker,{trees:treesState,currentPhase:phaseId,anchor:pop.anchorId?nodes[pop.anchorId]:null,onConfirm:addGhost,onClose:close}));
+    return null; };
+
+  const createMergeTask=()=>{
+    const parents=[...mergeSel]; if(parents.length<2) return;
+    const allDone=parents.every(id=>nodes[id].status==='DONE');
+    const child=n_({id:uid(),title:'',status:allDone?'TODO':'LOCKED',parentIds:parents,joinPolicy:'AND',blocker:'Chờ tất cả task nguồn hoàn tất'});
+    mutate.add(child); startEdit(child.id,'',true);
+    setCollapsedByPhase(o=>{const s=new Set(o[phaseId]||[]); parents.forEach(p=>s.delete(p)); return {...o,[phaseId]:s};});
+    setMergeSel(()=>new Set());
+  };
+
+  const selectedTaskObj=tree&&selectedId?nodes[selectedId]:null;
+
+  return h('div',{style:{width:phaseId?panel.w+'px':'0px'},
+    className:'relative shrink-0 h-full bg-white border-l border-slate-200 shadow-2xl overflow-hidden flex flex-col '+(panel.dragging?'':'transition-all duration-300')},
+    h(ConnectOverlay,{line:connect.line,err:connect.err}),
+    phaseId&&h('div',{onMouseDown:panel.onMouseDown,
+      className:'absolute left-0 top-0 h-full w-[7px] cursor-col-resize z-30 flex items-center justify-center '+
+        (panel.dragging?'bg-blue-500':'bg-blue-500/0 hover:bg-blue-500/70 transition-colors')},
+      h('div',{className:'w-[3px] h-8 rounded-full bg-slate-300'})),
+    tree&&h(React.Fragment,null,
+      h('div',{className:'p-5 pl-6 border-b border-slate-200 shrink-0'},
+        h('div',{className:'flex items-start justify-between gap-3'},
+          h('div',{className:'min-w-0'},h('div',{className:'text-[11px] text-slate-400 truncate'},tree.breadcrumb),
+            h('h2',{className:'text-base font-bold text-slate-800 mt-0.5'},tree.title)),
+          h('button',{onClick:onClose,className:'shrink-0 grid place-items-center w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600'},h(I,{p:'x',s:20}))),
+        h('div',{className:'flex items-center gap-2 mt-3'},
+          h('div',{className:'flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden'},h('div',{className:'h-full rounded-full bg-blue-400 transition-all duration-500',style:{width:tree.pct+'%'}})),
+          h('span',{className:'text-xs font-semibold text-slate-500 shrink-0'},tree.pct+'%')),
+        null),
+      h('div',{className:'flex-1 overflow-auto p-6 pl-8'},
+        h(MindmapTree,{key:phaseId,nodes,collapsed,toggle,selectedId,setSelected,edit,mutate,merge,connect,ghostApi})),
+      mergeSel.size>=2&&h('div',{className:'shrink-0 px-4 py-2.5 bg-amber-50 border-t border-amber-200 flex items-center justify-between gap-3'},
+        h('span',{className:'text-[12px] text-amber-700 font-medium'},'Đã chọn '+mergeSel.size+' task'),
+        h('button',{onClick:createMergeTask,className:'flex items-center gap-1.5 text-[12px] font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg px-3 py-1.5'},
+          h(I,{p:'merge',s:13}),'Tạo Task hội tụ từ '+mergeSel.size+' task đã chọn')),
+      selectedTaskObj&&selectedTaskObj.kind==='branch'&&!selectedTaskObj.isTrack&&h(NodeProperties,{key:selectedTaskObj.id,node:selectedTaskObj,onClose:()=>setSelected(null),
+        onSave:patch=>{ setNodes(ns=>({...ns,[selectedId]:{...ns[selectedId],...patch}})); setSelected(null); },
+        onDelete:()=>{ const id=selectedId; setSelected(null); mutate.remove(id); }}),
+      renderPop()));
+}
+
+/* ---------- Macro canvas components ---------- */
+function PhaseCard({ph,selected,onClick}){
+  const acc=ACCENT[ph.accent];
+  return h('button',{onClick,style:{position:'absolute',left:ph.x,top:ph.y,width:ph.w,height:ph.h},
+    className:'text-left rounded-2xl bg-white border shadow-sm overflow-hidden transition-all duration-200 '+
+      (selected?'border-indigo-300 shadow-lg ring-2 ring-indigo-200':'border-slate-200 hover:shadow-md hover:-translate-y-0.5')},
+    h('div',{className:'h-[5px] w-full '+acc.bar}),
+    h('div',{className:'p-4 h-full flex flex-col'},
+      h('div',{className:'flex items-start justify-between gap-2'},
+        h('div',null,h('div',{className:'text-[11px] font-bold tracking-widest text-slate-400'},ph.name),
+          h('div',{className:'text-sm font-semibold text-slate-800 mt-0.5 leading-snug'},ph.sub)),
+        ph.locked?h('span',{className:'text-slate-300 shrink-0'},h(I,{p:'lock',s:18})):
+          h('span',{className:'shrink-0 text-[10px] font-semibold text-indigo-500 flex items-center gap-0.5'},'Click to inspect',h(I,{p:'chev',s:11}))),
+      h('div',{className:'mt-auto pt-3'},
+        h('div',{className:'flex items-center justify-between mb-1.5'},
+          h('span',{className:'text-[9px] font-bold uppercase rounded-full px-2 py-0.5 border '+acc.pill},ph.status),
+          h('span',{className:'text-xs font-semibold text-slate-500'},ph.pct+'%')),
+        h('div',{className:'h-1.5 rounded-full bg-slate-100 overflow-hidden'},
+          h('div',{className:'h-full rounded-full transition-all duration-500 '+acc.track,style:{width:ph.pct+'%'}})))));
+}
+function CanvasEdge({a,b}){
+  const x1=a.x+a.w,y1=a.y+a.h/2,x2=b.x,y2=b.y+b.h/2,dx=(x2-x1)*.5;
+  return h('path',{d:`M${x1} ${y1} C${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`,fill:'none',stroke:'#94a3b8',strokeWidth:2,strokeDasharray:'5 6'});
+}
+
+function App(){
+  const [sel,setSel]=useState('p2a');
+  const panel=useResizable(Math.round(window.innerWidth*0.5));
+  return h('div',{className:'h-screen w-screen flex overflow-hidden'},
+    h('div',{style:{width:sel?`calc(100% - ${panel.w}px)`:'100%'},className:(panel.dragging?'':'transition-all duration-300')+' flex flex-col h-full min-w-0'},
+      h('div',{className:'flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white shrink-0'},
+        h('div',null,h('div',{className:'text-sm font-semibold text-slate-800'},'Workflow Pipeline Engine'),
+          h('div',{className:'text-[11px] text-slate-400'},'Macro Pipeline · click a cluster to inspect')),
+        h('span',{className:'text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-full px-2.5 py-1'},'4 clusters')),
+      h('div',{className:'flex-1 overflow-auto relative canvas'},
+        h('div',{className:'relative',style:{width:CW,height:CH,margin:20}},
+          h('svg',{className:'absolute inset-0 pointer-events-none',width:CW,height:CH},
+            CANVAS_EDGES.map(([a,b])=>h(CanvasEdge,{key:a+b,a:PHASES.find(p=>p.id===a),b:PHASES.find(p=>p.id===b)}))),
+          PHASES.map(ph=>h(PhaseCard,{key:ph.id,ph,selected:sel===ph.id,onClick:()=>setSel(sel===ph.id?null:ph.id)}))))),
+    h(Panel,{phaseId:sel,onClose:()=>setSel(null),panel,onOpenPhase:setSel}));
+}
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>

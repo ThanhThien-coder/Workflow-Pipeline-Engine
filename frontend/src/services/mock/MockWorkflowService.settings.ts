@@ -1,0 +1,282 @@
+import type { IWorkflowService } from '../contracts/IWorkflowService'
+import type {
+  ProjectSettingsDto,
+  ProjectMemberDetail,
+  AuditLogItem,
+  UpdateProjectCommand,
+  InviteMemberCommand,
+  ChangeMemberRoleCommand,
+  PublishPipelineResult,
+  AuditLogAction,
+  AuditScope,
+  ProjectRole,
+  ProjectStatus,
+} from '../../types/settings.types'
+import { mockDelay } from './MockConfig'
+
+const INITIAL_PROJECT: ProjectSettingsDto = {
+  id: '1',
+  name: 'Marketing Campaign Q4',
+  description: 'Coordinates content, design and launch tasks for the Q4 campaign.',
+  status: 'DRAFT',
+  ownerId: '1',
+  myRole: 'OWNER',
+  createdAt: '2026-09-01T08:00:00+07:00',
+  updatedAt: '2026-10-02T14:30:00+07:00',
+}
+
+const INITIAL_MEMBERS: ProjectMemberDetail[] = [
+  {
+    userId: '1',
+    username: 'Alex Kim',
+    email: 'alex.kim@acme.io',
+    role: 'OWNER',
+    joinedAt: '2026-09-02T10:00:00+07:00',
+    activeNodeCount: 3,
+    avatarClass: 'bg-emerald-500',
+    initials: 'AK',
+  },
+  {
+    userId: '2',
+    username: 'Sarah Chen',
+    email: 'sarah.chen@acme.io',
+    role: 'COLLABORATOR',
+    joinedAt: '2026-09-04T10:00:00+07:00',
+    activeNodeCount: 5,
+    avatarClass: 'bg-indigo-500',
+    initials: 'SC',
+  },
+  {
+    userId: '3',
+    username: 'Marcus Liu',
+    email: 'marcus.liu@acme.io',
+    role: 'COLLABORATOR',
+    joinedAt: '2026-09-09T10:00:00+07:00',
+    activeNodeCount: 6,
+    avatarClass: 'bg-rose-500',
+    initials: 'ML',
+  },
+  {
+    userId: '4',
+    username: 'Jamie Doe',
+    email: 'jamie.doe@acme.io',
+    role: 'VIEWER',
+    joinedAt: '2026-09-15T10:00:00+07:00',
+    activeNodeCount: 0,
+    avatarClass: 'bg-amber-500',
+    initials: 'JD',
+  },
+]
+
+const INITIAL_LOGS: AuditLogItem[] = [
+  {
+    id: 'log-5',
+    timestamp: '2026-10-03T09:12:44+07:00',
+    actor: { userId: '1', name: 'Alex Kim', role: 'OWNER' },
+    action: 'ROLE_CHANGED',
+    details: "Changed Jamie Doe's role from COLLABORATOR to VIEWER.",
+    scope: 'Access',
+  },
+  {
+    id: 'log-4',
+    timestamp: '2026-09-29T16:40:05+07:00',
+    actor: { userId: '1', name: 'Alex Kim', role: 'OWNER' },
+    action: 'MEMBER_INVITED',
+    details: 'Invited marcus.liu@acme.io as COLLABORATOR.',
+    scope: 'Access',
+  },
+  {
+    id: 'log-3',
+    timestamp: '2026-09-24T08:30:00+07:00',
+    actor: { userId: 'sys', name: 'SYSTEM', role: 'SYSTEM' },
+    action: 'PROJECT_UPDATED',
+    details: 'Refreshed cached AI analysis for the project.',
+    scope: 'Governance',
+  },
+  {
+    id: 'log-2',
+    timestamp: '2026-09-12T11:05:31+07:00',
+    actor: { userId: '1', name: 'Alex Kim', role: 'OWNER' },
+    action: 'PROJECT_UPDATED',
+    details: 'Updated project description.',
+    scope: 'Governance',
+  },
+  {
+    id: 'log-1',
+    timestamp: '2026-09-02T10:00:12+07:00',
+    actor: { userId: '1', name: 'Alex Kim', role: 'OWNER' },
+    action: 'MEMBER_INVITED',
+    details: 'Invited sarah.chen@acme.io as COLLABORATOR.',
+    scope: 'Access',
+  },
+]
+
+export class MockSettingsApi implements Pick<
+  IWorkflowService,
+  | 'getProjectSettings'
+  | 'updateProjectSettings'
+  | 'publishPipeline'
+  | 'getProjectMembersDetailed'
+  | 'inviteProjectMember'
+  | 'changeMemberRole'
+  | 'removeProjectMember'
+  | 'getProjectAuditLogs'
+> {
+  private project: ProjectSettingsDto = structuredClone(INITIAL_PROJECT)
+  private members: ProjectMemberDetail[] = structuredClone(INITIAL_MEMBERS)
+  private auditLogs: AuditLogItem[] = structuredClone(INITIAL_LOGS)
+
+  private recordLog(
+    action: AuditLogAction,
+    details: string,
+    scope: AuditScope,
+    actorName = 'Alex Kim',
+    actorRole: ProjectRole = 'OWNER',
+    actorId = '1',
+  ) {
+    const newLog: AuditLogItem = {
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      actor: { userId: actorId, name: actorName, role: actorRole },
+      action,
+      details,
+      scope,
+    }
+    this.auditLogs.unshift(newLog)
+  }
+
+  async getProjectSettings(_projectId: string): Promise<ProjectSettingsDto> {
+    await mockDelay()
+    return structuredClone(this.project)
+  }
+
+  async updateProjectSettings(_projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto> {
+    await mockDelay(120)
+    const changes: string[] = []
+    if (this.project.name !== cmd.name) changes.push('name')
+    if (this.project.description !== cmd.description) changes.push('description')
+
+    this.project.name = cmd.name
+    this.project.description = cmd.description
+    this.project.updatedAt = new Date().toISOString()
+
+    const details = changes.length > 0 ? `Updated project ${changes.join(' and ')}.` : 'Saved project settings.'
+    this.recordLog('PROJECT_UPDATED', details, 'Governance')
+
+    return structuredClone(this.project)
+  }
+
+  async publishPipeline(_projectId: string, simulateCycle = false): Promise<PublishPipelineResult> {
+    await mockDelay(200)
+    if (simulateCycle) {
+      return {
+        success: false,
+        cycleDetected: true,
+        violatingNodeIds: ['WPE-009', 'WPE-014', 'WPE-009'],
+      }
+    }
+
+    this.project.status = 'ACTIVE'
+    this.project.updatedAt = new Date().toISOString()
+    this.recordLog(
+      'PIPELINE_PUBLISHED',
+      'Published pipeline from DRAFT to ACTIVE (Kahn cycle check passed with 24 nodes).',
+      'Lifecycle',
+    )
+
+    return {
+      success: true,
+      newStatus: 'ACTIVE',
+    }
+  }
+
+  async getProjectMembersDetailed(_projectId: string): Promise<ProjectMemberDetail[]> {
+    await mockDelay()
+    return structuredClone(this.members)
+  }
+
+  async inviteProjectMember(_projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> {
+    await mockDelay(150)
+    const raw = cmd.usernameOrEmail.trim()
+    if (!raw) throw new Error('Username or email is required')
+
+    const isEmail = raw.includes('@')
+    const username = isEmail ? raw.split('@')[0] : raw
+    const email = isEmail ? raw : `${raw.toLowerCase().replace(/\s+/g, '.')}@acme.io`
+    const initials = username
+      .split(' ')
+      .map((s) => s[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || 'U'
+
+    const colors = ['bg-indigo-500', 'bg-blue-500', 'bg-violet-500', 'bg-teal-500', 'bg-emerald-500', 'bg-rose-500']
+    const avatarClass = colors[this.members.length % colors.length]
+
+    const newMember: ProjectMemberDetail = {
+      userId: `user-${Date.now()}`,
+      username,
+      email,
+      role: cmd.role,
+      joinedAt: new Date().toISOString(),
+      activeNodeCount: 0,
+      avatarClass,
+      initials,
+    }
+
+    this.members.push(newMember)
+    this.recordLog('MEMBER_INVITED', `Invited ${email} as ${cmd.role}.`, 'Access')
+
+    return structuredClone(newMember)
+  }
+
+  async changeMemberRole(_projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail> {
+    await mockDelay(120)
+    const member = this.members.find((m) => m.userId === userId)
+    if (!member) throw new Error('Member not found')
+    if (member.role === 'OWNER') throw new Error('Cannot change OWNER role')
+
+    const prevRole = member.role
+    member.role = cmd.role
+
+    let unassignNote = ''
+    if (cmd.role === 'VIEWER' && member.activeNodeCount > 0) {
+      unassignNote = ` (Unassigned ${member.activeNodeCount} active tasks)`
+      member.activeNodeCount = 0
+    }
+
+    this.recordLog('ROLE_CHANGED', `Changed ${member.username}'s role from ${prevRole} to ${cmd.role}${unassignNote}.`, 'Access')
+    return structuredClone(member)
+  }
+
+  async removeProjectMember(_projectId: string, userId: string): Promise<{ unassignedTaskCount: number }> {
+    await mockDelay(150)
+    const member = this.members.find((m) => m.userId === userId)
+    if (!member) throw new Error('Member not found')
+    if (member.role === 'OWNER') throw new Error('Cannot remove OWNER')
+
+    const unassignedCount = member.activeNodeCount
+    this.members = this.members.filter((m) => m.userId !== userId)
+
+    const unassignNote = unassignedCount > 0 ? ` (Unassigned ${unassignedCount} active tasks)` : ''
+    this.recordLog('MEMBER_REMOVED', `Removed ${member.username} from workspace${unassignNote}.`, 'Access')
+
+    return { unassignedTaskCount: unassignedCount }
+  }
+
+  async getProjectAuditLogs(_projectId: string): Promise<AuditLogItem[]> {
+    await mockDelay()
+    return structuredClone(this.auditLogs)
+  }
+
+  setProjectStatus(status: ProjectStatus): void {
+    this.project.status = status
+    this.project.updatedAt = new Date().toISOString()
+  }
+
+  reset(): void {
+    this.project = structuredClone(INITIAL_PROJECT)
+    this.members = structuredClone(INITIAL_MEMBERS)
+    this.auditLogs = structuredClone(INITIAL_LOGS)
+  }
+}
