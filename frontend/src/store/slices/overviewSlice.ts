@@ -45,10 +45,10 @@ export const createOverviewSlice = (set: OverviewSetter, get: () => OverviewSlic
       try {
         const guestAccess = await workflowService.toggleGuestAccess(data.project.id, false)
         set((state) => ({ overview: { ...state.overview, data: state.overview.data ? { ...state.overview.data, guestAccess } : null } }))
-        get().overview.showToast('Đã vô hiệu hóa token. Liên kết cũ không còn truy cập được.')
+        get().overview.showToast('Guest access revoked. Previous link is no longer accessible.')
       } catch {
         set((state) => ({ overview: { ...state.overview, data: state.overview.data ? { ...state.overview.data, guestAccess: previous } : null } }))
-        get().overview.showToast('Không thể đóng liên kết. Vui lòng thử lại.')
+        get().overview.showToast('Failed to revoke link. Please try again.')
       }
     },
     generateGuest: async () => {
@@ -57,9 +57,9 @@ export const createOverviewSlice = (set: OverviewSetter, get: () => OverviewSlic
       try {
         const guestAccess = await workflowService.generateGuestToken(data.project.id)
         set((state) => ({ overview: { ...state.overview, data: state.overview.data ? { ...state.overview.data, guestAccess } : null } }))
-        get().overview.showToast('Đã tạo liên kết mới (Generate New Token)')
+        get().overview.showToast('New guest access link generated.')
       } catch {
-        get().overview.showToast('Không thể tạo liên kết mới. Vui lòng thử lại.')
+        get().overview.showToast('Failed to generate new link. Please try again.')
       }
     },
     showToast: (message) => {

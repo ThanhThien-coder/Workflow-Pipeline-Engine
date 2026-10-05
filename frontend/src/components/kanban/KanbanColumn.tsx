@@ -27,9 +27,10 @@ type KanbanColumnProps = {
   onDragStart: (id: string) => void
   dragId: string | null
   filtering: boolean
+  onOpenDetails: (task: KanbanTask) => void
 }
 
-export function KanbanColumn({ status, tasks, actor, pendingIds, over, onOver, onLeave, onDrop, onMove, onDragStart, dragId, filtering }: KanbanColumnProps) {
+export function KanbanColumn({ status, tasks, actor, pendingIds, over, onOver, onLeave, onDrop, onMove, onDragStart, dragId, filtering, onOpenDetails }: KanbanColumnProps) {
   const style = styles[status]
   const viewportRef = useRef<HTMLDivElement>(null)
   const isAnimatingRef = useRef(false)
@@ -104,7 +105,7 @@ export function KanbanColumn({ status, tasks, actor, pendingIds, over, onOver, o
             <span className="mr-1 text-[10px] font-semibold opacity-75">{pageIndex + 1}/{totalPages}</span>
             <button
               type="button"
-              aria-label={`Trang trước ${style.title}`}
+              aria-label={`Previous page: ${style.title}`}
               disabled={pageIndex === 0}
               onClick={() => navigatePage(-1)}
               className="rounded p-1 transition hover:bg-black/10 disabled:pointer-events-none disabled:opacity-30"
@@ -113,7 +114,7 @@ export function KanbanColumn({ status, tasks, actor, pendingIds, over, onOver, o
             </button>
             <button
               type="button"
-              aria-label={`Trang sau ${style.title}`}
+              aria-label={`Next page: ${style.title}`}
               disabled={pageIndex >= totalPages - 1}
               onClick={() => navigatePage(1)}
               className="rounded p-1 transition hover:bg-black/10 disabled:pointer-events-none disabled:opacity-30"
@@ -124,16 +125,19 @@ export function KanbanColumn({ status, tasks, actor, pendingIds, over, onOver, o
         )}
       </header>
 
-      {/* ── Viewport: 4-slot grid ── */}
-      <div ref={viewportRef} className="flex-1 min-h-0 relative overflow-hidden p-2.5">
+      {/* ── Viewport: Cards container ── */}
+      <div
+        ref={viewportRef}
+        className="flex-1 min-h-0 relative overflow-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-2.5"
+      >
         {tasks.length === 0 ? (
-          <div className="h-full flex items-center justify-center border border-dashed border-slate-300 rounded-xl text-xs text-slate-400">
-            {filtering ? 'Không có task khớp bộ lọc' : 'Chưa có task'}
+          <div className="h-full flex items-center justify-center border border-dashed border-slate-300 rounded-xl text-xs text-slate-400 min-h-[160px]">
+            {filtering ? 'No tasks match filter' : 'No tasks yet'}
           </div>
         ) : (
           <div
             key={`${pageIndex}-${animKey}`}
-            className="h-full w-full grid grid-rows-4 gap-2 min-h-0"
+            className="flex flex-col gap-2.5 w-full"
           >
             {currentPage.map((task, index) => {
               // Stagger: scroll-down → bottom-first (3→2→1→0), scroll-up → top-first (0→1→2→3)
@@ -144,7 +148,7 @@ export function KanbanColumn({ status, tasks, actor, pendingIds, over, onOver, o
               return (
                 <div
                   key={task.id}
-                  className={`h-full min-h-0 ${
+                  className={`w-full shrink-0 ${
                     direction === 'down' ? 'animate-cascade-down' : 'animate-cascade-up'
                   }`}
                   style={{ animationDelay: `${staggerDelay}ms` }}
@@ -152,19 +156,13 @@ export function KanbanColumn({ status, tasks, actor, pendingIds, over, onOver, o
                   <TaskCard
                     task={task}
                     actor={actor}
-                    pending={pendingIds.includes(task.id)}
-                    onMove={(to) => onMove(task.id, to)}
+                    onOpenDetails={onOpenDetails}
                     onDragStart={onDragStart}
                     dragging={dragId === task.id}
                   />
                 </div>
               )
             })}
-
-            {/* Invisible placeholders to maintain grid-rows-4 when last page < 4 tasks */}
-            {Array.from({ length: emptySlots }).map((_, idx) => (
-              <div key={`empty-${idx}`} className="h-full min-h-0 invisible pointer-events-none" />
-            ))}
           </div>
         )}
       </div>

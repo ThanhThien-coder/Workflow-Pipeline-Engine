@@ -11,7 +11,7 @@ const accentStyles = {
 export function PhaseCard({ phase, position, selected, onClick, onSpawnDown }: { phase: MacroPhase; position: { x: number; y: number }; selected: boolean; onClick: () => void; onSpawnDown: (event: React.MouseEvent<HTMLButtonElement>, phaseId: string) => void }) {
   const accent = accentStyles[phase.accent]
   return <div data-phase-id={phase.id} role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onClick() }} style={{ position: 'absolute', left: position.x, top: position.y, width: MACRO_CARD_W, height: MACRO_CARD_H }} className={`group select-none text-left rounded-2xl bg-white border shadow-sm overflow-visible transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${selected ? 'border-indigo-300 shadow-lg ring-2 ring-indigo-200' : 'border-slate-200 hover:shadow-md hover:-translate-y-0.5'}`}>
-    <div className={`h-[5px] w-full ${accent.bar}`} />
+    <div className={`h-1.5 w-full rounded-t-2xl ${accent.bar}`} />
     <div className="p-4 h-full flex flex-col">
       <div className="flex items-start justify-between gap-2">
         <div><div className="text-[11px] font-bold tracking-widest text-slate-400">{phase.name}</div><div className="text-sm font-semibold text-slate-800 mt-0.5 leading-snug">{phase.sub}</div></div>

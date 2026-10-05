@@ -7,6 +7,10 @@ interface GraphNodeBase {
   id: string
   parentIds: string[]
   title: string
+  x?: number
+  y?: number
+  width?: number
+  height?: number
 }
 
 export interface RootGraphNode extends GraphNodeBase {
@@ -24,6 +28,17 @@ export interface BranchGraphNode extends GraphNodeBase {
   due: string | null
   blocker: string | null
   joinPolicy: JoinPolicy | 'AND' | null
+  phaseId?: string
+  trackId?: string | null
+  parentId?: string | null
+  level?: number
+  order?: number
+  column?: number
+  row?: number
+  x?: number
+  y?: number
+  width?: number
+  height?: number
 }
 
 export interface GhostGraphNode extends GraphNodeBase {

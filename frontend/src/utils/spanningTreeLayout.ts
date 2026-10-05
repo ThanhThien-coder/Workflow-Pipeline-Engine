@@ -1,4 +1,4 @@
-import type { GraphNode, GraphNodeMap, MacroPhase } from '../types/workflow.types'
+import type { BranchGraphNode, GraphNode, GraphNodeMap, MacroPhase } from '../types/workflow.types'
 
 export const COL_W = 250
 export const GAP_X = 56
@@ -151,3 +151,251 @@ export function layoutGraph(nodes: GraphNodeMap): LayoutPositions {
   })
   return positions
 }
+
+export interface DeterministicNodePosition {
+  x: number
+  y: number
+  width: number
+  height: number
+  left: number
+  right: number
+  centerY: number
+  level: number
+  order: number
+}
+
+/**
+ * Calculates strict, deterministic coordinates for every node in the Task Tree / DAG.
+ * Guarantees zero NaN values and safe fallback math:
+ * - Level 0 (Root): X = 40
+ * - Level 1 (Track): X = 320
+ * - Level 2 (Task): X = 640
+ * - Y is computed deterministically from track index and task sequence.
+ */
+export function calculateDeterministicLayout(
+  nodes: GraphNodeMap
+): Record<string, DeterministicNodePosition> {
+  const result: Record<string, DeterministicNodePosition> = {}
+
+  const root =
+    Object.values(nodes).find((n) => n.kind === 'root') || {
+      id: 'root',
+      kind: 'root' as const,
+      title: 'Root',
+      parentIds: [],
+    }
+
+  const tracks = Object.values(nodes)
+    .filter(
+      (n): n is BranchGraphNode =>
+        n.kind === 'branch' && Boolean((n as BranchGraphNode).isTrack)
+    )
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+  let currentY = 40
+
+  tracks.forEach((track, trackIdx) => {
+    const trackWidth = W.track
+    const trackHeight = TRACK_H
+    const trackX = 320
+    const trackY = currentY
+
+    const safeTrackX = Number.isFinite(track.x) ? track.x! : trackX
+    const safeTrackY = Number.isFinite(track.y) ? track.y! : trackY
+
+    result[track.id] = {
+      x: safeTrackX,
+      y: safeTrackY,
+      width: trackWidth,
+      height: trackHeight,
+      left: safeTrackX,
+      right: safeTrackX + trackWidth,
+      centerY: safeTrackY + trackHeight / 2,
+      level: 1,
+      order: trackIdx,
+    }
+
+    // Direct tasks under this track or subtasks
+    const tasksInTrack = Object.values(nodes)
+      .filter(
+        (n): n is BranchGraphNode =>
+          n.kind === 'branch' &&
+          !(n as BranchGraphNode).isTrack &&
+          (n.parentIds.includes(track.id) ||
+            (n as BranchGraphNode).trackId === track.id)
+      )
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+    let taskY = trackY
+    tasksInTrack.forEach((task, taskIdx) => {
+      const taskLevel = task.level ?? 2
+      const computedX = 640 + Math.max(0, taskLevel - 2) * (W.task + GAP_X)
+      const taskWidth = W.task
+      const taskHeight = TASK_H
+
+      const safeX = Number.isFinite(task.x) ? task.x! : computedX
+      const safeY = Number.isFinite(task.y) ? task.y! : taskY
+
+      result[task.id] = {
+        x: safeX,
+        y: safeY,
+        width: taskWidth,
+        height: taskHeight,
+        left: safeX,
+        right: safeX + taskWidth,
+        centerY: safeY + taskHeight / 2,
+        level: taskLevel,
+        order: taskIdx,
+      }
+
+      taskY += taskHeight + 14
+    })
+
+    const blockHeight = Math.max(trackHeight, taskY - trackY)
+    currentY += blockHeight + 24
+  })
+
+  // Center Root relative to tracks
+  const rootWidth = W.root
+  const rootHeight = ROOT_H
+  const rootX = 40
+  const computedRootY =
+    tracks.length > 0 ? (40 + currentY - 24 - rootHeight) / 2 : 40
+  const safeRootY = Number.isFinite(root.y) ? root.y! : Math.max(40, computedRootY)
+
+  result[root.id] = {
+    x: rootX,
+    y: safeRootY,
+    width: rootWidth,
+    height: rootHeight,
+    left: rootX,
+    right: rootX + rootWidth,
+    centerY: safeRootY + rootHeight / 2,
+    level: 0,
+    order: 0,
+  }
+
+  // Any remaining orphan or ghost nodes
+  Object.values(nodes).forEach((n) => {
+    if (!result[n.id]) {
+      const branch = n as BranchGraphNode
+      const level = branch.level ?? (n.kind === 'ghost' ? 0 : 2)
+      const defaultX = level === 0 ? 40 : level === 1 ? 320 : 640
+      const width =
+        n.kind === 'root'
+          ? W.root
+          : branch.isTrack
+          ? W.track
+          : W.task
+      const height =
+        n.kind === 'root' ? ROOT_H : branch.isTrack ? TRACK_H : TASK_H
+
+      const safeX = Number.isFinite(branch.x) ? branch.x! : defaultX
+      const safeY = Number.isFinite(branch.y) ? branch.y! : currentY
+
+      result[n.id] = {
+        x: safeX,
+        y: safeY,
+        width,
+        height,
+        left: safeX,
+        right: safeX + width,
+        centerY: safeY + height / 2,
+        level,
+        order: 0,
+      }
+      currentY += height + 16
+    }
+  })
+
+  return result
+}
+
+/**
+ * Creates a new BranchGraphNode with complete hierarchy data contracts
+ * (trackId, parentId, level, order, column, row, phaseId, code, title).
+ */
+export function createNewBranchNode(
+  source: GraphNode | null | undefined,
+  nodes: GraphNodeMap,
+  phaseId = '',
+  customTitle?: string
+): BranchGraphNode {
+  const isAddingTrack = !source || source.kind === 'root'
+
+  if (isAddingTrack) {
+    const existingTracks = Object.values(nodes).filter(
+      (n): n is BranchGraphNode => n.kind === 'branch' && Boolean((n as BranchGraphNode).isTrack)
+    )
+    const trackOrder = existingTracks.length
+    const id = `track-${Date.now()}`
+    const code = `TRK-${String(trackOrder + 1).padStart(2, '0')}`
+    const title = customTitle || `Track ${trackOrder + 1}: Nhánh công việc mới`
+
+    return {
+      kind: 'branch',
+      id,
+      code,
+      title,
+      phaseId,
+      trackId: id,
+      parentId: 'root',
+      parentIds: ['root'],
+      status: 'TODO',
+      description: '',
+      isTrack: true,
+      assignee: null,
+      due: null,
+      blocker: null,
+      joinPolicy: null,
+      level: 1,
+      order: trackOrder,
+      column: 1,
+      row: trackOrder,
+    }
+  }
+
+  const sourceBranch = source as BranchGraphNode
+  const isSourceTrack = source.kind === 'branch' && sourceBranch.isTrack
+  const resolvedTrackId = isSourceTrack
+    ? source.id
+    : sourceBranch.trackId || sourceBranch.parentIds[0] || source.id
+
+  const siblings = Object.values(nodes).filter((n) =>
+    n.parentIds.includes(source.id)
+  )
+  const taskOrder = siblings.length
+  const targetLevel = (sourceBranch.level ?? (isSourceTrack ? 1 : 2)) + 1
+  const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const code = `WPE-${Math.floor(100 + Math.random() * 900)}`
+  const title = customTitle || `New Task Node ${taskOrder + 1}`
+
+  return {
+    kind: 'branch',
+    id,
+    code,
+    title,
+    phaseId: phaseId || sourceBranch.phaseId || '',
+    trackId: resolvedTrackId,
+    parentId: source.id,
+    parentIds: [source.id],
+    status:
+      source.kind === 'branch' && sourceBranch.status === 'DONE'
+        ? 'TODO'
+        : 'LOCKED',
+    description: '',
+    isTrack: false,
+    assignee: null,
+    due: null,
+    blocker:
+      source.kind === 'branch' && sourceBranch.status !== 'DONE'
+        ? `Chờ ${sourceBranch.title || source.id} hoàn tất`
+        : null,
+    joinPolicy: null,
+    level: targetLevel,
+    order: taskOrder,
+    column: targetLevel,
+    row: taskOrder,
+  }
+}
+

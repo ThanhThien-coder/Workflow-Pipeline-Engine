@@ -6,10 +6,25 @@ export function WorkflowEdge({ a, b, positions }: { a?: MacroPhase; b?: MacroPha
   const aPosition = positions[a.id]
   const bPosition = positions[b.id]
   if (!aPosition || !bPosition) return null
+  if (
+    !Number.isFinite(aPosition.x) ||
+    !Number.isFinite(aPosition.y) ||
+    !Number.isFinite(bPosition.x) ||
+    !Number.isFinite(bPosition.y) ||
+    isNaN(aPosition.x) ||
+    isNaN(aPosition.y) ||
+    isNaN(bPosition.x) ||
+    isNaN(bPosition.y)
+  ) {
+    return null
+  }
   const x1 = aPosition.x + MACRO_CARD_W
   const y1 = aPosition.y + MACRO_CARD_H / 2
   const x2 = bPosition.x
   const y2 = bPosition.y + MACRO_CARD_H / 2
   const dx = Math.max((x2 - x1) * 0.5, 40)
-  return <path d={`M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 6" />
+  if (!Number.isFinite(dx) || isNaN(dx)) return null
+  const pathData = `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`
+  if (pathData.includes('NaN') || pathData.includes('undefined')) return null
+  return <path d={pathData} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 6" />
 }

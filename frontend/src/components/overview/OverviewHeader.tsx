@@ -1,6 +1,6 @@
 import type { AiDiagnosticReport, GuestAccessState } from '../../types/overview.types'
 import type { OverviewData } from '../../types/overview.types'
-import { relativeVi } from '../../utils/relativeTime'
+import { relativeEn } from '../../utils/relativeTime'
 import { AiDiagnosisPopover } from '../popovers/AiDiagnosisPopover'
 import { GuestAccessPopover } from '../popovers/GuestAccessPopover'
 
@@ -14,5 +14,5 @@ interface OverviewHeaderProps {
 }
 
 export function OverviewHeader({ project, aiReport, guestAccess, onRevoke, onGenerate, notify }: OverviewHeaderProps) {
-  return <header className="sticky top-0 z-[45] border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-5"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2.5"><h1 className="text-xl font-bold tracking-tight">{project.name}</h1>{project.role === 'OWNER' && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Owner</span>}<span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">{project.phaseLabel}</span></div><p className="mt-1.5 text-xs text-slate-500">Cập nhật lần cuối {relativeVi(project.lastUpdatedAt)} trước · Engine đang hoạt động</p></div><div className="flex shrink-0 items-center gap-3"><AiDiagnosisPopover report={aiReport} /><GuestAccessPopover state={guestAccess} onRevoke={onRevoke} onGenerate={onGenerate} notify={notify} canManage={project.role === 'OWNER'} /></div></div></header>
+  return <header className="sticky top-0 z-[45] border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-5"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2.5"><h1 className="text-xl font-bold tracking-tight">{project.name}</h1>{project.role === 'OWNER' && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Owner</span>}<span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">{project.phaseLabel}</span></div><p className="mt-1.5 text-xs text-slate-500">Last updated {relativeEn(project.lastUpdatedAt)} · Engine running</p></div><div className="flex shrink-0 items-center gap-3"><AiDiagnosisPopover report={aiReport} /><GuestAccessPopover state={guestAccess} onRevoke={onRevoke} onGenerate={onGenerate} notify={notify} canManage={project.role === 'OWNER'} /></div></div></header>
 }

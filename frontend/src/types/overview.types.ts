@@ -15,7 +15,7 @@ export interface OverviewMetrics {
   pendingReviewCount: number
 }
 
-export type WeekdayLabel = 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'CN'
+export type WeekdayLabel = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'CN'
 export interface DailyVelocity {
   day: WeekdayLabel
   tasks: number

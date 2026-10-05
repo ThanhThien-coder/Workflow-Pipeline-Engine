@@ -1,180 +1,95 @@
-import { AlertCircle, Calendar, Check, Clock, ExternalLink, Lock, Play, RotateCcw, Send, Undo2 } from 'lucide-react'
 import type { KanbanTask, UserSummary } from '../../types/kanban.types'
-import { artifactLabel } from '../../utils/artifactLabel'
-import { fmtDayMonth } from '../../utils/date'
+
+const DEFAULT_MEMBERS: Record<string, { name: string; initials: string; avatarClass: string }> = {
+  '1': { name: 'Alex Kim', initials: 'AK', avatarClass: 'bg-emerald-500' },
+  '2': { name: 'Sarah Chen', initials: 'SC', avatarClass: 'bg-indigo-500' },
+  '3': { name: 'Marcus Liu', initials: 'ML', avatarClass: 'bg-rose-500' },
+  '4': { name: 'Jamie Doe', initials: 'JD', avatarClass: 'bg-amber-500' },
+}
+
+export interface TaskCardProps {
+  task: KanbanTask
+  actor?: UserSummary
+  member?: UserSummary
+  onOpenDetails: (task: KanbanTask) => void
+  onDragStart?: (id: string) => void
+  dragging?: boolean
+}
 
 export function TaskCard({
   task,
   actor,
-  pending,
-  onMove,
+  member,
+  onOpenDetails,
   onDragStart,
-  dragging,
-}: {
-  task: KanbanTask
-  actor: UserSummary
-  pending: boolean
-  onMove: (to: KanbanTask['status']) => void
-  onDragStart: (id: string) => void
-  dragging: boolean
-}) {
+  dragging = false,
+}: TaskCardProps) {
   const frozen = task.status === 'DONE'
-  const latest = task.artifacts[task.artifacts.length - 1]
-  const owner = actor.projectRole === 'OWNER'
-
-  const actionBtn = (
-    label: string,
-    to: KanbanTask['status'],
-    className: string,
-    Icon: typeof Play,
-  ) => (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={() => onMove(to)}
-      className={`flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-semibold transition disabled:opacity-50 ${className}`}
-    >
-      <Icon size={11} />
-      {label}
-    </button>
-  )
+  const phaseText = task.phaseLabel || (task as unknown as { phaseName?: string }).phaseName || ''
+  const fallback = DEFAULT_MEMBERS[task.assignedUserId]
+  const targetUser = member || actor || fallback
+  const assigneeName =
+    targetUser?.name ||
+    (task as unknown as { assignee?: { name: string; initials: string } }).assignee?.name ||
+    fallback?.name ||
+    ''
+  const assigneeInitials =
+    targetUser?.initials ||
+    (task as unknown as { assignee?: { name: string; initials: string } }).assignee?.initials ||
+    fallback?.initials ||
+    'AK'
+  const avatarClass = targetUser?.avatarClass || fallback?.avatarClass || 'bg-emerald-500'
 
   return (
-    <article
-      draggable={!frozen}
-      onDragStart={() => onDragStart(task.id)}
-      className={`flex h-full min-h-0 select-none flex-col justify-between overflow-hidden rounded-xl border p-2.5 shadow-sm transition-all ${
-        frozen
-          ? 'border-emerald-200 bg-emerald-50/40'
-          : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-md'
+    <div
+      draggable={!frozen && Boolean(onDragStart)}
+      onDragStart={() => onDragStart?.(task.id)}
+      onClick={() => onOpenDetails(task)}
+      className={`group rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-150 cursor-pointer flex flex-col justify-between gap-2.5 min-h-[96px] w-full select-none ${
+        frozen ? 'border-emerald-200/80 bg-emerald-50/20' : ''
       } ${!frozen ? 'cursor-grab active:cursor-grabbing' : ''} ${
         dragging ? 'opacity-40' : ''
       }`}
     >
-      {/* ── Row 1: Meta Header ── */}
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] font-bold text-slate-700">
+      {/* 1. Header: Code & Phase */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] font-semibold text-slate-400">
           {task.code}
         </span>
-        <span className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-          {task.phaseLabel}
+        <span className="max-w-[130px] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+          {phaseText}
         </span>
-        {task.isOverdue && (
-          <span className="flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">
-            <AlertCircle size={10} />
-            Trễ hạn
-          </span>
-        )}
-        {frozen && (
-          <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white">
-            <Check size={10} />
-          </span>
-        )}
       </div>
 
-      {/* ── Row 2: Title & Description ── */}
-      <div className="mt-1 min-h-0">
-        <h3
-          className={`line-clamp-1 text-xs font-bold leading-tight ${
-            frozen ? 'text-slate-600' : 'text-slate-800'
-          }`}
+      {/* 2. Title */}
+      <h4 className="line-clamp-2 text-xs font-bold leading-snug text-slate-800 transition-colors group-hover:text-indigo-600">
+        {task.title}
+      </h4>
+
+      {/* 3. Footer: Nằm trọn vẹn bên trong card */}
+      <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+        <div className="flex items-center gap-1.5" title={assigneeName}>
+          <div
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ring-1 ring-white ${avatarClass}`}
+          >
+            {assigneeInitials}
+          </div>
+          <span className="max-w-[90px] truncate text-[11px] font-medium text-slate-600">
+            {assigneeName}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenDetails(task)
+          }}
+          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
         >
-          {task.title}
-        </h3>
-        <p className="mt-0.5 line-clamp-1 text-[11px] leading-snug text-slate-500">
-          {task.description}
-        </p>
+          Details <span>↗</span>
+        </button>
       </div>
-
-      {/* ── Row 3: Prerequisites & Artifacts ── */}
-      <div className="mt-1 min-h-0 space-y-0.5">
-        <div className="flex items-center gap-1 truncate rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500">
-          {frozen ? <Lock size={10} /> : <Check size={10} />}
-          <span className="truncate">{task.joinPolicySummary}</span>
-        </div>
-        {latest && (
-          <a
-            href={latest.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded border border-violet-100 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700"
-          >
-            <ExternalLink size={10} />
-            <span className="truncate">{artifactLabel(latest)}</span>
-          </a>
-        )}
-      </div>
-
-      {/* ── Row 4: Footer ── */}
-      <div className="mt-auto flex items-center justify-between gap-1 border-t border-slate-100 pt-1">
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`flex shrink-0 items-center gap-1 text-[10px] font-medium ${
-              task.isOverdue ? 'text-red-600' : 'text-slate-500'
-            }`}
-          >
-            <Calendar size={11} />
-            {fmtDayMonth(task.dueDate)}
-          </span>
-          <span
-            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ${actor.avatarClass}`}
-          >
-            {actor.initials}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          {task.status === 'TODO' &&
-            actionBtn(
-              'Bắt đầu',
-              'IN_PROGRESS',
-              'bg-blue-600 text-white hover:bg-blue-700',
-              Play,
-            )}
-          {task.status === 'IN_PROGRESS' && (
-            <>
-              {actionBtn(
-                'Hủy',
-                'TODO',
-                'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                Undo2,
-              )}
-              {actionBtn(
-                'Nộp',
-                'REVIEW',
-                'bg-violet-600 text-white hover:bg-violet-700',
-                Send,
-              )}
-            </>
-          )}
-          {task.status === 'REVIEW' &&
-            (owner ? (
-              <>
-                {actionBtn(
-                  'Làm lại',
-                  'IN_PROGRESS',
-                  'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                  RotateCcw,
-                )}
-                {actionBtn(
-                  'Duyệt',
-                  'DONE',
-                  'bg-emerald-600 text-white hover:bg-emerald-700',
-                  Check,
-                )}
-              </>
-            ) : (
-              <span className="flex items-center gap-0.5 whitespace-nowrap text-[10px] font-medium text-violet-600">
-                <Clock size={11} />
-                Chờ duyệt
-              </span>
-            ))}
-          {frozen && (
-            <span className="whitespace-nowrap text-[10px] font-semibold text-emerald-600">
-              Đã nghiệm thu
-            </span>
-          )}
-        </div>
-      </div>
-    </article>
+    </div>
   )
 }
