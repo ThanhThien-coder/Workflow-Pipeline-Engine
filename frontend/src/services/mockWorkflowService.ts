@@ -65,17 +65,17 @@ export function seedP2A(): GraphNodeMap {
   const nodes: GraphNodeMap = {}
   const put = (value: GraphNode) => { nodes[value.id] = value }
   put({ id: 'root', kind: 'root', parentIds: [], title: 'Phase 2A: Auth Module' })
-  put(node({ id: 'trk_db', isTrack: true, title: 'Track 1: Cơ sở dữ liệu', status: 'DONE', parentIds: ['root'] }))
-  put(node({ id: 't_db', title: 'Thiết kế Session Schema', status: 'DONE', assignee: 'Sarah Chen', due: '2026-09-20', parentIds: ['trk_db'] }))
-  put(node({ id: 'trk_api', isTrack: true, title: 'Track 2: API Services', status: 'IN_PROGRESS', parentIds: ['root'] }))
-  put(node({ id: 't_login', title: 'POST /login API', status: 'DONE', assignee: 'Alex Kim', due: '2026-09-18', parentIds: ['trk_api'] }))
-  put(node({ id: 't_register', title: 'POST /register API', status: 'IN_PROGRESS', progress: 80, assignee: 'Marcus Liu', due: '2026-09-29', blocker: 'Chờ review schema xác thực email', parentIds: ['trk_api'] }))
-  put(node({ id: 't_jwt', title: 'JWT Refresh Token flow', status: 'TODO', assignee: 'Marcus Liu', due: '2026-10-05', blocker: 'Chờ /register API hoàn tất', parentIds: ['trk_api'] }))
-  put(node({ id: 'trk_ui', isTrack: true, title: 'Track 3: Giao diện Form UI', status: 'IN_PROGRESS', parentIds: ['root'] }))
-  put(node({ id: 't_loginform', title: 'Login Form Component', status: 'IN_PROGRESS', progress: 60, assignee: 'Jamie Doe', due: '2026-09-27', parentIds: ['trk_ui'] }))
-  put(node({ id: 't_oauth', title: 'OAuth Google Button', status: 'TODO', assignee: 'Jamie Doe', due: '2026-10-03', blocker: 'Chờ Login Form xong', parentIds: ['trk_ui'] }))
-  put(node({ id: 'trk_e2e', isTrack: true, title: 'Track 4: Kiểm thử E2E', status: 'LOCKED', parentIds: ['root'] }))
-  put(node({ id: 't_e2e', title: 'Test Tích hợp E2E', status: 'LOCKED', blocker: 'Chờ JWT flow & Login Form đều DONE', parentIds: ['trk_e2e', 't_jwt', 't_loginform'], joinPolicy: 'AND' }))
+  put(node({ id: 'trk_db', isTrack: true, trackId: 'trk_db', title: 'Track 1: Cơ sở dữ liệu', status: 'DONE', parentIds: ['root'], order: 0, level: 1, column: 1 }))
+  put(node({ id: 't_db', trackId: 'trk_db', title: 'Thiết kế Session Schema', status: 'DONE', assignee: 'Sarah Chen', due: '2026-09-20', parentIds: ['trk_db'], order: 0, level: 2, column: 2 }))
+  put(node({ id: 'trk_api', isTrack: true, trackId: 'trk_api', title: 'Track 2: API Services', status: 'IN_PROGRESS', parentIds: ['root'], order: 1, level: 1, column: 1 }))
+  put(node({ id: 't_login', trackId: 'trk_api', title: 'POST /login API', status: 'DONE', assignee: 'Alex Kim', due: '2026-09-18', parentIds: ['trk_api'], order: 0, level: 2, column: 2 }))
+  put(node({ id: 't_register', trackId: 'trk_api', title: 'POST /register API', status: 'IN_PROGRESS', progress: 80, assignee: 'Marcus Liu', due: '2026-09-29', blocker: 'Chờ review schema xác thực email', parentIds: ['trk_api'], order: 1, level: 2, column: 2 }))
+  put(node({ id: 't_jwt', trackId: 'trk_api', title: 'JWT Refresh Token flow', status: 'TODO', assignee: 'Marcus Liu', due: '2026-10-05', blocker: 'Chờ /register API hoàn tất', parentIds: ['trk_api'], order: 2, level: 2, column: 2 }))
+  put(node({ id: 'trk_ui', isTrack: true, trackId: 'trk_ui', title: 'Track 3: Giao diện Form UI', status: 'IN_PROGRESS', parentIds: ['root'], order: 2, level: 1, column: 1 }))
+  put(node({ id: 't_loginform', trackId: 'trk_ui', title: 'Login Form Component', status: 'IN_PROGRESS', progress: 60, assignee: 'Jamie Doe', due: '2026-09-27', parentIds: ['trk_ui'], order: 0, level: 2, column: 2 }))
+  put(node({ id: 't_oauth', trackId: 'trk_ui', title: 'OAuth Google Button', status: 'TODO', assignee: 'Jamie Doe', due: '2026-10-03', blocker: 'Chờ Login Form xong', parentIds: ['trk_ui'], order: 1, level: 2, column: 2 }))
+  put(node({ id: 'trk_e2e', isTrack: true, trackId: 'trk_e2e', title: 'Track 4: Kiểm thử E2E', status: 'LOCKED', parentIds: ['root'], order: 3, level: 1, column: 1 }))
+  put(node({ id: 't_e2e', trackId: 'trk_e2e', title: 'Test Tích hợp E2E', status: 'LOCKED', blocker: 'Chờ JWT flow & Login Form đều DONE', parentIds: ['trk_e2e', 't_jwt', 't_loginform'], joinPolicy: 'AND', order: 0, level: 2, column: 2 }))
   put(ghostNode('g_p1', ['root'], 'p1', 'x1', 'up'))
   const sessionSchema = nodes.t_db
   if (sessionSchema?.kind === 'branch') nodes.t_db = { ...sessionSchema, parentIds: ['trk_db', 'g_p1'], joinPolicy: 'AND' }
@@ -87,8 +87,8 @@ export function seedSimple(title: string, breadcrumb: string, pct: number, gate:
   const nodes: GraphNodeMap = {}
   const put = (value: GraphNode) => { nodes[value.id] = value }
   put({ id: 'root', kind: 'root', parentIds: [], title })
-  put(node({ id: 'trk1', isTrack: true, title: trackTitle, status: trackStatus, parentIds: ['root'] }))
-  put(node({ id: 'x1', title: taskTitle, status: taskStatus, assignee, due, blocker, parentIds: ['trk1'] }))
+  put(node({ id: 'trk1', isTrack: true, trackId: 'trk1', title: trackTitle, status: trackStatus, parentIds: ['root'] }))
+  put(node({ id: 'x1', trackId: 'trk1', title: taskTitle, status: taskStatus, assignee, due, blocker, parentIds: ['trk1'] }))
   return { title, breadcrumb, pct, gate, nodes }
 }
 
@@ -143,6 +143,9 @@ export class MockWorkflowService implements IWorkflowService {
   }
 
   async getPhaseGraph(phaseId: string): Promise<GraphNodeMap> {
+    if (phaseId === 'p2a') {
+      return seedP2A()
+    }
     const tree = TREES[phaseId]
     if (!tree) throw new Error(`Unknown phase: ${phaseId}`)
     return Object.fromEntries(Object.entries(tree.nodes).map(([id, graphNode]) => [id, { ...graphNode, parentIds: [...graphNode.parentIds] }]))

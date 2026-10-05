@@ -8,7 +8,7 @@ import { Popover } from '../popovers/Popover'
 import { GhostInfo } from '../popovers/GhostInfo'
 import { GhostPicker } from '../popovers/GhostPicker'
 import type { BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
-import { isAncestor } from '../../utils/spanningTreeLayout'
+import { isAncestor, TASK_H, W } from '../../utils/spanningTreeLayout'
 import { PhaseKanbanBoard } from '../kanban/PhaseKanbanBoard'
 import { TaskDetailModal } from '../kanban/TaskDetailModal'
 import { SubmitArtifactModal } from '../kanban/SubmitArtifactModal'
@@ -92,6 +92,8 @@ export function MindmapDrawer() {
         refPhase: value.refPhase,
         refId: value.refId,
         dir: value.dir,
+        width: W.ghost,
+        height: TASK_H,
       }
       const next = { ...nodes, [id]: ghost }
       if (
@@ -147,6 +149,8 @@ export function MindmapDrawer() {
       order: 0,
       column: 3,
       row: 0,
+      width: W.task,
+      height: TASK_H,
     }
     updateTree(selectedPhaseId, (nodes) => ({ ...nodes, [child.id]: child }))
     setMergeSelection(new Set())

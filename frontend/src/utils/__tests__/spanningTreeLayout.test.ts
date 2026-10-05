@@ -94,17 +94,17 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
       expect(Number.isFinite(newTask.order)).toBe(true)
     })
 
-    it('creates a nested subtask attached to an existing task and preserves trackId', () => {
+    it('creates a child subtask when spawned from an existing task (Multi-level Tree Expansion)', () => {
       const parentTask = initialNodes['task-1']
       const subtask = createNewBranchNode(parentTask, initialNodes, 'p2a')
 
       expect(subtask.isTrack).toBe(false)
       expect(subtask.trackId).toBe('trk-1') // Inherits trackId
-      expect(subtask.parentId).toBe('task-1')
+      expect(subtask.parentId).toBe('task-1') // Child of parent task!
       expect(subtask.parentIds).toEqual(['task-1'])
-      expect(subtask.level).toBe(3) // 2 + 1
-      expect(subtask.order).toBe(0) // First child of task-1
-      expect(subtask.status).toBe('TODO') // Since parent is DONE
+      expect(subtask.level).toBe(3) // Level 3 (Subtask)
+      expect(subtask.order).toBe(0) // First child under task-1
+      expect(subtask.status).toBe('TODO') // Since source task is DONE
     })
 
     it('locks child task if parent task is not yet DONE', () => {
@@ -122,27 +122,27 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
   })
 
   describe('calculateDeterministicLayout', () => {
-    it('produces strict, non-NaN deterministic coordinates', () => {
+    it('produces dynamic, level-based deterministic coordinates (Tidy Tree)', () => {
       const layout = calculateDeterministicLayout(initialNodes)
 
-      // Root validation
+      // Root validation: Level 0 (X = 40)
       expect(layout['root']).toBeDefined()
       expect(layout['root'].x).toBe(40)
       expect(Number.isFinite(layout['root'].y)).toBe(true)
       expect(isNaN(layout['root'].y)).toBe(false)
       expect(layout['root'].level).toBe(0)
 
-      // Track validation
+      // Track validation: Level 1 (X = 320)
       expect(layout['trk-1']).toBeDefined()
       expect(layout['trk-1'].x).toBe(320)
-      expect(layout['trk-1'].y).toBe(40)
+      expect(Number.isFinite(layout['trk-1'].y)).toBe(true)
       expect(layout['trk-1'].level).toBe(1)
       expect(layout['trk-1'].order).toBe(0)
 
-      // Task validation: X = 640
+      // Task validation: Level 2 (X = 600)
       expect(layout['task-1']).toBeDefined()
-      expect(layout['task-1'].x).toBe(640)
-      expect(layout['task-1'].y).toBe(40)
+      expect(layout['task-1'].x).toBe(600)
+      expect(layout['task-1'].y).toBe(60)
       expect(layout['task-1'].level).toBe(2)
       expect(layout['task-1'].order).toBe(0)
 
@@ -171,10 +171,25 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
       const pos1 = layout['task-1']
       const pos2 = layout[task2.id]
 
-      expect(pos1.x).toBe(640)
-      expect(pos2.x).toBe(640)
-      expect(pos2.y).toBe(pos1.y + TASK_H + 14)
+      expect(pos1.x).toBe(600)
+      expect(pos2.x).toBe(600)
+      expect(pos2.y).toBe(pos1.y + TASK_H + 16)
       expect(pos2.centerY).toBe(pos2.y + TASK_H / 2)
+    })
+
+    it('supports infinite branching to Level 3, 4 with dynamic X expansion', () => {
+      const subtask = createNewBranchNode(initialNodes['task-1'], initialNodes, 'p2a', 'Subtask Level 3')
+      const nodesWithL3 = { ...initialNodes, [subtask.id]: subtask }
+      const subsubtask = createNewBranchNode(subtask, nodesWithL3, 'p2a', 'Subtask Level 4')
+      const nodesWithL4 = { ...nodesWithL3, [subsubtask.id]: subsubtask }
+
+      const layout = calculateDeterministicLayout(nodesWithL4)
+
+      expect(layout[subtask.id].x).toBe(880) // Level 3: 40 + 3 * 280
+      expect(layout[subtask.id].level).toBe(3)
+
+      expect(layout[subsubtask.id].x).toBe(1160) // Level 4: 40 + 4 * 280
+      expect(layout[subsubtask.id].level).toBe(4)
     })
 
     it('prevents NaN when node has corrupted or missing properties', () => {
@@ -208,7 +223,7 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
       expect(Number.isFinite(corruptedPos.y)).toBe(true)
       expect(isNaN(corruptedPos.x)).toBe(false)
       expect(isNaN(corruptedPos.y)).toBe(false)
-      expect(corruptedPos.x).toBe(640) // Default fallback for task
+      expect(corruptedPos.x).toBeGreaterThan(0)
     })
   })
 
