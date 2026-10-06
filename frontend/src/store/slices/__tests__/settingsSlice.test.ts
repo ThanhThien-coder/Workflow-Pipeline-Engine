@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createWorkflowStore } from '../../useWorkflowStore'
-import { MockWorkflowService } from '../../../services/MockWorkflowService'
+import { MockWorkflowService } from '../../../services/mockWorkflowService'
 
 describe('Project Settings & Governance Module', () => {
   let store: ReturnType<typeof createWorkflowStore>

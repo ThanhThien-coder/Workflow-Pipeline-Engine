@@ -34,6 +34,7 @@ export interface WorkflowState
   selectPhase: (phaseId: string | null) => void
   updateTree: (phaseId: string, update: (nodes: GraphNodeMap) => GraphNodeMap) => void
   deleteNode: (phaseId: string, nodeId: string) => void
+  resetPhaseTree: (phaseId: string) => Promise<void>
   setActiveTab: (tab: NavigationTab) => void
 }
 
@@ -94,6 +95,16 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     if (!currentTree || !currentTree[nodeId]) return state
     return { trees: { ...state.trees, [phaseId]: deleteNodeCascade(currentTree, nodeId) } }
   }),
+  resetPhaseTree: async (phaseId: string) => {
+    try {
+      const cleanTree = await service.getPhaseGraph(phaseId)
+      set((state) => ({
+        trees: { ...state.trees, [phaseId]: cleanTree },
+      }))
+    } catch (err) {
+      console.error('Failed to reset phase tree:', err)
+    }
+  },
   setActiveTab: (activeTab) => set({ activeTab }),
 }))
 

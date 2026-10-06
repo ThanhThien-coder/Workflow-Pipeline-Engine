@@ -9,8 +9,8 @@ export function GhostCard({ node, onSpawnDown, onDelete, onHover, isHovered }: {
     data-primary={node.parentIds[0] || ''}
     data-status={node.kind}
     data-ghost="1"
-    style={{ width: W.ghost }}
-    className={`group relative shrink-0 select-none rounded-xl border-2 border-dashed border-indigo-300/80 bg-slate-50/70 backdrop-blur-[1px] px-2.5 pt-4 pb-2.5 cursor-pointer hover:bg-indigo-50/60 transition-all duration-200 ${
+    style={{ width: '100%', height: '100%' }}
+    className={`group relative select-none rounded-xl border-2 border-dashed border-indigo-300/80 bg-slate-50/70 backdrop-blur-[1px] px-2.5 pt-4 pb-2.5 cursor-pointer hover:bg-indigo-50/60 transition-colors duration-150 box-border h-full ${
       isHovered ? 'ring-2 ring-indigo-400 shadow-md' : ''
     }`}
     onMouseEnter={() => onHover?.(node.id)}

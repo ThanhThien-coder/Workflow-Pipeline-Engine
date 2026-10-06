@@ -3,10 +3,12 @@ import { LandingView } from './components/landing/LandingView'
 import { AuthView } from './components/auth/AuthView'
 import { WorkspaceView } from './components/workspace/WorkspaceView'
 import { ProjectWorkspaceView } from './views/ProjectWorkspaceView'
+import GuestView from './views/GuestView' // NEW
 import { ToastHost } from './components/common/ToastHost'
 import { DevToolbar } from './components/dev/DevToolbar'
 import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
 import { useRouter } from './router/useRouter'
+
 
 export default function App() {
   const { pathname, navigate, replace } = useRouter()
@@ -23,6 +25,7 @@ export default function App() {
   const isLandingRoute = pathname === '/' || pathname === ''
   const isWorkspaceRoute = pathname === '/workspaces'
   const isProjectRoute = pathname.startsWith('/project/')
+  const isGuestRoute = pathname === '/guest'           // NEW
 
   // Guard: if user visits protected route while unauthenticated, redirect to signin
   useEffect(() => {
@@ -50,6 +53,10 @@ export default function App() {
 
   // Render current view
   const renderScreen = () => {
+    if (isGuestRoute) {                                // NEW
+      return <GuestView />                             // NEW
+    }
+    
     if (isLandingRoute) {
       return <LandingView />
     }
