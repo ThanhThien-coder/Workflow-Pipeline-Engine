@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { usePhaseKanban } from '../usePhaseKanban'
-import { MockWorkflowService } from '../../services/MockWorkflowService'
+import { MockWorkflowService } from '../../services/mockWorkflowService'
 import { MockConfig } from '../../services/mock/MockConfig'
 import { createWorkflowStore, useWorkflowStore } from '../../store/useWorkflowStore'
 import type { MacroPhase } from '../../types/workflow.types'
