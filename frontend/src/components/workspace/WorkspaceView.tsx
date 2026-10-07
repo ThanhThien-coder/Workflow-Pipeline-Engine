@@ -195,6 +195,19 @@ export const WorkspaceView: FC = () => {
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false)
+                    navigate('/admin')
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-between"
+                >
+                  <span>Admin Portal</span>
+                  <span className="text-[9px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded border border-purple-200">
+                    SUPER ADMIN
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleLogout}
                   className="w-full text-left px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors font-medium"
                 >
@@ -202,6 +215,7 @@ export const WorkspaceView: FC = () => {
                 </button>
               </div>
             )}
+
           </div>
         </div>
       </header>

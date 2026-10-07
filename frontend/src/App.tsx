@@ -4,6 +4,7 @@ import { AuthView } from './components/auth/AuthView'
 import { WorkspaceView } from './components/workspace/WorkspaceView'
 import { ProjectWorkspaceView } from './views/ProjectWorkspaceView'
 import GuestView from './views/GuestView' // NEW
+import { AdminPortalView } from './features/admin/AdminPortalView'
 import { ToastHost } from './components/common/ToastHost'
 import { DevToolbar } from './components/dev/DevToolbar'
 import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
@@ -26,6 +27,7 @@ export default function App() {
   const isWorkspaceRoute = pathname === '/workspaces'
   const isProjectRoute = pathname.startsWith('/project/')
   const isGuestRoute = pathname === '/guest'           // NEW
+  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin')
 
   // Guard: if user visits protected route while unauthenticated, redirect to signin
   useEffect(() => {
@@ -53,6 +55,10 @@ export default function App() {
 
   // Render current view
   const renderScreen = () => {
+    if (isAdminRoute) {
+      return <AdminPortalView />
+    }
+
     if (isGuestRoute) {                                // NEW
       return <GuestView />                             // NEW
     }

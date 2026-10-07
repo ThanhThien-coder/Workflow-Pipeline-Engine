@@ -3,6 +3,8 @@ import { AlertOctagon, Check, ChevronDown, ChevronUp, RefreshCw, X, Zap } from '
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../../store/slices/devSlice'
 import type { ProjectStatus } from '../../types/settings.types'
+import { useRouter } from '../../router/useRouter'
+
 
 const STATUSES: { id: ProjectStatus; label: string; activeClass: string }[] = [
   { id: 'DRAFT', label: 'DRAFT', activeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/60' },
@@ -12,6 +14,7 @@ const STATUSES: { id: ProjectStatus; label: string; activeClass: string }[] = [
 ]
 
 export function DevToolbar() {
+  const { pathname, navigate } = useRouter()
   const {
     currentPersonaId,
     simulateCycle,
@@ -26,6 +29,7 @@ export function DevToolbar() {
     resetDevMockData,
     toggleDevToolbar,
   } = useWorkflowStore((state) => state.dev)
+
 
   const currentProjectStatus = useWorkflowStore((state) => state.settings.settings?.status || 'DRAFT')
   const currentRole = useWorkflowStore((state) => state.settings.settings?.myRole || state.settings.simulatedRole || 'OWNER')
@@ -219,7 +223,7 @@ export function DevToolbar() {
           </div>
 
           {/* Section 4: Quick Actions */}
-          <div className="border-t border-slate-800/80 pt-2.5">
+          <div className="border-t border-slate-800/80 pt-2.5 space-y-1.5">
             <button
               type="button"
               disabled={isResetting}
@@ -229,9 +233,28 @@ export function DevToolbar() {
               <RefreshCw className={`h-3.5 w-3.5 ${isResetting ? 'animate-spin' : ''}`} />
               <span>{isResetting ? 'Resetting Data...' : 'Reset All Mock Data'}</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (pathname.startsWith('/admin')) {
+                  navigate('/workspaces')
+                } else {
+                  navigate('/admin')
+                }
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-indigo-700/60 bg-indigo-900/40 py-1.5 font-semibold text-indigo-200 transition hover:bg-indigo-800/60 hover:text-white"
+            >
+              <span>
+                {pathname.startsWith('/admin')
+                  ? '📁 Switch to Workspaces (/workspaces)'
+                  : '🛡 Switch to Admin Portal (/admin)'}
+              </span>
+            </button>
           </div>
         </div>
       )}
     </>
   )
 }
+

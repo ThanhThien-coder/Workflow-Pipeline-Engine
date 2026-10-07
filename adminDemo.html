@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline Engine - Super Admin Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body{font-family:'Inter',system-ui,sans-serif}
+  .nav-btn.active{background:#1e293b;color:#fff;box-shadow:inset 3px 0 0 #6366f1}
+  .tab{display:none}.tab.active{display:block}
+  .toast{animation:slide .25s ease-out}
+  @keyframes slide{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+  ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#334155;border-radius:8px}
+</style>
+</head>
+<body class="bg-slate-950 text-slate-200 antialiased">
+<div class="flex h-screen overflow-hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col">
+    <div class="px-5 py-5 border-b border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 6h4a4 4 0 014 4v0M7 18h4a4 4 0 004-4v0"/></svg>
+        </div>
+        <div>
+          <div class="font-bold text-white leading-tight">Pipeline Engine</div>
+          <div class="text-[10px] tracking-widest font-semibold text-indigo-400">SUPER ADMIN CONSOLE</div>
+        </div>
+      </div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <button data-tab="analytics" class="nav-btn active w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Analytics &amp; Metrics</button>
+      <button data-tab="users" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6M17 11a3 3 0 100-6M22 20c0-2.5-2-4.6-5-5.6"/></svg>User Management</button>
+      <button data-tab="workspaces" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>Active Workspaces</button>
+      <button data-tab="audit" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>Audit Logs</button>
+    </nav>
+    <div class="p-4 border-t border-slate-800 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-sm font-bold text-white">RT</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-white truncate">Root Admin</div>
+        <div class="text-xs text-slate-500 truncate">ro***in@pipeline.engine</div>
+      </div>
+      <button id="logoutBtn" title="Logout" class="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 overflow-y-auto">
+    <header class="sticky top-0 z-10 bg-slate-950/80 backdrop-blur border-b border-slate-800 px-8 py-4 flex items-center justify-between">
+      <h1 id="pageTitle" class="text-xl font-bold text-white">Analytics &amp; Metrics</h1>
+      <div class="flex items-center gap-2 text-xs text-slate-400"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>All systems operational</div>
+    </header>
+
+    <div class="p-8">
+
+      <!-- TAB 1 -->
+      <section id="tab-analytics" class="tab active">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="text-sm text-slate-400">Total Users</div><div class="text-3xl font-bold text-white mt-2">1,284</div><div class="text-xs text-emerald-400 mt-1">▲ 4.2% so với tháng trước</div></div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="text-sm text-slate-400">Active Workspaces</div><div class="text-3xl font-bold text-white mt-2">342</div><div class="text-xs text-emerald-400 mt-1">▲ 1.8%</div></div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="text-sm text-slate-400">Pipeline Executions</div><div class="text-3xl font-bold text-white mt-2">48,920</div><div class="text-xs text-emerald-400 mt-1">▲ 12.5%</div></div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="text-sm text-slate-400">Server Uptime</div><div class="text-3xl font-bold text-white mt-2">99.98%</div><div class="text-xs text-slate-500 mt-1">SLA mục tiêu 99.9%</div></div>
+        </div>
+
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-white">Biểu đồ hoạt động</h2>
+          <div class="inline-flex bg-slate-900 border border-slate-800 rounded-lg p-1">
+            <button data-range="7" class="range-btn px-3 py-1 text-xs rounded-md bg-indigo-600 text-white">7 Days</button>
+            <button data-range="30" class="range-btn px-3 py-1 text-xs rounded-md text-slate-400 hover:text-white">30 Days</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="font-medium text-white mb-1">Lưu lượng thực thi Pipeline &amp; Người dùng hoạt động</div>
+            <div class="text-xs text-slate-500 mb-4">Theo ngày trong khoảng đã chọn</div>
+            <div class="h-72"><canvas id="lineChart"></canvas></div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="font-medium text-white mb-1">Phân bổ tài nguyên theo Role</div>
+            <div class="text-xs text-slate-500 mb-4">Owner / Collaborator / Viewer</div>
+            <div class="h-72"><canvas id="doughnutChart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2 -->
+      <section id="tab-users" class="tab">
+        <div class="flex flex-col md:flex-row gap-3 mb-4">
+          <div class="relative flex-1">
+            <svg class="w-4 h-4 absolute left-3 top-3 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input id="searchInput" type="text" placeholder="Tìm theo tên hoặc email..." class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-3 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <select id="statusFilter" class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="All">All</option><option value="Active">Active</option><option value="Suspended">Suspended</option>
+          </select>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-xs uppercase text-slate-500 bg-slate-900/60 border-b border-slate-800">
+              <tr><th class="text-left px-4 py-3">User</th><th class="text-left px-4 py-3">Email</th><th class="text-left px-4 py-3">Role</th><th class="text-left px-4 py-3">Workspaces</th><th class="text-left px-4 py-3">Last Login</th><th class="text-left px-4 py-3">Status</th><th class="text-right px-4 py-3">Actions</th></tr>
+            </thead>
+            <tbody id="userBody" class="divide-y divide-slate-800"></tbody>
+          </table>
+          <div id="emptyUsers" class="hidden p-8 text-center text-slate-500 text-sm">Không tìm thấy người dùng phù hợp.</div>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">🔒 Email và IP được che một phần. Hệ thống không hiển thị mật khẩu, token hay dữ liệu nhạy cảm.</p>
+      </section>
+
+      <!-- TAB 3 -->
+      <section id="tab-workspaces" class="tab">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-xs uppercase text-slate-500 border-b border-slate-800">
+              <tr><th class="text-left px-4 py-3">Workspace</th><th class="text-left px-4 py-3">Owner</th><th class="text-left px-4 py-3">Members</th><th class="text-left px-4 py-3">Nodes</th><th class="text-left px-4 py-3">Progress</th><th class="text-left px-4 py-3">Status</th><th class="text-left px-4 py-3">Last Activity</th></tr>
+            </thead>
+            <tbody id="wsBody" class="divide-y divide-slate-800"></tbody>
+          </table>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">Admin chỉ xem metadata của dự án, không truy cập nội dung chi tiết của node.</p>
+      </section>
+
+      <!-- TAB 4 -->
+      <section id="tab-audit" class="tab">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl">
+          <ul id="auditList" class="divide-y divide-slate-800"></ul>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div id="banModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+  <div class="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center text-red-400">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
+      </div>
+      <div><h3 class="font-semibold text-white">Khóa tài khoản</h3><p id="banTarget" class="text-xs text-slate-400"></p></div>
+    </div>
+    <label class="block text-xs font-medium text-slate-400 mb-2">Lý do khóa</label>
+    <select id="banReason" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+      <option>Vi phạm chính sách</option><option>Nghi ngờ bảo mật</option><option>Spam</option>
+    </select>
+    <p class="text-xs text-slate-500 mt-3">Mọi phiên đăng nhập của người dùng sẽ bị chấm dứt ngay lập tức.</p>
+    <div class="flex justify-end gap-2 mt-6">
+      <button id="cancelBan" class="px-4 py-2 text-sm rounded-lg bg-slate-800 hover:bg-slate-700">Cancel</button>
+      <button id="confirmBan" class="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium">Confirm Ban</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" class="fixed bottom-6 right-6 z-[60] space-y-2"></div>
+
+<script>
+(() => {
+  // ---------- DATA ----------
+  const users = [
+    {id:'USR-0001', name:'Root Admin',     email:'ro***in@pipeline.engine', role:'SUPER_ADMIN', ws:342, ip:'192.168.1.***', last:'2 phút trước',  status:'ACTIVE', color:'from-indigo-500 to-fuchsia-500'},
+    {id:'USR-0142', name:'Alice Kim',      email:'al***im@pipeline.engine', role:'ADMIN',       ws:18,  ip:'192.168.1.***', last:'15 phút trước', status:'ACTIVE', color:'from-sky-500 to-indigo-500'},
+    {id:'USR-0287', name:'Sam Allen',      email:'sa***en@acme.io',         role:'MEMBER',      ws:7,   ip:'10.0.4.***',    last:'1 giờ trước',   status:'ACTIVE', color:'from-emerald-500 to-teal-500'},
+    {id:'USR-0391', name:'Nguyễn Minh An', email:'mi***an@fpt.vn',          role:'MEMBER',      ws:12,  ip:'113.161.22.***',last:'3 giờ trước',   status:'ACTIVE', color:'from-amber-500 to-orange-500'},
+    {id:'USR-0455', name:'Linh Tran',      email:'li***an@studio.dev',      role:'MEMBER',      ws:3,   ip:'10.0.4.***',    last:'2 ngày trước',  status:'SUSPENDED', color:'from-rose-500 to-pink-500'},
+    {id:'USR-0512', name:'David Park',     email:'da***rk@globex.com',      role:'ADMIN',       ws:21,  ip:'172.16.8.***',  last:'Hôm qua',       status:'ACTIVE', color:'from-violet-500 to-purple-500'},
+  ];
+  const workspaces = [
+    ['Website Redesign','Alice Kim',8,42,68,'ACTIVE','5 phút trước'],
+    ['Mobile App v2','Sam Allen',12,87,41,'ACTIVE','20 phút trước'],
+    ['Data Migration','David Park',5,26,92,'ACTIVE','1 giờ trước'],
+    ['Marketing Q4','Nguyễn Minh An',9,33,15,'AT RISK','3 giờ trước'],
+    ['Thesis Pipeline','Linh Tran',3,18,100,'INACTIVE','28 ngày trước'],
+    ['Infra Hardening','Root Admin',6,54,57,'ACTIVE','Hôm qua'],
+  ];
+  const audit = [
+    {t:'login',  msg:'Alice Kim đăng nhập thành công', meta:'192.168.1.***', time:'10:42'},
+    {t:'role',   msg:'Đổi quyền Sam Allen từ MEMBER sang ADMIN tại "Mobile App v2"', meta:'Bởi Root Admin', time:'10:15'},
+    {t:'ban',    msg:'Khóa tài khoản Linh Tran', meta:'Lý do: Spam · Bởi Root Admin', time:'09:58'},
+    {t:'login',  msg:'Đăng nhập thất bại 3 lần liên tiếp', meta:'203.0.113.***', time:'09:31'},
+    {t:'role',   msg:'Thu hồi Guest Link Token của "Website Redesign"', meta:'Bởi Alice Kim', time:'09:05'},
+    {t:'login',  msg:'David Park đăng nhập thành công', meta:'172.16.8.***', time:'08:47'},
+  ];
+
+  // ---------- HELPERS ----------
+  const $ = s => document.querySelector(s), $$ = s => document.querySelectorAll(s);
+  const initials = n => n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const roleCls = {SUPER_ADMIN:'bg-fuchsia-500/15 text-fuchsia-300', ADMIN:'bg-indigo-500/15 text-indigo-300', MEMBER:'bg-slate-700/60 text-slate-300'};
+  const typeCls = {login:'bg-sky-500/15 text-sky-300', role:'bg-amber-500/15 text-amber-300', ban:'bg-red-500/15 text-red-300'};
+  const typeLbl = {login:'LOGIN', role:'ROLE CHANGE', ban:'BAN / UNBAN'};
+
+  // ---------- NAV ----------
+  const titles = {analytics:'Analytics & Metrics', users:'User Management', workspaces:'Active Workspaces', audit:'Audit Logs'};
+  $$('.nav-btn').forEach(b => b.addEventListener('click', () => {
+    const t = b.dataset.tab;
+    $$('.nav-btn').forEach(x => x.classList.toggle('active', x === b));
+    $$('.tab').forEach(x => x.classList.toggle('active', x.id === 'tab-' + t));
+    $('#pageTitle').textContent = titles[t];
+    if (t === 'analytics') { lineChart.resize(); doughnutChart.resize(); }
+  }));
+
+  // ---------- TOAST ----------
+  function toast(msg, type='ok') {
+    const el = document.createElement('div');
+    el.className = 'toast flex items-center gap-2 px-4 py-3 rounded-lg shadow-xl text-sm text-white border ' +
+      (type==='ok' ? 'bg-emerald-600 border-emerald-400/40' : 'bg-slate-700 border-slate-500/40');
+    el.textContent = msg;
+    $('#toasts').appendChild(el);
+    setTimeout(() => { el.style.opacity = 0; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3000);
+  }
+  $('#logoutBtn').addEventListener('click', () => toast('Đã đăng xuất (mô phỏng)', 'info'));
+
+  // ---------- USERS ----------
+  function renderUsers() {
+    const q = $('#searchInput').value.trim().toLowerCase();
+    const f = $('#statusFilter').value.toUpperCase();
+    const rows = users.filter(u =>
+      (f === 'ALL' || u.status === f) &&
+      (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)));
+    $('#emptyUsers').classList.toggle('hidden', rows.length > 0);
+    $('#userBody').innerHTML = rows.map(u => {
+      const root = u.role === 'SUPER_ADMIN';
+      const sus = u.status === 'SUSPENDED';
+      const action = root
+        ? `<button disabled title="Không thể khóa tài khoản root" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 text-slate-600 cursor-not-allowed">Ban / Suspend</button>`
+        : sus
+          ? `<button data-unban="${u.id}" class="px-3 py-1.5 text-xs rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30">Unban</button>`
+          : `<button data-ban="${u.id}" class="px-3 py-1.5 text-xs rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/30">Ban / Suspend</button>`;
+      return `<tr class="hover:bg-slate-800/40 ${sus ? 'opacity-80' : ''}">
+        <td class="px-4 py-3"><div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br ${u.color} flex items-center justify-center text-xs font-bold text-white">${initials(u.name)}</div>
+          <div><div class="font-medium text-white">${u.name}</div><div class="text-xs text-slate-500">${u.id}</div></div></div></td>
+        <td class="px-4 py-3 font-mono text-xs text-slate-300">${u.email}</td>
+        <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ${roleCls[u.role]}">${u.role}</span></td>
+        <td class="px-4 py-3">${u.ws}</td>
+        <td class="px-4 py-3"><div class="text-xs">${u.last}</div><div class="font-mono text-xs text-slate-500">${u.ip}</div></td>
+        <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${sus ? 'bg-red-500/15 text-red-400' : 'bg-emerald-500/15 text-emerald-400'}">${u.status}</span></td>
+        <td class="px-4 py-3 text-right">${action}</td></tr>`;
+    }).join('');
+  }
+  $('#searchInput').addEventListener('input', renderUsers);
+  $('#statusFilter').addEventListener('change', renderUsers);
+
+  // ---------- BAN / UNBAN ----------
+  let pending = null;
+  const modal = $('#banModal');
+  const openModal = u => { pending = u; $('#banTarget').textContent = `${u.name} · ${u.id}`; modal.classList.remove('hidden'); modal.classList.add('flex'); };
+  const closeModal = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); pending = null; };
+
+  $('#userBody').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.ban) openModal(users.find(u => u.id === b.dataset.ban));
+    if (b.dataset.unban) {
+      const u = users.find(x => x.id === b.dataset.unban);
+      u.status = 'ACTIVE'; renderUsers();
+      addAudit('ban', `Mở khóa tài khoản ${u.name}`, 'Bởi Root Admin');
+      toast('Đã mở khóa tài khoản thành công');
+    }
+  });
+  $('#cancelBan').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  $('#confirmBan').addEventListener('click', () => {
+    if (!pending || pending.role === 'SUPER_ADMIN') return;
+    const reason = $('#banReason').value;
+    pending.status = 'SUSPENDED';
+    addAudit('ban', `Khóa tài khoản ${pending.name}`, `Lý do: ${reason} · Bởi Root Admin`);
+    closeModal(); renderUsers();
+    toast('Đã khóa tài khoản thành công');
+  });
+
+  // ---------- WORKSPACES ----------
+  const wsCls = {ACTIVE:'bg-emerald-500/15 text-emerald-400', 'AT RISK':'bg-amber-500/15 text-amber-400', INACTIVE:'bg-slate-700 text-slate-400'};
+  $('#wsBody').innerHTML = workspaces.map(w => `<tr class="hover:bg-slate-800/40">
+    <td class="px-4 py-3 font-medium text-white">${w[0]}</td><td class="px-4 py-3">${w[1]}</td>
+    <td class="px-4 py-3">${w[2]}</td><td class="px-4 py-3">${w[3]}</td>
+    <td class="px-4 py-3 w-48"><div class="flex items-center gap-2"><div class="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden"><div class="h-full bg-indigo-500" style="width:${w[4]}%"></div></div><span class="text-xs text-slate-400 w-9">${w[4]}%</span></div></td>
+    <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${wsCls[w[5]]}">${w[5]}</span></td>
+    <td class="px-4 py-3 text-xs text-slate-400">${w[6]}</td></tr>`).join('');
+
+  // ---------- AUDIT ----------
+  function renderAudit() {
+    $('#auditList').innerHTML = audit.map(a => `<li class="flex items-center gap-4 px-5 py-3.5">
+      <span class="w-28 text-center px-2 py-1 rounded text-[10px] font-bold tracking-wide ${typeCls[a.t]}">${typeLbl[a.t]}</span>
+      <div class="flex-1 min-w-0"><div class="text-sm text-slate-200">${a.msg}</div><div class="text-xs text-slate-500 font-mono">${a.meta}</div></div>
+      <span class="text-xs text-slate-500">${a.time}</span></li>`).join('');
+  }
+  function addAudit(t, msg, meta) {
+    const d = new Date(), time = d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+    audit.unshift({t, msg, meta, time}); renderAudit();
+  }
+
+  // ---------- CHARTS ----------
+  Chart.defaults.color = '#94a3b8'; Chart.defaults.font.family = 'Inter';
+  const grid = {color:'rgba(148,163,184,.1)'};
+  const gen = (n, base, amp, seed) => Array.from({length:n}, (_, i) => Math.round(base + Math.sin(i * .9 + seed) * amp + (i * amp) / n));
+  const labels = n => n === 7 ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] : Array.from({length:30}, (_, i) => `D${i+1}`);
+
+  const lineChart = new Chart($('#lineChart'), {
+    type:'line',
+    data:{labels:labels(7), datasets:[
+      {label:'Pipeline Executions', data:gen(7,5200,900,0), borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,.2)', fill:true, tension:.4, yAxisID:'y'},
+      {label:'Active Users', data:gen(7,420,70,2), borderColor:'#22d3ee', backgroundColor:'rgba(34,211,238,.1)', fill:true, tension:.4, yAxisID:'y1'}
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:false},
+      plugins:{legend:{position:'bottom', labels:{usePointStyle:true}}},
+      scales:{x:{grid:{display:false}}, y:{grid, position:'left'}, y1:{grid:{display:false}, position:'right'}}}
+  });
+  const doughnutChart = new Chart($('#doughnutChart'), {
+    type:'doughnut',
+    data:{labels:['Owner','Collaborator','Viewer'], datasets:[{data:[18,52,30], backgroundColor:['#6366f1','#22d3ee','#f59e0b'], borderColor:'#0f172a', borderWidth:3}]},
+    options:{responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{legend:{position:'bottom', labels:{usePointStyle:true}}, tooltip:{callbacks:{label:c => ` ${c.label}: ${c.parsed}%`}}}}
+  });
+
+  $$('.range-btn').forEach(b => b.addEventListener('click', () => {
+    const n = +b.dataset.range;
+    $$('.range-btn').forEach(x => {
+      const on = x === b;
+      x.classList.toggle('bg-indigo-600', on); x.classList.toggle('text-white', on); x.classList.toggle('text-slate-400', !on);
+    });
+    lineChart.data.labels = labels(n);
+    lineChart.data.datasets[0].data = gen(n, 5200, 900, n);
+    lineChart.data.datasets[1].data = gen(n, 420, 70, n + 2);
+    lineChart.update();
+    doughnutChart.data.datasets[0].data = n === 7 ? [18,52,30] : [20,49,31];
+    doughnutChart.update();
+    toast(`Đã cập nhật dữ liệu ${n} ngày`, 'info');
+  }));
+
+  // ---------- INIT ----------
+  renderUsers(); renderAudit();
+})();
+</script>
+</body>
+</html>

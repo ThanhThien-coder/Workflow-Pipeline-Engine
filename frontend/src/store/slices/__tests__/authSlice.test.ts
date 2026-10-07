@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createWorkflowStore } from '../../useWorkflowStore'
-import { MockWorkflowService } from '../../../services/mockWorkflowService'
+import { MockWorkflowService } from '../../../services/MockWorkflowService'
 
 describe('Auth Module (authSlice)', () => {
   let store: ReturnType<typeof createWorkflowStore>

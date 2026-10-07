@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createWorkflowStore } from '../../useWorkflowStore'
-import { MockWorkflowService } from '../../../services/mockWorkflowService'
+import { MockWorkflowService } from '../../../services/MockWorkflowService'
 import { MockConfig } from '../../../services/mock/MockConfig'
 
 describe('Dev & Scenario Simulation Module (devSlice)', () => {
