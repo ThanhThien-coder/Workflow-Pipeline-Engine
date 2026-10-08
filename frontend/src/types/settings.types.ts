@@ -7,7 +7,10 @@ export type AuditLogAction =
   | 'ROLE_CHANGED'
   | 'MEMBER_REMOVED'
   | 'PIPELINE_PUBLISHED'
-  | 'PROJECT_UPDATED';
+  | 'PROJECT_UPDATED'
+  | 'RESOURCE_ADDED'
+  | 'RESOURCE_REMOVED'
+  | 'RESOURCE_UPDATED';
 
 export type AuditScope = 'Governance' | 'Lifecycle' | 'Access';
 

@@ -15,6 +15,9 @@ const EVENT_BADGE: Record<AuditLogAction, string> = {
   MEMBER_REMOVED: 'bg-red-50 text-red-700 border-red-200',
   PIPELINE_PUBLISHED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   PROJECT_UPDATED: 'bg-violet-50 text-violet-700 border-violet-200',
+  RESOURCE_ADDED: 'bg-teal-50 text-teal-700 border-teal-200',
+  RESOURCE_REMOVED: 'bg-red-50 text-red-700 border-red-200',
+  RESOURCE_UPDATED: 'bg-violet-50 text-violet-700 border-violet-200',
 }
 
 const ROLE_BADGE: Record<string, string> = {
@@ -103,15 +106,15 @@ export function SystemAuditLogSection({
           </span>
         </div>
 
-        <div className="overflow-x-auto -mx-2 sm:mx-0">
+        <div className="overflow-auto max-h-[400px] -mx-2 sm:mx-0 pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar]:h-1.5">
           <table className="w-full min-w-[700px] text-left">
-            <thead>
-              <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                <th className="px-3 pb-2.5 pt-1">Timestamp</th>
-                <th className="px-3 pb-2.5 pt-1">Actor</th>
-                <th className="px-3 pb-2.5 pt-1">Event</th>
-                <th className="px-3 pb-2.5 pt-1">Details</th>
-                <th className="px-3 pb-2.5 pt-1">Scope</th>
+            <thead className="sticky top-0 z-10 bg-white">
+              <tr className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Timestamp</th>
+                <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Actor</th>
+                <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Event</th>
+                <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Details</th>
+                <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Scope</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
