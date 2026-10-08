@@ -56,6 +56,7 @@
   * Giao diện Overview có nút bấm chạy AI để xem chẩn đoán hiện tại (nút thắt cổ chai, rủi ro), người dùng chỉ quan tâm kết quả mới nhất chứ không xem lịch sử các lần chạy trước.
   * Khi AI Worker quét xong, nó ghi đè trực tiếp kết quả mới nhất vào cột `latest_ai_analysis`.
   * **Lợi ích lớn:** Giảm hẳn 1 bảng trong Database, bớt được 1 Entity JPA, 1 Repository và 1 Service trong Spring Boot, đỡ nhọc công code rất nhiều.
+* **Cấu trúc JSONB `latest_ai_analysis` của bảng `PROJECT`:** Cột này lưu trữ toàn bộ kết quả phân tích mới nhất của AI (bao gồm: các điểm nghẽn CPM, task bẫy, rủi ro kiến trúc và lời khuyên). Worker AI khi quét xong sẽ ghi đè trực tiếp vào cột này.
 
 ---
 
@@ -78,8 +79,8 @@
   * `reviewer_role`: varchar ('TEACHER' hoặc 'GUEST')
   * `content`: text
   * `status`: varchar ('OPEN' hoặc 'RESOLVED')
-  * `reply_content`: text (cho phép `NULL`)
   * `created_at`: timestamp
+* **Quy tắc Feedback 1 chiều:** Phản hồi từ TEACHER/GUEST là luồng tiếp thu 1 chiều, nhóm thực thi chỉ đọc và chuyển trạng thái OPEN -> RESOLVED, tuyệt đối không có cơ chế tranh luận hoặc trả lời lại (không có cột `reply_content`).
 * **Lý do & Tối ưu:**
   * Phù hợp 100% với giao diện **Feedback Queue** trên màn hình **Overview** của Frontend.
   * Việc để `node_id` cho phép `NULL` giúp hỗ trợ cả 2 nghiệp vụ: vừa có thể góp ý chung cho toàn dự án (`node_id = NULL`), vừa có thể chỉ định góp ý vào 1 task cụ thể.
@@ -135,6 +136,7 @@
   3. **Nghiệp vụ Kho chung tài liệu (Project Artifact Hub):** Hỗ trợ 2 luồng:
      * *Luồng 1:* Task sau khi hoàn thành có nút *"Thêm vào kho chung"* và đổi tên hiển thị.
      * *Luồng 2:* Quản lý trực tiếp từ giao diện Kho chung (thêm, xóa, sửa, đổi tên các link Figma/Swagger/PR/Docs độc lập không gắn vào task nào).
+  4. **Tính chất nộp Artifact:** Nộp Artifact khi hoàn thành task là TÙY CHỌN (Optional). Thành viên có thể chuyển task sang In Review mà không bắt buộc phải đính kèm liên kết.
 * **Cấu trúc bảng `ARTIFACTS` chuẩn hóa:**
   * `id`: bigint PK
   * `project_id`: bigint FK (liên kết đến `PROJECT`)
