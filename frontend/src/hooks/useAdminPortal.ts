@@ -18,7 +18,7 @@ export interface AdminToastItem {
   tone: 'blue' | 'rose' | 'emerald';
 }
 
-export type AdminPortalTab = 'overview' | 'users' | 'workspaces' | 'audit';
+export type AdminPortalTab = 'overview' | 'users' | 'workspaces' | 'audit' | 'templates';
 
 export function useAdminPortal(service: IAdminService = adminService) {
   const [currentTab, setCurrentTabState] = useState<AdminPortalTab>('overview');

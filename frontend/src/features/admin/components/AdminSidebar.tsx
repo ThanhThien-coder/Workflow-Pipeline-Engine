@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   LogOut,
   Workflow,
+  Layers,
 } from 'lucide-react';
 
 import { useRouter } from '../../../router/useRouter';
@@ -27,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview & Analytics', icon: BarChart3 },
   { id: 'users', label: 'User Management', icon: Users },
   { id: 'workspaces', label: 'Workspaces & DAGs', icon: Zap },
+  { id: 'templates', label: 'Template Library', icon: Layers },
   { id: 'audit', label: 'Security & Audit Logs', icon: ShieldCheck },
 ];
 
@@ -139,6 +141,8 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
                 ? 'Users'
                 : item.id === 'workspaces'
                 ? 'DAGs'
+                : item.id === 'templates'
+                ? 'Templates'
                 : 'Audit'}
             </button>
           );

@@ -12,6 +12,7 @@ const TAB_TITLES: Record<AdminPortalTab, string> = {
   overview: 'Overview & Analytics',
   users: 'User Management',
   workspaces: 'Workspaces & DAGs',
+  templates: 'Template Library',
   audit: 'Security & Audit Logs',
 };
 
