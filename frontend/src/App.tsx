@@ -6,6 +6,7 @@ import { ProjectWorkspaceView } from './views/ProjectWorkspaceView'
 import GuestView from './views/GuestView' // NEW
 import { AdminPortalView } from './features/admin/AdminPortalView'
 import ProfileView from './views/ProfileView'
+import NotificationsView from './views/NotificationsView'
 import { ToastHost } from './components/common/ToastHost'
 import { DevToolbar } from './components/dev/DevToolbar'
 import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
@@ -28,20 +29,21 @@ export default function App() {
   const isWorkspaceRoute = pathname === '/workspaces'
   const isProjectRoute = pathname.startsWith('/project/')
   const isProfileRoute = pathname === '/profile'
+  const isNotificationsRoute = pathname === '/notifications'
   const isGuestRoute = pathname === '/guest'           // NEW
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin')
 
   // Guard: if user visits protected route while unauthenticated, redirect to signin
   useEffect(() => {
     if (!isAuthenticated) {
-      if (isWorkspaceRoute || isProjectRoute || isProfileRoute) {
+      if (isWorkspaceRoute || isProjectRoute || isProfileRoute || isNotificationsRoute) {
         replace('/auth?tab=signin')
       }
     } else if (isAuthRoute) {
       // If already logged in and navigates to /auth, redirect to workspaces
       replace('/workspaces')
     }
-  }, [isAuthenticated, isWorkspaceRoute, isProjectRoute, isAuthRoute, replace])
+  }, [isAuthenticated, isWorkspaceRoute, isProjectRoute, isProfileRoute, isNotificationsRoute, isAuthRoute, replace])
 
   // Parse Project Route: /project/:id/:tab
   let projectId = '1'
@@ -79,6 +81,10 @@ export default function App() {
 
     if (isProfileRoute) {
       return <ProfileView />
+    }
+
+    if (isNotificationsRoute) {
+      return <NotificationsView />
     }
 
     if (isProjectRoute) {

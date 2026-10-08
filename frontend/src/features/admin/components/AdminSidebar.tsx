@@ -5,7 +5,6 @@ import {
   Users,
   Zap,
   ShieldCheck,
-  LogOut,
   Workflow,
   Layers,
 } from 'lucide-react';
@@ -15,7 +14,6 @@ import { useRouter } from '../../../router/useRouter';
 interface AdminSidebarProps {
   currentTab: AdminPortalTab;
   onTabChange: (tab: AdminPortalTab) => void;
-  onLogout: () => void;
 }
 
 interface NavItem {
@@ -35,7 +33,6 @@ const NAV_ITEMS: NavItem[] = [
 export const AdminSidebar: FC<AdminSidebarProps> = ({
   currentTab,
   onTabChange,
-  onLogout,
 }) => {
   const { navigate } = useRouter();
 
@@ -95,32 +92,6 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
           })}
         </nav>
 
-        {/* Profile Footer */}
-        <div className="border-t border-slate-100 p-3 lg:p-4">
-          <div className="flex items-center justify-center lg:justify-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white shadow-sm">
-              AK
-            </div>
-            <div className="profile-copy hidden min-w-0 flex-1 lg:block">
-              <div className="truncate text-sm font-bold text-slate-800">Alex Kim</div>
-              <div className="truncate text-xs text-slate-400">Root Admin</div>
-            </div>
-            <button
-              onClick={onLogout}
-              className="logout-label hidden lg:inline-flex rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-              title="Đăng xuất"
-            >
-              Đăng xuất
-            </button>
-            <button
-              onClick={onLogout}
-              className="lg:hidden p-1.5 text-slate-400 hover:text-rose-600"
-              title="Đăng xuất"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
       </aside>
 
       {/* Mobile Bottom Navigation */}

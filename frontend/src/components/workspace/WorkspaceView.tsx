@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, type FC } from 'react'
+import { useEffect, useRef, type FC } from 'react'
 import { Logo } from '../common/Logo'
-import { Avatar } from '../common/Avatar'
+import { GlobalProfileMenu } from '../common/GlobalProfileMenu'
 import { ProjectCard } from './ProjectCard'
 import { CreatePipelineModal } from './CreatePipelineModal'
+import NotificationBell from '../common/NotificationBell'
 import {
   useWorkflowStore,
 } from '../../store/useWorkflowStore'
@@ -19,8 +20,6 @@ import type { ProjectCardVm } from '../../types/workspace.types'
 export const WorkspaceView: FC = () => {
   const { navigate } = useRouter()
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   // Store state & actions
   const projects = useWorkflowStore((state) => state.workspace.projects)
@@ -56,18 +55,10 @@ export const WorkspaceView: FC = () => {
       }
     }
 
-    const handleMouseDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsMenuOpen(false)
-      }
-    }
-
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('mousedown', handleMouseDown)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('mousedown', handleMouseDown)
     }
   }, [])
 
@@ -95,7 +86,6 @@ export const WorkspaceView: FC = () => {
   }
 
   const handleLogout = async () => {
-    setIsMenuOpen(false)
     await logout()
     showToast('Logged out successfully.')
     navigate('/auth?tab=signin')
@@ -110,7 +100,6 @@ export const WorkspaceView: FC = () => {
 
   const userDisplayName = currentUser?.username || 'Alex Kim'
   const userEmail = currentUser?.email || 'alex.kim@pipeline.engine'
-  const userAvatarUrl = currentUser?.avatarUrl || null
 
   return (
     <div
@@ -145,83 +134,15 @@ export const WorkspaceView: FC = () => {
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => showToast('You have 3 new notifications (demo).')}
-            aria-label="Notifications"
-            className="relative w-9 h-9 grid place-items-center rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
-          >
-            <svg
-              width="17"
-              height="17"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8" />
-              <path d="M10 20a2 2 0 004 0" />
-            </svg>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
-          </button>
+          <NotificationBell />
 
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 pl-1.5 pr-2.5 py-1 transition-colors cursor-pointer"
-            >
-              {userAvatarUrl ? (
-                <img src={userAvatarUrl} alt={userDisplayName} className="w-7 h-7 rounded-full object-cover ring-2 ring-white" />
-              ) : (
-                <Avatar name={userDisplayName} index={0} className="w-7 h-7 text-[10px]" />
-              )}
-              <span className="hidden sm:block text-xs font-semibold text-slate-800">
-                {userDisplayName}
-              </span>
-            </button>
-
-            {isMenuOpen && (
-              <div className="pop absolute right-0 mt-2 w-48 rounded-xl border border-slate-200/90 bg-white shadow-xl p-1.5 text-sm z-50">
-                <div className="px-3 py-2 text-[11px] text-slate-500 border-b border-slate-100 mb-1 truncate">
-                  {userEmail}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false)
-                    navigate('/profile')
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  Profile
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false)
-                    navigate('/admin')
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-between"
-                >
-                  <span>Admin Portal</span>
-                  <span className="text-[9px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded border border-purple-200">
-                    SUPER ADMIN
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full text-left px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors font-medium"
-                >
-                  Log Out
-                </button>
-              </div>
-            )}
-
-          </div>
+          <GlobalProfileMenu
+            displayName={userDisplayName}
+            email={userEmail}
+            showName
+            onLogout={handleLogout}
+            onAdminPortal={() => navigate('/admin')}
+          />
         </div>
       </header>
 
