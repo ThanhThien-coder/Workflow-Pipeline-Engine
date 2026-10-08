@@ -23,6 +23,7 @@ export interface AuthSlice {
     register: (cmd: RegisterUserCommand) => Promise<void>
     logout: () => Promise<void>
     hydrate: () => void
+    syncUserAvatar: (avatarUrl: string | null) => void
   }
 }
 
@@ -99,6 +100,28 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
             error: null,
           },
         }))
+      }
+    },
+    syncUserAvatar: (avatarUrl: string | null) => {
+      set((state) => {
+        if (!state.auth.currentUser) return state
+        return {
+          auth: {
+            ...state.auth,
+            currentUser: {
+              ...state.auth.currentUser,
+              avatarUrl,
+            },
+          },
+        }
+      })
+      try {
+        const current = localStorage.getItem(USER_KEY)
+        if (!current) return
+        const user = JSON.parse(current) as UserDto
+        localStorage.setItem(USER_KEY, JSON.stringify({ ...user, avatarUrl }))
+      } catch {
+        // Ignore storage errors
       }
     },
 

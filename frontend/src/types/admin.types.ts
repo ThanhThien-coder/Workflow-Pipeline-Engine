@@ -60,4 +60,4 @@ export interface SecurityAuditLogDto {
   maskedIp: string;
 }
 
-export type AdminTabId = 'overview' | 'users' | 'workspaces' | 'audit' | 'analytics' | 'logs';
+export type AdminTabId = 'overview' | 'users' | 'workspaces' | 'audit' | 'analytics' | 'logs' | 'templates';

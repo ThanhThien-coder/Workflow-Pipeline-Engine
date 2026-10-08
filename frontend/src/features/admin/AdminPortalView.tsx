@@ -1,5 +1,6 @@
-import type { FC } from 'react';
+import { useState, useEffect, type FC } from 'react';
 import { useAdminPortal } from '../../hooks/useAdminPortal';
+import { useRouter } from '../../router/useRouter';
 import { AdminSidebar } from './components/AdminSidebar';
 import { AdminTopbar } from './components/AdminTopbar';
 import { BanConfirmModal } from './components/BanConfirmModal';
@@ -8,6 +9,8 @@ import { AnalyticsTab } from './tabs/AnalyticsTab';
 import { UserManagementTab } from './tabs/UserManagementTab';
 import { WorkspacesTab } from './tabs/WorkspacesTab';
 import { AuditLogsTab } from './tabs/AuditLogsTab';
+import { TemplateCatalogView } from './templates/TemplateCatalogView';
+import { TemplateStudioView } from './templates/TemplateStudioView';
 
 export const AdminPortalView: FC = () => {
   const {
@@ -42,6 +45,53 @@ export const AdminPortalView: FC = () => {
     dismissToast,
   } = useAdminPortal();
 
+  const { pathname, navigate } = useRouter();
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+
+  // Sync route with tab and studio state
+  useEffect(() => {
+    if (pathname === '/admin/templates') {
+      setCurrentTab('templates');
+      setIsStudioOpen(false);
+      setEditingTemplateId(null);
+    } else if (pathname === '/admin/templates/new') {
+      setCurrentTab('templates');
+      setIsStudioOpen(true);
+      setEditingTemplateId(null);
+    } else if (pathname.startsWith('/admin/templates/') && pathname.endsWith('/studio')) {
+      const match = pathname.match(/^\/admin\/templates\/([^/]+)\/studio$/);
+      if (match && match[1]) {
+        setCurrentTab('templates');
+        setIsStudioOpen(true);
+        setEditingTemplateId(match[1]);
+      }
+    }
+  }, [pathname, setCurrentTab]);
+
+  const handleOpenStudio = (templateId: string | null) => {
+    setIsStudioOpen(true);
+    setEditingTemplateId(templateId);
+    if (templateId) {
+      navigate(`/admin/templates/${templateId}/studio`);
+    } else {
+      navigate('/admin/templates/new');
+    }
+  };
+
+  const handleCloseStudio = () => {
+    setIsStudioOpen(false);
+    setEditingTemplateId(null);
+    navigate('/admin/templates');
+  };
+
+  const handleTabChange = (tab: typeof currentTab) => {
+    setCurrentTab(tab);
+    if (tab === 'templates') {
+      navigate('/admin/templates');
+    }
+  };
+
   const handleGlobalSearch = (term: string) => {
     setCurrentTab('users');
     setSearchQuery(term);
@@ -68,7 +118,7 @@ export const AdminPortalView: FC = () => {
       {/* 1. Left Sidebar Navigation */}
       <AdminSidebar
         currentTab={currentTab}
-        onTabChange={setCurrentTab}
+        onTabChange={handleTabChange}
         onLogout={handleLogout}
       />
 
@@ -113,6 +163,13 @@ export const AdminPortalView: FC = () => {
             />
           )}
 
+          {currentTab === 'templates' && (
+            <TemplateCatalogView
+              onOpenStudio={handleOpenStudio}
+              onToast={(msg, tone) => showToast(msg, tone || 'blue')}
+            />
+          )}
+
           {currentTab === 'audit' && (
             <AuditLogsTab
               auditLogs={auditLogs}
@@ -128,6 +185,15 @@ export const AdminPortalView: FC = () => {
           <span className="animate-pulse">⌃</span>
         </div>
       </main>
+
+      {/* Visual Template Studio Modal Overlay */}
+      {isStudioOpen && (
+        <TemplateStudioView
+          templateId={editingTemplateId}
+          onClose={handleCloseStudio}
+          onToast={(msg, tone) => showToast(msg, tone || 'blue')}
+        />
+      )}
 
       {/* 3. Ban / Suspend Confirmation Modal */}
       <BanConfirmModal

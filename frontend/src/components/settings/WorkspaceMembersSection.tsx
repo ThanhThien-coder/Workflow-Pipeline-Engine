@@ -65,15 +65,15 @@ export function WorkspaceMembersSection({
         )}
       </div>
 
-      <div className="overflow-x-auto p-2">
+      <div className="overflow-auto max-h-[350px] p-2 pr-3 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar]:h-1.5">
         <table className="w-full min-w-[580px] text-left">
-          <thead>
-            <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              <th className="px-3 py-2.5">Member</th>
-              <th className="px-3 py-2.5">Role</th>
-              <th className="px-3 py-2.5">Active Nodes</th>
-              <th className="px-3 py-2.5">Joined</th>
-              {isOwner && <th className="px-3 py-2.5 text-right">Actions</th>}
+          <thead className="sticky top-0 z-10 bg-white">
+            <tr className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              <th className="px-3 py-2.5 border-b border-slate-100">Member</th>
+              <th className="px-3 py-2.5 border-b border-slate-100">Role</th>
+              <th className="px-3 py-2.5 border-b border-slate-100">Active Nodes</th>
+              <th className="px-3 py-2.5 border-b border-slate-100">Joined</th>
+              {isOwner && <th className="px-3 py-2.5 border-b border-slate-100 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
