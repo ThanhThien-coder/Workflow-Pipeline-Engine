@@ -1,11 +1,13 @@
 import { useState, type FC, type KeyboardEvent } from 'react';
 import type { AdminPortalTab } from '../../../hooks/useAdminPortal';
-import { Search, Bell } from 'lucide-react';
+import { Search } from 'lucide-react';
+import NotificationBell from '../../../components/common/NotificationBell';
+import { GlobalProfileMenu } from '../../../components/common/GlobalProfileMenu';
 
 interface AdminTopbarProps {
   currentTab: AdminPortalTab;
   onGlobalSearch: (term: string) => void;
-  onNotificationClick: () => void;
+  onLogout: () => void;
 }
 
 const TAB_TITLES: Record<AdminPortalTab, string> = {
@@ -19,7 +21,7 @@ const TAB_TITLES: Record<AdminPortalTab, string> = {
 export const AdminTopbar: FC<AdminTopbarProps> = ({
   currentTab,
   onGlobalSearch,
-  onNotificationClick,
+  onLogout,
 }) => {
   const [searchValue, setSearchValue] = useState('');
   const title = TAB_TITLES[currentTab] || 'Overview & Analytics';
@@ -68,22 +70,9 @@ export const AdminTopbar: FC<AdminTopbarProps> = ({
             </kbd>
           </label>
 
-          <button
-            id="notificationBtn"
-            onClick={onNotificationClick}
-            className="relative rounded-full p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-600"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
-          </button>
+          <NotificationBell />
 
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 ring-2 ring-white shadow-xs select-none"
-            title="Alex Kim (Root Admin)"
-          >
-            AK
-          </div>
+          <GlobalProfileMenu displayName="Alex Kim" roleLabel="Root Admin" onLogout={onLogout} />
         </div>
       </div>
     </header>
