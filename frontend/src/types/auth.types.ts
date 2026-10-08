@@ -16,6 +16,7 @@ export interface UserDto {
   username: string
   email: string
   systemRole: 'ADMIN' | 'USER'
+  avatarUrl?: string | null
 }
 
 export interface AuthResponseDto {
