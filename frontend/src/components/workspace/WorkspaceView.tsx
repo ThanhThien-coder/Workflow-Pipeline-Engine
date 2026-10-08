@@ -110,6 +110,7 @@ export const WorkspaceView: FC = () => {
 
   const userDisplayName = currentUser?.username || 'Alex Kim'
   const userEmail = currentUser?.email || 'alex.kim@pipeline.engine'
+  const userAvatarUrl = currentUser?.avatarUrl || null
 
   return (
     <div
@@ -172,7 +173,11 @@ export const WorkspaceView: FC = () => {
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 pl-1.5 pr-2.5 py-1 transition-colors cursor-pointer"
             >
-              <Avatar name={userDisplayName} index={0} className="w-7 h-7 text-[10px]" />
+              {userAvatarUrl ? (
+                <img src={userAvatarUrl} alt={userDisplayName} className="w-7 h-7 rounded-full object-cover ring-2 ring-white" />
+              ) : (
+                <Avatar name={userDisplayName} index={0} className="w-7 h-7 text-[10px]" />
+              )}
               <span className="hidden sm:block text-xs font-semibold text-slate-800">
                 {userDisplayName}
               </span>
@@ -187,7 +192,7 @@ export const WorkspaceView: FC = () => {
                   type="button"
                   onClick={() => {
                     setIsMenuOpen(false)
-                    showToast('Opening profile settings (demo).')
+                    navigate('/profile')
                   }}
                   className="w-full text-left px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
                 >

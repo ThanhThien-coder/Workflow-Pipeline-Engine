@@ -3,6 +3,7 @@ import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { SettingsHeader } from '../settings/SettingsHeader'
 import { GeneralSettingsSection } from '../settings/GeneralSettingsSection'
 import { WorkspaceMembersSection } from '../settings/WorkspaceMembersSection'
+import { ProjectResourcesSection } from '../settings/ProjectResourcesSection'
 import { SystemAuditLogSection } from '../settings/SystemAuditLogSection'
 import { InviteMemberModal } from '../settings/InviteMemberModal'
 import { KickMemberModal } from '../settings/KickMemberModal'
@@ -77,6 +78,8 @@ export function SettingsView() {
           onPublish={() => publishProject()}
           onRestore={() => setDevProjectStatus('ACTIVE')}
         />
+
+        <ProjectResourcesSection />
 
         <WorkspaceMembersSection
           members={members}
