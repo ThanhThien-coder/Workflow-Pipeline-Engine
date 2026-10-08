@@ -97,10 +97,6 @@ export const AdminPortalView: FC = () => {
     setSearchQuery(term);
   };
 
-  const handleNotificationClick = () => {
-    showToast('Không có cảnh báo mới. Hệ thống đang ổn định.', 'emerald');
-  };
-
   const handleLogout = () => {
     showToast('Đây là bản demo — phiên đăng nhập vẫn được giữ nguyên.');
   };
@@ -119,7 +115,6 @@ export const AdminPortalView: FC = () => {
       <AdminSidebar
         currentTab={currentTab}
         onTabChange={handleTabChange}
-        onLogout={handleLogout}
       />
 
       {/* 2. Main Content Viewport */}
@@ -128,7 +123,7 @@ export const AdminPortalView: FC = () => {
         <AdminTopbar
           currentTab={currentTab}
           onGlobalSearch={handleGlobalSearch}
-          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
         />
 
         {/* Tab View Container */}

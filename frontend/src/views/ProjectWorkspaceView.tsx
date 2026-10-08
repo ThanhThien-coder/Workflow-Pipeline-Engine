@@ -1,7 +1,5 @@
-import { useState, useEffect, useRef, type FC } from 'react'
+import { useState, type FC } from 'react'
 import {
-  Bell,
-  ChevronDown,
   ChevronLeft,
   ClipboardList,
   LayoutDashboard,
@@ -14,6 +12,8 @@ import { WorkflowView } from '../components/views/WorkflowView'
 import { MyTasksView } from './MyTasksView'
 import SettingsView from './SettingsView'
 import { OverviewView as OverviewScreen } from '../components/views/OverviewView'
+import NotificationBell from '../components/common/NotificationBell'
+import { GlobalProfileMenu } from '../components/common/GlobalProfileMenu'
 import { useWorkflowStore, type NavigationTab } from '../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../store/slices/devSlice'
 import { useRouter } from '../router/useRouter'
@@ -24,12 +24,6 @@ const navigation: { id: NavigationTab; label: string; icon: typeof LayoutDashboa
   { id: 'my-tasks', label: 'My Tasks', icon: ClipboardList },
   { id: 'settings', label: 'Settings', icon: Settings },
 ]
-
-const ROLE_BADGE_STYLES: Record<string, string> = {
-  OWNER: 'bg-violet-50 text-violet-700 border-violet-200',
-  COLLABORATOR: 'bg-sky-50 text-sky-700 border-sky-200',
-  VIEWER: 'bg-slate-100 text-slate-600 border-slate-200',
-}
 
 interface ProjectWorkspaceViewProps {
   projectId: string
@@ -61,18 +55,11 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
 
   const currentTab = subTab || activeTab
 
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsMenuOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleMouseDown)
-    return () => window.removeEventListener('mousedown', handleMouseDown)
-  }, [])
+  const handleLogout = async () => {
+    await logout()
+    showToast('Logged out successfully.')
+    navigate('/auth?tab=signin')
+  }
 
   const handleTabClick = (tabId: NavigationTab) => {
     setActiveTab(tabId)
@@ -169,69 +156,14 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
             >
               All Pipelines
             </button>
-            <Bell size={18} />
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
-            <div className="relative" ref={menuRef}>
-              <button
-                type="button"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 pl-1.5 pr-2.5 py-1 transition-colors cursor-pointer"
-              >
-                <div
-                  className={`grid h-7 w-7 place-items-center rounded-full text-[10px] font-bold text-white shadow-xs ${
-                    activePersona.avatarClass || 'bg-indigo-600'
-                  }`}
-                >
-                  {activePersona.initials}
-                </div>
-                <span className="hidden sm:block text-xs font-semibold text-slate-800">
-                  {activePersona.name}
-                </span>
-
-                {/* Project-scoped Role Badge */}
-                {currentProjectRole && (
-                  <span
-                    className={`text-[10px] font-bold border rounded-full px-2 py-0.5 uppercase tracking-wide select-none ${
-                      ROLE_BADGE_STYLES[currentProjectRole] || ROLE_BADGE_STYLES.VIEWER
-                    }`}
-                  >
-                    {currentProjectRole}
-                  </span>
-                )}
-                <ChevronDown size={14} className="text-slate-400" />
-              </button>
-
-              {isMenuOpen && (
-                <div className="pop absolute right-0 mt-2 w-48 rounded-xl border border-slate-200/90 bg-white shadow-xl p-1.5 text-sm z-50">
-                  <div className="px-3 py-2 text-[11px] text-slate-500 border-b border-slate-100 mb-1">
-                    <span className="block font-semibold text-slate-800">{activePersona.name}</span>
-                    <span className="block text-[10px] text-slate-400">{activePersona.title}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false)
-                      navigate('/workspaces')
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    All Pipelines
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setIsMenuOpen(false)
-                      await logout()
-                      showToast('Logged out successfully.')
-                      navigate('/auth?tab=signin')
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors font-medium"
-                  >
-                    Log Out
-                  </button>
-                </div>
-              )}
-            </div>
+            <NotificationBell />
+            <GlobalProfileMenu
+              displayName={activePersona.name}
+              roleLabel={currentProjectRole}
+              avatarInitials={activePersona.initials}
+              avatarClassName={`${activePersona.avatarClass || 'bg-indigo-600'} text-white`}
+              onLogout={handleLogout}
+            />
           </div>
         </header>
 
