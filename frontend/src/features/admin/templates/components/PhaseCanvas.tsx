@@ -1,7 +1,13 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import type { PhaseDto, PhaseEdgeDto, TemplateNodeDto } from '../../../../types/template.types';
-import { calculatePhaseLayout, PW, PHH } from '../../../../lib/graph/phaseLayout';
-import { Plus, Trash2, ArrowUpRight, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import {
+  calculatePhaseLayout,
+  computeTopologicalPhaseRanks,
+  PW,
+  PHH,
+} from '../../../../lib/graph/phaseLayout';
+import { validateDag } from '../../../../lib/graph/kahn';
+import { Plus, Trash2, ArrowUpRight, ZoomIn, ZoomOut, Maximize2, AlertCircle } from 'lucide-react';
 
 interface PhaseCanvasProps {
   phases: PhaseDto[];
@@ -11,6 +17,9 @@ interface PhaseCanvasProps {
   onOpenPhase: (phaseId: string) => void;
   onDeletePhase: (phaseId: string) => void;
   onAddPhase: () => void;
+  onUpdatePhasePosition?: (phaseId: string, position: { x: number; y: number }) => void;
+  onConnectPhases?: (sourceId: string, targetId: string) => void;
+  onSpawnChildPhase?: (sourceId: string) => void;
 }
 
 export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
@@ -21,6 +30,9 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
   onOpenPhase,
   onDeletePhase,
   onAddPhase,
+  onUpdatePhasePosition,
+  onConnectPhases,
+  onSpawnChildPhase,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -36,10 +48,66 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
     null
   );
 
+  // Drag-and-drop Card positioning state
+  const [draggingCard, setDraggingCard] = useState<{
+    id: string;
+    startClientX: number;
+    startClientY: number;
+    origX: number;
+    origY: number;
+    currX: number;
+    currY: number;
+    moved: boolean;
+  } | null>(null);
+
+  // Drag-to-connect dependency line state
+  const [connectingLine, setConnectingLine] = useState<{
+    sourcePhaseId: string;
+    startX: number;
+    startY: number;
+    currX: number;
+    currY: number;
+  } | null>(null);
+
+  const [connectError, setConnectError] = useState<{
+    message: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const cardMovedRef = useRef(false);
+
   // Compute Layout positions
-  const layout = React.useMemo(() => {
+  const layout = useMemo(() => {
     return calculatePhaseLayout(phases, phaseEdges);
   }, [phases, phaseEdges]);
+
+  // Compute 1-based Topological Sort order for Phase sequence badges (SSOT Invariant)
+  const topoRanks = useMemo(() => {
+    return computeTopologicalPhaseRanks(phases, phaseEdges);
+  }, [phases, phaseEdges]);
+
+  // Resolve active position for each Phase (user-dragged position > uiMetadata > layout)
+  const getPhasePosition = useCallback(
+    (phase: PhaseDto): { x: number; y: number } => {
+      if (draggingCard && draggingCard.id === phase.id) {
+        return { x: draggingCard.currX, y: draggingCard.currY };
+      }
+      if (
+        phase.uiMetadata?.position &&
+        typeof phase.uiMetadata.position.x === 'number' &&
+        typeof phase.uiMetadata.position.y === 'number'
+      ) {
+        return phase.uiMetadata.position;
+      }
+      const layoutPos = layout.positions.get(phase.id);
+      if (layoutPos) {
+        return { x: layoutPos.x, y: layoutPos.y };
+      }
+      return { x: 0, y: 0 };
+    },
+    [draggingCard, layout.positions]
+  );
 
   // Fit view helper
   const handleFit = useCallback(() => {
@@ -84,9 +152,11 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
     zoomAt(cx, cy, factor);
   };
 
-  // Mouse pan handlers
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return;
+  // Mouse pan handlers (Canvas background)
+  const handleMouseDownCanvas = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('[data-phase-id]') || (e.target as HTMLElement).closest('button')) {
+      return;
+    }
     panRef.current = {
       sx: e.clientX,
       sy: e.clientY,
@@ -97,23 +167,198 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
     setIsGrabbing(true);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!panRef.current) return;
-    const dx = e.clientX - panRef.current.sx;
-    const dy = e.clientY - panRef.current.sy;
-    if (Math.abs(dx) + Math.abs(dy) > 4) {
-      panRef.current.moved = true;
+  const handleMouseMoveCanvas = (e: React.MouseEvent) => {
+    if (panRef.current) {
+      const dx = e.clientX - panRef.current.sx;
+      const dy = e.clientY - panRef.current.sy;
+      if (Math.abs(dx) + Math.abs(dy) > 4) {
+        panRef.current.moved = true;
+      }
+      setView((prev) => ({
+        ...prev,
+        x: panRef.current!.vx + dx,
+        y: panRef.current!.vy + dy,
+      }));
     }
-    setView((prev) => ({
-      ...prev,
-      x: panRef.current!.vx + dx,
-      y: panRef.current!.vy + dy,
-    }));
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUpCanvas = () => {
     panRef.current = null;
     setIsGrabbing(false);
+  };
+
+  // Card Dragging Handlers
+  const handleCardMouseDown = (e: React.MouseEvent, phase: PhaseDto) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.stopPropagation();
+    cardMovedRef.current = false;
+
+    const pos = getPhasePosition(phase);
+    setDraggingCard({
+      id: phase.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      origX: pos.x,
+      origY: pos.y,
+      currX: pos.x,
+      currY: pos.y,
+      moved: false,
+    });
+  };
+
+  // Window-level listeners for card drag & connect drag
+  useEffect(() => {
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      // 1. Handling Card Drag
+      if (draggingCard) {
+        const dx = (e.clientX - draggingCard.startClientX) / view.k;
+        const dy = (e.clientY - draggingCard.startClientY) / view.k;
+        const moved = draggingCard.moved || Math.hypot(dx, dy) > 4;
+        if (moved) {
+          cardMovedRef.current = true;
+        }
+
+        setDraggingCard((prev) =>
+          prev
+            ? {
+                ...prev,
+                currX: Math.max(0, Math.round(prev.origX + dx)),
+                currY: Math.max(0, Math.round(prev.origY + dy)),
+                moved,
+              }
+            : null
+        );
+      }
+
+      // 2. Handling Drag-to-Connect wire
+      if (connectingLine && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const worldX = (e.clientX - rect.left - view.x) / view.k;
+        const worldY = (e.clientY - rect.top - view.y) / view.k;
+
+        setConnectingLine((prev) =>
+          prev
+            ? {
+                ...prev,
+                currX: worldX,
+                currY: worldY,
+              }
+            : null
+        );
+      }
+    };
+
+    const handleWindowMouseUp = (e: MouseEvent) => {
+      // 1. Finish Card Drag
+      if (draggingCard) {
+        if (draggingCard.moved) {
+          if (onUpdatePhasePosition) {
+            onUpdatePhasePosition(draggingCard.id, {
+              x: draggingCard.currX,
+              y: draggingCard.currY,
+            });
+          }
+          setTimeout(() => {
+            cardMovedRef.current = false;
+          }, 100);
+        }
+        setDraggingCard(null);
+      }
+
+      // 2. Finish Drag-to-Connect
+      if (connectingLine) {
+        const sourceId = connectingLine.sourcePhaseId;
+        const targetEl = document
+          .elementFromPoint(e.clientX, e.clientY)
+          ?.closest<HTMLElement>('[data-phase-id]');
+        const targetId = targetEl?.dataset.phaseId;
+
+        const flashError = (message: string) => {
+          setConnectError({ message, x: e.clientX, y: e.clientY });
+          window.setTimeout(() => setConnectError(null), 2200);
+        };
+
+        const distanceMoved = Math.hypot(
+          connectingLine.currX - connectingLine.startX,
+          connectingLine.currY - connectingLine.startY
+        );
+
+        if (distanceMoved < 6) {
+          // User just clicked the connector button -> spawn new child phase
+          if (onSpawnChildPhase) {
+            onSpawnChildPhase(sourceId);
+          } else {
+            onAddPhase();
+          }
+        } else if (targetId && targetId !== sourceId) {
+          // Check if connection already exists
+          const exists = phaseEdges.some(
+            (edge) => edge.parentPhaseId === sourceId && edge.childPhaseId === targetId
+          );
+          if (exists) {
+            flashError('Liên kết giữa 2 Phase này đã tồn tại!');
+          } else {
+            // Check cycle using Kahn's algorithm before adding edge
+            const testEdges: [string, string][] = [
+              ...phaseEdges.map((ed) => [ed.parentPhaseId, ed.childPhaseId] as [string, string]),
+              [sourceId, targetId],
+            ];
+            const testRes = validateDag(
+              phases.map((p) => p.id),
+              testEdges
+            );
+            if (!testRes.valid) {
+              flashError('Không thể nối: phát hiện chu trình lặp (Cycle Detected)!');
+            } else if (onConnectPhases) {
+              onConnectPhases(sourceId, targetId);
+            }
+          }
+        }
+
+        setConnectingLine(null);
+      }
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [
+    draggingCard,
+    connectingLine,
+    view.k,
+    view.x,
+    view.y,
+    phases,
+    phaseEdges,
+    onUpdatePhasePosition,
+    onOpenPhase,
+    onConnectPhases,
+    onSpawnChildPhase,
+    onAddPhase,
+  ]);
+
+  // Start drag-to-connect from phase right handle
+  const handleStartConnect = (e: React.MouseEvent, phaseId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const phase = phases.find((p) => p.id === phaseId);
+    if (!phase) return;
+
+    const pos = getPhasePosition(phase);
+    const startX = pos.x + PW;
+    const startY = pos.y + PHH / 2;
+
+    setConnectingLine({
+      sourcePhaseId: phaseId,
+      startX,
+      startY,
+      currX: startX,
+      currY: startY,
+    });
   };
 
   // Helper to count tracks and tasks in a phase
@@ -128,16 +373,31 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
     return { tracks, tasks };
   };
 
+  // Canvas bounds computed dynamically
+  const canvasBounds = useMemo(() => {
+    let maxX = layout.width;
+    let maxY = layout.height;
+    for (const p of phases) {
+      const pos = getPhasePosition(p);
+      maxX = Math.max(maxX, pos.x + PW + 200);
+      maxY = Math.max(maxY, pos.y + PHH + 200);
+    }
+    return {
+      width: Math.max(1600, maxX),
+      height: Math.max(900, maxY),
+    };
+  }, [layout.width, layout.height, phases, getPhasePosition]);
+
   return (
     <div
       ref={containerRef}
       onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onMouseDown={handleMouseDownCanvas}
+      onMouseMove={handleMouseMoveCanvas}
+      onMouseUp={handleMouseUpCanvas}
+      onMouseLeave={handleMouseUpCanvas}
       className={`relative flex-1 overflow-hidden select-none admin-grid-bg ${
-        isGrabbing ? 'cursor-grabbing' : 'cursor-grab'
+        isGrabbing ? 'cursor-grabbing' : 'cursor-default'
       }`}
     >
       {/* World transform viewport */}
@@ -149,8 +409,8 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
       >
         {/* SVG Bezier Curves connecting phases */}
         <svg
-          width={layout.width + 600}
-          height={layout.height + 600}
+          width={canvasBounds.width + 600}
+          height={canvasBounds.height + 600}
           className="absolute left-0 top-0 overflow-visible pointer-events-none"
         >
           <defs>
@@ -163,7 +423,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
               markerHeight="7"
               orient="auto"
             >
-              <path d="M0 0L10 5L0 10z" fill="#6366f1" />
+              <path d="M0 0L10 5L0 10z" fill="#2563eb" />
             </marker>
             <marker
               id="phase-arrow-bad"
@@ -178,10 +438,14 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
             </marker>
           </defs>
 
+          {/* Render static/persisted edges */}
           {phaseEdges.map((edge, idx) => {
-            const posA = layout.positions.get(edge.parentPhaseId);
-            const posB = layout.positions.get(edge.childPhaseId);
-            if (!posA || !posB) return null;
+            const parentPhase = phases.find((p) => p.id === edge.parentPhaseId);
+            const childPhase = phases.find((p) => p.id === edge.childPhaseId);
+            if (!parentPhase || !childPhase) return null;
+
+            const posA = getPhasePosition(parentPhase);
+            const posB = getPhasePosition(childPhase);
 
             const x1 = posA.x + PW;
             const y1 = posA.y + PHH / 2;
@@ -195,30 +459,52 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
 
             return (
               <path
-                key={`edge-${idx}`}
+                key={`edge-${edge.parentPhaseId}-${edge.childPhaseId}-${idx}`}
                 d={`M${x1} ${y1} C${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
                 fill="none"
-                stroke={isCyclic ? '#ef4444' : '#6366f1'}
+                stroke={isCyclic ? '#ef4444' : '#2563eb'}
                 strokeWidth={2.5}
+                strokeDasharray={isCyclic ? '6 6' : undefined}
                 markerEnd={isCyclic ? 'url(#phase-arrow-bad)' : 'url(#phase-arrow)'}
               />
             );
           })}
+
+          {/* Render live Drag-to-Connect wire */}
+          {connectingLine && (
+            <path
+              d={`M${connectingLine.startX} ${connectingLine.startY} C${
+                connectingLine.startX +
+                Math.max(50, Math.abs(connectingLine.currX - connectingLine.startX) / 2)
+              } ${connectingLine.startY}, ${
+                connectingLine.currX -
+                Math.max(50, Math.abs(connectingLine.currX - connectingLine.startX) / 2)
+              } ${connectingLine.currY}, ${connectingLine.currX} ${connectingLine.currY}`}
+              fill="none"
+              stroke="#2563eb"
+              strokeWidth={3}
+              strokeDasharray="6 6"
+              className="animate-pulse"
+            />
+          )}
         </svg>
 
-        {/* Phase Cards */}
+        {/* Macro Phase Cards (Light Blueprint Grid Style) */}
         {phases.map((phase, idx) => {
-          const pos = layout.positions.get(phase.id);
-          if (!pos) return null;
-
+          const pos = getPhasePosition(phase);
           const stats = getPhaseStats(phase.id);
           const isBad = cyclePhaseIds.has(phase.id);
+          const topoRank = topoRanks.get(phase.id) || idx + 1;
+          const isBeingDragged = draggingCard?.id === phase.id;
 
           return (
             <div
               key={phase.id}
-              onClick={() => {
-                if (!panRef.current?.moved) {
+              data-phase-id={phase.id}
+              onMouseDown={(e) => handleCardMouseDown(e, phase)}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!cardMovedRef.current) {
                   onOpenPhase(phase.id);
                 }
               }}
@@ -228,66 +514,114 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
                 width: `${PW}px`,
                 height: `${PHH}px`,
               }}
-              className={`absolute cursor-pointer rounded-2xl border bg-white p-4 shadow-sm transition-all duration-150 hover:shadow-md hover:border-blue-400 ${
+              className={`group absolute rounded-2xl border bg-white shadow-sm transition-shadow duration-200 select-none ${
+                isBeingDragged ? 'z-30 shadow-2xl ring-2 ring-blue-500 cursor-grabbing' : 'cursor-grab hover:shadow-lg'
+              } ${
                 isBad
                   ? 'border-rose-400 ring-2 ring-rose-200'
-                  : 'border-slate-200/90'
+                  : 'border-slate-200/90 hover:border-blue-400'
               }`}
             >
-              {/* Header: Phase badge & Delete */}
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold tracking-widest text-indigo-600 uppercase">
-                  PHASE {idx + 1}
-                </span>
-
-                {phases.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeletePhase(phase.id);
-                    }}
-                    title="Delete phase"
-                    className="rounded p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Phase Name */}
+              {/* Top Accent Bar */}
               <div
-                className="mt-1 font-bold text-slate-900 leading-snug line-clamp-2"
-                title={phase.name}
-              >
-                {phase.name}
-              </div>
+                className={`h-1.5 w-full rounded-t-2xl transition-colors ${
+                  isBad
+                    ? 'bg-rose-500'
+                    : topoRank === 1
+                    ? 'bg-emerald-500'
+                    : 'bg-blue-600'
+                }`}
+              />
 
-              {/* Subtitle / Counts */}
-              <div className="mt-2 flex gap-3 text-xs text-slate-500 font-medium">
-                <span>{stats.tracks} tracks</span>
-                <span>•</span>
-                <span>{stats.tasks} tasks</span>
-              </div>
+              <div className="p-4 flex flex-col h-[calc(100%-6px)] justify-between">
+                {/* Header: Topological Sort Badge & Delete */}
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-extrabold tracking-widest text-blue-700 uppercase border border-blue-100">
+                    Phase {topoRank}
+                  </span>
 
-              {/* Bottom footer status */}
-              <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs">
-                <span
-                  className={
-                    isBad ? 'font-semibold text-rose-600' : 'text-slate-400'
-                  }
+                  {phases.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeletePhase(phase.id);
+                      }}
+                      title="Delete phase"
+                      className="rounded-lg p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 active:scale-95"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Phase Semantic Name */}
+                <div
+                  className="font-bold text-slate-900 leading-snug line-clamp-1 mt-1 text-sm"
+                  title={phase.name}
                 >
-                  {isBad ? 'In cycle' : 'Click to design'}
-                </span>
-                <span className="inline-flex items-center gap-0.5 font-bold text-blue-600">
-                  <span>Open</span>
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </span>
+                  {phase.name}
+                </div>
+
+                {/* Subtitle / Counts */}
+                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                  <span>{stats.tracks} tracks</span>
+                  <span>•</span>
+                  <span>{stats.tasks} tasks</span>
+                </div>
+
+                {/* Bottom footer status */}
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                  <span
+                    className={
+                      isBad
+                        ? 'font-semibold text-rose-600 flex items-center gap-1'
+                        : 'text-slate-400 font-medium'
+                    }
+                  >
+                    {isBad ? (
+                      <>
+                        <AlertCircle className="h-3 w-3 inline" />
+                        In cycle
+                      </>
+                    ) : (
+                      'Click to design'
+                    )}
+                  </span>
+                  <span className="inline-flex items-center gap-0.5 font-bold text-blue-600 hover:text-blue-700">
+                    <span>Inspect</span>
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </span>
+                </div>
               </div>
+
+              {/* Connector Handle on Right Edge: Click to Spawn, Drag to Connect */}
+              <button
+                type="button"
+                onMouseDown={(e) => handleStartConnect(e, phase.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                title="Kéo sang Phase khác để nối phụ thuộc · Bấm để tạo Phase con"
+                className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 group-hover:opacity-100 opacity-0 cursor-grab active:cursor-grabbing"
+              >
+                <Plus className="h-3.5 w-3.5 stroke-[3]" />
+              </button>
             </div>
           );
         })}
       </div>
+
+      {/* Connection Error Toast Overlay */}
+      {connectError && (
+        <div
+          className="pointer-events-none fixed z-[70] rounded-xl bg-slate-900/95 px-3.5 py-2 text-xs font-semibold text-white shadow-2xl backdrop-blur-sm border border-slate-700 animate-fade"
+          style={{ left: connectError.x + 12, top: connectError.y + 12 }}
+        >
+          {connectError.message}
+        </div>
+      )}
 
       {/* Floating: Add New Phase Button */}
       <button
@@ -300,8 +634,8 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
       </button>
 
       {/* Floating: Navigation Hint */}
-      <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-xl border border-slate-200/80 bg-white/95 px-3 py-2 text-xs font-medium text-slate-500 shadow-sm backdrop-blur-sm">
-        Kéo để Pan · Cuộn để Zoom · Bấm vào Phase để thiết kế chi tiết
+      <div className="pointer-events-none absolute right-4 top-4 z-10 hidden sm:flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/95 px-3.5 py-2 text-xs font-medium text-slate-500 shadow-sm backdrop-blur-sm">
+        <span>Kéo nền để Pan · Cuộn để Zoom · Kéo Card để sắp xếp · Kéo nút (+) để nối dây</span>
       </div>
 
       {/* Floating: Zoom Controls Toolbar */}
@@ -316,13 +650,13 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
               1 / 1.2
             );
           }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 active:scale-95"
           title="Zoom Out"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
 
-        <span className="w-12 text-center text-xs font-bold text-slate-700">
+        <span className="w-12 text-center text-xs font-bold text-slate-700 select-none">
           {Math.round(view.k * 100)}%
         </span>
 
@@ -336,16 +670,18 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
               1.2
             );
           }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 active:scale-95"
           title="Zoom In"
         >
           <ZoomIn className="h-4 w-4" />
         </button>
 
+        <div className="h-4 w-px bg-slate-200 mx-0.5" />
+
         <button
           type="button"
           onClick={handleFit}
-          className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+          className="flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 active:scale-95"
           title="Fit View"
         >
           <Maximize2 className="h-3.5 w-3.5" />

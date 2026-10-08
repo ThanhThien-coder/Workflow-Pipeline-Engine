@@ -13,11 +13,46 @@ import { validateTemplateGraph } from '../../lib/graph/kahn';
 
 const delay = (ms: number = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 
+export const TEMPLATES_STORAGE_KEY = 'wpe_templates_mock_db_v2';
+export const TEMPLATES_UPDATED_EVENT = 'wpe_template_updated';
+
+function loadPersistedTemplates(): TemplateDetailDto[] {
+  if (typeof window === 'undefined') return initialMockTemplates;
+  try {
+    const raw = window.localStorage.getItem(TEMPLATES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load templates from localStorage:', err);
+  }
+  return initialMockTemplates;
+}
+
+function persistTemplates(templates: TemplateDetailDto[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templates));
+    window.dispatchEvent(new CustomEvent(TEMPLATES_UPDATED_EVENT));
+  } catch (err) {
+    console.warn('Failed to persist templates to localStorage:', err);
+  }
+}
+
 export class MockTemplateService implements ITemplateService {
   private templates: TemplateDetailDto[];
 
-  constructor(initialData: TemplateDetailDto[] = initialMockTemplates) {
-    this.templates = structuredClone(initialData);
+  constructor(initialData?: TemplateDetailDto[]) {
+    this.templates = initialData
+      ? structuredClone(initialData)
+      : structuredClone(loadPersistedTemplates());
+  }
+
+  async getAllTemplates(filter?: TemplateFilter): Promise<TemplateSummaryDto[]> {
+    return this.getTemplates(filter);
   }
 
   async getTemplates(filter?: TemplateFilter): Promise<TemplateSummaryDto[]> {
@@ -92,6 +127,7 @@ export class MockTemplateService implements ITemplateService {
     };
 
     this.templates.unshift(newTemplate);
+    persistTemplates(this.templates);
     return structuredClone(newTemplate);
   }
 
@@ -123,6 +159,7 @@ export class MockTemplateService implements ITemplateService {
     };
 
     this.templates[index] = updated;
+    persistTemplates(this.templates);
     return structuredClone(updated);
   }
 
@@ -131,7 +168,13 @@ export class MockTemplateService implements ITemplateService {
     const index = this.templates.findIndex((t) => t.id === id);
     if (index !== -1) {
       this.templates.splice(index, 1);
+      persistTemplates(this.templates);
     }
+  }
+
+  resetToDefault(): void {
+    this.templates = structuredClone(initialMockTemplates);
+    persistTemplates(this.templates);
   }
 
   async validateGraph(graphData: GraphDataPayload): Promise<DagValidationResult> {

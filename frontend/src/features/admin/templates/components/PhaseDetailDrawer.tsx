@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type {
   PhaseDto,
   PhaseEdgeDto,
   TemplateNodeDto,
 } from '../../../../types/template.types';
+import { computeTopologicalPhaseRanks } from '../../../../lib/graph/phaseLayout';
 import { TreeGraphView } from './TreeGraphView';
 import { PhaseKanbanView } from './PhaseKanbanView';
 import { TaskInspector } from './TaskInspector';
@@ -47,6 +48,13 @@ export const PhaseDetailDrawer: React.FC<PhaseDetailDrawerProps> = ({
 }) => {
   const [viewMode, setViewMode] = useState<'graph' | 'kanban'>('graph');
 
+  // Compute 1-based Topological Sort order for Phase sequence badge
+  const topoRanks = useMemo(() => {
+    return computeTopologicalPhaseRanks(allPhases, phaseEdges);
+  }, [allPhases, phaseEdges]);
+
+  const currentRank = phase ? topoRanks.get(phase.id) || 1 : 1;
+
   // Handle escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -87,14 +95,20 @@ export const PhaseDetailDrawer: React.FC<PhaseDetailDrawerProps> = ({
         <div className="border-b border-slate-200 p-5 bg-white">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600">
-                PHASE DETAIL
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-extrabold tracking-widest text-blue-700 uppercase border border-blue-200">
+                  PHASE {currentRank}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  PHASE DETAIL
+                </span>
               </div>
               <input
                 type="text"
                 value={phase.name}
                 onChange={(e) => onUpdatePhaseName(e.target.value)}
-                className="mt-0.5 w-full text-xl font-extrabold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-600 outline-none transition"
+                placeholder="Nhập tên giai đoạn (vd: Phân tích yêu cầu)..."
+                className="mt-1.5 w-full text-xl font-extrabold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-600 outline-none transition"
               />
               <div className="mt-1 text-xs font-semibold text-slate-500">
                 {tasks} tasks · {tracks} tracks

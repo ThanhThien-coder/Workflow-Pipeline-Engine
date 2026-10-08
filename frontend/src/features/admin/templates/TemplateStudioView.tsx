@@ -31,6 +31,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     addPhase,
     removePhase,
     togglePhaseDep,
+    updatePhasePosition,
+    connectPhases,
+    spawnChildPhase,
     addChildNode,
     updateNode,
     removeNode,
@@ -150,6 +153,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
         onOpenPhase={(id) => selectPhase(id)}
         onDeletePhase={(id) => setPhaseToDelete(id)}
         onAddPhase={addPhase}
+        onUpdatePhasePosition={updatePhasePosition}
+        onConnectPhases={connectPhases}
+        onSpawnChildPhase={spawnChildPhase}
       />
 
       {/* 3. Phase Detail Drawer */}

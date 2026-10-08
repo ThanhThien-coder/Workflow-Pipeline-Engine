@@ -83,6 +83,9 @@ export const AdminPortalView: FC = () => {
     setIsStudioOpen(false);
     setEditingTemplateId(null);
     navigate('/admin/templates');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wpe_template_updated'));
+    }
   };
 
   const handleTabChange = (tab: typeof currentTab) => {

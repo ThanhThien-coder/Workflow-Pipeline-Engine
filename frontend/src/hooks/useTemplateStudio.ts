@@ -49,10 +49,10 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
 
     const initialPhase: PhaseDto = {
       id: phaseId,
-      name: 'Phase 1',
+      name: 'Foundation',
       order: 0,
       rootNodeId,
-      uiMetadata: { position: { x: 0, y: 0 } },
+      uiMetadata: { position: { x: 40, y: 60 } },
     };
 
     const initialNodes: TemplateNodeDto[] = [
@@ -61,7 +61,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
         phaseId,
         parentId: null,
         trackId: null,
-        title: 'Phase 1',
+        title: 'Foundation',
         description: '',
         level: 0,
         joinPolicy: 'ALL_COMPLETED',
@@ -176,28 +176,32 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
     []
   );
 
-  const addPhase = useCallback(() => {
+  const addPhase = useCallback((semanticName?: string) => {
     setDraft((curr) => {
       if (!curr) return null;
       const phases = [...curr.graphData.phases];
       const phaseEdges = [...curr.graphData.phaseEdges];
       const nodes = [...curr.graphData.nodes];
 
-      const phaseNum = phases.length + 1;
       const phaseId = generateUid('ph');
       const rootNodeId = generateUid('nd');
       const trackNodeId = generateUid('nd');
       const taskNodeId = generateUid('nd');
 
-      const newPhase: PhaseDto = {
-        id: phaseId,
-        name: `Phase ${phaseNum}`,
-        order: phases.length,
-        rootNodeId,
-        uiMetadata: { position: { x: phases.length * 370, y: 0 } },
-      };
+      const name = semanticName || 'New Phase';
 
       const lastPhase = phases[phases.length - 1];
+      const lastX = lastPhase?.uiMetadata?.position?.x ?? (phases.length - 1) * 370;
+      const lastY = lastPhase?.uiMetadata?.position?.y ?? 60;
+
+      const newPhase: PhaseDto = {
+        id: phaseId,
+        name,
+        order: phases.length,
+        rootNodeId,
+        uiMetadata: { position: { x: lastX + 370, y: lastY } },
+      };
+
       if (lastPhase) {
         phaseEdges.push({
           parentPhaseId: lastPhase.id,
@@ -213,7 +217,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
           phaseId,
           parentId: null,
           trackId: null,
-          title: `Phase ${phaseNum}`,
+          title: name,
           description: '',
           level: 0,
           joinPolicy: 'ALL_COMPLETED',
@@ -356,6 +360,145 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
         graphData: {
           ...curr.graphData,
           phaseEdges: updatedEdges,
+        },
+      };
+    });
+    setIsDirty(true);
+    setValidation(null);
+  }, []);
+
+  const updatePhasePosition = useCallback(
+    (phaseId: string, position: { x: number; y: number }) => {
+      setDraft((curr) => {
+        if (!curr) return null;
+        const phases = curr.graphData.phases.map((p) => {
+          if (p.id === phaseId) {
+            return {
+              ...p,
+              uiMetadata: {
+                ...p.uiMetadata,
+                position: { ...position },
+              },
+            };
+          }
+          return p;
+        });
+        return {
+          ...curr,
+          graphData: {
+            ...curr.graphData,
+            phases,
+          },
+        };
+      });
+      setIsDirty(true);
+    },
+    []
+  );
+
+  const connectPhases = useCallback((sourceId: string, targetId: string) => {
+    setDraft((curr) => {
+      if (!curr) return null;
+      if (sourceId === targetId) return curr;
+      const alreadyConnected = curr.graphData.phaseEdges.some(
+        (e) => e.parentPhaseId === sourceId && e.childPhaseId === targetId
+      );
+      if (alreadyConnected) return curr;
+
+      const phaseEdges = [
+        ...curr.graphData.phaseEdges,
+        { parentPhaseId: sourceId, childPhaseId: targetId },
+      ];
+      return {
+        ...curr,
+        graphData: {
+          ...curr.graphData,
+          phaseEdges,
+        },
+      };
+    });
+    setIsDirty(true);
+    setValidation(null);
+  }, []);
+
+  const spawnChildPhase = useCallback((sourceId: string, semanticName?: string) => {
+    setDraft((curr) => {
+      if (!curr) return null;
+      const phases = [...curr.graphData.phases];
+      const phaseEdges = [...curr.graphData.phaseEdges];
+      const nodes = [...curr.graphData.nodes];
+
+      const parentPhase = phases.find((p) => p.id === sourceId);
+      const parentX = parentPhase?.uiMetadata?.position?.x ?? 40;
+      const parentY = parentPhase?.uiMetadata?.position?.y ?? 60;
+
+      const phaseId = generateUid('ph');
+      const rootNodeId = generateUid('nd');
+      const trackNodeId = generateUid('nd');
+      const taskNodeId = generateUid('nd');
+
+      const name = semanticName || 'New Phase';
+
+      const newPhase: PhaseDto = {
+        id: phaseId,
+        name,
+        order: phases.length,
+        rootNodeId,
+        uiMetadata: { position: { x: parentX + 370, y: parentY } },
+      };
+
+      phaseEdges.push({
+        parentPhaseId: sourceId,
+        childPhaseId: phaseId,
+      });
+
+      phases.push(newPhase);
+
+      nodes.push(
+        {
+          id: rootNodeId,
+          phaseId,
+          parentId: null,
+          trackId: null,
+          title: name,
+          description: '',
+          level: 0,
+          joinPolicy: 'ALL_COMPLETED',
+          uiMetadata: { position: { x: 0, y: 0 } },
+        },
+        {
+          id: trackNodeId,
+          phaseId,
+          parentId: rootNodeId,
+          trackId: trackNodeId,
+          title: 'Track A',
+          description: '',
+          level: 1,
+          joinPolicy: 'ALL_COMPLETED',
+          uiMetadata: { position: { x: 280, y: 0 } },
+        },
+        {
+          id: taskNodeId,
+          phaseId,
+          parentId: trackNodeId,
+          trackId: trackNodeId,
+          title: 'New Task',
+          description: '',
+          level: 2,
+          joinPolicy: 'ALL_COMPLETED',
+          uiMetadata: { position: { x: 560, y: 0 } },
+        }
+      );
+
+      return {
+        ...curr,
+        phaseCount: phases.length,
+        nodeCount: nodes.length,
+        graphData: {
+          ...curr.graphData,
+          phases,
+          phaseEdges,
+          nodes,
         },
       };
     });
@@ -548,6 +691,9 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       setDraft(saved);
       setIsDirty(false);
       setStatus('idle');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('wpe_template_updated'));
+      }
       return saved;
     } catch (err: unknown) {
       setStatus('error');
@@ -573,6 +719,9 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
     removePhase,
     setPhaseDeps,
     togglePhaseDep,
+    updatePhasePosition,
+    connectPhases,
+    spawnChildPhase,
     addChildNode,
     updateNode,
     removeNode,

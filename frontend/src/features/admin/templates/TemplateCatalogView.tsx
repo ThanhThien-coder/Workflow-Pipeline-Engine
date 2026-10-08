@@ -57,6 +57,21 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
     fetchTemplates();
   }, [fetchTemplates]);
 
+  // Reactive cache invalidation: Listen to template updates and route changes
+  useEffect(() => {
+    const handleUpdate = () => {
+      void fetchTemplates();
+    };
+
+    window.addEventListener('wpe_template_updated', handleUpdate);
+    window.addEventListener('wpe_route_change', handleUpdate);
+
+    return () => {
+      window.removeEventListener('wpe_template_updated', handleUpdate);
+      window.removeEventListener('wpe_route_change', handleUpdate);
+    };
+  }, [fetchTemplates]);
+
   // Filtered list
   const filteredTemplates = useMemo(() => {
     return templates.filter((t) => {

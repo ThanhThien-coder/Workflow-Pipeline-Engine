@@ -205,10 +205,69 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByTitle('Add child to Phase 1')).toBeDefined();
+          expect(screen.getByTitle('Add child to Foundation')).toBeDefined();
         },
         { timeout: 3000 }
       );
+    });
+
+    it('re-fetches catalog reactively upon wpe_template_updated event and restores template graph 100%', async () => {
+      const onOpenStudio = vi.fn();
+      const onToast = vi.fn();
+
+      render(<TemplateCatalogView onOpenStudio={onOpenStudio} onToast={onToast} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Standard Software Development (SDLC)')).toBeDefined();
+      });
+
+      // Initially 3 templates
+      expect(screen.queryByText('E2E Verified Pipeline')).toBeNull();
+
+      // Create new template directly via container service (as Studio does)
+      const created = await container.templateService.createTemplate({
+        name: 'E2E Verified Pipeline',
+        description: 'End to end verified template description',
+        category: 'DevOps & Infra',
+        isSystemStandard: true,
+        graphData: {
+          schemaVersion: 2,
+          phases: [
+            { id: 'p-1', name: 'Build & Test', order: 0, rootNodeId: 'n-1', uiMetadata: { position: { x: 0, y: 0 } } },
+            { id: 'p-2', name: 'Deploy Canary', order: 1, rootNodeId: 'n-2', uiMetadata: { position: { x: 300, y: 0 } } },
+          ],
+          phaseEdges: [
+            { parentPhaseId: 'p-1', childPhaseId: 'p-2' },
+          ],
+          nodes: [
+            { id: 'n-1', phaseId: 'p-1', parentId: null, trackId: null, title: 'Build & Test', description: '', level: 0, joinPolicy: 'ALL_COMPLETED', uiMetadata: { position: { x: 0, y: 0 } } },
+            { id: 'n-2', phaseId: 'p-2', parentId: null, trackId: null, title: 'Deploy Canary', description: '', level: 0, joinPolicy: 'ALL_COMPLETED', uiMetadata: { position: { x: 0, y: 0 } } },
+          ],
+          edges: [],
+          metadata: { version: '1.0' },
+        },
+      });
+
+      // The createTemplate call dispatched 'wpe_template_updated'. TemplateCatalogView should automatically re-fetch!
+      await waitFor(
+        () => {
+          expect(screen.getByText('E2E Verified Pipeline')).toBeDefined();
+        },
+        { timeout: 3000 }
+      );
+
+      // Verify that card has correct category and counts
+      expect(screen.getByText('End to end verified template description')).toBeDefined();
+      expect(screen.getAllByText('DevOps & Infra').length).toBeGreaterThanOrEqual(2);
+
+      // Verify 100% data restore via getTemplateById
+      const restored = await container.templateService.getTemplateById(created.id);
+      expect(restored.name).toBe('E2E Verified Pipeline');
+      expect(restored.graphData.phases).toHaveLength(2);
+      expect(restored.graphData.phases[0].name).toBe('Build & Test');
+      expect(restored.graphData.phases[1].name).toBe('Deploy Canary');
+      expect(restored.graphData.phaseEdges).toHaveLength(1);
+      expect(restored.graphData.nodes).toHaveLength(2);
     });
   });
 });
