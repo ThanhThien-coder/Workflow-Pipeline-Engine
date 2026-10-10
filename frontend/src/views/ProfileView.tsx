@@ -4,6 +4,7 @@ import { AlertCircle, ArrowLeft, Camera, Check, Folder, Lock, Shield, Sparkles, 
 import { profileService } from '../services/container'
 import { navigate } from '../router/useRouter'
 import { useWorkflowStore } from '../store/useWorkflowStore'
+import { useProfileStore } from '../store/useProfileStore'
 import { ProfileError } from '../types/profile.types'
 import type { ProfileDto, ProfileErrorCode, ProfileVisibility } from '../types/profile.types'
 
@@ -55,7 +56,14 @@ function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: (v: 
 
 export default function ProfileView() {
   const syncUserAvatar = useWorkflowStore((state) => state.auth.syncUserAvatar)
-  const [p, setP] = useState<ProfileDto | null>(null)
+  const p = useProfileStore((state) => state.profile)
+  const loadProfile = useProfileStore((state) => state.loadProfile)
+  const uploadAvatar = useProfileStore((state) => state.uploadAvatar)
+  const updateAvatar = useProfileStore((state) => state.updateAvatar)
+  const removeAvatar = useProfileStore((state) => state.removeAvatar)
+  const updateProfileData = useProfileStore((state) => state.updateProfileData)
+  const setProjectPublic = useProfileStore((state) => state.setProjectPublic)
+  const updatePrivacy = useProfileStore((state) => state.updatePrivacy)
   const [form, setForm] = useState({ displayName: '', title: '', email: '', bio: '', skills: [] as string[], links: { github: '', linkedin: '', website: '' } })
   const [skill, setSkill] = useState('')
   const [pw, setPw] = useState({ cur: '', next: '', confirm: '' })
@@ -76,13 +84,12 @@ export default function ProfileView() {
   }, [notice])
 
   const loadForm = (d: ProfileDto) => {
-    setP(d)
     setForm({ displayName: d.displayName, title: d.title, email: d.email, bio: d.bio, skills: [...d.skills], links: { ...d.links } })
   }
 
   useEffect(() => {
-    profileService.getMyProfile().then(loadForm).catch((e) => setNotice({ ok: false, text: errText(e) }))
-  }, [])
+    void loadProfile().then(loadForm).catch((e: unknown) => setNotice({ ok: false, text: errText(e) }))
+  }, [loadProfile])
 
   const run = async (key: string, fn: () => Promise<void>, okText: string) => {
     setBusy(key)
@@ -120,15 +127,15 @@ export default function ProfileView() {
     e.target.value = ''
     if (file) {
       void run('avatar', async () => {
-        const nextProfile = await profileService.uploadAvatar(file)
-        setP(nextProfile)
+        const nextProfile = await uploadAvatar(file)
+        updateAvatar(nextProfile.avatarUrl)
         syncUserAvatar(nextProfile.avatarUrl)
       }, 'Profile photo updated')
     }
   }
   const save = (e: FormEvent) => {
     e.preventDefault()
-    void run('save', async () => loadForm(await profileService.updateProfile(form)), 'Profile saved')
+    void run('save', async () => loadForm(await updateProfileData(form)), 'Profile saved')
   }
   const addSkill = () => {
     const s = skill.trim()
@@ -145,12 +152,11 @@ export default function ProfileView() {
   }
   const togglePublic = (id: string, v: boolean) =>
     void run('proj:' + id, async () => {
-      const u = await profileService.setProjectPublic(id, v)
-      setP({ ...p, projects: p.projects.map((x) => (x.projectId === id ? u : x)) })
+      await setProjectPublic(id, v)
     }, v ? 'Project is now public' : 'Project is now private')
 
   const setPrivacy = (patch: Partial<ProfileDto['privacy']>) =>
-    void run('privacy', async () => setP({ ...p, privacy: await profileService.updatePrivacy({ ...p.privacy, ...patch }) }), 'Privacy settings updated')
+    void run('privacy', async () => { await updatePrivacy({ ...p.privacy, ...patch }) }, 'Privacy settings updated')
 
   const deactivateAccount = () => void run('deactivate', async () => { await profileService.deactivateAccount(); navigate('/') }, 'Account deactivated')
   const deleteAccount = () => void run('delete', async () => { await profileService.deleteAccount({ confirmation: 'DELETE' }); navigate('/') }, 'Account deleted')
@@ -215,8 +221,7 @@ export default function ProfileView() {
 
                       <div className="mt-3 flex h-7 items-center gap-2">
                         {p.avatarUrl && <button type="button" disabled={busy === 'avatar'} onClick={() => void run('avatar', async () => {
-                          const nextProfile = await profileService.removeAvatar()
-                          setP(nextProfile)
+                          const nextProfile = await removeAvatar()
                           syncUserAvatar(nextProfile.avatarUrl)
                         }, 'Photo removed')} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"><Trash2 size={13} /> Remove</button>}
                         {!p.avatarUrl && <span className="text-[11px] text-slate-400">PNG, JPG or WebP, up to 2 MB</span>}

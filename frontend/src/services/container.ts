@@ -8,6 +8,8 @@ import type { IAdminService } from './admin/IAdminService'
 import { MockAdminService } from './admin/MockAdminService'
 import type { ITemplateService } from './template/ITemplateService'
 import { MockTemplateService } from './template/MockTemplateService'
+import type { INotificationService } from './contracts/INotificationService'
+import { MockNotificationApi } from './mock/MockWorkflowService.notification'
 
 export interface ServiceContainer {
   workflowService: IWorkflowService
@@ -30,3 +32,5 @@ export const guestService = container.guestService
 export const profileService = container.profileService
 export const adminService = container.adminService
 export const templateService = container.templateService
+
+export const notificationService: INotificationService = new MockNotificationApi()

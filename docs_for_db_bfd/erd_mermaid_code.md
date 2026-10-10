@@ -1,4 +1,3 @@
-```mermaid
 erDiagram
     USERS ||--o{ REFRESH_TOKEN : "has sessions"
     USERS ||--o{ PROJECT : "owns"
@@ -133,7 +132,6 @@ erDiagram
         varchar reviewer_role "TEACHER or GUEST"
         text content
         varchar status "OPEN or RESOLVED"
-        text reply_content "nullable"
         timestamp created_at
     }
 
@@ -155,4 +153,4 @@ erDiagram
         boolean is_read "DEFAULT FALSE"
         timestamp created_at
     }
-```
+

@@ -83,6 +83,9 @@ export const AdminPortalView: FC = () => {
     setIsStudioOpen(false);
     setEditingTemplateId(null);
     navigate('/admin/templates');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wpe_template_updated'));
+    }
   };
 
   const handleTabChange = (tab: typeof currentTab) => {
@@ -95,10 +98,6 @@ export const AdminPortalView: FC = () => {
   const handleGlobalSearch = (term: string) => {
     setCurrentTab('users');
     setSearchQuery(term);
-  };
-
-  const handleNotificationClick = () => {
-    showToast('Không có cảnh báo mới. Hệ thống đang ổn định.', 'emerald');
   };
 
   const handleLogout = () => {
@@ -119,7 +118,6 @@ export const AdminPortalView: FC = () => {
       <AdminSidebar
         currentTab={currentTab}
         onTabChange={handleTabChange}
-        onLogout={handleLogout}
       />
 
       {/* 2. Main Content Viewport */}
@@ -128,7 +126,7 @@ export const AdminPortalView: FC = () => {
         <AdminTopbar
           currentTab={currentTab}
           onGlobalSearch={handleGlobalSearch}
-          onNotificationClick={handleNotificationClick}
+          onLogout={handleLogout}
         />
 
         {/* Tab View Container */}

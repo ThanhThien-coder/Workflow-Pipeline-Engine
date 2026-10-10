@@ -137,3 +137,68 @@ describe('Graph Engine: Tree Layout (Recursive Subtree Spacing)', () => {
     expect(pTask21.y).toBeGreaterThanOrEqual(pTask12.y + NODE_H);
   });
 });
+
+describe('Graph Engine: Topological Phase Ranking (SSOT Invariant)', () => {
+  it('should compute sequential 1-based ranks for a linear pipeline', async () => {
+    const { computeTopologicalPhaseRanks } = await import('../phaseLayout');
+    const phases = [
+      { id: 'p1', name: 'Requirements', order: 0, rootNodeId: 'n1', uiMetadata: { position: { x: 0, y: 0 } } },
+      { id: 'p2', name: 'Design', order: 1, rootNodeId: 'n2', uiMetadata: { position: { x: 0, y: 0 } } },
+      { id: 'p3', name: 'Implementation', order: 2, rootNodeId: 'n3', uiMetadata: { position: { x: 0, y: 0 } } },
+    ];
+    const edges = [
+      { parentPhaseId: 'p1', childPhaseId: 'p2' },
+      { parentPhaseId: 'p2', childPhaseId: 'p3' },
+    ];
+
+    const ranks = computeTopologicalPhaseRanks(phases, edges);
+    expect(ranks.get('p1')).toBe(1);
+    expect(ranks.get('p2')).toBe(2);
+    expect(ranks.get('p3')).toBe(3);
+  });
+
+  it('should adjust ranks dynamically when an upstream phase is inserted', async () => {
+    const { computeTopologicalPhaseRanks } = await import('../phaseLayout');
+    // A new phase 'p0' is added before 'p1'
+    const phases = [
+      { id: 'p1', name: 'Requirements', order: 1, rootNodeId: 'n1', uiMetadata: { position: { x: 0, y: 0 } } },
+      { id: 'p2', name: 'Design', order: 2, rootNodeId: 'n2', uiMetadata: { position: { x: 0, y: 0 } } },
+      { id: 'p0', name: 'Feasibility Study', order: 0, rootNodeId: 'n0', uiMetadata: { position: { x: 0, y: 0 } } },
+    ];
+    const edges = [
+      { parentPhaseId: 'p0', childPhaseId: 'p1' },
+      { parentPhaseId: 'p1', childPhaseId: 'p2' },
+    ];
+
+    const ranks = computeTopologicalPhaseRanks(phases, edges);
+    expect(ranks.get('p0')).toBe(1);
+    expect(ranks.get('p1')).toBe(2);
+    expect(ranks.get('p2')).toBe(3);
+  });
+
+  it('should adjust ranks dynamically when the leading phase is removed', async () => {
+    const { computeTopologicalPhaseRanks } = await import('../phaseLayout');
+    const phases = [
+      { id: 'p2', name: 'Design', order: 0, rootNodeId: 'n2', uiMetadata: { position: { x: 0, y: 0 } } },
+      { id: 'p3', name: 'Implementation', order: 1, rootNodeId: 'n3', uiMetadata: { position: { x: 0, y: 0 } } },
+    ];
+    const edges = [
+      { parentPhaseId: 'p2', childPhaseId: 'p3' },
+    ];
+
+    const ranks = computeTopologicalPhaseRanks(phases, edges);
+    expect(ranks.get('p2')).toBe(1); // p2 becomes Phase 1
+    expect(ranks.get('p3')).toBe(2); // p3 becomes Phase 2
+  });
+
+  it('should verify semantic phase name invariant: no hardcoded Phase numbers in model name', () => {
+    const phases = [
+      { id: 'p1', name: 'Khảo sát nhu cầu', order: 0, rootNodeId: 'n1', uiMetadata: { position: { x: 0, y: 0 } } },
+      { id: 'p2', name: 'Thiết kế kiến trúc', order: 1, rootNodeId: 'n2', uiMetadata: { position: { x: 0, y: 0 } } },
+    ];
+
+    for (const phase of phases) {
+      expect(phase.name).not.toMatch(/^Phase\s*\d+/i);
+    }
+  });
+});

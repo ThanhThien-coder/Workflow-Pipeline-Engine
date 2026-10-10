@@ -76,3 +76,63 @@ export function calculatePhaseLayout(
     height: Math.max(height, PHH),
   };
 }
+
+/**
+ * Pure function to compute the 1-based Topological Sort rank for each Phase in the DAG.
+ * SSOT Rule: Phase Model/DTO only stores semantic name (e.g. "Phân tích yêu cầu", "Foundation").
+ * The sequence badge (Phase 1, Phase 2, ...) is computed dynamically via Topological Sort
+ * so that re-ordering, inserting, or deleting phases immediately adjusts all badges in real-time.
+ */
+export function computeTopologicalPhaseRanks(
+  phases: PhaseDto[],
+  edges: PhaseEdgeDto[]
+): Map<string, number> {
+  const ranks = new Map<string, number>();
+  if (phases.length === 0) return ranks;
+
+  const phaseIdSet = new Set(phases.map((p) => p.id));
+  const indeg: Record<string, number> = {};
+  const adj: Record<string, string[]> = {};
+
+  for (const p of phases) {
+    indeg[p.id] = 0;
+    adj[p.id] = [];
+  }
+
+  for (const edge of edges) {
+    if (phaseIdSet.has(edge.parentPhaseId) && phaseIdSet.has(edge.childPhaseId)) {
+      indeg[edge.childPhaseId] = (indeg[edge.childPhaseId] || 0) + 1;
+      adj[edge.parentPhaseId].push(edge.childPhaseId);
+    }
+  }
+
+  // Deterministic queue ordered by initial index
+  const queue: string[] = phases
+    .filter((p) => indeg[p.id] === 0)
+    .map((p) => p.id);
+
+  let rankCounter = 1;
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const u = queue.shift()!;
+    visited.add(u);
+    ranks.set(u, rankCounter++);
+
+    for (const neighbor of adj[u]) {
+      indeg[neighbor]--;
+      if (indeg[neighbor] === 0) {
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  // Graceful fallback for any phases that are part of cycles or unreachable
+  for (const p of phases) {
+    if (!ranks.has(p.id)) {
+      ranks.set(p.id, rankCounter++);
+    }
+  }
+
+  return ranks;
+}
