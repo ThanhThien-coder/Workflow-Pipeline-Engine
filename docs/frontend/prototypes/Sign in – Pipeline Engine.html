@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Sign in – Pipeline Engine</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  html,body{margin:0;background:#F8FAFC;color:#0f172a;font-family:Inter,Geist,system-ui,-apple-system,"Segoe UI",sans-serif}
+  .bg-tech-grid{background-color:#f8fafc;background-image:linear-gradient(to right,rgba(203,213,225,.35) 1px,transparent 1px),linear-gradient(to bottom,rgba(203,213,225,.35) 1px,transparent 1px);background-size:32px 32px}
+  .btn-grad{background:#4f46e5;box-shadow:0 1px 2px rgba(79,70,229,.25),0 4px 12px -4px rgba(79,70,229,.35);transition:background .15s}
+  .btn-grad:hover:not(:disabled){background:#4338ca}
+  .grad-text{background:linear-gradient(90deg,#4f46e5,#7c3aed);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .flow{stroke-dasharray:5 9;animation:dash 1s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-14}}
+  @keyframes pulse2{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
+  .pulse2{animation:pulse2 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .pop{animation:pop .2s ease-out}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .fade{animation:fade .25s ease-out}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const Logo = () => (
+  <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+    <rect x="1" y="1" width="24" height="24" rx="7" fill="#eef2ff" stroke="#6366f1" />
+    <circle cx="7" cy="8" r="2.2" fill="#6366f1" /><circle cx="7" cy="18" r="2.2" fill="#38bdf8" /><circle cx="19" cy="13" r="2.2" fill="#10b981" />
+    <path d="M9 8c5 0 4 5 8 5M9 18c5 0 4-5 8-5" stroke="#818cf8" strokeWidth="1.4" />
+  </svg>
+);
+const Eye = ({ off }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />
+    {off && <path d="M4 4l16 16" />}
+  </svg>
+);
+const Spinner = () => <span className="inline-block w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />;
+
+/* ---------- Right panel: ambient DAG ---------- */
+const NODES = [
+  { id: "Spec", x: 60, y: 150, st: "DONE" }, { id: "Build API", x: 165, y: 80, st: "DONE" },
+  { id: "PR Review", x: 270, y: 150, st: "IN_PROGRESS" }, { id: "Production Ship", x: 375, y: 80, st: "LOCKED" },
+];
+const STC = { DONE: "#059669", IN_PROGRESS: "#2563eb", LOCKED: "#94a3b8" };
+function Showcase() {
+  const edges = NODES.slice(0, -1).map((a, i) => {
+    const b = NODES[i + 1], x1 = a.x + 42, x2 = b.x - 42, mx = (x1 + x2) / 2;
+    return `M${x1} ${a.y} C${mx} ${a.y} ${mx} ${b.y} ${x2} ${b.y}`;
+  });
+  return (
+    <div className="hidden lg:flex relative flex-col justify-center items-center overflow-hidden border-l border-slate-200/80 bg-slate-50/70 px-10">
+      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(#CBD5E1 1px, transparent 1px)", backgroundSize: "20px 20px", opacity: 0.6 }} />
+      <div className="absolute -top-32 -left-24 w-[520px] h-[520px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.16) 0%, transparent 70%)" }} />
+      <div className="absolute -bottom-32 -right-24 w-[480px] h-[480px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(14,165,233,0.14) 0%, transparent 70%)" }} />
+      <div className="relative w-full max-w-lg space-y-8">
+        <div className="rounded-2xl border border-slate-200/90 bg-white/95 shadow-xl p-4">
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1 px-1">
+            <span className="font-mono">pipeline/release.dag</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse2" />engine running</span>
+          </div>
+          <svg viewBox="0 0 440 230" className="w-full">
+            {edges.map((d, i) => (
+              <g key={i}>
+                <path d={d} fill="none" stroke="#cbd5e1" strokeWidth="1.6" />
+                <path d={d} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" className="flow" opacity={i < 2 ? 1 : 0.35} />
+                {i < 2 && <circle r="3.5" fill="#6366f1"><animateMotion dur={`${2.2 + i * 0.4}s`} repeatCount="indefinite" path={d} /></circle>}
+              </g>
+            ))}
+            {NODES.map((n) => (
+              <g key={n.id}>
+                <rect x={n.x - 42} y={n.y - 22} width="84" height="44" rx="11" fill="#fff" stroke="#e2e8f0" strokeWidth="1.5" />
+                <text x={n.x} y={n.y - 3} textAnchor="middle" fontSize="10" fontWeight="700" fill="#0f172a">{n.id}</text>
+                <text x={n.x} y={n.y + 12} textAnchor="middle" fontSize="7.5" fontWeight="700" fill={STC[n.st]}>{n.st}</text>
+                {n.st === "IN_PROGRESS" && <circle cx={n.x + 42} cy={n.y - 22} r="4.5" fill={STC[n.st]} className="pulse2" />}
+              </g>
+            ))}
+          </svg>
+        </div>
+        <blockquote className="text-xl font-semibold text-slate-900 leading-snug">
+          “Deterministic execution with <span className="grad-text">zero state bypass.</span> Every pipeline step is verified mathematically before deployment.”
+        </blockquote>
+        <div className="flex flex-wrap gap-2">
+          {["🔒 Strict Role-Based Access Control (RBAC)", "⚡ Kahn’s Topological Cycle Prevention", "🛡 Zero-Trust Artifact Verification"].map((b) => (
+            <span key={b} className="text-[11px] font-semibold text-slate-700 bg-white border border-slate-200/90 rounded-full px-3 py-1 shadow-sm">{b}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- App ---------- */
+function Field({ label, error, children, right }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-xs font-semibold text-slate-800">{label}</label>{right}
+      </div>
+      {children}
+      {error && <p className="mt-1 text-[11px] font-medium text-rose-600 fade">{error}</p>}
+    </div>
+  );
+}
+const inputCls = (err) => `w-full text-sm rounded-xl border bg-white px-3.5 py-2.5 outline-none transition-colors placeholder:text-slate-400 ${err ? "border-rose-300 focus:border-rose-400" : "border-slate-200/90 focus:border-indigo-500"}`;
+
+function App() {
+  const [tab, setTab] = useState("signin");
+  const [f, setF] = useState({ name: "", org: "", email: "", pw: "" });
+  const [err, setErr] = useState({});
+  const [show, setShow] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [busy, setBusy] = useState(null);
+  const [toast, setToast] = useState(null);
+  const tRef = useRef();
+  const say = (m) => { setToast(m); clearTimeout(tRef.current); tRef.current = setTimeout(() => setToast(null), 3200); };
+  const set = (k) => (e) => { setF({ ...f, [k]: e.target.value }); if (err[k]) setErr({ ...err, [k]: null }); };
+  const signup = tab === "signup";
+
+  const validate = () => {
+    const e = {};
+    if (signup && !f.name.trim()) e.name = "Full name is required.";
+    if (signup && !f.org.trim()) e.org = "Workspace name is required.";
+    if (!f.email.trim()) e.email = signup ? "Email is required." : "Email or username is required.";
+    else if (signup && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) e.email = "Enter a valid email address.";
+    if (!f.pw) e.pw = "Password is required.";
+    else if (signup && f.pw.length < 8) e.pw = "Use at least 8 characters.";
+    return e;
+  };
+  const submit = (ev) => {
+    ev.preventDefault();
+    const e = validate();
+    setErr(e);
+    if (Object.keys(e).length) return;
+    setBusy("form");
+    setTimeout(() => {
+      setBusy(null);
+      const who = signup ? f.name.trim() : f.email.split("@")[0].replace(/[._]/g, " ");
+      say(signup ? `Account created for ${who}. Setting up your workspace...` : `Welcome back, ${who}! Redirecting to Workspace...`);
+    }, 700);
+  };
+  return (
+    <div className="min-h-screen grid lg:grid-cols-2 bg-tech-grid" style={{ paddingBottom: "env(safe-area-inset-bottom,0px)" }}>
+      <div className="bg-white flex flex-col min-h-screen">
+        <header className="flex items-center justify-between px-6 sm:px-10 pt-6" style={{ paddingTop: "calc(1.5rem + env(safe-area-inset-top,0px))" }}>
+          <button onClick={() => say("Returning to homepage (demo).")} className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">← Back to Homepage</button>
+          <div className="flex items-center gap-2"><Logo /><span className="font-bold text-slate-900">Pipeline Engine</span></div>
+        </header>
+
+        <main className="flex-1 flex flex-col justify-center px-6 sm:px-10 py-8">
+          <div className="flex flex-col justify-center max-w-sm w-full mx-auto">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{signup ? "Create your account" : "Sign in to your workspace"}</h1>
+            <p className="mt-1.5 text-sm text-slate-500">{signup ? "Start orchestrating pipelines with mathematical rigor." : "Pick up where your pipeline left off."}</p>
+
+            <div className="relative mt-6 grid grid-cols-2 p-1 rounded-xl bg-slate-100 border border-slate-200/70">
+              <span className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-sm transition-transform duration-300" style={{ transform: signup ? "translateX(100%)" : "none", transitionTimingFunction: "cubic-bezier(.22,1,.36,1)" }} />
+              {[["signin", "Sign In"], ["signup", "Create Account"]].map(([k, l]) => (
+                <button key={k} onClick={() => { setTab(k); setErr({}); }} className={`relative z-10 py-2 text-xs font-semibold transition-colors ${tab === k ? "text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>{l}</button>
+              ))}
+            </div>
+
+            <form onSubmit={submit} noValidate className="mt-5 space-y-4" key={tab}>
+              {signup && <div className="fade"><Field label="Full name" error={err.name}><input className={inputCls(err.name)} placeholder="Alex Kim" value={f.name} onChange={set("name")} autoComplete="name" /></Field></div>}
+              <Field label={signup ? "Work email" : "Email or username"} error={err.email}>
+                <input className={inputCls(err.email)} placeholder="alex.kim@pipeline.engine" value={f.email} onChange={set("email")} autoComplete="username" />
+              </Field>
+              <Field label="Password" error={err.pw} right={!signup && <button type="button" onClick={() => say("Password reset link sent (demo).")} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700">Forgot password?</button>}>
+                <div className="relative">
+                  <input type={show ? "text" : "password"} className={`${inputCls(err.pw)} pr-11`} placeholder={signup ? "At least 8 characters" : "Enter your password"} value={f.pw} onChange={set("pw")} autoComplete={signup ? "new-password" : "current-password"} />
+                  <button type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow(!show)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1"><Eye off={show} /></button>
+                </div>
+              </Field>
+              {signup && <div className="fade"><Field label="Workspace name" error={err.org}><input className={inputCls(err.org)} placeholder="Acme Engineering" value={f.org} onChange={set("org")} autoComplete="organization" /></Field></div>}
+              {!signup && (
+                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+                  <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="accent-indigo-600" /> Remember me
+                </label>
+              )}
+              <button type="submit" disabled={!!busy} className="btn-grad w-full flex items-center justify-center gap-2 text-sm font-semibold text-white py-2.5 rounded-xl shadow-md disabled:opacity-70">
+                {busy ? <><Spinner />{signup ? "Creating account..." : "Signing in..."}</> : signup ? "Create Free Account ➔" : "Sign In to Workspace ➔"}
+              </button>
+            </form>
+
+            <p className="mt-6 text-center text-[11px] text-slate-400">By continuing, you agree to Pipeline Engine's Terms of Service and Privacy Policy.</p>
+          </div>
+        </main>
+      </div>
+
+      <Showcase />
+      {toast && <div className="pop fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] bg-slate-900 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg">{toast}</div>}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline Engine | Super Admin Management Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background-color: #f8fafc;
+      background-image:
+        linear-gradient(to right, rgba(226, 232, 240, .6) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(226, 232, 240, .6) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .surface { background: #fff; border: 1px solid rgba(226, 232, 240, .8); border-radius: 1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, .03); transition: box-shadow .2s, transform .2s; }
+    .surface:hover { box-shadow: 0 8px 22px rgba(15, 23, 42, .07); }
+    .tab-panel { display: none; animation: fadeIn .22s ease-out; }
+    .tab-panel.active { display: block; }
+    .nav-item { border-right: 4px solid transparent; }
+    .nav-item.active { background: #eff6ff; color: #2563eb; font-weight: 600; border-right-color: #2563eb; }
+    .nav-item.active svg { color: #2563eb; }
+    .toast { animation: toastIn .25s ease-out; }
+    .modal-card { animation: modalIn .2s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @keyframes modalIn { from { opacity: 0; transform: scale(.97) translateY(8px); } to { opacity: 1; transform: none; } }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+    canvas { max-width: 100%; }
+    @media (max-width: 900px) {
+      #sidebar { width: 76px; }
+      #sidebar .brand-copy, #sidebar .nav-label, #sidebar .profile-copy, #sidebar .logout-label { display: none; }
+      #sidebar .nav-item { justify-content: center; padding-left: .75rem; padding-right: .75rem; }
+      #sidebar .brand { justify-content: center; }
+    }
+    @media (max-width: 640px) {
+      #sidebar { display: none; }
+      main { width: 100%; }
+      .mobile-nav { display: flex !important; }
+    }
+  </style>
+</head>
+<body class="text-slate-700 antialiased">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="sticky top-0 z-30 flex h-screen w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div class="brand flex items-center gap-3 border-b border-slate-100 px-5 py-5">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 6h3a5 5 0 0 1 5 5M7 18h3a5 5 0 0 0 5-5"/></svg>
+        </div>
+        <div class="brand-copy min-w-0">
+          <div class="truncate text-sm font-extrabold tracking-tight text-slate-900">Pipeline Engine</div>
+          <span class="mt-1 inline-flex rounded-md bg-purple-50 px-2 py-0.5 text-[9px] font-bold tracking-[.12em] text-purple-700 ring-1 ring-inset ring-purple-200">SUPER ADMIN</span>
+        </div>
+      </div>
+      <nav class="flex-1 space-y-1 px-3 py-5" aria-label="Admin navigation">
+        <button class="nav-item active flex w-full items-center gap-3 rounded-l-lg px-3 py-3 text-left text-sm text-slate-500 transition hover:bg-blue-50 hover:text-blue-600" data-tab="overview" data-title="Overview & Analytics">
+          <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="nav-label">Overview &amp; Analytics</span>
+        </button>
+        <button class="nav-item flex w-full items-center gap-3 rounded-l-lg px-3 py-3 text-left text-sm text-slate-500 transition hover:bg-blue-50 hover:text-blue-600" data-tab="users" data-title="User Management">
+          <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6M17 11a3 3 0 1 0 0-6M22 20c0-2.5-2-4.6-5-5.6"/></svg><span class="nav-label">User Management</span>
+        </button>
+        <button class="nav-item flex w-full items-center gap-3 rounded-l-lg px-3 py-3 text-left text-sm text-slate-500 transition hover:bg-blue-50 hover:text-blue-600" data-tab="workspaces" data-title="Workspaces & DAGs">
+          <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg><span class="nav-label">Workspaces &amp; DAGs</span>
+        </button>
+        <button class="nav-item flex w-full items-center gap-3 rounded-l-lg px-3 py-3 text-left text-sm text-slate-500 transition hover:bg-blue-50 hover:text-blue-600" data-tab="audit" data-title="Security & Audit Logs">
+          <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3Z"/><path d="m9 12 2 2 4-4"/></svg><span class="nav-label">Security &amp; Audit Logs</span>
+        </button>
+      </nav>
+      <div class="border-t border-slate-100 p-4">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white">AK</div>
+          <div class="profile-copy min-w-0 flex-1"><div class="truncate text-sm font-bold text-slate-800">Alex Kim</div><div class="truncate text-xs text-slate-400">Root Admin</div></div>
+          <button id="logoutBtn" class="logout-label rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">Đăng xuất</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="min-w-0 flex-1">
+      <header class="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 px-4 py-4 backdrop-blur md:px-8">
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <div class="mb-1 hidden items-center gap-2 text-xs text-slate-400 sm:flex"><span>Admin Console</span><span>/</span><span id="breadcrumb" class="font-semibold text-slate-600">Overview &amp; Analytics</span></div>
+            <h1 id="pageHeading" class="truncate text-xl font-extrabold tracking-tight text-slate-900">Overview &amp; Analytics</h1>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="hidden w-64 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-400 lg:flex">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="globalSearch" class="w-full bg-transparent outline-none placeholder:text-slate-400" placeholder="Search projects, pipelines, users..."><kbd class="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+            </label>
+            <button id="notificationBtn" class="relative rounded-full p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-600" aria-label="Notifications">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
+            </button>
+            <div class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 ring-2 ring-white">AK</div>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-4 pb-20 md:p-8">
+        <section id="tab-overview" class="tab-panel active">
+          <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="surface p-5"><div class="flex items-center justify-between"><span class="text-sm font-medium text-slate-500">Total Users</span><span class="rounded-lg bg-blue-50 p-2 text-blue-600">👥</span></div><div class="mt-3 text-3xl font-extrabold text-slate-900">1,284</div><div class="mt-1 text-xs"><span class="font-bold text-emerald-600">+12%</span><span class="text-slate-400"> vs last month</span></div><div class="mt-3 text-xs text-slate-500">1,240 Active · 44 Suspended</div></div>
+            <div class="surface p-5"><div class="flex items-center justify-between"><span class="text-sm font-medium text-slate-500">Active Workspaces</span><span class="rounded-lg bg-indigo-50 p-2 text-indigo-600">▦</span></div><div class="mt-3 text-3xl font-extrabold text-slate-900">342</div><div class="mt-1 text-xs"><span class="font-bold text-emerald-600">+18 new</span><span class="text-slate-400"> this week</span></div><div class="mt-3 text-xs text-slate-500">4 Running in Production</div></div>
+            <div class="surface p-5"><div class="flex items-center justify-between"><span class="text-sm font-medium text-slate-500">Pipeline DAG Executions</span><span class="rounded-lg bg-purple-50 p-2 text-purple-600">⚡</span></div><div class="mt-3 text-3xl font-extrabold text-slate-900">48,920</div><div class="mt-1 text-xs"><span class="font-bold text-emerald-600">340</span><span class="text-slate-400"> runs / minute</span></div><div class="mt-3 text-xs text-slate-500">Peak throughput: 512 runs/min</div></div>
+            <div class="surface p-5"><div class="flex items-center justify-between"><span class="text-sm font-medium text-slate-500">System Health &amp; Uptime</span><span class="rounded-lg bg-emerald-50 p-2 text-emerald-600">✓</span></div><div class="mt-3 text-3xl font-extrabold text-slate-900">99.98%</div><div class="mt-1 text-xs"><span class="font-bold text-emerald-600">Healthy</span><span class="text-slate-400"> · Error Rate &lt; 0.02%</span></div><div class="mt-3 text-xs text-slate-500">Median latency: 24ms</div></div>
+          </div>
+          <div class="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 class="text-lg font-bold text-slate-900">System Analytics</h2><p class="text-sm text-slate-500">Pipeline executions and active users across the platform.</p></div><div class="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm"><button class="range-btn rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white" data-range="7">7 Days</button><button class="range-btn rounded-md px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50" data-range="30">30 Days</button></div></div>
+          <div class="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+            <div class="surface p-5 xl:col-span-2"><div class="mb-4 flex items-start justify-between"><div><h3 class="font-bold text-slate-900">Pipeline Executions &amp; Active Users</h3><p id="chartCaption" class="mt-1 text-xs text-slate-400">Last 7 days · Daily activity</p></div><span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">Live</span></div><div class="h-72"><canvas id="lineChart"></canvas></div></div>
+            <div class="surface p-5"><h3 class="font-bold text-slate-900">User Role Distribution</h3><p class="mt-1 text-xs text-slate-400">Current workspace memberships</p><div class="mx-auto mt-4 h-52 max-w-xs"><canvas id="roleChart"></canvas></div><div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs"><div><span class="mx-auto mb-1 block h-2 w-2 rounded-full bg-blue-600"></span><b class="text-slate-800">22%</b><div class="text-slate-400">Owner</div></div><div><span class="mx-auto mb-1 block h-2 w-2 rounded-full bg-indigo-400"></span><b class="text-slate-800">56%</b><div class="text-slate-400">Collaborator</div></div><div><span class="mx-auto mb-1 block h-2 w-2 rounded-full bg-slate-300"></span><b class="text-slate-800">22%</b><div class="text-slate-400">Viewer</div></div></div></div>
+          </div>
+          <div class="surface p-5"><div class="mb-4 flex items-center justify-between"><div><h3 class="font-bold text-slate-900">System Quick Diagnostic</h3><p class="mt-1 text-xs text-slate-400">Automated checks from the last 60 seconds</p></div><span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">3 / 3 Operational</span></div><div class="grid gap-3 md:grid-cols-3"><div class="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4"><div class="flex items-center gap-2 text-sm font-bold text-emerald-800"><span>✓</span> API Gateway Cluster</div><p class="mt-1 text-xs text-emerald-700">All 8 nodes responding · 18ms avg.</p></div><div class="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4"><div class="flex items-center gap-2 text-sm font-bold text-emerald-800"><span>✓</span> PostgreSQL Primary</div><p class="mt-1 text-xs text-emerald-700">CPU 38% · Connections 142 / 500</p></div><div class="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4"><div class="flex items-center gap-2 text-sm font-bold text-emerald-800"><span>✓</span> Queue Workers</div><p class="mt-1 text-xs text-emerald-700">24 workers online · No backlog</p></div></div></div>
+        </section>
+
+        <section id="tab-users" class="tab-panel">
+          <div class="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 class="text-2xl font-extrabold text-slate-900">User Management</h2><p class="mt-1 text-sm text-slate-500">Manage access with privacy-safe identifiers. Emails and IP addresses are masked.</p></div><span class="inline-flex w-fit items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"><span>🛡</span> GDPR privacy mode</span></div>
+          <div class="surface mb-4 p-4"><div class="flex flex-col gap-3 md:flex-row"><label class="relative flex-1"><svg class="absolute left-3 top-3 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="userSearch" class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="Search by name, ID, or masked email..." type="search"></label><select id="statusFilter" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400"><option value="ALL">All Status</option><option value="ACTIVE">ACTIVE</option><option value="SUSPENDED">SUSPENDED</option></select></div></div>
+          <div class="surface overflow-hidden"><div class="overflow-x-auto"><table class="min-w-[930px] w-full text-left text-sm"><thead class="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-400"><tr><th class="px-5 py-4 font-semibold">User Info</th><th class="px-4 py-4 font-semibold">Masked Email</th><th class="px-4 py-4 font-semibold">Role</th><th class="px-4 py-4 font-semibold">Workspaces</th><th class="px-4 py-4 font-semibold">Last Login</th><th class="px-4 py-4 font-semibold">Status</th><th class="px-5 py-4 text-right font-semibold">Actions</th></tr></thead><tbody id="userTableBody" class="divide-y divide-slate-100"></tbody></table></div><div id="emptyUsers" class="hidden p-10 text-center text-sm text-slate-500">Không tìm thấy người dùng phù hợp.</div></div>
+        </section>
+
+        <section id="tab-workspaces" class="tab-panel">
+          <div class="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 class="text-2xl font-extrabold text-slate-900">Workspaces &amp; DAG Pipelines</h2><p class="mt-1 text-sm text-slate-500">Server-wide observability for active pipeline execution graphs.</p></div><button id="refreshPipelines" class="inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">↻ Refresh status</button></div>
+          <div class="surface overflow-hidden"><div class="overflow-x-auto"><table class="min-w-[850px] w-full text-left text-sm"><thead class="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-400"><tr><th class="px-5 py-4 font-semibold">Project / Pipeline</th><th class="px-4 py-4 font-semibold">Workspace Owner</th><th class="px-4 py-4 font-semibold">Nodes</th><th class="px-4 py-4 font-semibold">Completion</th><th class="px-4 py-4 font-semibold">Status</th><th class="px-5 py-4 text-right font-semibold">Inspect</th></tr></thead><tbody id="pipelineBody" class="divide-y divide-slate-100"></tbody></table></div></div>
+        </section>
+
+        <section id="tab-audit" class="tab-panel">
+          <div class="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 class="text-2xl font-extrabold text-slate-900">Security &amp; Audit Logs</h2><p class="mt-1 text-sm text-slate-500">Immutable trace of privileged actions and authentication events.</p></div><button id="exportAudit" class="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">↓ Export visible logs</button></div>
+          <div class="surface overflow-hidden"><div class="overflow-x-auto"><table class="min-w-[900px] w-full text-left text-sm"><thead class="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-400"><tr><th class="px-5 py-4 font-semibold">Timestamp (ISO)</th><th class="px-4 py-4 font-semibold">Actor</th><th class="px-4 py-4 font-semibold">Action</th><th class="px-4 py-4 font-semibold">Status</th><th class="px-5 py-4 font-semibold">Source IP (Masked)</th></tr></thead><tbody id="auditBody" class="divide-y divide-slate-100"></tbody></table></div></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="mobile-nav fixed bottom-4 left-4 right-4 z-30 hidden items-center justify-around rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-xl backdrop-blur">
+    <button data-tab="overview" class="mobile-tab rounded-xl px-3 py-2 text-xs font-semibold text-blue-600">Overview</button><button data-tab="users" class="mobile-tab rounded-xl px-3 py-2 text-xs font-semibold text-slate-500">Users</button><button data-tab="workspaces" class="mobile-tab rounded-xl px-3 py-2 text-xs font-semibold text-slate-500">DAGs</button><button data-tab="audit" class="mobile-tab rounded-xl px-3 py-2 text-xs font-semibold text-slate-500">Audit</button>
+  </div>
+  <div class="fixed bottom-5 right-5 z-30 hidden items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-3 py-2 text-[10px] font-bold tracking-wide text-blue-700 shadow-lg sm:flex">⚡ DEV <span class="text-slate-300">|</span> ADMIN <span class="text-slate-300">|</span> LIVE <span class="animate-pulse">⌃</span></div>
+  <div id="toastHost" class="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 flex-col gap-2"></div>
+
+  <div id="banModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm">
+    <div class="modal-card w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+      <div class="flex items-start justify-between"><div><div class="mb-2 inline-flex rounded-lg bg-rose-50 p-2 text-rose-600">⚠</div><h3 class="text-lg font-extrabold text-slate-900">Suspend account?</h3><p id="modalDescription" class="mt-1 text-sm text-slate-500"></p></div><button id="closeModal" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">✕</button></div>
+      <label class="mt-5 block text-sm font-semibold text-slate-700">Reason for suspension<select id="banReason" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"><option>Vi phạm chính sách</option><option>Rủi ro bảo mật</option><option>Spam hoặc lạm dụng</option></select></label>
+      <div class="mt-6 flex justify-end gap-2"><button id="cancelBan" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button><button id="confirmBan" class="rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700">Confirm Ban</button></div>
+    </div>
+  </div>
+
+  <script>
+    const users = [
+      { id: 'usr_01AKM9', name: 'Alex Kim', initials: 'AK', email: 'al***im@pipeline.engine', role: 'SUPER_ADMIN', workspaces: 18, login: '2026-10-06 20:42', ip: '192.168.1.***', status: 'ACTIVE' },
+      { id: 'usr_02JQ71', name: 'Sarah Chen', initials: 'SC', email: 'sa***en@acme.io', role: 'ADMIN', workspaces: 12, login: '2026-10-06 18:20', ip: '10.0.4.***', status: 'ACTIVE' },
+      { id: 'usr_03PL44', name: 'Marcus Liu', initials: 'ML', email: 'ma***iu@sgu.edu.vn', role: 'MEMBER', workspaces: 6, login: '2026-10-05 11:08', ip: '172.16.0.***', status: 'SUSPENDED' },
+      { id: 'usr_04DV88', name: 'Priya Nair', initials: 'PN', email: 'pr***ir@northstar.dev', role: 'MEMBER', workspaces: 9, login: '2026-10-04 09:15', ip: '10.2.8.***', status: 'ACTIVE' },
+      { id: 'usr_05TS16', name: 'Diego Santos', initials: 'DS', email: 'di***os@orbitlabs.co', role: 'ADMIN', workspaces: 21, login: '2026-10-03 16:51', ip: '192.168.5.***', status: 'ACTIVE' },
+      { id: 'usr_06HY32', name: 'Hana Yoshida', initials: 'HY', email: 'ha***da@tokyodata.jp', role: 'MEMBER', workspaces: 3, login: '2026-09-30 07:24', ip: '10.4.1.***', status: 'SUSPENDED' }
+    ];
+    const pipelines = [
+      { project: 'Revenue Forecasting DAG', owner: 'Sarah Chen', nodes: '18 / 4 critical', progress: 86, status: 'RUNNING' },
+      { project: 'Customer Sync · Production', owner: 'Diego Santos', nodes: '12 / 3 critical', progress: 64, status: 'RUNNING' },
+      { project: 'ML Feature Store Refresh', owner: 'Priya Nair', nodes: '27 / 7 critical', progress: 42, status: 'RUNNING' },
+      { project: 'Legacy Billing Migration', owner: 'Marcus Liu', nodes: '9 / 2 critical', progress: 100, status: 'IDLE' },
+      { project: 'Compliance Data Snapshot', owner: 'Hana Yoshida', nodes: '14 / 5 critical', progress: 28, status: 'RUNNING' }
+    ];
+    const auditLogs = [
+      ['2026-10-06T20:42:18+07:00', 'Alex Kim', 'AUTH_SUCCESS', 'SUCCESS', '192.168.1.***'],
+      ['2026-10-06T19:14:03+07:00', 'Alex Kim', 'USER_SUSPENDED', 'SUCCESS', '192.168.1.***'],
+      ['2026-10-06T18:20:44+07:00', 'Sarah Chen', 'AUTH_SUCCESS', 'SUCCESS', '10.0.4.***'],
+      ['2026-10-06T16:55:12+07:00', 'System Guard', 'AUTH_ATTEMPT', 'BLOCKED', '203.0.113.***'],
+      ['2026-10-06T15:31:09+07:00', 'Alex Kim', 'ROLE_UPGRADED', 'SUCCESS', '192.168.1.***'],
+      ['2026-10-06T13:08:51+07:00', 'Diego Santos', 'TOKEN_ROTATED', 'SUCCESS', '192.168.5.***'],
+      ['2026-10-06T10:44:27+07:00', 'System Guard', 'RATE_LIMITED', 'WARNING', '198.51.100.***'],
+      ['2026-10-06T08:02:16+07:00', 'Priya Nair', 'AUTH_SUCCESS', 'SUCCESS', '10.2.8.***']
+    ];
+    let selectedUserId = null;
+    let lineChart = null;
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+    function showToast(message, tone = 'blue') {
+      const colors = tone === 'rose' ? 'border-rose-200 bg-white text-rose-700' : tone === 'emerald' ? 'border-emerald-200 bg-white text-emerald-700' : 'border-blue-200 bg-white text-blue-700';
+      const toast = document.createElement('div');
+      toast.className = `toast flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg ${colors}`;
+      toast.innerHTML = `<span>${tone === 'rose' ? '⚠' : '✓'}</span><span>${message}</span>`;
+      $('#toastHost').appendChild(toast);
+      setTimeout(() => toast.remove(), 3500);
+    }
+    function roleBadge(role) {
+      const styles = { SUPER_ADMIN: 'bg-purple-50 text-purple-700 border-purple-200', ADMIN: 'bg-blue-50 text-blue-700 border-blue-200', MEMBER: 'bg-slate-50 text-slate-600 border-slate-200' };
+      return `<span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${styles[role]}">${role}</span>`;
+    }
+    function statusBadge(status) {
+      return `<span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}">${status}</span>`;
+    }
+    function renderUsers() {
+      const query = $('#userSearch').value.trim().toLowerCase();
+      const filter = $('#statusFilter').value;
+      const visible = users.filter(user => (filter === 'ALL' || user.status === filter) && [user.name, user.id, user.email].some(value => value.toLowerCase().includes(query)));
+      $('#emptyUsers').classList.toggle('hidden', visible.length > 0);
+      $('#userTableBody').innerHTML = visible.map(user => `<tr class="transition hover:bg-blue-50/30"><td class="px-5 py-4"><div class="flex items-center gap-3"><div class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-xs font-bold text-indigo-700">${user.initials}</div><div><div class="font-bold text-slate-800">${user.name}</div><div class="font-mono text-[11px] text-slate-400">${user.id}</div></div></div></td><td class="px-4 py-4 font-mono text-xs text-slate-500">${user.email}</td><td class="px-4 py-4">${roleBadge(user.role)}</td><td class="px-4 py-4 text-slate-600">${user.workspaces} workspaces</td><td class="px-4 py-4"><div class="text-xs text-slate-600">${user.login}</div><div class="mt-1 font-mono text-[11px] text-slate-400">${user.ip}</div></td><td class="px-4 py-4">${statusBadge(user.status)}</td><td class="px-5 py-4 text-right">${user.role === 'SUPER_ADMIN' ? '<button disabled title="Không thể khóa Root Admin" class="cursor-not-allowed rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-300">Suspend</button>' : user.status === 'ACTIVE' ? `<button data-action="ban" data-id="${user.id}" class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50">Suspend / Ban</button>` : `<button data-action="unban" data-id="${user.id}" class="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50">Unban</button>`}</td></tr>`).join('');
+    }
+    function renderPipelines() {
+      $('#pipelineBody').innerHTML = pipelines.map(item => `<tr class="transition hover:bg-blue-50/30"><td class="px-5 py-4"><div class="font-bold text-slate-800">${item.project}</div><div class="mt-1 text-xs text-slate-400">DAG / production cluster</div></td><td class="px-4 py-4 text-slate-600">${item.owner}</td><td class="px-4 py-4 text-xs text-slate-600">${item.nodes}</td><td class="w-56 px-4 py-4"><div class="mb-1 flex justify-between text-xs"><span class="text-slate-500">Progress</span><b class="text-slate-700">${item.progress}%</b></div><div class="h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600" style="width:${item.progress}%"></div></div></td><td class="px-4 py-4"><span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${item.status === 'RUNNING' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}">${item.status}</span></td><td class="px-5 py-4 text-right"><button data-inspect="${item.project}" class="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50">Inspect Pipeline ↗</button></td></tr>`).join('');
+    }
+    function renderAudit() {
+      const styles = { SUCCESS: 'border-emerald-200 bg-emerald-50 text-emerald-700', WARNING: 'border-amber-200 bg-amber-50 text-amber-700', BLOCKED: 'border-rose-200 bg-rose-50 text-rose-700' };
+      $('#auditBody').innerHTML = auditLogs.map(log => `<tr class="transition hover:bg-blue-50/30"><td class="px-5 py-4 font-mono text-xs text-slate-500">${log[0]}</td><td class="px-4 py-4 font-semibold text-slate-700">${log[1]}</td><td class="px-4 py-4"><span class="rounded-md bg-slate-100 px-2 py-1 font-mono text-[11px] font-semibold text-slate-600">${log[2]}</span></td><td class="px-4 py-4"><span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${styles[log[3]]}">${log[3]}</span></td><td class="px-5 py-4 font-mono text-xs text-slate-500">${log[4]}</td></tr>`).join('');
+    }
+    function openBanModal(id) {
+      const user = users.find(item => item.id === id);
+      selectedUserId = id;
+      $('#modalDescription').textContent = `You are about to suspend ${user.name} (${user.id}).`;
+      $('#banModal').classList.remove('hidden');
+      $('#banModal').classList.add('flex');
+    }
+    function closeBanModal() {
+      $('#banModal').classList.add('hidden');
+      $('#banModal').classList.remove('flex');
+      selectedUserId = null;
+    }
+    function setTab(tab, title) {
+      $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+      $$('.mobile-tab').forEach(button => button.classList.toggle('text-blue-600', button.dataset.tab === tab));
+      $$('.mobile-tab').forEach(button => button.classList.toggle('text-slate-500', button.dataset.tab !== tab));
+      $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${tab}`));
+      $('#breadcrumb').textContent = title;
+      $('#pageHeading').textContent = title;
+    }
+    function makeLineChart(range) {
+      const labels = range === '7' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Sep 7', 'Sep 12', 'Sep 17', 'Sep 22', 'Sep 27', 'Oct 2', 'Oct 6'];
+      const executions = range === '7' ? [5200, 6800, 6100, 7900, 7200, 8100, 7620] : [3900, 4500, 5200, 4800, 6100, 6900, 7620];
+      const active = range === '7' ? [810, 910, 875, 1020, 980, 1120, 1085] : [690, 740, 810, 790, 900, 1010, 1085];
+      if (lineChart) lineChart.destroy();
+      const ctx = $('#lineChart').getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+      gradient.addColorStop(0, 'rgba(37, 99, 235, .22)');
+      gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
+      lineChart = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: 'Executions', data: executions, borderColor: '#2563eb', backgroundColor: gradient, fill: true, tension: .4, yAxisID: 'y' }, { label: 'Active users', data: active, borderColor: '#6366f1', backgroundColor: 'transparent', tension: .4, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { usePointStyle: true, boxWidth: 7, color: '#64748b', font: { family: 'Inter', size: 11 } } } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', font: { size: 10 } } }, y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#94a3b8', font: { size: 10 } } } } } });
+      $('#chartCaption').textContent = `Last ${range} days · Daily activity`;
+    }
+    $$('.nav-item, .mobile-tab').forEach(button => button.addEventListener('click', () => setTab(button.dataset.tab, document.querySelector(`.nav-item[data-tab="${button.dataset.tab}"]`).dataset.title)));
+    $('#userSearch').addEventListener('input', renderUsers);
+    $('#statusFilter').addEventListener('change', renderUsers);
+    $('#userTableBody').addEventListener('click', event => {
+      const action = event.target.closest('button');
+      if (!action) return;
+      const user = users.find(item => item.id === action.dataset.id);
+      if (action.dataset.action === 'ban') openBanModal(user.id);
+      if (action.dataset.action === 'unban') { user.status = 'ACTIVE'; renderUsers(); showToast(`Đã mở khóa tài khoản ${user.name} thành công`, 'emerald'); }
+    });
+    $('#confirmBan').addEventListener('click', () => {
+      const user = users.find(item => item.id === selectedUserId);
+      if (!user) return;
+      user.status = 'SUSPENDED';
+      renderUsers();
+      closeBanModal();
+      showToast(`Đã khóa tài khoản ${user.name} thành công`, 'rose');
+    });
+    $('#closeModal').addEventListener('click', closeBanModal);
+    $('#cancelBan').addEventListener('click', closeBanModal);
+    $('#banModal').addEventListener('click', event => { if (event.target === $('#banModal')) closeBanModal(); });
+    $$('.range-btn').forEach(button => button.addEventListener('click', () => { $$('.range-btn').forEach(item => item.classList.remove('bg-blue-600', 'text-white')); $$('.range-btn').forEach(item => item.classList.add('text-slate-500')); button.classList.add('bg-blue-600', 'text-white'); button.classList.remove('text-slate-500'); makeLineChart(button.dataset.range); }));
+    $('#pipelineBody').addEventListener('click', event => { const button = event.target.closest('[data-inspect]'); if (button) showToast(`Đang mở inspector: ${button.dataset.inspect}`); });
+    $('#refreshPipelines').addEventListener('click', event => { event.currentTarget.classList.add('animate-pulse'); setTimeout(() => event.currentTarget.classList.remove('animate-pulse'), 600); showToast('Pipeline status đã được cập nhật', 'emerald'); });
+    $('#notificationBtn').addEventListener('click', () => showToast('Không có cảnh báo mới. Hệ thống đang ổn định.', 'emerald'));
+    $('#logoutBtn').addEventListener('click', () => showToast('Đây là bản demo — phiên đăng nhập vẫn được giữ nguyên.'));
+    $('#globalSearch').addEventListener('keydown', event => { if (event.key === 'Enter' && event.target.value.trim()) { setTab('users', 'User Management'); $('#userSearch').value = event.target.value.trim(); renderUsers(); } });
+    $('#exportAudit').addEventListener('click', () => showToast('Bản export audit log đã sẵn sàng trong bản demo.', 'emerald'));
+    renderUsers(); renderPipelines(); renderAudit();
+    if (window.Chart) { makeLineChart('7'); new Chart($('#roleChart'), { type: 'doughnut', data: { labels: ['Owner', 'Collaborator', 'Viewer'], datasets: [{ data: [22, 56, 22], backgroundColor: ['#2563eb', '#818cf8', '#cbd5e1'], borderWidth: 0, hoverOffset: 5 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } } }); }
+  </script>
+</body>
+</html>
