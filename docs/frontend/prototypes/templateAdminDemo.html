@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pipeline Template Studio - Super Admin Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, sans-serif
+        }
+
+        .grid-bg {
+            background-color: #f8fafc;
+            background-image: linear-gradient(to right, rgba(226, 232, 240, .6) 1px, transparent 1px), linear-gradient(to bottom, rgba(226, 232, 240, .6) 1px, transparent 1px);
+            background-size: 24px 24px
+        }
+
+        #drawer {
+            transform: translateX(100%);
+            transition: transform .3s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        #drawer.open {
+            transform: none
+        }
+
+        #drawerBackdrop {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .3s
+        }
+
+        #drawerBackdrop.open {
+            opacity: 1;
+            pointer-events: auto
+        }
+
+        .toast {
+            animation: tin .25s ease-out
+        }
+
+        @keyframes tin {
+            from {
+                transform: translateY(12px);
+                opacity: 0
+            }
+
+            to {
+                transform: none;
+                opacity: 1
+            }
+        }
+
+        .nodecard {
+            transition: box-shadow .15s, border-color .15s
+        }
+
+        .nodecard:hover {
+            box-shadow: 0 8px 18px -6px rgba(37, 99, 235, .35);
+            border-color: #93c5fd
+        }
+
+        .sel {
+            box-shadow: 0 0 0 2px #2563eb !important
+        }
+
+        .inp {
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: .75rem;
+            padding: .5rem .75rem;
+            font-size: .875rem;
+            outline: none;
+            background: #fff;
+            color: #0f172a
+        }
+
+        .inp:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .15)
+        }
+
+        .lbl {
+            display: block;
+            font-size: .7rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: .25rem;
+            text-transform: uppercase;
+            letter-spacing: .04em
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: .4rem;
+            border-radius: .75rem;
+            padding: .5rem .9rem;
+            font-size: .875rem;
+            font-weight: 600;
+            transition: background .15s, border-color .15s;
+            white-space: nowrap
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: #fff
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8
+        }
+
+        .btn-ghost {
+            background: #fff;
+            color: #334155;
+            border: 1px solid #e2e8f0
+        }
+
+        .btn-ghost:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1
+        }
+
+        .btn-danger {
+            background: #fff;
+            color: #dc2626;
+            border: 1px solid #fecaca
+        }
+
+        .btn-danger:hover {
+            background: #fef2f2
+        }
+
+        #canvas {
+            cursor: grab
+        }
+
+        #canvas.grabbing {
+            cursor: grabbing
+        }
+
+        #world {
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform-origin: 0 0
+        }
+
+        ::-webkit-scrollbar {
+            height: 8px;
+            width: 8px
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px
+        }
+    </style>
+</head>
+
+<body class="text-slate-700 antialiased bg-slate-50">
+
+    <!-- ================= ADMIN SHELL ================= -->
+    <div id="adminView" class="flex h-screen">
+        <aside class="w-64 shrink-0 bg-white border-r border-slate-200/80 flex flex-col">
+            <div class="px-5 py-5 border-b border-slate-100 flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="5" cy="6" r="2" />
+                        <circle cx="5" cy="18" r="2" />
+                        <circle cx="19" cy="12" r="2" />
+                        <path d="M7 6h4a4 4 0 014 4M7 18h4a4 4 0 004-4" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="font-bold text-slate-900 leading-tight">Pipeline Engine</div>
+                    <div class="text-[10px] font-semibold tracking-widest text-indigo-600">SUPER ADMIN CONSOLE</div>
+                </div>
+            </div>
+            <nav id="nav" class="flex-1 p-3 space-y-1"></nav>
+            <div class="p-4 border-t border-slate-100 flex items-center gap-3">
+                <div
+                    class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-sm font-bold flex items-center justify-center">
+                    RA</div>
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold text-slate-900 truncate">Root Admin</div>
+                    <div class="text-xs text-slate-500 truncate">ro***in@pipeline.engine</div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto grid-bg">
+            <section id="panel-library" class="p-8 max-w-7xl mx-auto">
+                <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-900">System Pipeline Templates</h1>
+                        <p class="text-sm text-slate-500 mt-1">Quản lý kho mẫu quy trình chuẩn toàn hệ thống. Người dùng
+                            có thể clone các mẫu công khai khi khởi tạo dự án.</p>
+                    </div>
+                    <button id="createBtn" class="btn btn-primary shadow-sm"><svg class="w-4 h-4" fill="none"
+                            stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path d="M12 5v14M5 12h14" />
+                        </svg>Create Template</button>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-3 mb-5">
+                    <div class="relative flex-1">
+                        <svg class="w-4 h-4 absolute left-3 top-3 text-slate-400" fill="none" stroke="currentColor"
+                            stroke-width="2" viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="M21 21l-4.3-4.3" />
+                        </svg>
+                        <input id="tplSearch" class="inp pl-9" placeholder="Tìm theo tên hoặc mô tả..."
+                            style="padding-left:2.25rem">
+                    </div>
+                    <select id="tplCat" class="inp sm:w-56">
+                        <option>All</option>
+                        <option>Software Engineering</option>
+                        <option>Marketing</option>
+                        <option>DevOps &amp; Infra</option>
+                        <option>General</option>
+                    </select>
+                </div>
+                <div id="catCount" class="text-xs text-slate-500 mb-3"></div>
+                <div id="tplGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+            </section>
+
+            <section id="panel-placeholder" class="hidden p-8 max-w-3xl mx-auto">
+                <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-10 text-center">
+                    <h2 id="phTitle" class="text-xl font-bold text-slate-900"></h2>
+                    <p class="text-sm text-slate-500 mt-2">Module này nằm ngoài phạm vi demo Template Studio. Hãy chọn
+                        <b>Template Library</b> để xem kho mẫu và mở xưởng thiết kế.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ================= TEMPLATE VISUAL STUDIO ================= -->
+    <div id="studioView" class="hidden fixed inset-0 z-40 flex-col grid-bg">
+        <header class="bg-white border-b border-slate-200/80 px-4 py-3 flex flex-wrap items-center gap-3 shadow-sm">
+            <button id="backBtn" class="btn btn-ghost"><svg class="w-4 h-4" fill="none" stroke="currentColor"
+                    stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>Back to Admin</button>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div class="flex-1 min-w-[260px]">
+                <input id="tplName"
+                    class="w-full text-lg font-bold text-slate-900 bg-transparent border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl px-3 py-1.5 outline-none"
+                    placeholder="Template name">
+            </div>
+            <button id="descBtn" class="btn btn-ghost"><svg class="w-4 h-4" fill="none" stroke="currentColor"
+                    stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M4 6h16M4 12h16M4 18h10" />
+                </svg>Description</button>
+            <select id="tplCategory" class="inp w-48">
+                <option>Software Engineering</option>
+                <option>Marketing</option>
+                <option>DevOps &amp; Infra</option>
+                <option>General</option>
+            </select>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <label class="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer select-none">
+                <button id="pubToggle" type="button"
+                    class="relative w-11 h-6 rounded-full bg-slate-300 transition"><span
+                        class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"></span></button>
+                Public to All Users <span class="text-xs text-slate-400 hidden xl:inline">(System Standard)</span>
+            </label>
+            <button id="validateBtn" class="btn btn-ghost"><svg class="w-4 h-4" fill="none" stroke="currentColor"
+                    stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" />
+                    <path d="M9 12l2 2 4-4" />
+                </svg>Validate DAG (Kahn)</button>
+            <span id="dagBadge" class="hidden text-xs font-semibold px-2.5 py-1 rounded-full"></span>
+            <button id="saveBtn" class="btn btn-primary shadow-sm">Save &amp; Publish Template</button>
+        </header>
+
+        <div id="canvas" class="relative flex-1 overflow-hidden select-none">
+            <div id="world"></div>
+            <button id="addPhaseBtn" class="btn btn-primary absolute left-4 top-4 z-10 shadow-md"><svg class="w-4 h-4"
+                    fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path d="M12 5v14M5 12h14" />
+                </svg>Add New Phase</button>
+            <div
+                class="absolute right-4 top-4 z-10 text-xs text-slate-500 bg-white/90 border border-slate-200/80 rounded-xl px-3 py-2 shadow-sm">
+                Kéo để Pan · Cuộn để Zoom · Bấm vào Phase để thiết kế chi tiết</div>
+            <div
+                class="absolute left-4 bottom-4 z-10 flex items-center gap-1 bg-white border border-slate-200/80 rounded-xl shadow-md p-1">
+                <button data-z="out"
+                    class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-700 font-bold text-lg leading-none">−</button>
+                <span id="zoomPct" class="w-12 text-center text-xs font-semibold text-slate-600">100%</span>
+                <button data-z="in"
+                    class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-700 font-bold text-lg leading-none">+</button>
+                <button data-z="fit"
+                    class="h-8 px-2 rounded-lg hover:bg-slate-100 text-xs font-semibold text-slate-700">Fit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= PHASE DETAIL DRAWER ================= -->
+    <div id="drawerBackdrop" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[2px]"></div>
+    <aside id="drawer"
+        class="fixed top-0 right-0 bottom-0 z-[60] w-[60vw] min-w-[720px] max-w-full bg-white border-l border-slate-200 shadow-2xl flex flex-col">
+        <div id="drawerHead" class="p-5 border-b border-slate-200"></div>
+        <div id="drawerScroll" class="flex-1 overflow-auto grid-bg">
+            <div id="drawerBody"></div>
+        </div>
+        <div id="editPanel" class="p-4 border-t border-slate-200 bg-white"></div>
+    </aside>
+
+    <!-- MODAL + TOASTS -->
+    <div id="modal"
+        class="hidden fixed inset-0 z-[70] items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div class="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-6" data-body></div>
+    </div>
+    <div id="toasts" class="fixed bottom-6 right-6 z-[90] space-y-2"></div>
+
+    <script>
+        (() => {
+            // ---------- UTILS ----------
+            const $ = s => document.querySelector(s);
+            const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            let _id = 1000; const uid = p => p + (++_id);
+            const clone = o => JSON.parse(JSON.stringify(o));
+            const ICON = {
+                home: '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+                users: '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6M17 11a3 3 0 100-6M22 20c0-2.5-2-4.6-5-5.6"/></svg>',
+                bolt: '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>',
+                shield: '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/></svg>',
+                layers: '<svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5M3 17.5l9 5 9-5"/></svg>',
+                layersSm: '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5M3 17.5l9 5 9-5"/></svg>',
+                copy: '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>',
+                trash: '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+                x: '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+                info: '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v.01M11 12h1v5h1"/></svg>',
+                check: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>'
+            };
+
+            // ---------- DATA MODEL ----------
+            const OR = 'ANY_COMPLETED';
+            const N = (title, children = [], join = 'ALL_COMPLETED') => ({ id: uid('n'), title, join, children });
+            const PH = (name, tracks) => ({ id: uid('p'), name, root: N(name, tracks) });
+            const chain = ph => ph.slice(1).map((p, i) => [ph[i].id, p.id]);
+            const mk = (name, description, category, isPublic, uses, phases) => ({ id: uid('t'), name, description, category, isPublic, uses, phases, edges: chain(phases) });
+
+            let templates = [
+                mk('Standard Software Development (SDLC)', 'Quy trình phát triển phần mềm chuẩn: từ phân tích yêu cầu, thiết kế, lập trình đến kiểm thử và phát hành.', 'Software Engineering', true, 128, [
+                    PH('Foundation', [N('Requirements', [N('Gather stakeholder needs', [N('Interview users'), N('Draft user stories')]), N('Write SRS')]), N('Architecture', [N('Select tech stack'), N('Design system diagram', [N('Review with team')])])]),
+                    PH('Core Development', [N('Frontend', [N('Build UI components', [N('Design tokens'), N('Component library')]), N('Integrate API', [], OR)]), N('Backend', [N('Design database schema'), N('Implement REST API', [N('Auth module'), N('Core services')])])]),
+                    PH('Testing & Release', [N('QA', [N('Write test plans'), N('Run regression')]), N('Release', [N('Deploy to staging'), N('Production rollout')])])
+                ]),
+                mk('Marketing Campaign Launch', 'Mẫu chiến dịch marketing: nghiên cứu thị trường, sản xuất nội dung sáng tạo và triển khai đa kênh.', 'Marketing', true, 86, [
+                    PH('Research', [N('Market Analysis', [N('Competitor audit'), N('Audience personas')]), N('Strategy', [N('Define KPIs'), N('Budget allocation')])]),
+                    PH('Creative Production', [N('Content', [N('Write copy', [N('Landing page'), N('Email series')]), N('Produce video')]), N('Design', [N('Brand assets'), N('Ad creatives')])]),
+                    PH('Launch & Measure', [N('Channels', [N('Social media rollout'), N('Paid ads setup')]), N('Reporting', [N('Weekly performance review')])])
+                ]),
+                mk('Data Science / ETL Pipeline', 'Quy trình thu thập, làm sạch, biến đổi dữ liệu và triển khai mô hình phân tích.', 'DevOps & Infra', false, 4, [
+                    PH('Ingestion', [N('Sources', [N('Connect databases'), N('Setup API collectors')]), N('Storage', [N('Provision data lake')])]),
+                    PH('Transformation', [N('Cleaning', [N('Remove duplicates'), N('Handle missing values')]), N('Modeling', [N('Feature engineering', [N('Encode categories')]), N('Train model')])]),
+                    PH('Serving', [N('Deployment', [N('Package model'), N('Expose inference API')]), N('Monitoring', [N('Drift detection')])])
+                ])
+            ];
+
+            const GRAD = { 'Software Engineering': 'from-blue-500 to-indigo-600', 'Marketing': 'from-pink-500 to-orange-400', 'DevOps & Infra': 'from-emerald-500 to-teal-600', 'General': 'from-slate-500 to-slate-700' };
+
+            // ---------- STATE ----------
+            const S = { tpl: null, isNew: false, dirty: false, view: { x: 40, y: 40, k: 1 }, phaseId: null, drawerView: 'graph', selId: null, cycle: new Set(), moved: false, filter: { q: '', cat: 'All' } };
+
+            // ---------- TREE HELPERS ----------
+            function walk(n, fn, d = 0, p = null) { fn(n, d, p); n.children.forEach(c => walk(c, fn, d + 1, n)); }
+            function find(root, id) { let r = null; walk(root, (n, d, p) => { if (n.id === id) r = { n, d, p }; }); return r; }
+            const typeOf = d => d === 0 ? 'Phase Root' : d === 1 ? 'Track' : d === 2 ? 'Task' : 'Sub-task';
+            function phaseStats(ph) { let tracks = 0, tasks = 0; walk(ph.root, (n, d) => { if (d === 1) tracks++; if (d >= 2) tasks++; }); return { tracks, tasks, nodes: tracks + tasks }; }
+            function tplStats(t) { let nodes = 0; t.phases.forEach(p => nodes += phaseStats(p).nodes); return { phases: t.phases.length, nodes }; }
+
+            // ---------- TOAST / MODAL ----------
+            function toast(msg, type = 'ok') {
+                const el = document.createElement('div');
+                el.className = 'toast max-w-sm px-4 py-3 rounded-xl shadow-xl text-sm font-medium text-white ' + (type === 'err' ? 'bg-red-600' : type === 'info' ? 'bg-slate-800' : 'bg-emerald-600');
+                el.textContent = msg; $('#toasts').appendChild(el);
+                setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = 0; setTimeout(() => el.remove(), 300); }, 3500);
+            }
+            function openModal(html) { const m = $('#modal'); m.querySelector('[data-body]').innerHTML = html; m.classList.remove('hidden'); m.classList.add('flex'); }
+            function closeModal() { const m = $('#modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
+            function confirmBox({ title, text, ok, danger, onOk }) {
+                openModal(`<h3 class="text-lg font-bold text-slate-900">${esc(title)}</h3><p class="text-sm text-slate-500 mt-2">${esc(text)}</p>
+      <div class="flex justify-end gap-2 mt-6"><button id="mCancel" class="btn btn-ghost">Cancel</button>
+      <button id="mOk" class="btn ${danger ? 'bg-red-600 text-white hover:bg-red-700' : 'btn-primary'}">${esc(ok)}</button></div>`);
+                $('#mCancel').onclick = closeModal; $('#mOk').onclick = () => { closeModal(); onOk(); };
+            }
+            $('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal') closeModal(); });
+
+            // ---------- NAV ----------
+            const NAV = [['overview', 'Overview', ICON.home], ['users', 'User Management', ICON.users], ['workspaces', 'Active Workspaces', ICON.bolt], ['audit', 'Audit Logs', ICON.shield], ['library', 'Template Library', ICON.layersSm]];
+            function renderNav(active) {
+                $('#nav').innerHTML = NAV.map(([k, l, i]) => `<button data-nav="${k}" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${k === active ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}">${i}${l}</button>`).join('');
+            }
+            $('#nav').addEventListener('click', e => {
+                const b = e.target.closest('[data-nav]'); if (!b) return;
+                const k = b.dataset.nav; renderNav(k);
+                $('#panel-library').classList.toggle('hidden', k !== 'library');
+                $('#panel-placeholder').classList.toggle('hidden', k === 'library');
+                if (k !== 'library') $('#phTitle').textContent = NAV.find(n => n[0] === k)[1];
+            });
+
+            // ---------- CATALOG ----------
+            function cardHtml(t) {
+                const s = tplStats(t), g = GRAD[t.category] || GRAD.General;
+                const badge = t.isPublic
+                    ? '<span class="text-[10px] font-bold tracking-wide px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">PUBLIC · SYSTEM STANDARD</span>'
+                    : '<span class="text-[10px] font-bold tracking-wide px-2 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200">DRAFT</span>';
+                return `<div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 flex flex-col hover:shadow-md transition">
+      <div class="flex items-start justify-between gap-2"><div class="w-12 h-12 rounded-xl bg-gradient-to-br ${g} flex items-center justify-center text-white shadow-sm">${ICON.layers}</div>${badge}</div>
+      <div class="mt-4 text-[11px] font-semibold text-indigo-600 uppercase tracking-wide">${esc(t.category)}</div>
+      <h3 class="font-semibold text-slate-900 leading-snug">${esc(t.name)}</h3>
+      <p class="mt-1 text-sm text-slate-500 line-clamp-2 min-h-[2.5rem]">${t.description ? esc(t.description) : '<span class="italic text-slate-400">No description</span>'}</p>
+      <div class="mt-4 grid grid-cols-3 gap-2 text-center">
+        <div class="bg-slate-50 rounded-xl py-2"><div class="font-bold text-slate-900">${s.phases}</div><div class="text-[10px] text-slate-500 uppercase">Phases</div></div>
+        <div class="bg-slate-50 rounded-xl py-2"><div class="font-bold text-slate-900">${s.nodes}</div><div class="text-[10px] text-slate-500 uppercase">Nodes</div></div>
+        <div class="bg-slate-50 rounded-xl py-2"><div class="font-bold text-slate-900">${t.uses}</div><div class="text-[10px] text-slate-500 uppercase">Clones</div></div>
+      </div>
+      <div class="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
+        <button data-act="edit" data-id="${t.id}" class="btn btn-primary flex-1">Open Studio / Edit ↗</button>
+        <button data-act="dup" data-id="${t.id}" title="Duplicate" class="btn btn-ghost px-3">${ICON.copy}</button>
+        <button data-act="del" data-id="${t.id}" title="Delete" class="btn btn-danger px-3">${ICON.trash}</button>
+      </div></div>`;
+            }
+            function renderCatalog() {
+                const q = S.filter.q.toLowerCase(), c = S.filter.cat;
+                const list = templates.filter(t => (c === 'All' || t.category === c) && (!q || t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)));
+                $('#catCount').textContent = `${list.length} / ${templates.length} templates`;
+                $('#tplGrid').innerHTML = list.length ? list.map(cardHtml).join('') :
+                    '<div class="md:col-span-2 xl:col-span-3 bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-sm text-slate-500">Không tìm thấy template phù hợp.</div>';
+            }
+            $('#tplSearch').addEventListener('input', e => { S.filter.q = e.target.value.trim(); renderCatalog(); });
+            $('#tplCat').addEventListener('change', e => { S.filter.cat = e.target.value; renderCatalog(); });
+            $('#createBtn').addEventListener('click', () => openStudio(null));
+            $('#tplGrid').addEventListener('click', e => {
+                const b = e.target.closest('[data-act]'); if (!b) return;
+                const t = templates.find(x => x.id === b.dataset.id); if (!t) return;
+                if (b.dataset.act === 'edit') openStudio(t.id);
+                if (b.dataset.act === 'dup') {
+                    const c = clone(t); c.id = uid('t'); c.name = t.name + ' (Copy)'; c.isPublic = false; c.uses = 0;
+                    templates.unshift(c); renderCatalog(); toast('Đã nhân bản template (trạng thái DRAFT)', 'info');
+                }
+                if (b.dataset.act === 'del') confirmBox({
+                    title: 'Delete template?', text: `"${t.name}" sẽ bị xóa khỏi kho mẫu. Các dự án đã clone trước đó không bị ảnh hưởng.`, ok: 'Delete', danger: true,
+                    onOk: () => { templates = templates.filter(x => x.id !== t.id); renderCatalog(); toast('Đã xóa template', 'info'); }
+                });
+            });
+
+            // ---------- STUDIO: OPEN / CLOSE ----------
+            function openStudio(id) {
+                if (id) { S.tpl = clone(templates.find(t => t.id === id)); S.isNew = false; }
+                else {
+                    const p = PH('Phase 1', [N('Track A', [N('First task')])]);
+                    S.tpl = { id: uid('t'), name: 'Untitled Template', description: '', category: 'General', isPublic: false, uses: 0, phases: [p], edges: [] }; S.isNew = true;
+                }
+                S.dirty = false; S.cycle = new Set(); S.phaseId = null;
+                $('#tplName').value = S.tpl.name; $('#tplCategory').value = S.tpl.category; syncToggle(); resetBadge();
+                const sv = $('#studioView'); sv.classList.remove('hidden'); sv.classList.add('flex');
+                renderCanvas(); requestAnimationFrame(fit);
+            }
+            function closeStudio() {
+                closeDrawer(true);
+                const sv = $('#studioView'); sv.classList.add('hidden'); sv.classList.remove('flex'); S.tpl = null; renderCatalog();
+            }
+            $('#backBtn').addEventListener('click', () => {
+                if (S.dirty) confirmBox({ title: 'Discard changes?', text: 'Các thay đổi chưa lưu trong Studio sẽ bị mất.', ok: 'Discard', danger: true, onOk: closeStudio });
+                else closeStudio();
+            });
+            $('#tplName').addEventListener('input', e => { S.tpl.name = e.target.value; S.dirty = true; });
+            $('#tplCategory').addEventListener('change', e => { S.tpl.category = e.target.value; S.dirty = true; });
+            $('#pubToggle').addEventListener('click', () => { S.tpl.isPublic = !S.tpl.isPublic; S.dirty = true; syncToggle(); });
+            function syncToggle() {
+                const b = $('#pubToggle'), on = S.tpl.isPublic;
+                b.classList.toggle('bg-blue-600', on); b.classList.toggle('bg-slate-300', !on);
+                b.firstElementChild.style.transform = on ? 'translateX(20px)' : 'none';
+            }
+            $('#descBtn').addEventListener('click', () => {
+                openModal(`<h3 class="text-lg font-bold text-slate-900">Template description</h3><p class="text-sm text-slate-500 mt-1">Mô tả chi tiết và hướng dẫn áp dụng mẫu này.</p>
+      <textarea id="mDesc" rows="6" class="inp mt-4" placeholder="Nhập mô tả...">${esc(S.tpl.description)}</textarea>
+      <div class="flex justify-end mt-5"><button id="mDone" class="btn btn-primary">Done</button></div>`);
+                $('#mDesc').oninput = e => { S.tpl.description = e.target.value; S.dirty = true; };
+                $('#mDone').onclick = closeModal; $('#mDesc').focus();
+            });
+
+            // ---------- KAHN VALIDATION ----------
+            function kahn(ids, edges) {
+                const indeg = {}, adj = {}; ids.forEach(i => { indeg[i] = 0; adj[i] = []; });
+                edges.forEach(([a, b]) => { indeg[b]++; adj[a].push(b); });
+                const q = ids.filter(i => indeg[i] === 0); let seen = 0;
+                while (q.length) { const u = q.shift(); seen++; adj[u].forEach(v => { if (--indeg[v] === 0) q.push(v); }); }
+                return { ok: seen === ids.length, seen, cyc: ids.filter(i => indeg[i] > 0) };
+            }
+            function setBadge(r) {
+                const b = $('#dagBadge'); b.classList.remove('hidden');
+                b.className = 'text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1 ' + (r.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200');
+                b.innerHTML = r.ok ? `${ICON.check} DAG Valid · 0 Cycles` : `Cycle Detected · ${r.cyc.length} phases`;
+            }
+            function resetBadge() { const b = $('#dagBadge'); b.classList.add('hidden'); S.cycle = new Set(); }
+            function validate() {
+                const r = kahn(S.tpl.phases.map(p => p.id), S.tpl.edges);
+                S.cycle = new Set(r.cyc); renderCanvas(); setBadge(r); return r;
+            }
+            $('#validateBtn').addEventListener('click', () => { const r = validate(); r.ok ? toast('Đồ thị hợp lệ: không có chu trình lặp') : toast('Phát hiện chu trình lặp giữa các Phase', 'err'); });
+
+            // ---------- SAVE ----------
+            $('#saveBtn').addEventListener('click', () => {
+                const t = S.tpl; t.name = t.name.trim();
+                if (!t.name) { toast('Vui lòng nhập tên template', 'err'); $('#tplName').focus(); return; }
+                if (!validate().ok) { toast('Không thể lưu: phát hiện chu trình lặp giữa các Phase', 'err'); return; }
+                const saved = clone(t), i = templates.findIndex(x => x.id === t.id);
+                if (i >= 0) templates[i] = saved; else templates.unshift(saved);
+                S.dirty = false; closeStudio();
+                toast(saved.isPublic ? 'Mẫu quy trình đã được lưu và công khai cho toàn bộ người dùng thành công!' : 'Mẫu quy trình đã được lưu dưới dạng bản nháp thành công!');
+            });
+
+            // ---------- MACRO PHASE CANVAS ----------
+            const PW = 260, PHH = 128, GXP = 110, GYP = 40;
+            function layoutPhases(t) {
+                const ids = t.phases.map(p => p.id), lv = {}; ids.forEach(i => lv[i] = 0);
+                for (let k = 0; k < ids.length; k++) t.edges.forEach(([a, b]) => { if (lv[a] + 1 > lv[b] && lv[a] < ids.length) lv[b] = lv[a] + 1; });
+                const rows = {}, pos = {}; let maxL = 0, maxR = 0;
+                ids.forEach(i => { const l = lv[i], r = rows[l] || 0; rows[l] = r + 1; pos[i] = { x: l * (PW + GXP), y: r * (PHH + GYP) }; maxL = Math.max(maxL, l); maxR = Math.max(maxR, r + 1); });
+                return { pos, w: (maxL + 1) * (PW + GXP) - GXP, h: maxR * (PHH + GYP) - GYP };
+            }
+            function renderCanvas() {
+                if (!S.tpl) return;
+                const t = S.tpl, L = layoutPhases(t), pos = L.pos;
+                let svg = `<svg width="${L.w + 600}" height="${L.h + 600}" class="absolute left-0 top-0 overflow-visible pointer-events-none">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6366f1"/></marker>
+      <marker id="arBad" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ef4444"/></marker></defs>`;
+                t.edges.forEach(([a, b]) => {
+                    const A = pos[a], B = pos[b]; if (!A || !B) return;
+                    const x1 = A.x + PW, y1 = A.y + PHH / 2, x2 = B.x, y2 = B.y + PHH / 2, dx = Math.max(60, Math.abs(x2 - x1) / 2);
+                    const bad = S.cycle.has(a) && S.cycle.has(b);
+                    svg += `<path d="M${x1} ${y1} C${x1 + dx} ${y1},${x2 - dx} ${y2},${x2} ${y2}" fill="none" stroke="${bad ? '#ef4444' : '#6366f1'}" stroke-width="2.5" marker-end="url(#${bad ? 'arBad' : 'ar'})"/>`;
+                });
+                svg += '</svg>';
+                const cards = t.phases.map((p, i) => {
+                    const st = phaseStats(p), bad = S.cycle.has(p.id), P = pos[p.id];
+                    return `<div data-open-phase="${p.id}" class="nodecard absolute bg-white rounded-2xl border ${bad ? 'border-red-400 ring-2 ring-red-200' : 'border-slate-200/80'} shadow-sm p-4 cursor-pointer" style="left:${P.x}px;top:${P.y}px;width:${PW}px;height:${PHH}px">
+        <div class="flex items-center justify-between"><span class="text-[10px] font-bold tracking-widest text-indigo-600">PHASE ${i + 1}</span>
+          ${t.phases.length > 1 ? `<button data-del-phase="${p.id}" title="Delete phase" class="text-slate-400 hover:text-red-600 p-1 -m-1">${ICON.trash}</button>` : ''}</div>
+        <div class="mt-1 font-semibold text-slate-900 leading-snug line-clamp-2">${esc(p.name)}</div>
+        <div class="mt-2 flex gap-3 text-xs text-slate-500"><span>${st.tracks} tracks</span><span>${st.tasks} tasks</span></div>
+        <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs"><span class="${bad ? 'text-red-600 font-semibold' : 'text-slate-400'}">${bad ? 'In cycle' : 'Click to design'}</span><span class="font-semibold text-blue-600">Open ↗</span></div></div>`;
+                }).join('');
+                $('#world').innerHTML = svg + cards;
+            }
+            $('#world').addEventListener('click', e => {
+                if (S.moved) return;
+                const del = e.target.closest('[data-del-phase]');
+                if (del) {
+                    const p = S.tpl.phases.find(x => x.id === del.dataset.delPhase);
+                    confirmBox({ title: 'Delete phase?', text: `Phase "${p.name}" cùng toàn bộ cây công việc bên trong sẽ bị xóa.`, ok: 'Delete', danger: true, onOk: () => deletePhase(p.id) }); return;
+                }
+                const op = e.target.closest('[data-open-phase]'); if (op) openDrawer(op.dataset.openPhase);
+            });
+            function deletePhase(id) {
+                const t = S.tpl, preds = t.edges.filter(e => e[1] === id).map(e => e[0]), succs = t.edges.filter(e => e[0] === id).map(e => e[1]);
+                t.edges = t.edges.filter(e => e[0] !== id && e[1] !== id);
+                preds.forEach(a => succs.forEach(b => { if (a !== b && !t.edges.some(e => e[0] === a && e[1] === b)) t.edges.push([a, b]); }));
+                t.phases = t.phases.filter(p => p.id !== id); S.dirty = true; resetBadge(); renderCanvas(); fit(); toast('Đã xóa Phase', 'info');
+            }
+            $('#addPhaseBtn').addEventListener('click', () => {
+                const t = S.tpl, last = t.phases[t.phases.length - 1];
+                const p = PH('Phase ' + (t.phases.length + 1), [N('New Track', [N('New Task')])]);
+                t.phases.push(p); if (last) t.edges.push([last.id, p.id]);
+                S.dirty = true; resetBadge(); renderCanvas(); fit(); toast(`Đã thêm ${p.name}`, 'info');
+            });
+
+            // pan / zoom
+            const cv = $('#canvas'); let pan = null;
+            function applyView() { const v = S.view; $('#world').style.transform = `translate(${v.x}px,${v.y}px) scale(${v.k})`; $('#zoomPct').textContent = Math.round(v.k * 100) + '%'; }
+            function zoomAt(cx, cy, f) { const v = S.view, k = Math.min(2, Math.max(.4, v.k * f)), r = k / v.k; v.x = cx - (cx - v.x) * r; v.y = cy - (cy - v.y) * r; v.k = k; applyView(); }
+            function fit() {
+                if (!S.tpl) return;
+                const L = layoutPhases(S.tpl), w = cv.clientWidth, h = cv.clientHeight;
+                const k = Math.min(1, Math.max(.4, Math.min((w - 100) / L.w, (h - 160) / L.h)));
+                S.view = { k, x: (w - L.w * k) / 2, y: Math.max(70, (h - L.h * k) / 2) }; applyView();
+            }
+            cv.addEventListener('mousedown', e => {
+                if (e.target.closest('button')) return;
+                pan = { sx: e.clientX, sy: e.clientY, vx: S.view.x, vy: S.view.y }; S.moved = false; cv.classList.add('grabbing');
+            });
+            window.addEventListener('mousemove', e => {
+                if (!pan) return; const dx = e.clientX - pan.sx, dy = e.clientY - pan.sy;
+                if (Math.abs(dx) + Math.abs(dy) > 4) S.moved = true;
+                S.view.x = pan.vx + dx; S.view.y = pan.vy + dy; applyView();
+            });
+            window.addEventListener('mouseup', () => { pan = null; cv.classList.remove('grabbing'); });
+            cv.addEventListener('wheel', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
+            document.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => {
+                const z = b.dataset.z, cx = cv.clientWidth / 2, cy = cv.clientHeight / 2;
+                z === 'in' ? zoomAt(cx, cy, 1.2) : z === 'out' ? zoomAt(cx, cy, 1 / 1.2) : fit();
+            }));
+
+            // ---------- PHASE DRAWER ----------
+            const curPhase = () => S.tpl && S.tpl.phases.find(p => p.id === S.phaseId);
+            function openDrawer(id) {
+                S.phaseId = id; S.selId = null; S.drawerView = 'graph';
+                $('#drawer').classList.add('open'); $('#drawerBackdrop').classList.add('open'); renderDrawer();
+            }
+            function closeDrawer(silent) {
+                $('#drawer').classList.remove('open'); $('#drawerBackdrop').classList.remove('open'); S.phaseId = null;
+                if (!silent) renderCanvas();
+            }
+            $('#drawerBackdrop').addEventListener('click', () => closeDrawer());
+            function renderDrawer() { renderDrawerHead(); renderDrawerBody(); renderEditPanel(); }
+
+            function renderDrawerHead() {
+                const ph = curPhase(), st = phaseStats(ph), others = S.tpl.phases.filter(p => p.id !== ph.id);
+                const tg = (k, l) => `<button data-dv="${k}" class="px-3 py-1.5 text-xs font-semibold rounded-lg ${S.drawerView === k ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}">${l}</button>`;
+                $('#drawerHead').innerHTML = `<div class="flex items-start gap-4">
+      <div class="flex-1 min-w-0"><div class="text-[11px] font-bold tracking-widest text-indigo-600">PHASE DETAIL</div>
+        <input id="phName" value="${esc(ph.name)}" class="mt-0.5 w-full text-xl font-bold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none">
+        <div class="text-xs text-slate-500 mt-1">${st.tasks} tasks · ${st.tracks} tracks</div></div>
+      <div class="inline-flex bg-slate-100 rounded-xl p-1">${tg('graph', 'Graph View')}${tg('kanban', 'Kanban View')}</div>
+      <button id="drawerClose" class="p-2 rounded-xl text-slate-500 hover:bg-slate-100" title="Close">${ICON.x}</button></div>
+      ${others.length ? `<div class="mt-3 flex flex-wrap items-center gap-2 text-xs"><span class="font-semibold text-slate-500">Runs after:</span>${others.map(o => {
+                    const on = S.tpl.edges.some(e => e[0] === o.id && e[1] === ph.id);
+                    return `<button data-dep="${o.id}" class="px-2.5 py-1 rounded-full border font-medium ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}">${esc(o.name)}</button>`;
+                }).join('')}</div>` : ''}`;
+                $('#phName').oninput = e => { ph.name = e.target.value; ph.root.title = e.target.value; S.dirty = true; renderCanvas(); };
+                $('#drawerClose').onclick = () => closeDrawer();
+                $('#drawerHead').querySelectorAll('[data-dv]').forEach(b => b.onclick = () => { S.drawerView = b.dataset.dv; renderDrawerHead(); renderDrawerBody(); });
+                $('#drawerHead').querySelectorAll('[data-dep]').forEach(b => b.onclick = () => {
+                    const a = b.dataset.dep, t = S.tpl, i = t.edges.findIndex(e => e[0] === a && e[1] === ph.id);
+                    if (i >= 0) t.edges.splice(i, 1); else t.edges.push([a, ph.id]);
+                    S.dirty = true; resetBadge(); renderCanvas(); renderDrawerHead();
+                });
+            }
+
+            // tree layout: Recursive Subtree Spacing
+            const NW = 210, NH = 62, GX = 70, GY = 18, PAD = 32;
+            function layoutTree(root) {
+                const H = new Map(), P = new Map(); let maxD = 0;
+                const h = n => { const v = n.children.length ? Math.max(NH, n.children.reduce((s, c) => s + h(c), 0) + GY * (n.children.length - 1)) : NH; H.set(n, v); return v; };
+                const place = (n, d, top) => {
+                    maxD = Math.max(maxD, d); let y;
+                    if (n.children.length) { let cy = top; n.children.forEach(c => { place(c, d + 1, cy); cy += H.get(c) + GY; }); y = (P.get(n.children[0]).y + P.get(n.children[n.children.length - 1]).y) / 2; }
+                    else y = top + (H.get(n) - NH) / 2;
+                    P.set(n, { x: d * (NW + GX), y, d });
+                };
+                h(root); place(root, 0, 0);
+                return { P, w: (maxD + 1) * (NW + GX) - GX, h: H.get(root) };
+            }
+            const joinBadge = n => `<span data-join class="text-[10px] font-bold px-1.5 py-0.5 rounded ${n.join === OR ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}">${n.join === OR ? 'OR' : 'AND'}</span>`;
+
+            function renderDrawerBody() {
+                const ph = curPhase(); $('#drawerBody').innerHTML = S.drawerView === 'graph' ? graphHtml(ph) : kanbanHtml(ph);
+            }
+            function graphHtml(ph) {
+                const L = layoutTree(ph.root);
+                let svg = `<svg class="absolute left-0 top-0 pointer-events-none" width="${L.w + PAD * 2 + 60}" height="${L.h + PAD * 2}">`, nodes = '';
+                walk(ph.root, (n, d) => {
+                    const a = L.P.get(n);
+                    n.children.forEach(c => {
+                        const b = L.P.get(c), x1 = a.x + NW + PAD, y1 = a.y + NH / 2 + PAD, x2 = b.x + PAD, y2 = b.y + NH / 2 + PAD, dx = (x2 - x1) / 2;
+                        svg += `<path d="M${x1} ${y1} C${x1 + dx} ${y1},${x2 - dx} ${y2},${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="2"/>`;
+                    });
+                    const styles = d === 0 ? 'bg-indigo-600 border-indigo-600 text-white' : d === 1 ? 'bg-blue-50 border-blue-200 text-slate-900' : d === 2 ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-50 border-slate-200 text-slate-800';
+                    nodes += `<div data-node="${n.id}" class="nodecard absolute rounded-2xl border shadow-sm px-3 py-2 cursor-pointer ${styles} ${n.id === S.selId ? 'sel' : ''}" style="left:${a.x + PAD}px;top:${a.y + PAD}px;width:${NW}px;height:${NH}px">
+        <div class="flex items-center justify-between"><span class="text-[10px] font-bold uppercase tracking-wide ${d === 0 ? 'text-indigo-200' : 'text-slate-400'}">${typeOf(d)}</span>${d >= 1 ? joinBadge(n) : ''}</div>
+        <div data-title class="text-sm font-semibold leading-tight line-clamp-2 mt-0.5">${esc(n.title)}</div>
+        <button data-add="${n.id}" title="Add child" class="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow flex items-center justify-center z-10"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>`;
+                });
+                return `<div class="relative" style="width:${L.w + PAD * 2 + 60}px;height:${L.h + PAD * 2}px">${svg}</svg>${nodes}</div>`;
+            }
+            function kanbanHtml(ph) {
+                const cols = ph.root.children.map(tr => {
+                    const items = []; const rec = (n, d) => n.children.forEach(c => { items.push({ n: c, d }); rec(c, d + 1); }); rec(tr, 2);
+                    return `<div class="w-72 shrink-0 bg-slate-100/80 border border-slate-200/80 rounded-2xl p-3 flex flex-col gap-2 self-start">
+        <div data-node="${tr.id}" class="flex items-center justify-between px-1 cursor-pointer ${tr.id === S.selId ? 'sel rounded-lg' : ''}"><span data-title class="font-semibold text-sm text-slate-900 truncate">${esc(tr.title)}</span><span class="text-xs font-semibold text-slate-500 bg-white rounded-full px-2 py-0.5">${items.length}</span></div>
+        ${items.map(({ n, d }) => `<div data-node="${n.id}" class="nodecard bg-white border border-slate-200 rounded-xl p-3 cursor-pointer ${n.id === S.selId ? 'sel' : ''}">
+          <div class="flex items-center justify-between mb-1"><span class="text-[10px] font-bold uppercase text-slate-400">${typeOf(d)}</span>${joinBadge(n)}</div>
+          <div data-title class="text-sm font-medium text-slate-900 line-clamp-2">${esc(n.title)}</div></div>`).join('')}
+        <button data-add="${tr.id}" class="text-xs font-semibold text-blue-600 hover:bg-white rounded-lg py-2 border border-dashed border-blue-300">+ Add Task</button></div>`;
+                }).join('');
+                return `<div class="flex gap-4 p-6 items-start">${cols}<button data-add="${ph.root.id}" class="w-56 shrink-0 text-sm font-semibold text-blue-600 border-2 border-dashed border-blue-300 rounded-2xl py-6 hover:bg-white">+ Add Track</button></div>`;
+            }
+
+            // drawer body interactions (delegated)
+            $('#drawerBody').addEventListener('click', e => {
+                const add = e.target.closest('[data-add]'); if (add) { addChild(add.dataset.add); return; }
+                const nd = e.target.closest('[data-node]'); if (nd) select(nd.dataset.node);
+            });
+            function select(id) {
+                S.selId = id;
+                document.querySelectorAll('#drawerBody [data-node]').forEach(el => el.classList.toggle('sel', el.dataset.node === id));
+                renderEditPanel();
+            }
+            function addChild(pid) {
+                const ph = curPhase(), f = find(ph.root, pid); if (!f) return;
+                const n = N('New ' + typeOf(f.d + 1)); f.n.children.push(n); S.selId = n.id; S.dirty = true;
+                renderDrawerHead(); renderDrawerBody(); renderEditPanel(); renderCanvas();
+                const el = document.querySelector(`#drawerBody [data-node="${n.id}"]`); if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+            }
+            function renderEditPanel() {
+                const el = $('#editPanel'), ph = curPhase(), f = S.selId && ph && find(ph.root, S.selId);
+                if (!f) { el.innerHTML = `<div class="text-sm text-slate-500 flex items-center gap-2">${ICON.info}Chọn một node để chỉnh sửa. Bấm nút <b>+</b> ở mép phải node để rẽ nhánh sang phải.</div>`; return; }
+                const { n, d } = f;
+                el.innerHTML = `<div class="flex flex-wrap items-end gap-3">
+      <div class="flex-1 min-w-[220px]"><label class="lbl">${typeOf(d)} title</label><input id="ndTitle" class="inp" value="${esc(n.title)}"></div>
+      ${d >= 1 ? `<div class="w-56"><label class="lbl">Join policy</label><select id="ndJoin" class="inp"><option value="ALL_COMPLETED" ${n.join !== OR ? 'selected' : ''}>AND-join (ALL_COMPLETED)</option><option value="${OR}" ${n.join === OR ? 'selected' : ''}>OR-join (ANY_COMPLETED)</option></select></div>` : ''}
+      <button id="ndAdd" class="btn btn-primary">+ Add ${typeOf(d + 1)}</button>
+      ${d > 0 ? '<button id="ndDel" class="btn btn-danger">Delete</button>' : ''}</div>`;
+                $('#ndTitle').oninput = e => {
+                    n.title = e.target.value; S.dirty = true; if (d === 0) { ph.name = n.title; }
+                    document.querySelectorAll(`#drawerBody [data-node="${n.id}"] [data-title]`).forEach(t => t.textContent = n.title);
+                };
+                if ($('#ndJoin')) $('#ndJoin').onchange = e => { n.join = e.target.value; S.dirty = true; renderDrawerBody(); };
+                $('#ndAdd').onclick = () => addChild(n.id);
+                if ($('#ndDel')) $('#ndDel').onclick = () => {
+                    f.p.children = f.p.children.filter(c => c.id !== n.id); S.selId = null; S.dirty = true;
+                    renderDrawerHead(); renderDrawerBody(); renderEditPanel(); renderCanvas(); toast('Đã xóa node và các nhánh con', 'info');
+                };
+            }
+
+            // ---------- GLOBAL KEYS ----------
+            document.addEventListener('keydown', e => {
+                if (e.key !== 'Escape') return;
+                if (!$('#modal').classList.contains('hidden')) closeModal();
+                else if ($('#drawer').classList.contains('open')) closeDrawer();
+            });
+
+            // ---------- INIT ----------
+            renderNav('library'); renderCatalog();
+        })();
+    </script>
+</body>
+
+</html>

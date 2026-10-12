@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Pipelines & Workspaces – Pipeline Engine</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  html,body{margin:0;background:#F8FAFC;color:#0f172a;font-family:Inter,Geist,system-ui,-apple-system,"Segoe UI",sans-serif}
+  .bg-tech-grid{background-color:#f8fafc;background-image:linear-gradient(to right,rgba(203,213,225,.35) 1px,transparent 1px),linear-gradient(to bottom,rgba(203,213,225,.35) 1px,transparent 1px);background-size:32px 32px}
+  .btn-new{background:linear-gradient(90deg,#4f46e5,#2563eb);box-shadow:0 1px 2px rgba(79,70,229,.25),0 6px 16px -6px rgba(79,70,229,.5);transition:filter .15s,transform .15s}
+  .btn-new:hover{filter:brightness(1.07)}.btn-new:active{transform:scale(.98)}
+  .clamp1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  .pop{animation:pop .2s ease-out}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .rise{animation:rise .35s cubic-bezier(.22,1,.36,1) both}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+const STATUS = {
+  ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  DRAFT: "bg-amber-50 text-amber-700 border-amber-200",
+  INACTIVE: "bg-orange-50 text-orange-700 border-orange-200",
+  ARCHIVED: "bg-slate-100 text-slate-500 border-slate-200",
+};
+const ROLE = { Owner: "bg-violet-50 text-violet-700 border-violet-200", Collaborator: "bg-sky-50 text-sky-700 border-sky-200", Viewer: "bg-slate-100 text-slate-600 border-slate-200" };
+const TONES = { indigo: "bg-indigo-100 text-indigo-600", sky: "bg-sky-100 text-sky-600", emerald: "bg-emerald-100 text-emerald-600", violet: "bg-violet-100 text-violet-600", amber: "bg-amber-100 text-amber-600", slate: "bg-slate-200 text-slate-500" };
+const AV = ["bg-indigo-500", "bg-sky-500", "bg-emerald-500", "bg-violet-500", "bg-amber-500"];
+
+const SEED = [
+  { id: 1, name: "Marketing Campaign Q4", desc: "Content, design and launch tasks for the Q4 campaign.", status: "ACTIVE", role: "Owner", nodes: 24, crit: 8, done: 72, upd: "Updated 2 hours ago", ts: 90, tone: "indigo", icon: "◆", members: ["Alex Kim", "Sarah Chen", "Marcus Liu", "Jamie Doe", "Lena Park"] },
+  { id: 2, name: "Product Redesign 2026", desc: "End-to-end redesign of the core product experience.", status: "DRAFT", role: "Owner", nodes: 18, crit: 6, done: 0, upd: "Updated yesterday", ts: 70, tone: "amber", icon: "▲", members: ["Alex Kim", "Sarah Chen"] },
+  { id: 3, name: "Backend API Migration", desc: "Migrate legacy REST endpoints to the new gateway.", status: "ACTIVE", role: "Collaborator", nodes: 32, crit: 11, done: 46, upd: "Updated 5 hours ago", ts: 85, tone: "sky", icon: "⬢", members: ["Marcus Liu", "Alex Kim", "Sarah Chen", "Omar Haddad"] },
+  { id: 4, name: "Data Pipeline ETL", desc: "Nightly extract, transform and load into the warehouse.", status: "ACTIVE", role: "Owner", nodes: 21, crit: 7, done: 88, upd: "Sep 22, 2026", ts: 60, tone: "emerald", icon: "◉", members: ["Alex Kim", "Marcus Liu", "Lena Park"] },
+  { id: 5, name: "Mobile App Launch", desc: "Release checklist and store submission workflow.", status: "ACTIVE", role: "Viewer", nodes: 11, crit: 4, done: 30, upd: "Sep 18, 2026", ts: 50, tone: "violet", icon: "■", members: ["Sarah Chen", "Jamie Doe", "Omar Haddad", "Lena Park", "Marcus Liu", "Alex Kim"] },
+  { id: 6, name: "Legacy CRM Cleanup", desc: "Retire unused CRM objects and migrate remaining data.", status: "ARCHIVED", role: "Owner", nodes: 12, crit: 3, done: 100, upd: "Aug 30, 2026", ts: 20, tone: "slate", icon: "▣", members: ["Alex Kim", "Jamie Doe"] },
+];
+const TEMPLATES = [
+  { k: "blank", icon: "📄", t: "Blank Canvas", d: "Start from an empty graph.", nodes: 0 },
+  { k: "sprint", icon: "🚀", t: "Sprint Feature Release", d: "Design ➔ Backend/Frontend ➔ Review/Deploy.", nodes: 12 },
+  { k: "etl", icon: "🔄", t: "ETL Data Workflow", d: "Sequential extract, transform and load.", nodes: 8 },
+];
+
+const Logo = () => (
+  <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+    <rect x="1" y="1" width="24" height="24" rx="7" fill="#eef2ff" stroke="#6366f1" />
+    <circle cx="7" cy="8" r="2.2" fill="#6366f1" /><circle cx="7" cy="18" r="2.2" fill="#38bdf8" /><circle cx="19" cy="13" r="2.2" fill="#10b981" />
+    <path d="M9 8c5 0 4 5 8 5M9 18c5 0 4-5 8-5" stroke="#818cf8" strokeWidth="1.4" />
+  </svg>
+);
+const Av = ({ n, i, cls = "w-6 h-6 text-[9px]" }) => <span title={n} className={`${cls} ${AV[i % AV.length]} rounded-full text-white font-bold grid place-items-center ring-2 ring-white`}>{n.split(" ").map((s) => s[0]).join("")}</span>;
+const Branch = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="9" r="2" /><path d="M6 7v10M18 11c0 4-6 3-12 6" /></svg>;
+
+function ProjectCard({ p, i, onOpen }) {
+  const [w, setW] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setW(p.done), 80 + i * 40); return () => clearTimeout(t); }, [p.done]);
+  return (
+    <button onClick={() => onOpen(p)} style={{ animationDelay: `${i * 40}ms` }} className="rise group text-left rounded-2xl border border-slate-200/90 bg-white/95 ring-1 ring-slate-900/[0.03] shadow-sm p-5 flex flex-col gap-3.5 min-h-[220px] hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-12px_rgba(99,102,241,0.18)] hover:border-indigo-200/80 transition-all duration-300">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`w-9 h-9 rounded-xl grid place-items-center text-base font-bold ${TONES[p.tone]}`}>{p.icon}</span>
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 ${STATUS[p.status]}`}>{p.status}</span>
+          <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${ROLE[p.role]}`}>{p.role}</span>
+        </div>
+      </div>
+      <div>
+        <h3 className="font-bold text-slate-900 leading-snug">{p.name}</h3>
+        <p className="clamp1 text-xs text-slate-500 mt-0.5">{p.desc}</p>
+        <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-2"><Branch />{p.nodes} nodes · {p.crit} on critical path</div>
+      </div>
+      <div className="flex items-center">
+        <div className="flex -space-x-1.5">{p.members.slice(0, 3).map((m, k) => <Av key={m} n={m} i={k} />)}</div>
+        {p.members.length > 3 && <span className="ml-1.5 text-[11px] font-semibold text-slate-500">+{p.members.length - 3}</span>}
+      </div>
+      <div>
+        <div className="flex justify-between text-[11px] mb-1"><span className="text-slate-500 font-medium">Completion</span><span className="font-bold text-slate-800">{p.done}%</span></div>
+        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${w}%`, background: p.done === 100 ? "#10b981" : "linear-gradient(90deg,#6366f1,#8b5cf6)", transition: "width 900ms cubic-bezier(.22,1,.36,1)" }} /></div>
+      </div>
+      <div className="mt-auto flex items-center justify-between pt-2 border-t border-slate-100">
+        <span className="text-[11px] text-slate-400">{p.upd}</span>
+        <span className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all text-sm font-bold">↗</span>
+      </div>
+    </button>
+  );
+}
+
+function CreateModal({ onClose, onCreate }) {
+  const [name, setName] = useState(""), [desc, setDesc] = useState(""), [tpl, setTpl] = useState("blank"), [err, setErr] = useState("");
+  useEffect(() => { const k = (e) => e.key === "Escape" && onClose(); window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, []);
+  const submit = () => {
+    if (!name.trim()) return setErr("Pipeline name is required.");
+    onCreate({ name: name.trim(), desc: desc.trim(), tpl: TEMPLATES.find((t) => t.k === tpl) });
+  };
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm grid place-items-center p-4" onClick={onClose}>
+      <div className="pop w-full max-w-lg rounded-2xl bg-white border border-slate-200/90 shadow-2xl p-6 space-y-4 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div><h2 className="text-lg font-extrabold text-slate-900">Create New Pipeline</h2><p className="text-xs text-slate-500 mt-0.5">Set up a deterministic workflow pipeline with DAG constraints.</p></div>
+          <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 ${STATUS.DRAFT}`}>DRAFT</span>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-slate-800">Pipeline Name <span className="text-rose-500">*</span></label>
+          <input autoFocus value={name} onChange={(e) => { setName(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="e.g. Authentication Service V2" className={`mt-1.5 w-full text-sm rounded-xl border px-3.5 py-2.5 outline-none ${err ? "border-rose-300" : "border-slate-200/90 focus:border-indigo-500"}`} />
+          {err && <p className="mt-1 text-[11px] font-medium text-rose-600">{err}</p>}
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-slate-800">Description <span className="text-slate-400 font-normal">(optional)</span></label>
+          <textarea rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Describe the goal of this workflow" className="mt-1.5 w-full text-sm rounded-xl border border-slate-200/90 focus:border-indigo-500 px-3.5 py-2.5 outline-none resize-none" />
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-slate-800 mb-1.5">Starter Template</div>
+          <div className="space-y-2">
+            {TEMPLATES.map((t) => (
+              <button key={t.k} onClick={() => setTpl(t.k)} className={`w-full flex items-center gap-3 text-left rounded-xl border px-3.5 py-2.5 transition-colors ${tpl === t.k ? "border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-500/30" : "border-slate-200/90 hover:bg-slate-50"}`}>
+                <span className="text-lg">{t.icon}</span>
+                <span className="flex-1"><span className="block text-sm font-semibold text-slate-900">{t.t}</span><span className="block text-[11px] text-slate-500">{t.d}</span></span>
+                <span className={`w-4 h-4 rounded-full border-2 grid place-items-center ${tpl === t.k ? "border-indigo-600" : "border-slate-300"}`}>{tpl === t.k && <span className="w-2 h-2 rounded-full bg-indigo-600" />}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-[11px] text-slate-500">New pipelines start as <b>DRAFT</b> and are published after Kahn's cycle check passes.</p>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-xl px-4 py-2">Cancel</button>
+          <button onClick={submit} className="btn-new text-sm font-semibold text-white rounded-xl px-4 py-2">Create Pipeline ➔</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [projects, setProjects] = useState(SEED);
+  const [tab, setTab] = useState("all"), [q, setQ] = useState(""), [sort, setSort] = useState("ts");
+  const [modal, setModal] = useState(false), [menu, setMenu] = useState(false), [toast, setToast] = useState(null);
+  const tRef = useRef(), searchRef = useRef(), menuRef = useRef();
+  const say = (m) => { setToast(m); clearTimeout(tRef.current); tRef.current = setTimeout(() => setToast(null), 2600); };
+
+  useEffect(() => {
+    const k = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchRef.current?.focus(); } };
+    const c = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenu(false); };
+    window.addEventListener("keydown", k); window.addEventListener("mousedown", c);
+    return () => { window.removeEventListener("keydown", k); window.removeEventListener("mousedown", c); };
+  }, []);
+
+  const TABS = [["all", "All Pipelines", projects.length], ["mine", "My Projects", projects.filter((p) => p.role === "Owner").length], ["shared", "Shared with me", projects.filter((p) => p.role !== "Owner").length], ["archived", "Archived", projects.filter((p) => p.status === "ARCHIVED").length]];
+  const list = useMemo(() => {
+    const f = projects.filter((p) => (tab === "all" || (tab === "mine" && p.role === "Owner") || (tab === "shared" && p.role !== "Owner") || (tab === "archived" && p.status === "ARCHIVED")) && p.name.toLowerCase().includes(q.toLowerCase()));
+    const key = { ts: "ts", done: "done", nodes: "nodes" }[sort];
+    return [...f].sort((a, b) => b[key] - a[key]);
+  }, [projects, tab, q, sort]);
+
+  const create = ({ name, desc, tpl }) => {
+    const id = Date.now();
+    setProjects((ps) => [{ id, name, desc: desc || "No description provided.", status: "DRAFT", role: "Owner", nodes: tpl.nodes, crit: Math.round(tpl.nodes / 3), done: 0, upd: "Updated just now", ts: 1000 + ps.length, tone: "indigo", icon: "✦", members: ["Alex Kim"] }, ...ps]);
+    setModal(false); setTab("all"); setQ("");
+    say(`Pipeline "${name}" created as DRAFT.`);
+  };
+  const totalNodes = projects.reduce((s, p) => s + p.nodes, 0), running = projects.filter((p) => p.status === "ACTIVE").length;
+
+  return (
+    <div className="min-h-screen bg-tech-grid" style={{ paddingBottom: "env(safe-area-inset-bottom,0px)" }}>
+      <header className="sticky top-0 z-40 bg-white/95 border-b border-slate-200/80" style={{ paddingTop: "env(safe-area-inset-top,0px)" }}>
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-4">
+          <div className="flex items-center gap-2 shrink-0"><Logo /><span className="font-bold text-slate-900 hidden sm:inline">Pipeline Engine</span></div>
+          <div className="flex-1 max-w-md mx-auto relative">
+            <input ref={searchRef} onKeyDown={(e) => { if (e.key === "Enter" && e.target.value.trim()) say(`Global search for "${e.target.value.trim()}" (demo).`); }} placeholder="Search projects, pipelines, nodes... (⌘K)" className="w-full text-xs rounded-xl border border-slate-200/90 bg-slate-50 focus:bg-white focus:border-indigo-500 px-3.5 py-2 outline-none" />
+          </div>
+          <button onClick={() => say("You have 3 new notifications (demo).")} aria-label="Notifications" className="relative w-9 h-9 grid place-items-center rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10 20a2 2 0 004 0" /></svg>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+          </button>
+          <div className="relative" ref={menuRef}>
+            <button onClick={() => setMenu(!menu)} className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 pl-1.5 pr-2.5 py-1">
+              <Av n="Alex Kim" i={0} cls="w-7 h-7 text-[10px]" /><span className="hidden sm:block text-xs font-semibold text-slate-800">Alex Kim</span>
+              <span className={`hidden sm:block text-[10px] font-bold border rounded-full px-1.5 py-0.5 ${ROLE.Owner}`}>OWNER</span>
+            </button>
+            {menu && (
+              <div className="pop absolute right-0 mt-2 w-48 rounded-xl border border-slate-200/90 bg-white shadow-xl p-1.5 text-sm">
+                <div className="px-3 py-2 text-[11px] text-slate-500 border-b border-slate-100 mb-1">alex.kim@pipeline.engine</div>
+                <button onClick={() => { setMenu(false); say("Opening profile settings (demo)."); }} className="w-full text-left px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50">Profile</button>
+                <button onClick={() => { setMenu(false); say("Logged out (demo)."); }} className="w-full text-left px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50">Log Out</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Pipelines &amp; Workspaces</h1>
+            <p className="mt-1 text-sm text-slate-500">Orchestrate, monitor, and govern all active engineering DAG pipelines.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[["📂", `${projects.length} Total Projects`], ["⚡", `${totalNodes} Active Nodes`], ["🟢", `${running} Running in Production`]].map(([i, t]) => (
+                <span key={t} className="text-xs font-semibold text-slate-700 bg-white/95 border border-slate-200/90 rounded-full px-3 py-1 shadow-sm">{i} {t}</span>
+              ))}
+            </div>
+          </div>
+          <button onClick={() => setModal(true)} className="btn-new text-sm font-semibold text-white rounded-xl px-4 py-2.5 flex items-center gap-1.5"><span className="text-base leading-none">+</span> New Pipeline</button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200/70">
+            {TABS.map(([k, l, n]) => (
+              <button key={k} onClick={() => setTab(k)} className={`text-xs font-semibold rounded-lg px-3 py-1.5 transition-all ${tab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>{l} <span className={tab === k ? "text-indigo-600" : "text-slate-400"}>({n})</span></button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by project name..." className="text-xs rounded-xl border border-slate-200/90 bg-white focus:border-indigo-500 px-3 py-2 outline-none w-48" />
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className="text-xs font-semibold rounded-xl border border-slate-200/90 bg-white px-2.5 py-2 text-slate-700">
+              <option value="ts">Last Updated</option><option value="done">Completion %</option><option value="nodes">Node Count</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {list.map((p, i) => <ProjectCard key={p.id} p={p} i={i} onOpen={(x) => say(`Opening ${x.name} workspace...`)} />)}
+          <button onClick={() => setModal(true)} className="group border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/20 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all min-h-[220px]">
+            <span className="w-11 h-11 rounded-full bg-indigo-100 text-indigo-600 text-2xl grid place-items-center group-hover:scale-110 transition-transform">+</span>
+            <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700">Create New Pipeline</span>
+          </button>
+        </div>
+        {!list.length && <p className="text-center text-sm text-slate-400 py-6">No pipelines match your filters.</p>}
+      </main>
+
+      {modal && <CreateModal onClose={() => setModal(false)} onCreate={create} />}
+      {toast && <div className="pop fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw] bg-slate-900 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg">{toast}</div>}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
