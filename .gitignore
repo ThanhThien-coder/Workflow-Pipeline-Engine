@@ -1,12 +1,18 @@
 # Dependencies
 node_modules/
 frontend/node_modules/
+wpe-frontend/node_modules/
 
 # Production build outputs
 dist/
 frontend/dist/
+wpe-frontend/dist/
 build/
 *.tsbuildinfo
+target/
+wpe-backend/target/
+*.class
+*.jar
 
 # Environment variables
 .env

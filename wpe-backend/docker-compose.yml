@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: wpe_postgres_local
+    restart: always
+    environment:
+      POSTGRES_DB: wpe_db
+      POSTGRES_USER: wpe_user
+      POSTGRES_PASSWORD: wpe_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+    driver: local
