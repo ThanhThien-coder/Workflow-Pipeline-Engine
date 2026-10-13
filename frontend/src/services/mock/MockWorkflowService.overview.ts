@@ -43,12 +43,20 @@ export const MOCK_OVERVIEW: OverviewData = {
   ],
 }
 
-export class MockOverviewApi implements Pick<IWorkflowService, 'getOverviewData' | 'toggleGuestAccess' | 'generateGuestToken'> {
+export class MockOverviewApi implements Pick<IWorkflowService, 'getOverviewData' | 'resolveFeedback' | 'toggleGuestAccess' | 'generateGuestToken'> {
   private data: OverviewData = structuredClone(MOCK_OVERVIEW)
 
   async getOverviewData(_projectId: string): Promise<OverviewData> {
     await mockDelay()
     return structuredClone(this.data)
+  }
+
+  async resolveFeedback(_projectId: string, feedbackId: string): Promise<void> {
+    await mockDelay(100)
+    const item = this.data.feedbackQueue.find((f) => f.id === feedbackId)
+    if (item) {
+      item.status = 'RESOLVED'
+    }
   }
 
   async toggleGuestAccess(_projectId: string, active: boolean): Promise<GuestAccessState> {

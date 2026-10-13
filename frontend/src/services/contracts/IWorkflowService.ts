@@ -51,10 +51,11 @@ export interface IWorkflowService {
   connectPhases(sourcePhaseId: string, targetPhaseId: string): Promise<void>
   deletePhase(phaseId: string): Promise<void>
   getOverviewData(projectId: string): Promise<OverviewData>
+  resolveFeedback(projectId: string, feedbackId: string): Promise<void>
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState>
   generateGuestToken(projectId: string): Promise<GuestAccessState>
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]>
-  updateTaskStatus(taskId: string, newStatus: TaskStatus): Promise<KanbanTask>
+  updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask>
   submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }>
   getProjectMembers(projectId: string): Promise<UserSummary[]>
 

@@ -8,7 +8,7 @@ export interface KanbanSlice {
     members: UserSummary[]; tasks: KanbanTask[]; currentUserId: string; filterPhaseId: PhaseFilterId; searchQuery: string
     isSubmitModalOpen: boolean; submittingTaskId: string | null; pendingTaskIds: string[]; status: LoadStatus; error: string | null; toast: string | null
     loadMembers: (projectId: string) => Promise<void>; loadTasks: (projectId: string) => Promise<void>; setUserId: (projectId: string, userId: string) => Promise<void>
-    setFilterPhase: (id: PhaseFilterId) => void; setSearchQuery: (query: string) => void; moveTask: (taskId: string, to: TaskStatus) => Promise<void>
+    setFilterPhase: (id: PhaseFilterId) => void; setSearchQuery: (query: string) => void; moveTask: (taskId: string, to: TaskStatus, rejectReason?: string) => Promise<void>
     closeSubmitModal: () => void; submitArtifact: (dto: Omit<SubmitArtifactDto, 'taskId'>) => Promise<boolean>; submitTaskArtifact: (taskId: string, dto: Omit<SubmitArtifactDto, 'taskId'>) => Promise<boolean>; showToast: (message: string) => void
   }
 }
@@ -31,15 +31,15 @@ export const createKanbanSlice = (set: (update: (state: KanbanSlice) => KanbanSl
     setUserId: async (projectId, userId) => { set((state) => ({ ...state, kanban: { ...state.kanban, currentUserId: userId, tasks: [], searchQuery: '', filterPhaseId: 'ALL', status: 'idle' } })); await get().kanban.loadTasks(projectId) },
     setFilterPhase: (filterPhaseId) => set((state) => ({ ...state, kanban: { ...state.kanban, filterPhaseId } })),
     setSearchQuery: (searchQuery) => set((state) => ({ ...state, kanban: { ...state.kanban, searchQuery } })),
-    moveTask: async (taskId, to) => {
+    moveTask: async (taskId, to, rejectReason) => {
       const task = k().tasks.find((item) => item.id === taskId); const actor = k().members.find((member) => member.id === k().currentUserId)
       if (!task || !actor || k().pendingTaskIds.includes(taskId)) return
       const decision = evaluateTransition(task, to, actor)
       if (decision.kind === 'deny') { if (decision.message) k().showToast(decision.message); return }
       if (decision.kind === 'needs-artifact') { set((state) => ({ ...state, kanban: { ...state.kanban, isSubmitModalOpen: true, submittingTaskId: taskId } })); return }
       const previous = task.status
-      set((state) => ({ ...state, kanban: { ...state.kanban, tasks: state.kanban.tasks.map((item) => item.id === taskId ? { ...item, status: to } : item), pendingTaskIds: [...state.kanban.pendingTaskIds, taskId] } }))
-      try { const saved = await workflowService.updateTaskStatus(taskId, to); set((state) => ({ ...state, kanban: { ...state.kanban, tasks: state.kanban.tasks.map((item) => item.id === taskId ? saved : item), pendingTaskIds: state.kanban.pendingTaskIds.filter((id) => id !== taskId) } })); const message = success[`${previous}>${to}`]; if (message) k().showToast(message(task.code)) }
+      set((state) => ({ ...state, kanban: { ...state.kanban, tasks: state.kanban.tasks.map((item) => item.id === taskId ? { ...item, status: to, rejectReason: to === 'IN_PROGRESS' ? rejectReason : undefined } : item), pendingTaskIds: [...state.kanban.pendingTaskIds, taskId] } }))
+      try { const saved = await workflowService.updateTaskStatus(taskId, to, rejectReason); set((state) => ({ ...state, kanban: { ...state.kanban, tasks: state.kanban.tasks.map((item) => item.id === taskId ? saved : item), pendingTaskIds: state.kanban.pendingTaskIds.filter((id) => id !== taskId) } })); const message = success[`${previous}>${to}`]; if (message) k().showToast(message(task.code)) }
       catch (error) { set((state) => ({ ...state, kanban: { ...state.kanban, tasks: state.kanban.tasks.map((item) => item.id === taskId ? { ...item, status: previous } : item), pendingTaskIds: state.kanban.pendingTaskIds.filter((id) => id !== taskId) } })); k().showToast(error instanceof Error ? error.message : 'Unable to update status. Please try again.') }
     },
     closeSubmitModal: () => set((state) => ({ ...state, kanban: { ...state.kanban, isSubmitModalOpen: false, submittingTaskId: null } })),

@@ -16,5 +16,6 @@ export interface IAdminService {
   suspendUser(payload: SuspendUserRequestDto): Promise<AdminUserDto>;
   unbanUser(userId: string): Promise<AdminUserDto>;
   getWorkspaces(): Promise<WorkspaceOverviewDto[]>;
+  archiveWorkspace(workspaceId: string): Promise<WorkspaceOverviewDto>;
   getSecurityAuditLogs(): Promise<SecurityAuditLogDto[]>;
 }

@@ -72,11 +72,12 @@ export const WorkspaceView: FC = () => {
     navigate(`/project/${project.id}/workflow`)
   }
 
-  const handleCreatePipeline = async (data: { name: string; desc: string }) => {
+  const handleCreatePipeline = async (data: { name: string; desc: string; templateId?: string }) => {
     try {
       const created = await createProjectAction({
         name: data.name,
         desc: data.desc,
+        templateId: data.templateId,
       })
       showToast(`Pipeline "${data.name}" created as DRAFT.`)
       navigate(`/project/${created.id}/workflow`)

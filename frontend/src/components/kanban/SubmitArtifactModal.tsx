@@ -24,11 +24,12 @@ export function SubmitArtifactModal({
   useDismiss(true, close, [ref])
 
   const submit = async () => {
-    if (!isValidArtifactUrl(url)) {
+    const trimmed = url.trim()
+    if (trimmed && !isValidArtifactUrl(trimmed)) {
       setError('Please enter a valid URL (starting with http:// or https://).')
       return
     }
-    await onSubmit({ type, url, note })
+    await onSubmit({ type, url: trimmed, note })
   }
 
   return (
@@ -58,7 +59,7 @@ export function SubmitArtifactModal({
         </header>
         <div className="space-y-4 px-5 py-4">
           <label className="block text-sm font-medium text-slate-700">
-            Deliverable Type
+            Deliverable Type <span className="text-xs font-normal text-slate-400">(Tùy chọn / Optional)</span>
             <select
               value={type}
               onChange={(event) => setType(event.target.value as ArtifactType)}
@@ -72,14 +73,14 @@ export function SubmitArtifactModal({
             </select>
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Deliverable URL
+            Deliverable URL <span className="text-xs font-normal text-slate-400">(Tùy chọn / Optional)</span>
             <input
               value={url}
               onChange={(event) => {
                 setUrl(event.target.value)
                 setError('')
               }}
-              placeholder="https://github.com/repo/pull/128"
+              placeholder="https://github.com/repo/pull/128 (Optional)"
               className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm text-slate-800 ${
                 error ? 'border-red-300 focus:ring-red-100' : 'border-slate-200'
               }`}
@@ -112,7 +113,7 @@ export function SubmitArtifactModal({
             className="flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
           >
             <Upload size={14} />
-            {submitting ? 'Submitting…' : 'Submit Deliverable'}
+            {submitting ? 'Submitting…' : 'Submit for Review'}
           </button>
         </footer>
       </div>

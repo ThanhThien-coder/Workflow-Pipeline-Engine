@@ -172,6 +172,19 @@ export function useAdminPortal(service: IAdminService = adminService) {
     }
   }, [service, showToast]);
 
+  // Archive workspace
+  const handleArchiveWorkspace = useCallback(async (workspaceId: string) => {
+    try {
+      const updated = await service.archiveWorkspace(workspaceId);
+      setWorkspaces((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
+      showToast(`Đã lưu trữ dự án "${updated.name}" thành công (ARCHIVED)`, 'emerald');
+      service.getSecurityAuditLogs().then(setAuditLogs).catch(() => {});
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Lỗi khi lưu trữ dự án';
+      showToast(message, 'rose');
+    }
+  }, [service, showToast]);
+
   // Filtered users for UserManagementTab
   const filteredUsers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -214,6 +227,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
     handleUnbanUser,
     // Workspaces
     handleRefreshWorkspaces,
+    handleArchiveWorkspace,
     // Toasts
     toasts,
     showToast,

@@ -51,7 +51,7 @@ export interface TaskDetailModalProps {
   members: UserSummary[]
   pending?: boolean
   onClose: () => void
-  onMove: (to: TaskStatus) => void
+  onMove: (to: TaskStatus, rejectReason?: string) => void
   onSubmitArtifact?: (form: { type: ArtifactType; url: string; note: string }) => Promise<boolean>
 }
 
@@ -75,9 +75,24 @@ export function TaskDetailModal({
   const [artError, setArtError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Rejection reason state for REVIEW -> IN_PROGRESS
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReasonInput, setRejectReasonInput] = useState('')
+  const [rejectReasonError, setRejectReasonError] = useState('')
+
   const isOwner = actor.projectRole === 'OWNER'
   const assignee = members.find((member) => member.id === task.assignedUserId) || actor
   const statusCfg = statusConfigs[task.status]
+
+  const handleConfirmReject = () => {
+    const trimmed = rejectReasonInput.trim()
+    if (!trimmed) {
+      setRejectReasonError('Vui lòng nhập lý do từ chối (bắt buộc).')
+      return
+    }
+    setShowRejectModal(false)
+    onMove('IN_PROGRESS', trimmed)
+  }
 
   const handleAttachSubmit = async () => {
     if (!isValidArtifactUrl(artUrl)) {
@@ -141,6 +156,19 @@ export function TaskDetailModal({
 
         {/* ── Modal Body ── */}
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+          {/* Rejection Alert Banner (when changes requested) */}
+          {task.status === 'IN_PROGRESS' && task.rejectReason && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 shadow-sm">
+              <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
+              <div className="min-w-0 space-y-1">
+                <span className="font-bold text-amber-900">
+                  Yêu cầu chỉnh sửa (Changes Requested by Reviewer):
+                </span>
+                <p className="whitespace-pre-wrap text-amber-800">{task.rejectReason}</p>
+              </div>
+            </div>
+          )}
+
           {/* Title */}
           <div>
             <h2 id="task-detail-title" className="text-lg font-bold leading-snug text-slate-900">
@@ -421,8 +449,12 @@ export function TaskDetailModal({
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => onMove('IN_PROGRESS')}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                    onClick={() => {
+                      setRejectReasonInput('')
+                      setRejectReasonError('')
+                      setShowRejectModal(true)
+                    }}
+                    className="flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:opacity-50"
                   >
                     <RotateCcw size={13} />
                     Request Changes
@@ -454,6 +486,93 @@ export function TaskDetailModal({
           </div>
         </footer>
       </div>
+
+      {/* ── Sub-modal: Request Changes Confirmation (Mandatory Reject Reason) ── */}
+      {showRejectModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="fade-in absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setShowRejectModal(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-modal-title"
+            className="pop-in relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-lg bg-rose-50 p-2 text-rose-600">
+                  <RotateCcw size={18} />
+                </div>
+                <div>
+                  <h3 id="reject-modal-title" className="text-sm font-bold text-slate-900">
+                    Yêu cầu chỉnh sửa công việc
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Chuyển {task.code} quay lại IN PROGRESS
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Vui lòng nhập lý do từ chối để thành viên phụ trách nắm được nội dung cần chỉnh sửa hoặc hoàn thiện thêm.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Lý do từ chối duyệt <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReasonInput}
+                onChange={(e) => {
+                  setRejectReasonInput(e.target.value)
+                  setRejectReasonError('')
+                }}
+                placeholder="Ví dụ: Thiếu tài liệu đặc tả, code chưa pass unit test, cần đính kèm kết quả đo lường..."
+                className={`w-full rounded-xl border p-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none ${
+                  rejectReasonError
+                    ? 'border-rose-300 ring-1 ring-rose-200'
+                    : 'border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200'
+                }`}
+              />
+              {rejectReasonError && (
+                <p className="mt-1.5 text-[11px] font-semibold text-rose-600">
+                  {rejectReasonError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={handleConfirmReject}
+                className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
+              >
+                <RotateCcw size={13} />
+                Xác nhận từ chối
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

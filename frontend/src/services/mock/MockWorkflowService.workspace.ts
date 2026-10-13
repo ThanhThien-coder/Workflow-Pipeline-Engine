@@ -118,14 +118,15 @@ export class MockWorkspaceApi {
   async createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto> {
     await new Promise((resolve) => setTimeout(resolve, 300))
 
+    const isFromTemplate = Boolean(cmd.templateId)
     const newProject: ProjectSummaryDto = {
       id: Date.now(),
       name: cmd.name.trim(),
       description: cmd.desc.trim() || 'No description provided.',
       status: 'DRAFT',
       role: 'OWNER',
-      nodeCount: 0,
-      criticalPathLength: 0,
+      nodeCount: isFromTemplate ? 14 : 0,
+      criticalPathLength: isFromTemplate ? 5 : 0,
       completionPercent: 0,
       updatedAt: new Date().toISOString(),
       members: [{ id: 'u1', displayName: 'Alex Kim' }],

@@ -155,6 +155,10 @@ export class MockWorkflowService implements IWorkflowService {
     return this.overviewApi.getOverviewData(projectId)
   }
 
+  resolveFeedback(projectId: string, feedbackId: string): Promise<void> {
+    return this.overviewApi.resolveFeedback(projectId, feedbackId)
+  }
+
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState> {
     return this.overviewApi.toggleGuestAccess(projectId, active)
   }
@@ -164,7 +168,7 @@ export class MockWorkflowService implements IWorkflowService {
   }
 
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]> { return this.taskApi.getMyTasks(projectId, userId) }
-  updateTaskStatus(taskId: string, newStatus: TaskStatus): Promise<KanbanTask> { return this.taskApi.updateTaskStatus(taskId, newStatus) }
+  updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask> { return this.taskApi.updateTaskStatus(taskId, newStatus, rejectReason) }
   submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }> { return this.taskApi.submitTaskArtifact(dto) }
   getProjectMembers(projectId: string): Promise<UserSummary[]> { return this.taskApi.getProjectMembers(projectId) }
 

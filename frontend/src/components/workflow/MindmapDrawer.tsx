@@ -373,7 +373,7 @@ export function MindmapDrawer() {
           members={members}
           pending={pendingTaskIds.includes(activeSelectedTask.id)}
           onClose={() => setSelectedTask(null)}
-          onMove={(to) => void moveTask(activeSelectedTask.id, to)}
+          onMove={(to, rejectReason) => void moveTask(activeSelectedTask.id, to, rejectReason)}
           onSubmitArtifact={(dto) => submitArtifact(activeSelectedTask.id, dto)}
         />
       )}

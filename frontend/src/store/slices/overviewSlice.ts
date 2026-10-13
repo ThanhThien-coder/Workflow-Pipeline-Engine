@@ -10,6 +10,7 @@ export interface OverviewSlice {
     error: string | null
     toast: string | null
     load: (projectId: string) => Promise<void>
+    resolveFeedback: (feedbackId: string) => Promise<void>
     revokeGuest: () => Promise<void>
     generateGuest: () => Promise<void>
     showToast: (message: string) => void
@@ -35,6 +36,31 @@ export const createOverviewSlice = (set: OverviewSetter, get: () => OverviewSlic
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Không tải được dữ liệu'
         set((state) => ({ overview: { ...state.overview, status: 'error', error: message } }))
+      }
+    },
+    resolveFeedback: async (feedbackId: string) => {
+      const data = get().overview.data
+      if (!data) return
+      try {
+        await workflowService.resolveFeedback(data.project.id, feedbackId)
+        set((state) => {
+          if (!state.overview.data) return state
+          const updatedFeedback = state.overview.data.feedbackQueue.map((item) =>
+            item.id === feedbackId ? { ...item, status: 'RESOLVED' as const } : item,
+          )
+          return {
+            overview: {
+              ...state.overview,
+              data: {
+                ...state.overview.data,
+                feedbackQueue: updatedFeedback,
+              },
+            },
+          }
+        })
+        get().overview.showToast('Feedback đã được đánh dấu giải quyết (Resolved).')
+      } catch {
+        get().overview.showToast('Không thể giải quyết phản hồi. Vui lòng thử lại.')
       }
     },
     revokeGuest: async () => {

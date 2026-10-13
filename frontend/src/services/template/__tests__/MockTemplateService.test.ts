@@ -7,6 +7,7 @@ describe('Service Layer DI: MockTemplateService Unit Tests', () => {
 
   beforeEach(() => {
     service = new MockTemplateService();
+    service.resetToDefault();
   });
 
   it('should fetch 3 default templates with correct summaries', async () => {

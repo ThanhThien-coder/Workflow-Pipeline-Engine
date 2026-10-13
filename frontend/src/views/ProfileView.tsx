@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { AlertCircle, ArrowLeft, Camera, Check, Folder, Lock, Shield, Sparkles, Trash2, User, X } from 'lucide-react'
-import { profileService } from '../services/container'
 import { navigate } from '../router/useRouter'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { useProfileStore } from '../store/useProfileStore'
@@ -64,6 +63,9 @@ export default function ProfileView() {
   const updateProfileData = useProfileStore((state) => state.updateProfileData)
   const setProjectPublic = useProfileStore((state) => state.setProjectPublic)
   const updatePrivacy = useProfileStore((state) => state.updatePrivacy)
+  const changePassword = useProfileStore((state) => state.changePassword)
+  const deactivateAccountStore = useProfileStore((state) => state.deactivateAccount)
+  const deleteAccountStore = useProfileStore((state) => state.deleteAccount)
   const [form, setForm] = useState({ displayName: '', title: '', email: '', bio: '', skills: [] as string[], links: { github: '', linkedin: '', website: '' } })
   const [skill, setSkill] = useState('')
   const [pw, setPw] = useState({ cur: '', next: '', confirm: '' })
@@ -148,7 +150,7 @@ export default function ProfileView() {
   const changePw = (e: FormEvent) => {
     e.preventDefault()
     if (pw.next !== pw.confirm) return setNotice({ ok: false, text: 'New password and confirmation do not match.' })
-    void run('pw', async () => { await profileService.changePassword({ currentPassword: pw.cur, newPassword: pw.next }); setPw({ cur: '', next: '', confirm: '' }) }, 'Password updated')
+    void run('pw', async () => { await changePassword({ currentPassword: pw.cur, newPassword: pw.next }); setPw({ cur: '', next: '', confirm: '' }) }, 'Password updated')
   }
   const togglePublic = (id: string, v: boolean) =>
     void run('proj:' + id, async () => {
@@ -158,8 +160,8 @@ export default function ProfileView() {
   const setPrivacy = (patch: Partial<ProfileDto['privacy']>) =>
     void run('privacy', async () => { await updatePrivacy({ ...p.privacy, ...patch }) }, 'Privacy settings updated')
 
-  const deactivateAccount = () => void run('deactivate', async () => { await profileService.deactivateAccount(); navigate('/') }, 'Account deactivated')
-  const deleteAccount = () => void run('delete', async () => { await profileService.deleteAccount({ confirmation: 'DELETE' }); navigate('/') }, 'Account deleted')
+  const deactivateAccount = () => void run('deactivate', async () => { await deactivateAccountStore(); navigate('/') }, 'Account deactivated')
+  const deleteAccount = () => void run('delete', async () => { await deleteAccountStore({ confirmation: 'DELETE' }); navigate('/') }, 'Account deleted')
 
   return (
     <Shell>

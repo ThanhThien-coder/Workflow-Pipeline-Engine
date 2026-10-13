@@ -15,6 +15,7 @@ Workflow-Pipeline-Engine/
 │   │   ├── database-schema.md       (12 bảng chuẩn 3NF & ERD Mermaid)
 │   │   ├── workflow-engine.md       (State Machine 4 cột & Thuật toán Kahn)
 │   │   └── ai-diagnostics.md        (Cấu trúc JSON & Worker Gemini)
+│   ├── FRONTEND_BACKEND_INTEGRATION_MAP.md <-- [SSOT] Cẩm nang tích hợp FE-BE (27 chức năng & 10 cụm)
 │   ├── frontend/                    <-- Specs màn hình & prototype demo (.html)
 │   │   ├── screens/                 (Wireframes & layout specifications)
 │   │   └── prototypes/              (Bản demo HTML độc lập trực quan)
@@ -29,14 +30,15 @@ Workflow-Pipeline-Engine/
 
 ## 2. Bản đồ Tài liệu Đặc tả (Documentation Map & SSOT)
 
-Toàn bộ thông số kỹ thuật chuẩn (Single Source of Truth - SSOT) nằm tại [docs/specs/](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/specs):
+Toàn bộ thông số kỹ thuật chuẩn (Single Source of Truth - SSOT) nằm tại docs:
 
 | Tài liệu | Mô tả | Liên kết |
 | :--- | :--- | :--- |
-| **System Overview & RBAC** | Kiến trúc 5 phân hệ cốt lõi & ma trận phân quyền RBAC | [system-overview.md](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/specs/system-overview.md) |
-| **Database Schema** | 12 bảng chuẩn hóa 3NF, ràng buộc toàn vẹn & Mermaid ERD | [database-schema.md](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/specs/database-schema.md) |
-| **Workflow Engine** | State Machine 4 cột trạng thái & Thuật toán Kahn (DAG Sort) | [workflow-engine.md](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/specs/workflow-engine.md) |
-| **AI Diagnostics** | Schema JSON chẩn đoán sự cố & Cơ chế Gemini Worker | [ai-diagnostics.md](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/specs/ai-diagnostics.md) |
+| **System Overview & RBAC** | Kiến trúc 5 phân hệ cốt lõi & ma trận phân quyền RBAC | [system-overview.md](file:///c:/Users/THIEN/Desktop/HocTap/Workflow_Pipeline/docs/specs/system-overview.md) |
+| **Database Schema** | 12 bảng chuẩn hóa 3NF, ràng buộc toàn vẹn & Mermaid ERD | [database-schema.md](file:///c:/Users/THIEN/Desktop/HocTap/Workflow_Pipeline/docs/specs/database-schema.md) |
+| **Workflow Engine** | State Machine 4 cột trạng thái & Thuật toán Kahn (DAG Sort) | [workflow-engine.md](file:///c:/Users/THIEN/Desktop/HocTap/Workflow_Pipeline/docs/specs/workflow-engine.md) |
+| **AI Diagnostics** | Schema JSON chẩn đoán sự cố & Cơ chế Gemini Worker | [ai-diagnostics.md](file:///c:/Users/THIEN/Desktop/HocTap/Workflow_Pipeline/docs/specs/ai-diagnostics.md) |
+| **FE-BE Integration Map** | Cẩm nang tích hợp chi tiết 10 cụm nghiệp vụ, 27 tính năng, DTO & Error Map | [FRONTEND_BACKEND_INTEGRATION_MAP.md](file:///c:/Users/THIEN/Desktop/HocTap/Workflow_Pipeline/docs/FRONTEND_BACKEND_INTEGRATION_MAP.md) |
 
 ---
 

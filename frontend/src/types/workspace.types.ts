@@ -22,6 +22,7 @@ export interface ProjectSummaryDto {
 export interface CreateProjectCommand {
   name: string
   desc: string
+  templateId?: string
 }
 
 export type ProjectTone = 'indigo' | 'sky' | 'emerald' | 'violet' | 'amber' | 'slate'

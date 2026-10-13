@@ -139,7 +139,7 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updat
     }))
   }
 
-  async updateTaskStatus(taskId: string, newStatus: TaskStatus): Promise<KanbanTask> {
+  async updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask> {
     await mockDelay(150)
     const task = this.tasks.find((item) => item.id === taskId)
     if (!task) throw new Error('Không tìm thấy task')
@@ -148,6 +148,11 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updat
     const decision = evaluateTransition(task, newStatus, actor)
     if (decision.kind !== 'allow') throw new Error(decision.kind === 'deny' ? decision.message : 'Cần nộp Artifact')
     task.status = newStatus
+    if (newStatus === 'IN_PROGRESS' && rejectReason) {
+      task.rejectReason = rejectReason
+    } else if (newStatus === 'REVIEW' || newStatus === 'DONE') {
+      delete task.rejectReason
+    }
     task.version += 1
     return structuredClone(task)
   }
@@ -159,11 +164,14 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updat
     const artifact: ArtifactItem = {
       id: `a${Date.now()}`,
       type: dto.type,
-      url: dto.url,
+      url: dto.url || '',
       note: dto.note,
       uploadedAt: new Date().toISOString(),
     }
-    task.artifacts.push(artifact)
+    if (dto.url && dto.url.trim()) {
+      task.artifacts.push(artifact)
+    }
+    delete task.rejectReason
     task.status = 'REVIEW'
     task.version += 1
     return structuredClone({ task, artifact })

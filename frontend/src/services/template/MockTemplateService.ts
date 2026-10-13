@@ -16,8 +16,10 @@ const delay = (ms: number = 300) => new Promise((resolve) => setTimeout(resolve,
 export const TEMPLATES_STORAGE_KEY = 'wpe_templates_mock_db_v2';
 export const TEMPLATES_UPDATED_EVENT = 'wpe_template_updated';
 
+let memoryTemplates: TemplateDetailDto[] = structuredClone(initialMockTemplates);
+
 function loadPersistedTemplates(): TemplateDetailDto[] {
-  if (typeof window === 'undefined') return initialMockTemplates;
+  if (typeof window === 'undefined') return memoryTemplates;
   try {
     const raw = window.localStorage.getItem(TEMPLATES_STORAGE_KEY);
     if (raw) {
@@ -33,7 +35,10 @@ function loadPersistedTemplates(): TemplateDetailDto[] {
 }
 
 function persistTemplates(templates: TemplateDetailDto[]): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined') {
+    memoryTemplates = structuredClone(templates);
+    return;
+  }
   try {
     window.localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templates));
     window.dispatchEvent(new CustomEvent(TEMPLATES_UPDATED_EVENT));
@@ -57,6 +62,7 @@ export class MockTemplateService implements ITemplateService {
 
   async getTemplates(filter?: TemplateFilter): Promise<TemplateSummaryDto[]> {
     await delay(250);
+    this.templates = loadPersistedTemplates();
     let list = this.templates;
 
     if (filter) {
@@ -94,6 +100,7 @@ export class MockTemplateService implements ITemplateService {
 
   async getTemplateById(id: string): Promise<TemplateDetailDto> {
     await delay(200);
+    this.templates = loadPersistedTemplates();
     const found = this.templates.find((t) => t.id === id);
     if (!found) {
       throw new Error(`Template not found with ID: ${id}`);
@@ -103,6 +110,7 @@ export class MockTemplateService implements ITemplateService {
 
   async createTemplate(dto: CreateTemplateRequestDto): Promise<TemplateDetailDto> {
     await delay(300);
+    this.templates = loadPersistedTemplates();
     const validation = validateTemplateGraph(dto.graphData);
     if (!validation.valid) {
       throw new Error('Validation failed: Graph contains cyclic dependencies or integrity violations');
@@ -133,6 +141,7 @@ export class MockTemplateService implements ITemplateService {
 
   async updateTemplate(id: string, dto: UpdateTemplateRequestDto): Promise<TemplateDetailDto> {
     await delay(300);
+    this.templates = loadPersistedTemplates();
     const validation = validateTemplateGraph(dto.graphData);
     if (!validation.valid) {
       throw new Error('Validation failed: Graph contains cyclic dependencies or integrity violations');
@@ -165,6 +174,7 @@ export class MockTemplateService implements ITemplateService {
 
   async deleteTemplate(id: string): Promise<void> {
     await delay(250);
+    this.templates = loadPersistedTemplates();
     const index = this.templates.findIndex((t) => t.id === id);
     if (index !== -1) {
       this.templates.splice(index, 1);

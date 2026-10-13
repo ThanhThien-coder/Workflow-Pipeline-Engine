@@ -17,6 +17,7 @@ export interface ServiceContainer {
   profileService: IProfileService
   adminService: IAdminService
   templateService: ITemplateService
+  notificationService: INotificationService
 }
 
 export const container: ServiceContainer = {
@@ -25,6 +26,7 @@ export const container: ServiceContainer = {
   profileService: new MockProfileApi(),
   adminService: new MockAdminService(),
   templateService: new MockTemplateService(),
+  notificationService: new MockNotificationApi(),
 }
 
 export const workflowService = container.workflowService
@@ -32,5 +34,4 @@ export const guestService = container.guestService
 export const profileService = container.profileService
 export const adminService = container.adminService
 export const templateService = container.templateService
-
-export const notificationService: INotificationService = new MockNotificationApi()
+export const notificationService = container.notificationService

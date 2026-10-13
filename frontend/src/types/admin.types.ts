@@ -48,7 +48,7 @@ export interface WorkspaceOverviewDto {
   nodeCount: number;
   criticalPathCount: number;
   progressPercentage: number;
-  status: 'RUNNING' | 'IDLE' | 'FAILED';
+  status: 'RUNNING' | 'IDLE' | 'FAILED' | 'ARCHIVED';
 }
 
 export interface SecurityAuditLogDto {

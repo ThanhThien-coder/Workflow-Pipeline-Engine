@@ -39,6 +39,7 @@ export const AdminPortalView: FC = () => {
     handleUnbanUser,
     // Workspaces
     handleRefreshWorkspaces,
+    handleArchiveWorkspace,
     // Toast
     toasts,
     showToast,
@@ -158,6 +159,7 @@ export const AdminPortalView: FC = () => {
               workspaces={workspaces}
               onRefresh={handleRefreshWorkspaces}
               onInspectPipeline={handleInspectPipeline}
+              onArchive={handleArchiveWorkspace}
             />
           )}
 

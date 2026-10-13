@@ -153,7 +153,7 @@ export function usePhaseKanban(
 
   // 4. Moving a task between columns
   const moveTask = useCallback(
-    async (taskId: string, to: TaskStatus) => {
+    async (taskId: string, to: TaskStatus, rejectReason?: string) => {
       const task = phaseTasks.find((t) => t.id === taskId)
       if (!task || pendingTaskIds.includes(taskId)) return
 
@@ -178,9 +178,9 @@ export function usePhaseKanban(
       setAllTasks((prev) => {
         const exists = prev.some((t) => t.id === taskId)
         if (exists) {
-          return prev.map((t) => (t.id === taskId ? { ...t, status: to } : t))
+          return prev.map((t) => (t.id === taskId ? { ...t, status: to, rejectReason: to === 'IN_PROGRESS' ? rejectReason : undefined } : t))
         }
-        return [...prev, { ...task, status: to }]
+        return [...prev, { ...task, status: to, rejectReason: to === 'IN_PROGRESS' ? rejectReason : undefined }]
       })
       setPendingTaskIds((prev) => [...prev, taskId])
 
@@ -201,7 +201,7 @@ export function usePhaseKanban(
       try {
         const isSeededTask = allTasks.some((t) => t.id === taskId)
         if (isSeededTask) {
-          const saved = await workflowService.updateTaskStatus(taskId, to)
+          const saved = await workflowService.updateTaskStatus(taskId, to, rejectReason)
 
           setAllTasks((prev) =>
             prev.map((t) => (t.id === taskId ? saved : t))

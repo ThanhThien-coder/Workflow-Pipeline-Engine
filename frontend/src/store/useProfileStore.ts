@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { profileService } from '../services/container'
 import type {
+  ChangePasswordCommand,
+  DeleteAccountCommand,
   ProfileDto,
   ProfilePrivacyDto,
   ProfileProjectDto,
@@ -18,6 +20,9 @@ interface ProfileState {
   updateProfileData: (data: UpdateProfileCommand) => Promise<ProfileDto>
   setProjectPublic: (projectId: string, isPublic: boolean) => Promise<ProfileProjectDto>
   updatePrivacy: (data: ProfilePrivacyDto) => Promise<ProfilePrivacyDto>
+  changePassword: (cmd: ChangePasswordCommand) => Promise<void>
+  deactivateAccount: () => Promise<void>
+  deleteAccount: (cmd: DeleteAccountCommand) => Promise<void>
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
@@ -94,6 +99,30 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const profile = get().profile
       if (profile) set({ profile: { ...profile, privacy }, error: null })
       return privacy
+    } catch (error) {
+      set({ error })
+      throw error
+    }
+  },
+  changePassword: async (cmd) => {
+    try {
+      await profileService.changePassword(cmd)
+    } catch (error) {
+      set({ error })
+      throw error
+    }
+  },
+  deactivateAccount: async () => {
+    try {
+      await profileService.deactivateAccount()
+    } catch (error) {
+      set({ error })
+      throw error
+    }
+  },
+  deleteAccount: async (cmd) => {
+    try {
+      await profileService.deleteAccount(cmd)
     } catch (error) {
       set({ error })
       throw error

@@ -117,7 +117,7 @@ export function MyTasksView() {
           members={members}
           pending={pending.includes(selectedTask.id)}
           onClose={() => setSelectedTaskId(null)}
-          onMove={(to) => void moveTask(selectedTask.id, to)}
+          onMove={(to, rejectReason) => void moveTask(selectedTask.id, to, rejectReason)}
           onSubmitArtifact={(dto) => submitTaskArtifact(selectedTask.id, dto)}
         />
       )}

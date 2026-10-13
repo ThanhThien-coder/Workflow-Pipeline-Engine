@@ -314,6 +314,27 @@ export class MockAdminService implements IAdminService {
     return [...this.workspaces];
   }
 
+  async archiveWorkspace(workspaceId: string): Promise<WorkspaceOverviewDto> {
+    await this.delay(200);
+    const workspace = this.workspaces.find((w) => w.id === workspaceId);
+    if (!workspace) {
+      throw new Error(`Workspace with ID ${workspaceId} not found`);
+    }
+
+    workspace.status = 'ARCHIVED';
+
+    this.auditLogs.unshift({
+      id: `log_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actorName: 'Alex Kim',
+      action: 'ROLE_UPDATED',
+      status: 'SUCCESS',
+      maskedIp: '192.168.1.***',
+    });
+
+    return { ...workspace };
+  }
+
   async getSecurityAuditLogs(): Promise<SecurityAuditLogDto[]> {
     await this.delay(150);
     return [...this.auditLogs];
