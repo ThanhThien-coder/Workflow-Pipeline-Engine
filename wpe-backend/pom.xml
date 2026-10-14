@@ -14,7 +14,7 @@
     <name>Workflow Pipeline Engine</name>
     <properties>
         <java.version>17</java.version>
-        <lombok.version>1.18.38</lombok.version>
+        <lombok.version>1.18.32</lombok.version>
         <org.mapstruct.version>1.5.5.Final</org.mapstruct.version>
         <jjwt.version>0.12.5</jjwt.version>
     </properties>
