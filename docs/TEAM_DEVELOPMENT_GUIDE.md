@@ -318,11 +318,49 @@ Nếu chạy bị lỗi, hãy tra ngay bảng này trước khi hỏi:
 
 ---
 
+### 3. 🛡️ Cẩm nang "Giải mã" các File Cấu hình (.gitignore, .env, pom.xml, package.json...) & Quy tắc chống làm rác Repo
+
+Nhiều bạn mới làm quen với Git thường thắc mắc: *"Tại sao trong project có nhiều file lạ như `.gitignore`, `.env`, `pom.xml`, `package.json`? Có xóa hay commit bừa lên được không?"*  
+Dưới đây là cẩm nang giải thích tường tận mục đích của từng loại file để cả nhóm cùng nắm rõ:
+
+#### A. File `.gitignore` — "Tấm khiên bảo vệ Repo"
+* **Hiểu lầm thường gặp**: Tưởng `.gitignore` là file chứa API key bên trong.
+* **Bản chất thực sự**: `.gitignore` là một **"Danh sách cấm"** thông báo cho Git:
+  > *"Khi tôi gõ lệnh `git add .` hay đẩy code lên GitHub, hãy **ngó lơ (ignore)** toàn bộ các file/thư mục này, tuyệt đối không đưa chúng lên kho lưu trữ!"*
+* **4 Nhóm file BẮT BUỘC phải nằm trong `.gitignore`**:
+  1. **Bí mật & API Keys (`.env`, `credentials.json`)**: Chứa mật khẩu Database, Gemini API key, JWT Secret. Nếu lỡ push lên GitHub public, bot của hacker chỉ mất 30 giây để quét ra key và vét sạch tài nguyên hoặc tài khoản thẻ ngân hàng của bạn.
+  2. **Thư mục Build & Thư viện tải về (`target/`, `bin/`, `dist/`, `node_modules/`)**: 
+     - Đây là thứ **máy tính tự biên dịch ra** từ source code khi chạy `mvn compile` hoặc `npm install`.
+     - Chúng cực kỳ nặng (hàng trăm MB đến hàng GB, hàng trăm nghìn file nhỏ). Nếu đẩy lên Git sẽ làm repo phình to khủng khiếp, mạng yếu kéo về rất lâu và liên tục gây xung đột (conflict) không thể merge code.
+     - *(Ví dụ bài học: Thư mục `bin/` từng bị Eclipse tự copy nhân đôi toàn bộ dự án làm rác code và lỗi IDE).*
+  3. **File cấu hình riêng của IDE & Hệ điều hành (`.vscode/`, `.idea/`, `.settings/`, `.classpath`, `.DS_Store`, `Thumbs.db`)**: 
+     - Trong nhóm, có bạn dùng VS Code, có bạn dùng IntelliJ, người dùng Windows, người dùng macOS. Nếu bạn đẩy cấu hình riêng của máy bạn lên, nó sẽ ghi đè và phá hỏng môi trường của đồng đội.
+  4. **File Logs & File tạm (`*.log`, `npm-debug.log`)**: File nhật ký thay đổi liên tục từng giây, không ai cần lưu lịch sử chạy ứng dụng của máy cá nhân lên Git.
+
+#### B. Cặp bài trùng: `.env` và `.env.example`
+* **`.env` (Không bao giờ commit)**: Chứa thông số cấu hình thật trên máy bạn (mật khẩu Postgres của bạn, secret key của bạn). Luôn nằm trong `.gitignore`.
+* **`.env.example` (Bắt buộc commit)**: File mẫu KHÔNG chứa mật khẩu thật, chỉ liệt kê các tên biến môi trường (ví dụ: `DB_PASSWORD=your_password_here`) để đồng đội khi clone dự án về biết đường copy thành `.env` rồi điền thông tin của họ.
+
+#### C. `pom.xml` (Backend Maven) vs `package.json` (Frontend Vite/React)
+* **`pom.xml`**: "Bản thiết kế" của Backend. Khai báo phiên bản Java 17, Spring Boot 3.2.4 và các thư viện cần dùng (Lombok, MapStruct, PostgreSQL Driver, JJWT, Flyway...). **Tuyệt đối không tự ý đổi version hay thêm thư viện lạ** nếu chưa thống nhất với cả nhóm.
+* **`package.json`**: "Bản thiết kế" của Frontend. Khai báo danh sách thư viện React, Tailwind CSS, Lucide icons, Zustand...
+* **`package-lock.json`**: File "đóng băng" chính xác phiên bản băm (hash) của mọi thư viện con để đảm bảo mọi thành viên khi gõ `npm install` đều cài đúng 100% phiên bản giống nhau. **Không được xóa file lock này**.
+
+#### D. `tsconfig.json` (TypeScript Config)
+* Quy định luật kiểm tra kiểu dữ liệu nghiêm ngặt của TypeScript phía Frontend, ngăn ngừa lỗi `undefined` hoặc sai kiểu dữ liệu ngay từ lúc gõ code trước khi chạy trên trình duyệt.
+
+> 🌟 **Quy tắc vàng của Lập trình viên chuyên nghiệp**:  
+> *"Chỉ commit lên Git những gì con người trực tiếp viết ra (Source Code). Bất cứ thứ gì do máy móc tự sinh ra hoặc là thông tin bí mật cá nhân -> Đều phải đưa vào `.gitignore`!"*
+
+---
+
 ## PHẦN 7: CHECKLIST TRƯỚC KHI TẠO PULL REQUEST (PR)
 
-Trước khi gõ lệnh `git push` và mở Pull Request vào `main`, mỗi thành viên phải tự kiểm tra 5 điều:
+Trước khi gõ lệnh `git push` và mở Pull Request vào `main`, mỗi thành viên phải tự kiểm tra 7 điều:
 - [ ] 1. Ứng dụng biên dịch thành công không có lỗi (`mvn test-compile`).
 - [ ] 2. Không sửa vào các file `V1`, `V2` cũ của Flyway. Nếu có thay đổi bảng, đã tạo file `V3...` tương ứng.
 - [ ] 3. DTO đã dùng Java `record` và có `@Valid` kiểm tra dữ liệu đầu vào.
 - [ ] 4. Đã test thành công trên Swagger UI hoặc Postman cả trường hợp thành công (`200/201`) và trường hợp lỗi (`400/404/409/422`).
 - [ ] 5. Đã kéo code `main` mới nhất về merge/rebase để giải quyết conflict trước khi tạo PR.
+- [ ] 6. Luôn chạy `git status` trước khi push: Đảm bảo KHÔNG commit nhầm file mật khẩu (`.env`), file rác IDE (`.settings/`, `.classpath`, `.vscode/`), hoặc thư mục build (`target/`, `bin/`, `node_modules/`).
+- [ ] 7. Không tự ý sửa đổi phiên bản thư viện trong `pom.xml`, `package.json` hoặc xóa `package-lock.json` khi chưa thống nhất với cả nhóm.

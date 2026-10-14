@@ -8,6 +8,8 @@ dist/
 frontend/dist/
 wpe-frontend/dist/
 build/
+bin/
+wpe-backend/bin/
 *.tsbuildinfo
 target/
 wpe-backend/target/
@@ -31,6 +33,9 @@ Thumbs.db
 # IDE configs
 .idea/
 .vscode/
+.settings/
+.classpath
+.project
 *.suo
 *.ntvs*
 *.njsproj
