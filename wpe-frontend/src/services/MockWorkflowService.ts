@@ -2,6 +2,7 @@ import type { GraphNode, GraphNodeMap, MacroPhase, NodeStatus, PhaseTree } from 
 import type { CreatePhaseDto, IWorkflowService } from './contracts/IWorkflowService'
 import { isPhaseAncestor } from '../utils/spanningTreeLayout'
 import { MockOverviewApi } from './mock/MockWorkflowService.overview'
+import { guestAccessStore } from './mock/guestAccessStore'
 import type { GuestAccessState, OverviewData } from '../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../types/kanban.types'
 import { MockTaskApi } from './mock/MockWorkflowService.tasks'
@@ -107,6 +108,7 @@ export class MockWorkflowService implements IWorkflowService {
   private readonly settingsApi = new MockSettingsApi()
   private readonly authApi = new MockAuthApi()
   private readonly workspaceApi = new MockWorkspaceApi()
+  private lastGuestToken: string | null = null
 
   // Auth contracts
   login(credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
@@ -151,20 +153,34 @@ export class MockWorkflowService implements IWorkflowService {
     return Object.fromEntries(Object.entries(tree.nodes).map(([id, graphNode]) => [id, { ...graphNode, parentIds: [...graphNode.parentIds] }]))
   }
 
-  getOverviewData(projectId: string): Promise<OverviewData> {
-    return this.overviewApi.getOverviewData(projectId)
+  async getOverviewData(projectId: string): Promise<OverviewData> {
+    const data = await this.overviewApi.getOverviewData(projectId)
+    if (data?.guestAccess) {
+      guestAccessStore.set(data.guestAccess.token, data.guestAccess.isActive ? 'active' : 'revoked')
+      this.lastGuestToken = data.guestAccess.token
+    }
+    return data
   }
 
   resolveFeedback(projectId: string, feedbackId: string): Promise<void> {
     return this.overviewApi.resolveFeedback(projectId, feedbackId)
   }
 
-  toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState> {
-    return this.overviewApi.toggleGuestAccess(projectId, active)
+  async toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState> {
+    const state = await this.overviewApi.toggleGuestAccess(projectId, active)
+    guestAccessStore.set(state.token, active ? 'active' : 'revoked')
+    this.lastGuestToken = state.token
+    return state
   }
 
-  generateGuestToken(projectId: string): Promise<GuestAccessState> {
-    return this.overviewApi.generateGuestToken(projectId)
+  async generateGuestToken(projectId: string): Promise<GuestAccessState> {
+    const state = await this.overviewApi.generateGuestToken(projectId)
+    if (this.lastGuestToken && this.lastGuestToken !== state.token) {
+      guestAccessStore.set(this.lastGuestToken, 'revoked')
+    }
+    guestAccessStore.set(state.token, 'active')
+    this.lastGuestToken = state.token
+    return state
   }
 
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]> { return this.taskApi.getMyTasks(projectId, userId) }
@@ -187,6 +203,8 @@ export class MockWorkflowService implements IWorkflowService {
     this.taskApi.reset()
     this.settingsApi.reset()
     this.overviewApi.reset()
+    guestAccessStore.clear()
+    this.lastGuestToken = null
   }
 
   setMockLatency(ms: number): void {

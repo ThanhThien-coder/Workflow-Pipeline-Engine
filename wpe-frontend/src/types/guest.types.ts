@@ -73,3 +73,36 @@ export interface GuestFeedbackDto {
   message: string
   createdAt: string
 }
+
+export interface GuestReportSection {
+  heading: string
+  body: string
+  bullets: readonly string[]
+}
+
+export interface GuestAiReportDto {
+  title: string
+  /** ISO-8601 */
+  generatedAt: string
+  sections: readonly GuestReportSection[]
+}
+
+export type GuestCriterionKey = 'architecture' | 'progress' | 'quality' | 'documentation'
+
+/** Each score is an integer 1..5 */
+export type GuestScores = Record<GuestCriterionKey, number>
+
+export interface SubmitGuestEvaluationCommand {
+  sessionId: string
+  scores: GuestScores
+  comment: string
+}
+
+export interface GuestEvaluationDto {
+  id: string
+  author: string
+  scores: GuestScores
+  average: number
+  comment: string
+  createdAt: string
+}
