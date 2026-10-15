@@ -1,4 +1,7 @@
 import type {
+  GuestAiReportDto,
+  GuestEvaluationDto,
+  SubmitGuestEvaluationCommand,
   GuestAiSummaryDto,
   GuestFeedbackDto,
   GuestLinkInfoDto,
@@ -22,4 +25,12 @@ export interface IGuestService {
   getAiSummary(token: string): Promise<GuestAiSummaryDto>
   /** POST /guest/{token}/feedback */
   submitFeedback(token: string, cmd: SubmitGuestFeedbackCommand): Promise<GuestFeedbackDto>
+  /** GET  /guest/{token}/feedback?sessionId=  (this guest's own feedback, newest first) */
+  listFeedback(token: string, sessionId: string): Promise<GuestFeedbackDto[]>
+  /** POST /guest/{token}/ai-report  (on-demand full report, may take a few seconds) */
+  generateAiReport(token: string): Promise<GuestAiReportDto>
+  /** GET  /guest/{token}/evaluation?sessionId=  (null when not submitted yet) */
+  getMyEvaluation(token: string, sessionId: string): Promise<GuestEvaluationDto | null>
+  /** PUT  /guest/{token}/evaluation  (create or replace this guest's evaluation) */
+  submitEvaluation(token: string, cmd: SubmitGuestEvaluationCommand): Promise<GuestEvaluationDto>
 }

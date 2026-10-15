@@ -1,14 +1,26 @@
 import type { IGuestService } from '../contracts/IGuestService'
 import { GuestLinkError } from '../../types/guest.types'
 import type {
+  GuestAiReportDto,
   GuestAiSummaryDto,
+  GuestEvaluationDto,
   GuestFeedbackDto,
   GuestLinkInfoDto,
   GuestOverviewDto,
   GuestSessionDto,
+  SubmitGuestEvaluationCommand,
   SubmitGuestFeedbackCommand,
 } from '../../types/guest.types'
 import { MockConfig } from './MockConfig'
+import { guestAccessStore } from './guestAccessStore'
+
+const DATA_KEY = 'wpe_mock_guest_data'
+
+interface MockGuestData {
+  names: Record<string, string>
+  feedback: Record<string, GuestFeedbackDto[]>
+  evaluations: Record<string, GuestEvaluationDto>
+}
 
 const wait = () => new Promise<void>((resolve) => setTimeout(resolve, MockConfig.latencyMs))
 
@@ -16,14 +28,15 @@ const wait = () => new Promise<void>((resolve) => setTimeout(resolve, MockConfig
  * Test tokens:  gst_sec_4242cf (valid) · gst_expired · gst_revoked · anything else → INVALID
  */
 export class MockGuestApi implements IGuestService {
-  private feedback: GuestFeedbackDto[] = []
-
   private async guard(token: string): Promise<void> {
     await wait()
     if (MockConfig.fakeError500) throw new Error('500 Internal Server Error')
     if (token === 'gst_expired') throw new GuestLinkError('EXPIRED')
     if (token === 'gst_revoked') throw new GuestLinkError('REVOKED')
     if (!token.startsWith('gst_')) throw new GuestLinkError('INVALID')
+    const status = guestAccessStore.get(token)
+    if (status === 'revoked') throw new GuestLinkError('REVOKED')
+    if (status === 'expired') throw new GuestLinkError('EXPIRED')
   }
 
   async getLinkInfo(token: string): Promise<GuestLinkInfoDto> {
@@ -31,7 +44,7 @@ export class MockGuestApi implements IGuestService {
     return { projectName: 'Marketing Campaign Q4', ownerName: 'Sarah Chen' }
   }
 
-  async createSession(token: string, displayName: string | null): Promise<GuestSessionDto> {
+  private async createSessionBase(token: string, displayName: string | null): Promise<GuestSessionDto> {
     await this.guard(token)
     return { sessionId: `gs_${Date.now()}`, displayName: displayName?.trim() || null }
   }
@@ -79,15 +92,89 @@ export class MockGuestApi implements IGuestService {
     }
   }
 
+  private data(): MockGuestData {
+    try {
+      const raw = JSON.parse(localStorage.getItem(DATA_KEY) || 'null') as Partial<MockGuestData> | null
+      if (raw) return { names: raw.names ?? {}, feedback: raw.feedback ?? {}, evaluations: raw.evaluations ?? {} }
+    } catch {
+      /* ignore */
+    }
+    return { names: {}, feedback: {}, evaluations: {} }
+  }
+
+  private save(d: MockGuestData): void {
+    try {
+      localStorage.setItem(DATA_KEY, JSON.stringify(d))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async createSession(token: string, displayName: string | null): Promise<GuestSessionDto> {
+    const session = await this.createSessionBase(token, displayName)
+    const d = this.data()
+    d.names[session.sessionId] = session.displayName ?? 'Anonymous'
+    this.save(d)
+    return session
+  }
+
   async submitFeedback(token: string, cmd: SubmitGuestFeedbackCommand): Promise<GuestFeedbackDto> {
     await this.guard(token)
+    const d = this.data()
     const item: GuestFeedbackDto = {
       id: `fb_${Date.now()}`,
-      author: 'Guest',
+      author: d.names[cmd.sessionId] ?? 'Anonymous',
       message: cmd.message,
       createdAt: new Date().toISOString(),
     }
-    this.feedback = [item, ...this.feedback]
+    d.feedback[cmd.sessionId] = [item, ...(d.feedback[cmd.sessionId] ?? [])]
+    this.save(d)
     return item
+  }
+
+  async listFeedback(token: string, sessionId: string): Promise<GuestFeedbackDto[]> {
+    await this.guard(token)
+    return this.data().feedback[sessionId] ?? []
+  }
+
+  async generateAiReport(token: string): Promise<GuestAiReportDto> {
+    await this.guard(token)
+    await new Promise((resolve) => setTimeout(resolve, 1800))
+    return {
+      title: 'Project Progress Report: Marketing Campaign Q4',
+      generatedAt: new Date().toISOString(),
+      sections: [
+        { heading: 'Executive summary', body: 'The project is 72% complete (17 of 24 nodes). Phase 1 is delivered and Phase 2A (Auth) is the main active workstream.', bullets: [] },
+        { heading: 'Progress analysis', body: 'Weekly velocity is steady, peaking at 11 tasks on Wednesday and Friday and dropping at the weekend.', bullets: ['23 of 51 tasks are done (45%)', '13 tasks are in progress, 9 are not started', '6 tasks are blocked by upstream work'] },
+        { heading: 'Risks and blockers', body: 'Four tasks are overdue and two of them block the release.', bullets: ['JWT refresh flow waits on the /register API', 'E2E tests are locked until JWT flow and Login Form are done'] },
+        { heading: 'Recommendations', body: 'Focus the next sprint on unblocking the critical path.', bullets: ['Finish the /register API review first', 'Re-plan the two overdue release blockers', 'Add buffer before the Phase 3 integration'] },
+      ],
+    }
+  }
+
+  async getMyEvaluation(token: string, sessionId: string): Promise<GuestEvaluationDto | null> {
+    await this.guard(token)
+    return this.data().evaluations[sessionId] ?? null
+  }
+
+  async submitEvaluation(token: string, cmd: SubmitGuestEvaluationCommand): Promise<GuestEvaluationDto> {
+    await this.guard(token)
+    const values = Object.values(cmd.scores)
+    if (values.length !== 4 || values.some((v) => !Number.isInteger(v) || v < 1 || v > 5) || cmd.comment.length > 1000) {
+      throw new Error('VALIDATION')
+    }
+    const d = this.data()
+    const average = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10
+    const evaluation: GuestEvaluationDto = {
+      id: d.evaluations[cmd.sessionId]?.id ?? `ev_${Date.now()}`,
+      author: d.names[cmd.sessionId] ?? 'Anonymous',
+      scores: { ...cmd.scores },
+      average,
+      comment: cmd.comment,
+      createdAt: new Date().toISOString(),
+    }
+    d.evaluations[cmd.sessionId] = evaluation
+    this.save(d)
+    return evaluation
   }
 }
