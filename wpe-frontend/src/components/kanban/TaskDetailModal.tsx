@@ -144,6 +144,7 @@ export function TaskDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-detail-title"
+        data-lenis-prevent
         className="pop-in relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         {/* ── Modal Header ── */}

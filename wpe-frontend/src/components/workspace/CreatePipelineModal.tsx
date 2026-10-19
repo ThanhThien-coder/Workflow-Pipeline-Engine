@@ -89,6 +89,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
       onClick={onClose}
     >
       <div
+        data-lenis-prevent
         className="pop w-full max-w-lg rounded-2xl bg-white border border-slate-200/90 shadow-2xl p-6 space-y-4 max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >

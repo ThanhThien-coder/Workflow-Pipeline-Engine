@@ -19,6 +19,52 @@ body {
   overflow: hidden;
 }
 
+/* Chuẩn hóa cho chế độ cuộn Window của Lenis */
+html.lenis {
+  height: auto;
+}
+
+html.lenis body {
+  height: auto;
+  overflow-y: visible !important;
+}
+
+html.landing-mode {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.landing-mode {
+  overflow-x: hidden;
+  overflow-y: visible !important;
+}
+
+/* ───────────────────────────────────────────────────────────
+   Smooth Scroll & GPU Acceleration (Locomotive / Lenis)
+   - Triệt tiêu hoàn toàn scroll-behavior: smooth để bảo toàn nội suy Lenis
+   - Khi đang cuộn, tạm thời ngắt pointer-events để triệt tiêu hover/repaint
+   ─────────────────────────────────────────────────────────── */
+html,
+body,
+html.lenis,
+html.lenis-scrolling {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+.lenis-scrolling .mixpanel-bento-card,
+.lenis-scrolling [data-hover-spotlight] {
+  pointer-events: none !important;
+}
+
+.select-none-during-scroll.lenis-scrolling {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .workflow-surface {
   background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
   background-size: 22px 22px;
