@@ -17,6 +17,7 @@ import { GlobalProfileMenu } from '../components/common/GlobalProfileMenu'
 import { useWorkflowStore, type NavigationTab } from '../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../store/slices/devSlice'
 import { useRouter } from '../router/useRouter'
+import { getSavedAvatar } from '../utils/avatarUtils'
 
 const navigation: { id: NavigationTab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -44,11 +45,16 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
   const projects = useWorkflowStore((state) => state.workspace.projects)
   const logout = useWorkflowStore((state) => state.auth.logout)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
+  const settingsMembers = useWorkflowStore((state) => state.settings.members)
+  const kanbanMembers = useWorkflowStore((state) => state.kanban.members)
+  const teamList = settingsMembers.length > 0 ? settingsMembers : (kanbanMembers.length > 0 ? kanbanMembers : DEV_PERSONAS)
 
   const activePersona = DEV_PERSONAS.find((p) => p.id === currentUserId) || DEV_PERSONAS[0]
+  const settingsProject = useWorkflowStore((state) => state.settings.settings)
   const currentProject = projects.find((p) => String(p.id) === String(projectId))
-  const projectName = currentProject?.name || 'Marketing Campaign Q4'
-  const projectStatus = currentProject?.status || 'ACTIVE'
+  const isViewingCurrentInSettings = settingsProject && String(settingsProject.id) === String(projectId)
+  const projectName = isViewingCurrentInSettings ? settingsProject.name : currentProject?.name || 'Marketing Campaign Q4'
+  const projectStatus = isViewingCurrentInSettings ? settingsProject.status : currentProject?.status || 'ACTIVE'
 
   // Determine current project-scoped role (reactive to DevToolbar persona switch)
   const currentProjectRole = simulatedRole || settingsRole || overviewRole || activePersona.role || currentProject?.role || 'OWNER'
@@ -124,15 +130,35 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
         <div className="mt-auto border-t border-slate-100 p-4">
           <small className="font-semibold tracking-widest text-slate-400">TEAM</small>
           <div className="mt-3 flex -space-x-1">
-            <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-blue-400 text-[10px] font-bold text-white">
-              AK
-            </span>
-            <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-emerald-400 text-[10px] font-bold text-white">
-              SC
-            </span>
-            <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-slate-400 text-[10px] font-bold text-white">
-              +2
-            </span>
+            {teamList.slice(0, 3).map((m, idx) => {
+              const name = ('username' in m ? m.username : m.name) || ''
+              const initials = m.initials || 'U'
+              const avatar = ('avatarUrl' in m && m.avatarUrl) ? m.avatarUrl : getSavedAvatar(name)
+              const bgClass = m.avatarClass || 'bg-indigo-500'
+
+              return avatar ? (
+                <img
+                  key={('userId' in m ? m.userId : m.id) || idx}
+                  src={avatar}
+                  alt={name}
+                  title={name}
+                  className="h-7 w-7 rounded-full object-cover border-2 border-white ring-1 ring-slate-100 shadow-xs"
+                />
+              ) : (
+                <span
+                  key={('userId' in m ? m.userId : m.id) || idx}
+                  title={name}
+                  className={`grid h-7 w-7 place-items-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-xs ${bgClass}`}
+                >
+                  {initials}
+                </span>
+              )
+            })}
+            {teamList.length > 3 && (
+              <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-slate-400 text-[10px] font-bold text-white shadow-xs">
+                +{teamList.length - 3}
+              </span>
+            )}
           </div>
         </div>
       </aside>
@@ -170,11 +196,11 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
         {/* Tab Views */}
         <main className="relative h-full min-h-0 flex-1 overflow-hidden">
           <div className={`h-full ${currentTab === 'workflow' ? '' : 'hidden'}`}>
-            <WorkflowView />
+            <WorkflowView projectId={projectId} />
           </div>
           {currentTab === 'overview' && <OverviewScreen projectId={projectId} />}
-          {currentTab === 'my-tasks' && <MyTasksView />}
-          {currentTab === 'settings' && <SettingsView />}
+          {currentTab === 'my-tasks' && <MyTasksView projectId={projectId} projectName={projectName} />}
+          {currentTab === 'settings' && <SettingsView projectId={projectId} />}
         </main>
       </div>
     </div>

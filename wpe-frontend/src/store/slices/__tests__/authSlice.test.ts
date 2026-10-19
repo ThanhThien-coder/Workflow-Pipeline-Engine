@@ -104,4 +104,29 @@ describe('Auth Module (authSlice)', () => {
     expect(localStorage.getItem('wpe_auth_token')).toBeNull()
     expect(sessionStorage.getItem('wpe_auth_token')).toBeNull()
   })
+
+  it('syncUserAvatar propagates avatarUrl across auth, settings, and kanban members', async () => {
+    await store.getState().settings.loadSettings('1')
+    await store.getState().kanban.loadMembers('1')
+
+    // Login as Sarah Chen
+    await store.getState().auth.login({
+      identifier: 'sarah.chen@pipeline.engine',
+      password: 'password123',
+      rememberMe: true,
+    })
+
+    const newAvatar = 'data:image/png;base64,mockAvatarData'
+    store.getState().auth.syncUserAvatar(newAvatar)
+
+    expect(store.getState().auth.currentUser?.avatarUrl).toBe(newAvatar)
+
+    const sarahSettingsMember = store.getState().settings.members.find((m) => m.username === 'Sarah Chen')
+    expect(sarahSettingsMember?.avatarUrl).toBe(newAvatar)
+
+    const sarahKanbanMember = store.getState().kanban.members.find((m) => m.name === 'Sarah Chen')
+    expect(sarahKanbanMember?.avatarUrl).toBe(newAvatar)
+
+    expect(localStorage.getItem('wpe_user_avatar')).toBe(newAvatar)
+  })
 })

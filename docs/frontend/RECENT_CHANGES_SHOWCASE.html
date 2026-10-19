@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Pipeline Engine — Báo Cáo Hình Ảnh Thay Đổi Mới Nhất</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen py-10 px-4 sm:px-8">
+  <div class="max-w-6xl mx-auto space-y-10">
+    
+    <!-- Header -->
+    <header class="border-b border-slate-800 pb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-3">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          Frontend Verification & Visual Showcase
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+          Báo Cáo Hình Ảnh Thay Đổi Giao Diện Mới Nhất
+        </h1>
+        <p class="text-slate-400 text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
+          Tập hợp ảnh chụp thực tế màn hình (Headless Chromium 1440×960) xác nhận các tính năng đã sửa lỗi logic nội tại, dynamic hóa projectId, và bổ sung chức năng Archive/Delete cho Owner.
+        </p>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <a href="http://localhost:5173/workspaces" target="_blank" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-indigo-600/25">
+          <span>Mở Ứng Dụng (Port 5173)</span>
+          <span>↗</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Key Updates Summary -->
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5">
+        <div class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">Mục 1 · Cài đặt & Vòng đời</div>
+        <div class="text-base font-bold text-white mb-2">Danger Zone (Archive & Delete)</div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Thêm phân vùng nguy hiểm chỉ Owner truy cập được. Cho phép Lưu trữ (đưa về Read-only & badge ARCHIVED) và Xóa dự án (có modal xác thực gõ đúng tên).
+        </p>
+      </div>
+
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5">
+        <div class="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1">Mục 2 · Đồng bộ Workspace</div>
+        <div class="text-base font-bold text-white mb-2">Đồng Bộ Badge ARCHIVED</div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Khắc phục lỗi trạng thái: Khi Owner lưu trữ dự án, card ngoài trang Workspace lập tức chuyển sang badge màu xám <code>ARCHIVED</code> và tab Archived hiển thị đầy đủ 2 dự án.
+        </p>
+      </div>
+
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5">
+        <div class="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-1">Mục 3 · Dynamic & Kanban FSM</div>
+        <div class="text-base font-bold text-white mb-2">Dynamic ProjectId & Owner Review Gate</div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Dynamic hóa <code>projectId</code> theo route trên cả Workflow, MyTasks, Settings. Sửa logic <code>evaluateTransition</code> cho phép Owner duyệt / từ chối task của người khác.
+        </p>
+      </div>
+
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5">
+        <div class="text-xs font-bold uppercase tracking-wider text-sky-400 mb-1">Mục 4 · Notifications View</div>
+        <div class="text-base font-bold text-white mb-2">Sửa Cuộn Danh Sách Thông Báo Cũ</div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Sửa lỗi không cuộn được trên trang All Notifications do <code>body { overflow: hidden }</code>. Header ghim cố định và danh sách cuộn mượt mà xem toàn bộ thông báo cũ.
+        </p>
+      </div>
+    </section>
+
+    <!-- Screenshot Gallery -->
+    <section class="space-y-12">
+      <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
+        <h2 class="text-xl font-bold text-white">Danh Sách 14 Màn Hình Thực Tế</h2>
+        <span class="text-xs text-slate-400 font-mono">14 screenshots · PNG 1440×960 / 1280×800</span>
+      </div>
+
+      <div class="space-y-10">
+        
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#01</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Settings & Lifecycle</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">Settings: Danger Zone Section (Owner RBAC)</h3>
+            </div>
+            <a href="screenshots/recent_changes/01_settings_danger_zone.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/01_settings_danger_zone.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/01_settings_danger_zone.png" alt="Settings: Danger Zone Section (Owner RBAC)" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Phần Danger Zone với hai hành động nhạy cảm: "Archive Project" (màu hổ phách) và "Delete Project" (màu đỏ). Chỉ hiển thị cho tài khoản có vai trò Owner.
+            </p>
+          </div>
+        </article>
+        
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#02</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Settings & Lifecycle</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">Settings: Delete Project Modal Confirmation</h3>
+            </div>
+            <a href="screenshots/recent_changes/02_settings_delete_modal.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/02_settings_delete_modal.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/02_settings_delete_modal.png" alt="Settings: Delete Project Modal Confirmation" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Hộp thoại bảo vệ kép: Yêu cầu Owner phải nhập chính xác tên dự án ("Marketing Campaign Q4") thì nút xóa màu đỏ mới kích hoạt.
+            </p>
+          </div>
+        </article>
+        
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#03</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Settings & Lifecycle</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">Settings: Project Archived (Read-Only Mode & Restore Button)</h3>
+            </div>
+            <a href="screenshots/recent_changes/03_settings_archived_state.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/03_settings_archived_state.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/03_settings_archived_state.png" alt="Settings: Project Archived (Read-Only Mode & Restore Button)" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Sau khi bấm Lưu trữ: Nút Danger Zone lập tức chuyển thành "Restore to Active" (màu xanh ngọc). Toast thông báo hiển thị "Project has been archived and is now read-only".
+            </p>
+          </div>
+        </article>
+        
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#04</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Workspace & Multi-Project</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">Workspace: Project Status Synchronized (ARCHIVED Badge)</h3>
+            </div>
+            <a href="screenshots/recent_changes/04_workspace_archived_badge.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/04_workspace_archived_badge.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/04_workspace_archived_badge.png" alt="Workspace: Project Status Synchronized (ARCHIVED Badge)" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Khắc phục lỗi trước đó: Card "Marketing Campaign Q4" trên trang Workspace đã lập tức chuyển sang badge màu xám "ARCHIVED" thay vì vẫn hiện "ACTIVE".
+            </p>
+          </div>
+        </article>
+        
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#05</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Workspace & Multi-Project</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">Workspace: Archived Tab Filter (2 Archived Projects)</h3>
+            </div>
+            <a href="screenshots/recent_changes/05_workspace_archived_tab.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/05_workspace_archived_tab.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/05_workspace_archived_tab.png" alt="Workspace: Archived Tab Filter (2 Archived Projects)" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Tab "Archived (2)" hiển thị cả Marketing Campaign Q4 và Legacy CRM Cleanup, đảm bảo dữ liệu đồng bộ tức thì trong Zustand store và localStorage mock.
+            </p>
+          </div>
+        </article>
+        
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#06</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Kanban & FSM Transition</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">My Tasks: Dynamic Project Header & Current User Binding</h3>
+            </div>
+            <a href="screenshots/recent_changes/06_my_tasks_dynamic_header.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/06_my_tasks_dynamic_header.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/06_my_tasks_dynamic_header.png" alt="My Tasks: Dynamic Project Header & Current User Binding" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Header My Tasks tự động hiển thị: "Personal Kanban Board · Marketing Campaign Q4" (lấy động theo projectId từ route) và nạp danh sách task của người đang đăng nhập (Alex Kim).
+            </p>
+          </div>
+        </article>
+        
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#07</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Kanban & FSM Transition</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">My Tasks: Task Detail & Owner Review Gate Transition</h3>
+            </div>
+            <a href="screenshots/recent_changes/07_my_tasks_task_detail_modal.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/07_my_tasks_task_detail_modal.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/07_my_tasks_task_detail_modal.png" alt="My Tasks: Task Detail & Owner Review Gate Transition" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Khắc phục lỗi evaluateTransition: Modal hiển thị chi tiết task trong cột In Review, cho phép Chủ dự án (Owner) duyệt ("Approve Task") hoặc yêu cầu làm lại ("Request Changes") mà không bị chặn quyền.
+            </p>
+          </div>
+        </article>
+        
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">#08</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Workflow & DAG Engine</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">Workflow: Macro Pipeline Canvas Connected to Dynamic Project</h3>
+            </div>
+            <a href="screenshots/recent_changes/08_macro_workflow_canvas.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/08_macro_workflow_canvas.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/08_macro_workflow_canvas.png" alt="Workflow: Macro Pipeline Canvas Connected to Dynamic Project" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Màn hình đồ thị DAG tổng thể (Macro Pipeline clusters). Hàm loadPhases(projectId) đã được dynamic hóa nhận projectId từ route.
+            </p>
+          </div>
+        </article>
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">#09</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Bugfix · Owner Review Gate</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">My Tasks: Request Changes Sub-Modal (Điền Lý Do Từ Chối)</h3>
+            </div>
+            <a href="screenshots/recent_changes/09_request_changes_submodal_filled.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/09_request_changes_submodal_filled.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/09_request_changes_submodal_filled.png" alt="My Tasks: Request Changes Sub-Modal" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Đã sửa lỗi click outside: Người dùng là Owner bấm "Request Changes", con trỏ focus vào textarea để nhập lý do từ chối mà không bị tự đóng modal. Nút "Xác nhận từ chối" màu đỏ sẵn sàng kích hoạt.
+            </p>
+          </div>
+        </article>
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">#10</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Validation · Mandatory Reason</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">My Tasks: Validate Lý Do Bắt Buộc Khi Từ Chối Task</h3>
+            </div>
+            <a href="screenshots/recent_changes/10_task_with_rejection_reason_banner.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/10_task_with_rejection_reason_banner.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/10_task_with_rejection_reason_banner.png" alt="My Tasks: Validate Mandatory Rejection Reason" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Validate chặt chẽ: Nếu chưa nhập lý do từ chối mà bấm xác nhận, hệ thống báo lỗi đỏ: "Vui lòng nhập lý do từ chối (bắt buộc)" để đảm bảo quy chuẩn giải trình chất lượng.
+            </p>
+          </div>
+        </article>
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">#11</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Notifications · Full Viewport & Scroll Container</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">All Notifications: Header Cố Định & Danh Sách Cuộn Mượt Mà</h3>
+            </div>
+            <a href="screenshots/recent_changes/11_notifications_top.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/11_notifications_top.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/11_notifications_top.png" alt="All Notifications Top View" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Đã chuyển root layout từ <code>min-h-screen</code> sang <code>h-screen flex flex-col overflow-hidden</code> và nội dung danh sách thành <code>flex-1 min-h-0 overflow-y-auto</code>. Thanh cuộn dọc xuất hiện rõ ràng, nút Back và "Mark all as read" luôn được cố định phía trên.
+            </p>
+          </div>
+        </article>
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">#12</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Notifications · Historical Timeline</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">All Notifications: Cuộn Xuống Đáy Xem Các Thông Báo Cũ</h3>
+            </div>
+            <a href="screenshots/recent_changes/12_notifications_scrolled_bottom.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/12_notifications_scrolled_bottom.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/12_notifications_scrolled_bottom.png" alt="All Notifications Scrolled to Bottom" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Khi cuộn xuống hết cỡ (scroll height 1429px trên viewport 626px), các thông báo cũ từ 10 ngày, 17 ngày, 28 ngày đến 56 ngày trước hiển thị đầy đủ, không còn hiện tượng bị che khuất hay kẹt màn hình.
+            </p>
+          </div>
+        </article>
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">#13</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Production Isolation · Clean MyTasks Header</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">My Tasks: Loại Bỏ UserSwitcher & Tách Bạch Dev Tools</h3>
+            </div>
+            <a href="screenshots/recent_changes/13_mytasks_clean_header_no_userswitcher.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/13_mytasks_clean_header_no_userswitcher.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/13_mytasks_clean_header_no_userswitcher.png" alt="My Tasks Clean Header without UserSwitcher" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Header My Tasks đã loại bỏ hoàn toàn dropdown giả lập "Switch View (Dev Simulation)". Thay vào đó là badge thông tin người được giao việc hiện tại (Alex Kim - Project Lead / Owner) ở chế độ chỉ đọc. Tham số <code>simulateCycle</code> đã được gỡ khỏi Service Contract và <code>DevToolbar</code> được lazy-load cách ly hoàn toàn khỏi production build.
+            </p>
+          </div>
+        </article>
+
+        <article class="bg-slate-800/40 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl hover:border-slate-600 transition">
+          <div class="p-5 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">#14</span>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Production Cleanliness · Profile Dropdown</span>
+              </div>
+              <h3 class="text-lg font-bold text-white">Profile Menu: Loại Bỏ Hoàn Toàn Nút "Admin Portal" Tạm Bợ</h3>
+            </div>
+            <a href="screenshots/recent_changes/14_profile_menu_clean_no_admin.png" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4 self-start sm:self-auto">
+              <span>Xem ảnh gốc độ phân giải cao</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="p-4 bg-slate-950/60">
+            <a href="screenshots/recent_changes/14_profile_menu_clean_no_admin.png" target="_blank" title="Bấm để xem ảnh gốc full size">
+              <img src="screenshots/recent_changes/14_profile_menu_clean_no_admin.png" alt="Profile Menu Clean without Admin Portal" class="w-full rounded-xl border border-slate-800 shadow-2xl transition hover:opacity-95" loading="lazy" />
+            </a>
+          </div>
+
+          <div class="p-5 border-t border-slate-800/60 bg-slate-850">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+              <strong class="text-slate-100 font-semibold">Mô tả chi tiết:</strong> Đã gỡ bỏ hoàn toàn nút "Admin Portal" khỏi menu dropdown tài khoản (<code>GlobalProfileMenu.tsx</code> và <code>WorkspaceView.tsx</code>). Menu của người dùng (ví dụ Sarah Chen) chỉ còn 2 mục chuẩn: Profile cá nhân và Logout. Các công cụ quản trị hoặc dev được chuyển về đúng phân hệ cách ly.
+            </p>
+          </div>
+        </article>
+        
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="pt-10 border-t border-slate-800 text-center text-xs text-slate-500 space-y-2">
+      <p>Workflow Pipeline Engine — Frontend Clean Architecture & Visual Inspection Report</p>
+      <p class="font-mono text-[11px]">Single Source of Truth (SSOT) Compliant · Clean Architecture DI Verified</p>
+    </footer>
+
+  </div>
+</body>
+</html>

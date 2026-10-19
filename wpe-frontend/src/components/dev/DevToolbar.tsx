@@ -14,6 +14,11 @@ const STATUSES: { id: ProjectStatus; label: string; activeClass: string }[] = [
 ]
 
 export function DevToolbar() {
+  // Strict Production & Real Backend Guard: Only active in DEV mode with MOCK service enabled
+  if (!import.meta.env.DEV || import.meta.env.VITE_USE_MOCK !== 'true') {
+    return null
+  }
+
   const { pathname, navigate } = useRouter()
   const {
     currentPersonaId,

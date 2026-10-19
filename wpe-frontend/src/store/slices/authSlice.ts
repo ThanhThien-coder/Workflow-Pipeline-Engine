@@ -28,7 +28,7 @@ export interface AuthSlice {
 }
 
 type AuthSetter = (
-  partial: Partial<AuthSlice> | ((state: AuthSlice) => Partial<AuthSlice>),
+  partial: Record<string, unknown> | ((state: any) => Record<string, unknown>),
 ) => void
 
 function clearStorage(): void {
@@ -79,13 +79,15 @@ function loadAuthSession(): { token: string; user: UserDto } | null {
   return null
 }
 
-export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlice => ({
-  auth: {
-    currentUser: null,
-    token: null,
-    isAuthenticated: false,
-    status: 'idle',
-    error: null,
+export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlice => {
+  const initialSession = loadAuthSession()
+  return {
+    auth: {
+      currentUser: initialSession?.user ?? null,
+      token: initialSession?.token ?? null,
+      isAuthenticated: Boolean(initialSession?.token),
+      status: 'idle',
+      error: null,
 
     hydrate: () => {
       const session = loadAuthSession()
@@ -103,23 +105,70 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
       }
     },
     syncUserAvatar: (avatarUrl: string | null) => {
-      set((state) => {
-        if (!state.auth.currentUser) return state
+      set((state: any) => {
+        const nextAuth = state.auth
+          ? {
+              ...state.auth,
+              currentUser: state.auth.currentUser
+                ? {
+                    ...state.auth.currentUser,
+                    avatarUrl,
+                  }
+                : null,
+            }
+          : undefined
+
+        const nextSettings = state.settings
+          ? {
+              ...state.settings,
+              members: (state.settings.members || []).map((m: any) => {
+                if (
+                  m.username === 'Sarah Chen' ||
+                  m.userId === '2' ||
+                  m.username === state.auth?.currentUser?.username ||
+                  m.userId === state.auth?.currentUser?.id
+                ) {
+                  return { ...m, avatarUrl }
+                }
+                return m
+              }),
+            }
+          : undefined
+
+        const nextKanban = state.kanban
+          ? {
+              ...state.kanban,
+              members: (state.kanban.members || []).map((m: any) => {
+                if (
+                  m.name === 'Sarah Chen' ||
+                  m.id === '2' ||
+                  m.name === state.auth?.currentUser?.username ||
+                  m.id === state.auth?.currentUser?.id
+                ) {
+                  return { ...m, avatarUrl }
+                }
+                return m
+              }),
+            }
+          : undefined
+
         return {
-          auth: {
-            ...state.auth,
-            currentUser: {
-              ...state.auth.currentUser,
-              avatarUrl,
-            },
-          },
+          ...(nextAuth ? { auth: nextAuth } : {}),
+          ...(nextSettings ? { settings: nextSettings } : {}),
+          ...(nextKanban ? { kanban: nextKanban } : {}),
         }
       })
       try {
         const current = localStorage.getItem(USER_KEY)
-        if (!current) return
-        const user = JSON.parse(current) as UserDto
-        localStorage.setItem(USER_KEY, JSON.stringify({ ...user, avatarUrl }))
+        if (current) {
+          const user = JSON.parse(current) as UserDto
+          localStorage.setItem(USER_KEY, JSON.stringify({ ...user, avatarUrl }))
+        }
+        if (avatarUrl) {
+          localStorage.setItem('wpe_user_avatar', avatarUrl)
+        } else {
+          localStorage.removeItem('wpe_user_avatar')
+        }
       } catch {
         // Ignore storage errors
       }
@@ -134,7 +183,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
         const response = await workflowService.login(credentials)
         saveAuthSession(response.accessToken, response.user, credentials.rememberMe)
 
-        set((state) => ({
+        set((state: any) => ({
           auth: {
             ...state.auth,
             currentUser: response.user,
@@ -143,6 +192,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
             status: 'idle',
             error: null,
           },
+          ...(state.kanban ? { kanban: { ...state.kanban, currentUserId: response.user.id } } : {}),
         }))
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Login failed'
@@ -162,7 +212,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
         const response = await workflowService.register(cmd)
         saveAuthSession(response.accessToken, response.user, true)
 
-        set((state) => ({
+        set((state: any) => ({
           auth: {
             ...state.auth,
             currentUser: response.user,
@@ -171,6 +221,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
             status: 'idle',
             error: null,
           },
+          ...(state.kanban ? { kanban: { ...state.kanban, currentUserId: response.user.id } } : {}),
         }))
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Registration failed'
@@ -201,4 +252,5 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
       }))
     },
   },
-})
+}
+}

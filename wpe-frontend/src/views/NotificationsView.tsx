@@ -18,16 +18,24 @@ export default function NotificationsView() {
     navigate(notification.targetPath)
   }
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back()
+    } else {
+      navigate('/workspaces')
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div className="h-screen flex flex-col bg-slate-50 text-slate-800 overflow-hidden">
+      <header className="shrink-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-4 sm:px-6">
           <button
             type="button"
-            onClick={() => navigate('/workspaces')}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-indigo-600"
+            onClick={handleBack}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-indigo-600 cursor-pointer"
           >
-            <ChevronLeft size={17} />
+            <ChevronLeft size={18} />
             Back
           </button>
           <div className="min-w-0 flex-1">
@@ -40,7 +48,7 @@ export default function NotificationsView() {
             type="button"
             onClick={() => void markAllRead()}
             disabled={unreadCount === 0 || loading}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-default disabled:text-slate-400 disabled:hover:bg-transparent sm:text-sm"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-default disabled:text-slate-400 disabled:hover:bg-transparent sm:text-sm cursor-pointer"
           >
             <CheckCheck size={16} />
             <span className="hidden sm:inline">Mark all as read</span>
@@ -49,7 +57,8 @@ export default function NotificationsView() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 pb-16">
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Notifications">
           {loading && items.length === 0 && (
             <div className="space-y-4 p-6" aria-label="Loading notifications">
@@ -114,6 +123,7 @@ export default function NotificationsView() {
             </ul>
           )}
         </section>
+        </div>
       </main>
     </div>
   )

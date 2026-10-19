@@ -1,5 +1,6 @@
 import { useState, useEffect, type FC } from 'react';
 import { useAdminPortal } from '../../hooks/useAdminPortal';
+import { useWorkflowStore } from '../../store/useWorkflowStore';
 import { useRouter } from '../../router/useRouter';
 import { AdminSidebar } from './components/AdminSidebar';
 import { AdminTopbar } from './components/AdminTopbar';
@@ -101,8 +102,12 @@ export const AdminPortalView: FC = () => {
     setSearchQuery(term);
   };
 
-  const handleLogout = () => {
-    showToast('Đây là bản demo — phiên đăng nhập vẫn được giữ nguyên.');
+  const logout = useWorkflowStore((state) => state.auth.logout);
+
+  const handleLogout = async () => {
+    await logout();
+    showToast('Đã đăng xuất thành công.');
+    navigate('/auth?tab=signin');
   };
 
   const handleInspectPipeline = (projectName: string) => {

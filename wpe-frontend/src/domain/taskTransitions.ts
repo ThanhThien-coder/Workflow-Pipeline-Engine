@@ -4,8 +4,14 @@ export function evaluateTransition(task: Pick<KanbanTask, 'status' | 'assignedUs
   const from = task.status
   const isOwner = actor.projectRole === 'OWNER'
   if (from === to) return { kind: 'deny', message: '' }
-  if (task.assignedUserId !== actor.id) return { kind: 'deny', message: 'Bạn chỉ thao tác được trên task của mình.' }
   if (from === 'DONE') return { kind: 'deny', message: 'Task đã DONE nên bị đóng băng, không thể thay đổi.' }
+
+  // Owner review actions (Approve to DONE or Reject back to IN_PROGRESS) can be performed on any member's task
+  const isOwnerReviewAction = isOwner && (to === 'DONE' || (from === 'REVIEW' && to === 'IN_PROGRESS'))
+  if (task.assignedUserId !== actor.id && !isOwnerReviewAction) {
+    return { kind: 'deny', message: 'Bạn chỉ thao tác được trên task của mình.' }
+  }
+
   if (to === 'DONE') {
     if (!isOwner) return { kind: 'deny', message: 'Chỉ Owner mới có quyền duyệt sang DONE (Strict Review Constraint).' }
     return from === 'REVIEW' ? { kind: 'allow' } : { kind: 'deny', message: 'Task phải qua bước Chờ duyệt trước khi Owner nghiệm thu.' }

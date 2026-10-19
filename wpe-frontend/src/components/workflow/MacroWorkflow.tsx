@@ -7,7 +7,7 @@ import { ZoomControls } from '../mindmap/ZoomControls'
 import { usePhaseConnectDrag } from '../../hooks/usePhaseConnectDrag'
 import { computeMacroGraphLayout, MACRO_CARD_H, MACRO_CARD_W } from '../../utils/macroLayout'
 
-export function MacroWorkflow({ className = '' }: { className?: string }) {
+export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?: string; className?: string }) {
   const phases = useWorkflowStore((state) => state.macroPhases)
   const workflowEdges = useWorkflowStore((state) => state.workflowEdges)
   const selectedPhaseId = useWorkflowStore((state) => state.selectedPhaseId)
@@ -26,7 +26,7 @@ export function MacroWorkflow({ className = '' }: { className?: string }) {
       height: Math.max(520, ...positions.map((position) => position.y + MACRO_CARD_H + 100)),
     }
   }, [layoutPositions])
-  useEffect(() => { void loadPhases() }, [loadPhases])
+  useEffect(() => { void loadPhases(projectId) }, [loadPhases, projectId])
   return <section className={`relative flex h-full min-w-0 flex-col ${className}`}>
     <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5 shrink-0">
       <div>

@@ -1,11 +1,13 @@
 export interface MockConfigState {
   latencyMs: number
   fakeError500: boolean
+  simulateCycle: boolean
 }
 
 export const MockConfig: MockConfigState = {
   latencyMs: 150,
   fakeError500: false,
+  simulateCycle: false,
 }
 
 export async function mockDelay(customMs?: number): Promise<void> {

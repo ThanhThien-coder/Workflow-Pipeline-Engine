@@ -4,6 +4,7 @@ import { AlertCircle, Bell, CheckCheck, CheckCircle2, GitPullRequest, MessageSqu
 import { navigate } from '../../router/useRouter'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import type { NotificationDto, NotificationKind } from '../../types/notification.types'
+import { getSavedAvatar } from '../../utils/avatarUtils'
 
 const AVATAR_BG = ['bg-indigo-500', 'bg-emerald-500', 'bg-blue-500', 'bg-rose-500', 'bg-violet-500']
 const KIND_ICON: Record<NotificationKind, { icon: typeof Bell; tone: string }> = {
@@ -34,6 +35,16 @@ export function NotificationSender({ n }: { n: NotificationDto }) {
   if (!n.actorName || n.kind === 'overdue') {
     const { icon: Icon, tone } = KIND_ICON[n.kind]
     return <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', tone)}><Icon size={17} /></span>
+  }
+  const savedAvatar = getSavedAvatar(n.actorName)
+  if (savedAvatar) {
+    return (
+      <img
+        src={savedAvatar}
+        alt={n.actorName}
+        className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+      />
+    )
   }
   return <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white', AVATAR_BG[hash(n.actorName) % AVATAR_BG.length])}>{initials(n.actorName)}</span>
 }

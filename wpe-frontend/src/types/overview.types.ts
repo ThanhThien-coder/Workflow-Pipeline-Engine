@@ -88,7 +88,7 @@ export interface FeedbackItem {
 export type ActivityAction = 'SUBMITTED_PR' | 'APPROVED' | 'OVERDUE_ALERT' | 'CLAIMED'
 export interface ActivityItem {
   id: string
-  actor: { initials: string; name: string; avatarClass: string }
+  actor: { initials: string; name: string; avatarClass: string; avatarUrl?: string | null }
   action: ActivityAction
   message: string
   nodeCode: string

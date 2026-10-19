@@ -23,6 +23,7 @@ export interface SettingsSlice {
     status: SettingsLoadStatus
     error: string | null
     isInviteModalOpen: boolean
+    isDeleteModalOpen: boolean
     memberPendingKick: ProjectMemberDetail | null
     memberPendingDemote: ProjectMemberDetail | null
     kahnCycleErrors: string[] | null
@@ -31,7 +32,10 @@ export interface SettingsSlice {
     loadSettings: (projectId?: string) => Promise<void>
     setSimulatedRole: (role: ProjectRole) => void
     updateGeneralSettings: (cmd: UpdateProjectCommand) => Promise<boolean>
-    publishProject: (simulateCycle?: boolean) => Promise<boolean>
+    publishProject: () => Promise<boolean>
+    archiveProject: () => Promise<boolean>
+    restoreProject: () => Promise<boolean>
+    deleteProject: () => Promise<boolean>
     inviteMember: (cmd: InviteMemberCommand) => Promise<boolean>
     changeRole: (userId: string, role: 'COLLABORATOR' | 'VIEWER') => Promise<boolean>
     kickMember: (userId: string) => Promise<boolean>
@@ -39,6 +43,8 @@ export interface SettingsSlice {
     setAuditFilter: (scope: string) => void
     setSearchQuery: (query: string) => void
     openInviteModal: () => void
+    openDeleteModal: () => void
+    closeDeleteModal: () => void
     setMemberPendingKick: (member: ProjectMemberDetail | null) => void
     setMemberPendingDemote: (member: ProjectMemberDetail | null) => void
     setKahnCycleErrors: (errors: string[] | null) => void
@@ -78,6 +84,7 @@ export const createSettingsSlice = (
       status: 'idle',
       error: null,
       isInviteModalOpen: false,
+      isDeleteModalOpen: false,
       memberPendingKick: null,
       memberPendingDemote: null,
       kahnCycleErrors: null,
@@ -147,11 +154,10 @@ export const createSettingsSlice = (
         }
       },
 
-      publishProject: async (simulateCycle = false) => {
+      publishProject: async () => {
         const pid = currentProjectId()
-        const shouldSimulate = simulateCycle || (get() as unknown as { dev?: { simulateCycle: boolean } }).dev?.simulateCycle || false
         try {
-          const result = await workflowService.publishPipeline(pid, shouldSimulate)
+          const result = await workflowService.publishPipeline(pid)
           if (result.cycleDetected || !result.success) {
             set((state) =>
               produce(state, (draft) => {
@@ -179,6 +185,93 @@ export const createSettingsSlice = (
           get().settings.showToast(msg)
           return false
         }
+      },
+
+      archiveProject: async () => {
+        const pid = currentProjectId()
+        try {
+          const updated = await workflowService.archiveProject(pid)
+          set((state) =>
+            produce(state, (draft: any) => {
+              draft.settings.settings = updated
+              if (draft.workspace?.projects) {
+                draft.workspace.projects = draft.workspace.projects.map((p: any) =>
+                  String(p.id) === String(pid) ? { ...p, status: 'ARCHIVED' } : p,
+                )
+              }
+            }),
+          )
+          await refreshLogs(pid)
+          get().settings.showToast('Project has been archived and is now read-only.')
+          return true
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Failed to archive project'
+          get().settings.showToast(msg)
+          return false
+        }
+      },
+
+      restoreProject: async () => {
+        const pid = currentProjectId()
+        try {
+          const updated = await workflowService.restoreProject(pid)
+          set((state) =>
+            produce(state, (draft: any) => {
+              draft.settings.settings = updated
+              if (draft.workspace?.projects) {
+                draft.workspace.projects = draft.workspace.projects.map((p: any) =>
+                  String(p.id) === String(pid) ? { ...p, status: 'ACTIVE' } : p,
+                )
+              }
+            }),
+          )
+          await refreshLogs(pid)
+          get().settings.showToast('Project restored to ACTIVE.')
+          return true
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Failed to restore project'
+          get().settings.showToast(msg)
+          return false
+        }
+      },
+
+      deleteProject: async () => {
+        const pid = currentProjectId()
+        try {
+          await workflowService.deleteProject(pid)
+          set((state) =>
+            produce(state, (draft: any) => {
+              draft.settings.isDeleteModalOpen = false
+              if (draft.workspace?.projects) {
+                draft.workspace.projects = draft.workspace.projects.filter(
+                  (p: any) => String(p.id) !== String(pid),
+                )
+              }
+            }),
+          )
+          get().settings.showToast('Project deleted successfully.')
+          return true
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Failed to delete project'
+          get().settings.showToast(msg)
+          return false
+        }
+      },
+
+      openDeleteModal: () => {
+        set((state) =>
+          produce(state, (draft) => {
+            draft.settings.isDeleteModalOpen = true
+          }),
+        )
+      },
+
+      closeDeleteModal: () => {
+        set((state) =>
+          produce(state, (draft) => {
+            draft.settings.isDeleteModalOpen = false
+          }),
+        )
       },
 
       inviteMember: async (cmd: InviteMemberCommand) => {
@@ -305,6 +398,7 @@ export const createSettingsSlice = (
         set((state) =>
           produce(state, (draft) => {
             draft.settings.isInviteModalOpen = false
+            draft.settings.isDeleteModalOpen = false
             draft.settings.memberPendingKick = null
             draft.settings.memberPendingDemote = null
             draft.settings.kahnCycleErrors = null
