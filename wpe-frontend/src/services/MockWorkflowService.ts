@@ -136,15 +136,15 @@ export class MockWorkflowService implements IWorkflowService {
     return this.workspaceApi.createProject(cmd)
   }
 
-  async getMacroPhases(): Promise<MacroPhase[]> {
+  async getMacroPhases(_projectId?: string): Promise<MacroPhase[]> {
     return this.phases.map((phase) => ({ ...phase }))
   }
 
-  async getPhaseEdges(): Promise<[string, string][]> {
+  async getPhaseEdges(_projectId?: string): Promise<[string, string][]> {
     return this.phases.flatMap((phase) => phase.parentPhaseIds.map((parent) => [parent, phase.id] as [string, string]))
   }
 
-  async getPhaseGraph(phaseId: string): Promise<GraphNodeMap> {
+  async getPhaseGraph(phaseId: string, _projectId?: string): Promise<GraphNodeMap> {
     if (phaseId === 'p2a') {
       return seedP2A()
     }
@@ -191,12 +191,24 @@ export class MockWorkflowService implements IWorkflowService {
   /* Project Governance & Settings */
   getProjectSettings(projectId: string): Promise<ProjectSettingsDto> { return this.settingsApi.getProjectSettings(projectId) }
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto> { return this.settingsApi.updateProjectSettings(projectId, cmd) }
-  publishPipeline(projectId: string, simulateCycle?: boolean): Promise<PublishPipelineResult> { return this.settingsApi.publishPipeline(projectId, simulateCycle) }
+  publishPipeline(projectId: string): Promise<PublishPipelineResult> { return this.settingsApi.publishPipeline(projectId) }
   getProjectMembersDetailed(projectId: string): Promise<ProjectMemberDetail[]> { return this.settingsApi.getProjectMembersDetailed(projectId) }
   inviteProjectMember(projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> { return this.settingsApi.inviteProjectMember(projectId, cmd) }
   changeMemberRole(projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail> { return this.settingsApi.changeMemberRole(projectId, userId, cmd) }
   removeProjectMember(projectId: string, userId: string): Promise<{ unassignedTaskCount: number }> { return this.settingsApi.removeProjectMember(projectId, userId) }
   getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]> { return this.settingsApi.getProjectAuditLogs(projectId) }
+  archiveProject(projectId: string): Promise<ProjectSettingsDto> {
+    this.workspaceApi.updateProjectStatus(projectId, 'ARCHIVED')
+    return this.settingsApi.archiveProject(projectId)
+  }
+  restoreProject(projectId: string): Promise<ProjectSettingsDto> {
+    this.workspaceApi.updateProjectStatus(projectId, 'ACTIVE')
+    return this.settingsApi.restoreProject(projectId)
+  }
+  deleteProject(projectId: string): Promise<void> {
+    this.workspaceApi.deleteProject(projectId)
+    return this.settingsApi.deleteProject(projectId)
+  }
 
   /* Dev & Simulation capabilities */
   async resetMockData(): Promise<void> {
@@ -215,9 +227,14 @@ export class MockWorkflowService implements IWorkflowService {
     MockConfig.fakeError500 = hasError
   }
 
-  async setProjectStatus(_projectId: string, status: ProjectStatus): Promise<void> {
+  setMockCycleError(simulate: boolean): void {
+    MockConfig.simulateCycle = simulate
+  }
+
+  async setProjectStatus(projectId: string, status: ProjectStatus): Promise<void> {
     this.settingsApi.setProjectStatus(status)
     this.overviewApi.setProjectStatus(status)
+    this.workspaceApi.updateProjectStatus(projectId, status)
   }
 
   async createPhase(dto: CreatePhaseDto): Promise<MacroPhase> {

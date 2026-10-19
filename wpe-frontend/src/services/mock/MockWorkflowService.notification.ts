@@ -17,6 +17,14 @@ const SEED: Seed[] = [
   { id: 'n8', kind: 'comment', actorName: 'Minh Nguyen', text: 'replied to your feedback on Auth API', minutesAgo: 4300, unread: false, targetPath: '/project/1/workflow' },
   { id: 'n9', kind: 'assignment', actorName: 'Sarah Chen', text: 'added you to Marketing Campaign Q4', minutesAgo: 8600, unread: false, targetPath: '/project/1/overview' },
   { id: 'n10', kind: 'approval', actorName: 'Alex Kim', text: 'approved your artifact for WPE-004', minutesAgo: 11500, unread: false, targetPath: '/project/1/my-tasks' },
+  { id: 'n11', kind: 'pr', actorName: 'Marcus Liu', text: 'merged branch feat/flyway-migration-v3 into develop', minutesAgo: 15800, unread: false, targetPath: '/project/1/workflow' },
+  { id: 'n12', kind: 'system', actorName: null, text: 'Automated dependency audit completed with zero vulnerabilities', minutesAgo: 20100, unread: false, targetPath: '/project/1/overview' },
+  { id: 'n13', kind: 'comment', actorName: 'Lan Nguyen', text: 'marked task WPE-002 as ready for security review', minutesAgo: 24500, unread: false, targetPath: '/project/1/workflow?node=WPE-002' },
+  { id: 'n14', kind: 'approval', actorName: 'Alex Kim', text: 'signed off on architecture RFC #14', minutesAgo: 31000, unread: false, targetPath: '/project/1/overview' },
+  { id: 'n15', kind: 'assignment', actorName: 'Sarah Chen', text: 'assigned you to Core Engine Performance Benchmark', minutesAgo: 41000, unread: false, targetPath: '/project/1/my-tasks' },
+  { id: 'n16', kind: 'overdue', actorName: null, text: 'WPE-001 (Legacy Migration) marked as archived', minutesAgo: 53000, unread: false, targetPath: '/project/1/overview' },
+  { id: 'n17', kind: 'comment', actorName: 'Jamie Doe', text: 'shared profiling telemetry logs on Slack #devops', minutesAgo: 65000, unread: false, targetPath: '/project/1/overview' },
+  { id: 'n18', kind: 'system', actorName: null, text: 'Weekly system backup completed successfully', minutesAgo: 82000, unread: false, targetPath: '/project/1/overview' },
 ]
 
 export class MockNotificationApi implements INotificationService {

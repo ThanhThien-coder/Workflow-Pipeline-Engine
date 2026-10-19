@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { AlertCircle, ArrowRight, Check, CheckCircle2, Copy, Eye, FileText, GitBranch, RefreshCw, Send, Sparkles, Star, UserRound } from 'lucide-react'
 import { guestService } from '../services/container'
 import { navigate, useRouter } from '../router/useRouter'
+import { getSavedAvatar } from '../utils/avatarUtils'
 import { GuestLinkError } from '../types/guest.types'
 import type {
   GuestAiReportDto,
@@ -466,13 +467,25 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
                 <section className="rise rounded-2xl border border-slate-200 bg-white p-5">
                   <h2 className="text-sm font-bold text-slate-900">Recent Activity</h2>
                   <div className="mt-3 space-y-3">
-                    {data.recentActivity.map((a, i) => (
-                      <div key={a.id} className="flex items-center gap-3">
-                        <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', AVATAR[i % AVATAR.length])}>{a.initials}</div>
-                        <p className="clamp1 flex-1 text-sm text-slate-700"><b>{a.actor}</b> {a.text}</p>
-                        <span className="text-[11px] text-slate-400">{a.ago}</span>
-                      </div>
-                    ))}
+                    {data.recentActivity.map((a, i) => {
+                      const avatar = getSavedAvatar(a.actor)
+
+                      return (
+                        <div key={a.id} className="flex items-center gap-3">
+                          {avatar ? (
+                            <img
+                              src={avatar}
+                              alt={a.actor}
+                              className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                            />
+                          ) : (
+                            <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', AVATAR[i % AVATAR.length])}>{a.initials}</div>
+                          )}
+                          <p className="clamp1 flex-1 text-sm text-slate-700"><b>{a.actor}</b> {a.text}</p>
+                          <span className="text-[11px] text-slate-400">{a.ago}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </section>
               </div>

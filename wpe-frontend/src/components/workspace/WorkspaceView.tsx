@@ -39,12 +39,10 @@ export const WorkspaceView: FC = () => {
   const logout = useWorkflowStore((state) => state.auth.logout)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
 
-  // Initial load
+  // Always refresh projects on mount to reflect latest status
   useEffect(() => {
-    if (projects.length === 0) {
-      loadProjects()
-    }
-  }, [loadProjects, projects.length])
+    void loadProjects()
+  }, [loadProjects])
 
   // Keyboard shortcut ⌘K / Ctrl+K and outside menu click
   useEffect(() => {
@@ -142,7 +140,6 @@ export const WorkspaceView: FC = () => {
             email={userEmail}
             showName
             onLogout={handleLogout}
-            onAdminPortal={() => navigate('/admin')}
           />
         </div>
       </header>

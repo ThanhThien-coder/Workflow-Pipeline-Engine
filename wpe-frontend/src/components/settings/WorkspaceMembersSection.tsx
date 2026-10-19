@@ -81,13 +81,21 @@ export function WorkspaceMembersSection({
               <tr key={member.userId} className="transition-colors hover:bg-slate-50/60">
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-2.5">
-                    <span
-                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white shadow-xs ${
-                        member.avatarClass || 'bg-slate-400'
-                      }`}
-                    >
-                      {member.initials}
-                    </span>
+                    {member.avatarUrl ? (
+                      <img
+                        src={member.avatarUrl}
+                        alt={member.username}
+                        className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                      />
+                    ) : (
+                      <span
+                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white shadow-xs ${
+                          member.avatarClass || 'bg-slate-400'
+                        }`}
+                      >
+                        {member.initials}
+                      </span>
+                    )}
                     <div className="min-w-0">
                       <div className="truncate text-[13px] font-semibold text-slate-800">{member.username}</div>
                       <div className="truncate text-[11px] text-slate-400">{member.email}</div>

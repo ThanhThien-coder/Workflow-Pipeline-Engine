@@ -110,6 +110,9 @@ export const createDevSlice = (
           draft.dev.simulateCycle = enabled
         }),
       )
+      if (workflowService.setMockCycleError) {
+        workflowService.setMockCycleError(enabled)
+      }
     },
 
     setDevLatency: (ms: number) => {
@@ -156,6 +159,7 @@ export const createDevSlice = (
       )
       if (workflowService.setMockLatency) workflowService.setMockLatency(150)
       if (workflowService.setMockError) workflowService.setMockError(false)
+      if (workflowService.setMockCycleError) workflowService.setMockCycleError(false)
 
       get().settings.showToast('All mock data reset to initial SEED.')
     },

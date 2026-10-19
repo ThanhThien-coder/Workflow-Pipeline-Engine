@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useWorkflowStore } from '../store/useWorkflowStore'
-import { UserSwitcher } from '../components/kanban/UserSwitcher'
 import { KanbanToolbar } from '../components/kanban/KanbanToolbar'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { SubmitArtifactModal } from '../components/kanban/SubmitArtifactModal'
 import { TaskDetailModal } from '../components/kanban/TaskDetailModal'
 
-export function MyTasksView() {
+export function MyTasksView({
+  projectId = '1',
+  projectName,
+}: {
+  projectId?: string
+  projectName?: string
+}) {
   const members = useWorkflowStore((state) => state.kanban.members)
   const tasks = useWorkflowStore((state) => state.kanban.tasks)
   const userId = useWorkflowStore((state) => state.kanban.currentUserId)
+  const currentUser = useWorkflowStore((state) => state.auth.currentUser)
+  const projects = useWorkflowStore((state) => state.workspace.projects)
   const phase = useWorkflowStore((state) => state.kanban.filterPhaseId)
   const query = useWorkflowStore((state) => state.kanban.searchQuery)
   const status = useWorkflowStore((state) => state.kanban.status)
@@ -32,12 +39,14 @@ export function MyTasksView() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
   useEffect(() => {
-    void loadMembers('1')
-  }, [loadMembers])
+    void loadMembers(projectId)
+  }, [loadMembers, projectId])
 
+  // Automatically default to the authenticated user on mount or when user/project changes
   useEffect(() => {
-    if (status === 'idle') void loadTasks('1')
-  }, [loadTasks, status])
+    const defaultUserId = String(currentUser?.id || '1')
+    void setUserId(projectId, defaultUserId)
+  }, [projectId, currentUser?.id, setUserId])
 
   const visible = useMemo(() => {
     const keyword = query.trim().toLowerCase()
@@ -51,6 +60,8 @@ export function MyTasksView() {
   }, [tasks, phase, query])
 
   const actor = members.find((member) => member.id === userId)
+  const loggedInActor =
+    members.find((m) => m.id === String(currentUser?.id || '1')) || actor
   const submittingTask = tasks.find((task) => task.id === submittingId)
   const selectedTask = useMemo(
     () => (selectedTaskId ? tasks.find((item) => item.id === selectedTaskId) || null : null),
@@ -81,13 +92,31 @@ export function MyTasksView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold tracking-tight text-slate-900">My Tasks</h1>
-          <p className="mt-0.5 text-xs text-slate-500">Personal Kanban Board · Marketing Q4</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Personal Kanban Board · {projectName || projects.find((p) => String(p.id) === String(projectId))?.name || 'Marketing Campaign Q4'}
+          </p>
         </div>
-        <UserSwitcher
-          members={members}
-          currentUserId={userId}
-          onSelect={(id) => void setUserId('1', id)}
-        />
+        {actor && (
+          <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-white pl-2 pr-3 py-1.5 text-sm shadow-xs">
+            {actor.avatarUrl ? (
+              <img
+                src={actor.avatarUrl}
+                alt={actor.name}
+                className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
+              />
+            ) : (
+              <span
+                className={`grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold text-white ${actor.avatarClass}`}
+              >
+                {actor.initials}
+              </span>
+            )}
+            <span className="text-left">
+              <b className="block font-semibold text-xs text-slate-900">{actor.name}</b>
+              <small className="block text-[10px] text-slate-500">{actor.roleTitle}</small>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -113,7 +142,7 @@ export function MyTasksView() {
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
-          actor={actor}
+          actor={loggedInActor || actor}
           members={members}
           pending={pending.includes(selectedTask.id)}
           onClose={() => setSelectedTaskId(null)}
