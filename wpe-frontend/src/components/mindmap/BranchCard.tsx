@@ -26,14 +26,26 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
   onAddTask?: () => void
   onAddSibling?: () => void
 }) {
-  const style = statusStyles[node.status]
+  // Check for attached ghost prerequisites guarding this task
+  const attachedGhosts = Object.values(nodes).filter(
+    (n): n is Extract<GraphNodeMap[string], { kind: 'ghost' }> =>
+      n.kind === 'ghost' &&
+      (n.targetTaskId === node.id ||
+        node.parentIds.includes(n.id) ||
+        (n.parentIds.includes(node.id) && !node.parentIds.includes('root')))
+  )
+
+  const hasUnfinishedGhost = attachedGhosts.some((g) => g.status !== 'DONE')
+  const effectiveStatus = hasUnfinishedGhost ? 'LOCKED' : node.status
+  const style = statusStyles[effectiveStatus]
   const assignee = node.assignee
   const count = node.parentIds.length
+
   return <div
     data-node-id={node.id}
     data-parents={node.parentIds.join(',')}
     data-primary={node.parentIds[0] || ''}
-    data-status={node.status}
+    data-status={effectiveStatus}
     style={{ width: '100%', height: '100%' }}
     className={`group relative select-none rounded-xl bg-white border shadow-sm transition-colors duration-150 box-border h-full ${
       node.isTrack ? 'px-3 py-2.5' : 'p-2.5 cursor-pointer'

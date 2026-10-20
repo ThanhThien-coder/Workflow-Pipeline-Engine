@@ -95,7 +95,10 @@ export function TaskNodeItem({
     return (
       <div
         data-node-id={node.id}
-        style={nodeStyle}
+        style={{
+          ...nodeStyle,
+          height: `${pos.height || node.height || 110}px`,
+        }}
         className="box-border"
         onClick={(event) =>
           onGhostClick?.(node.id, event.currentTarget.getBoundingClientRect())

@@ -41,11 +41,38 @@ export interface BranchGraphNode extends GraphNodeBase {
   height?: number
 }
 
+export type TaskStatus = 'LOCKED' | 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
+
+export interface GhostDependency {
+  id: string               // e.g. "ghost_p1_db"
+  sourcePhaseId: string    // e.g. "phase_01"
+  sourcePhaseTitle: string // e.g. "Phase 1: Foundation"
+  sourceTaskId: string     // e.g. "task_db_schema"
+  sourceTaskTitle: string  // e.g. "Core DB Schema"
+  targetTaskId: string     // The task in the current phase that depends on this ghost
+  status: TaskStatus
+}
+
+export interface PhaseNode {
+  id: string
+  title: string
+  status: TaskStatus
+  progress?: number
+  assignee?: { name: string; avatarUrl: string; initials: string }
+  parentId?: string | null // Track ID or Root ID
+  dependencies?: string[]  // Internal dependencies
+  ghostPrerequisites?: GhostDependency[] // Ghost nodes anchored to this task
+}
+
 export interface GhostGraphNode extends GraphNodeBase {
   kind: 'ghost'
   refPhase: string
   refId: string
   dir: 'up' | 'down'
+  targetTaskId?: string
+  status?: TaskStatus
+  sourcePhaseTitle?: string
+  sourceTaskTitle?: string
 }
 
 export type GraphNode = RootGraphNode | BranchGraphNode | GhostGraphNode

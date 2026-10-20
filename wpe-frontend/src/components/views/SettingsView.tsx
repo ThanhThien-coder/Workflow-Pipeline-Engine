@@ -104,7 +104,7 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
           }}
         />
 
-        <ProjectResourcesSection />
+        <ProjectResourcesSection projectId={projectId} />
 
         <WorkspaceMembersSection
           members={members}

@@ -22,7 +22,19 @@ export default {
       colors: {
         mp: {
           eggplant: '#15003F',
-          purple: { 200: '#1B0B3B', 150: '#5028C0', 100: '#7856FF', 40: '#B094FF', 20: '#E8DDFF' },
+          purple: {
+            200: '#1B0B3B',
+            150: '#5028C0',
+            100: '#7856FF',
+            40: '#B094FF',
+            20: '#E8DDFF',
+            50: '#F5F0FF',
+            300: '#C4B5FD',
+            400: '#B094FF',
+            600: '#6842FF',
+            700: '#5028C0',
+            950: '#0E0524',
+          },
           lava: { 200: '#5B0237', 150: '#CC332B', 100: '#FF7557', 40: '#FFB0A3', 20: '#FFE1D6' },
           mint: { 200: '#122E29', 150: '#07B096', 100: '#80E1D9', 40: '#BCF0F0', 20: '#E0FAFA' },
           amber: { 200: '#A33B16', 150: '#DA6B16', 100: '#F8BC3B', 40: '#FEDE9B', 20: '#FFEFDB' },
@@ -32,10 +44,14 @@ export default {
         },
       },
       boxShadow: {
+        xs: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
         'mp-card': '0 1px 2px rgba(27,11,59,.06), 0 8px 24px -8px rgba(27,11,59,.12)',
         'mp-float': '0 2px 4px rgba(27,11,59,.06), 0 24px 48px -12px rgba(27,11,59,.25)',
         'mp-glow': '0 0 0 1px rgba(176,148,255,.35), 0 0 48px -8px rgba(120,86,255,.55)',
         'mp-inset': 'inset 0 1px 0 rgba(255,255,255,.12), inset 0 0 0 1px rgba(255,255,255,.06)',
+      },
+      backdropBlur: {
+        xs: '2px',
       },
       backgroundImage: {
         'mp-hero': 'radial-gradient(60% 80% at 20% 20%, #7856FF 0%, transparent 60%), radial-gradient(50% 70% at 80% 30%, #FF7557 0%, transparent 65%), radial-gradient(60% 80% at 60% 100%, #CC332B 0%, transparent 60%), #1B0B3B',

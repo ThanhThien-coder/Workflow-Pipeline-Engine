@@ -1,4 +1,4 @@
-import type { MacroPhase, PhaseTreeData } from '../../types/workflow.types'
+import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency } from '../../types/workflow.types'
 import type { GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import type {
@@ -47,6 +47,9 @@ export interface IWorkflowService {
   getMacroPhases(projectId?: string): Promise<MacroPhase[]>
   getPhaseEdges(projectId?: string): Promise<[string, string][]>
   getPhaseGraph(phaseId: string, projectId?: string): Promise<PhaseTreeData>
+  addRootTask?(phaseId: string, payload: { title: string }): Promise<PhaseNode>
+  attachGhostNode?(phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }): Promise<GhostDependency>
+  resetPhaseTree?(phaseId: string): Promise<void>
   createPhase(dto: CreatePhaseDto): Promise<MacroPhase>
   connectPhases(sourcePhaseId: string, targetPhaseId: string): Promise<void>
   deletePhase(phaseId: string): Promise<void>
