@@ -68,19 +68,21 @@ Toàn bộ mã nguồn Backend được đặt tại package gốc: `com.pipelin
 
 ```text
 src/main/java/com/pipeline/wpe/
-├── config/                     # Cấu hình hệ thống (CORS, Beans, Swagger)
+├── config/                     # Cấu hình hệ thống (CORS, Beans, Swagger, RabbitMQConfig)
 ├── security/                   # Kiểm soát an ninh, bộ lọc JWT Token
 ├── common/                     # Enum trạng thái, Hằng số, Base Entity dùng chung
 ├── exception/                  # Bộ gom lỗi tập trung (@RestControllerAdvice)
 ├── entity/                     # 12 Entity ánh xạ trực tiếp 12 bảng PostgreSQL
 ├── repository/                 # Các Interface truy xuất dữ liệu (Spring Data JPA)
-├── dto/                        # Hộp đóng gói dữ liệu trao đổi với Frontend
+├── dto/                        # Hộp đóng gói dữ liệu trao đổi
 │   ├── request/                # Dữ liệu Frontend gửi lên (Java Record)
-│   └── response/               # Dữ liệu Backend trả về cho Frontend (Java Record)
+│   ├── response/               # Dữ liệu Backend trả về cho Frontend (Java Record)
+│   └── event/                  # [RABBITMQ] DTO sự kiện bất đồng bộ (Java Record)
 ├── mapper/                     # Bộ chuyển đổi tự động giữa Entity và DTO (MapStruct)
 ├── service/                    # Xử lý toàn bộ logic nghiệp vụ (Business Rules)
 │   ├── engine/                 # [ĐẶC THÙ] Thuật toán đồ thị Kahn & Máy trạng thái FSM
-│   └── ai/                     # [ĐẶC THÙ] Client kết nối Google Gemini API
+│   ├── ai/                     # [ĐẶC THÙ] Client kết nối Google Gemini API
+│   └── event/                  # [RABBITMQ] Publisher & Consumer xử lý hàng đợi ngầm
 └── controller/                 # Tiếp nhận HTTP Request và trả JSON
 ```
 
@@ -176,6 +178,37 @@ src/main/java/com/pipeline/wpe/
 * **`config/`**:
   * Thay thế file `web.xml` ngày xưa bằng code Java thuần (`@Configuration`).
   * Ví dụ: Mở CORS để máy chủ Frontend `localhost:5173` gọi được sang Backend `localhost:8080`.
+
+---
+
+### 3.9 Thư mục `service/event/` & `dto/event/` — Kiến trúc Hướng sự kiện với RabbitMQ (Event-Driven)
+* **Nó là gì?**: Hệ thống xử lý bất đồng bộ (Non-blocking Asynchronous) thông qua Message Broker RabbitMQ 3.13 (AMQP).
+* **Tại sao hệ thống cần RabbitMQ? (Giải quyết bài toán thắt nút cổ chai)**:
+  1. **Giải phóng kết nối HTTP ngay lập tức (< 20ms)**: Trong Workflow Engine, khi Chủ dự án duyệt 1 task hoàn tất (`DONE`), hệ thống phải duyệt lại toàn bộ đồ thị `NODE_DEPENDENCY` để mở khóa các task con kế tiếp (AND/OR join) và gửi thông báo. Nếu chạy tuần tự (đồng bộ), HTTP Request bị giữ lại hàng giây. Với RabbitMQ, Controller đổi trạng thái task -> Bắn 1 Event vào Queue -> Trả về `200 OK` cho Frontend ngay lập tức!
+  2. **Tách rời trách nhiệm (Decoupling)**: Tầng Quản lý Task không cần biết và không cần phụ thuộc trực tiếp vào logic gửi mail, push WebSocket hay logic phân tích AI. Tác vụ nặng được đẩy sang cho các Worker ngầm (`@RabbitListener`) xử lý.
+  3. **Khả năng chịu lỗi & Chống mất mát dữ liệu (DLQ)**: Nếu worker gặp lỗi (ví dụ mạng chập chờn khi gọi AI), tin nhắn sẽ được retry tự động 3 lần. Nếu vẫn lỗi, message bay vào Dead Letter Queue (`wpe.workflow.dlq`) để bảo lưu chứng cứ và debug mà không làm hỏng dữ liệu chính.
+
+* **Bản đồ Topology RabbitMQ của Dự án**:
+  | Loại | Tên thực thể | Mục đích sử dụng | Routing Key |
+  | :--- | :--- | :--- | :--- |
+  | **Exchange** | `wpe.workflow.exchange` (Topic) | Exchange trung tâm nhận toàn bộ sự kiện của hệ thống. | `wpe.#` |
+  | **Queue 1** | `wpe.task.completed.queue` | Hứng sự kiện task `DONE` -> Kích hoạt Kahn DAG Engine tự động mở khóa các node con (AND/OR join). | `wpe.task.completed` |
+  | **Queue 2** | `wpe.notification.queue` | Hứng các sự kiện nộp bài, từ chối, feedback để ghi DB và phát thông báo/chuông thời gian thực. | `wpe.notification.#` |
+  | **Queue 3** | `wpe.ai.diagnostics.queue` | Hàng đợi ngầm phân tích nguyên nhân sự cố & đường găng CPM qua Google Gemini API. | `wpe.ai.diagnostics` |
+  | **DLQ** | `wpe.workflow.dlq` | Dead Letter Queue hứng tin nhắn lỗi sau khi retry tối đa 3 lần thất bại. | `wpe.workflow.dlq.key` |
+
+* **Cách sử dụng trong Code**:
+  * **Phát sự kiện (Producer)**: Tiêm (Inject) `WorkflowEventPublisher` vào Service:
+    ```java
+    workflowEventPublisher.publishTaskCompleted(new TaskCompletedEvent(taskId, projectId, taskCode, userId, Instant.now()));
+    ```
+  * **Hứng sự kiện (Consumer)**: Class `WorkflowEventConsumer` sử dụng `@RabbitListener`:
+    ```java
+    @RabbitListener(queues = RabbitMQConfig.QUEUE_TASK_COMPLETED)
+    public void handleTaskCompleted(TaskCompletedEvent event) {
+        dagEngineService.unlockDownstreamTasks(event.taskId());
+    }
+    ```
 
 ---
 

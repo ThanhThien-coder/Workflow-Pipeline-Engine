@@ -142,13 +142,19 @@ Trước khi kéo code về chạy, **bắt buộc máy phải cài đủ 4 th�
 
 Sau khi đã cài đủ 4 công cụ ở Phần 1, làm đúng 4 bước sau để khởi động dự án:
 
-### Bước 1: Kéo code & Bật Database bằng Docker (Mất 10 giây)
+### Bước 1: Kéo code & Bật Database + Message Broker bằng Docker (Mất 10 giây)
 1. Mở phần mềm **Docker Desktop** trên máy tính lên. Chờ góc dưới bên trái hiện icon **màu xanh lá cây (Engine running)**.
 2. Mở Terminal tại thư mục `wpe-backend` và gõ lệnh:
    ```bash
    docker compose up -d
    ```
-3. Thấy thông báo `Container wpe_postgres_local Started` là Database đã sẵn sàng trên cổng `5432`.
+3. Docker sẽ tự động khởi động 2 container:
+   * **`wpe_postgres_local`**: PostgreSQL 15 trên cổng `5432`.
+   * **`wpe_rabbitmq_local`**: RabbitMQ 3.13 trên cổng `5672` (AMQP cho Spring Boot) và cổng `15672` (Giao diện Quản trị trực quan).
+4. **Kiểm tra Dashboard RabbitMQ**:
+   * Mở trình duyệt truy cập: `http://localhost:15672`
+   * Đăng nhập: Username: `wpe_rabbit` | Password: `wpe_rabbit_pass`
+   * Bạn sẽ thấy bảng điều khiển trực quan hiển thị các Queues: `wpe.task.completed.queue`, `wpe.notification.queue`, `wpe.workflow.dlq`.
 
 ### Bước 2: Mở IDE & Cấu hình Bắt buộc (Tránh lỗi Lombok)
 1. Mở thư mục `wpe-backend` bằng **IntelliJ IDEA**.

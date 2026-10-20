@@ -12,6 +12,21 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: wpe_rabbitmq_local
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: wpe_rabbit
+      RABBITMQ_DEFAULT_PASS: wpe_rabbit_pass
+    ports:
+      - "5672:5672"     # AMQP protocol port for Spring Boot
+      - "15672:15672"   # Management Web UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
 volumes:
   pgdata:
+    driver: local
+  rabbitmq_data:
     driver: local

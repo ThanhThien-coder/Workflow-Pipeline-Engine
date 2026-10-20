@@ -92,6 +92,7 @@ Khi cần tra cứu lý do đằng sau các quyết định thiết kế cũ, c�
 4. **Mô hình Trạng thái**: State Machine 5 trạng thái (`LOCKED`, `TODO`, `IN_PROGRESS`, `REVIEW`, `DONE`) với **Strict Review Gate** (chỉ Owner được duyệt).
 5. **Giải quyết Phụ thuộc (DAG)**: Thuật toán Kahn (Topological Sorting) để phát hiện chu trình (cycle detection) và tự động mở khóa downstream tasks (AND/OR join).
 6. **AI Assistant**: Google Gemini API Worker phân tích log sự cố, tính toán đường găng CPM và lưu đệm vào cột `latest_ai_analysis` (JSONB).
+7. **Message Broker (Event-Driven)**: RabbitMQ 3.13 (Spring AMQP) xử lý bất đồng bộ (Non-blocking) cho việc tự động mở khóa DAG downstream nodes, phát tín hiệu thông báo và xếp hàng phân tích AI mà không làm nghẽn kết nối RESTful API.
 
 ---
 
@@ -108,4 +109,6 @@ Khi cần tra cứu lý do đằng sau các quyết định thiết kế cũ, c�
    * **CẤM** dùng `@Data` trên JPA Entity (dùng `@Getter`, `@Setter`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Builder`).
    * **CẤM** trả thẳng JPA Entity ra ngoài Controller (bắt buộc dùng Java `record` DTO).
    * Dùng `@JdbcTypeCode(SqlTypes.JSON)` cho các trường JSONB (`ui_metadata`, `latest_ai_analysis`, `graph_data`).
+   * **Kiến trúc Bất đồng bộ với RabbitMQ**: Các tác vụ tính toán nặng sau khi đổi trạng thái Task (như quét mở khóa node con DAG, phát thông báo, xếp hàng phân tích AI) bắt buộc bắn event qua `WorkflowEventPublisher` (`wpe-backend/src/main/java/com/pipeline/wpe/service/event/WorkflowEventPublisher.java`) và xử lý ngầm tại `WorkflowEventConsumer.java`. Tuyệt đối không để HTTP Request bị block quá 50ms.
    * Kiểm thử API tương tác trực tiếp qua Swagger UI: `http://localhost:8080/swagger-ui.html`.
+   * Quản trị RabbitMQ trực quan qua Dashboard: `http://localhost:15672` (User/Pass: `wpe_rabbit` / `wpe_rabbit_pass`).

@@ -662,7 +662,8 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - Bảng tác động: `NODE`, `PROJECT_MEMBER`.
    - Kiểm tra RBAC: Caller bắt buộc là `OWNER` của dự án.
    - Kiểm tra Optimistic Locking: Đối soát `@Version` (`NODE.version == request.version`). Nếu có người khác cập nhật trước -> trả về HTTP 409 Conflict.
-   - Cập nhật `NODE.status = 'DONE'`, tăng `NODE.version`. Kích hoạt Engine mở khóa downstream tasks (Mục 5.6).
+   - Cập nhật `NODE.status = 'DONE'`, tăng `NODE.version`.
+   - **Xử lý Bất đồng bộ (RabbitMQ)**: Service gọi `workflowEventPublisher.publishTaskCompleted(event)` bắn sự kiện vào exchange `wpe.workflow.exchange` (routing key `wpe.task.completed`). REST API lập tức trả về HTTP 200 OK cho Owner (< 20ms) mà không bị giữ kết nối.
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `KanbanTask`.
    - **UI Mutation**: Task chuyển sang cột Done, khóa kéo thả (`draggable = false`), hiển thị badge xanh "Approved".
@@ -689,17 +690,17 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - Kiểm tra caller là `OWNER`.
    - Kiểm tra `rejectReason` không được rỗng (nếu rỗng -> trả về HTTP 400 Bad Request).
    - Cập nhật `NODE.status = 'IN_PROGRESS'`, `NODE.reject_reason = :rejectReason`, tăng `version`.
-   - Tạo bản ghi trong `NOTIFICATION` gửi cho `assigned_user_id` kèm lý do yêu cầu sửa.
+   - Bắn `NotificationEvent` vào RabbitMQ (`wpe.notification.rejected`) gửi cho `assigned_user_id` kèm lý do yêu cầu sửa.
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `KanbanTask`.
    - **UI Mutation**: Task chuyển về cột In Progress, hiển thị banner đỏ kèm nội dung `reject_reason`.
 
 ---
 
-### 5.6 Engine tự mở khóa downstream nodes (AND/OR Join) khi cha thành `DONE`
+### 5.6 Engine tự mở khóa downstream nodes (AND/OR Join) qua RabbitMQ Worker
 1. **Mục tiêu Nghiệp vụ**: Khi task cha hoàn thành (`DONE`), Execution Engine tự động kiểm tra đồ thị `NODE_DEPENDENCY`, xét duyệt điều kiện hội tụ (AND-join / OR-join). Nếu thỏa mãn, tự động chuyển con từ `LOCKED` sang `TODO` và đẩy thông báo.
 2. **Luồng Mã Nguồn**:
-   - Tiến trình xử lý ngầm (Event Listener) tại Backend Spring Boot ngay sau khi giao dịch của 5.4 commit.
+   - Tiến trình xử lý ngầm (Event-Driven via RabbitMQ): `WorkflowEventConsumer.handleTaskCompleted` lắng nghe hàng đợi `wpe.task.completed.queue` ngay sau khi giao dịch của 5.4 bắn event.
 3. **Logic Xử lý Tại Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `NODE_DEPENDENCY`, `NODE`, `NOTIFICATION`.
    - Tìm danh sách các task con: `SELECT child_node_id FROM NODE_DEPENDENCY WHERE parent_node_id = :doneTaskId`.
@@ -709,7 +710,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
        - `ANY_COMPLETED` (OR-join): Có ít nhất một task cha có `status = 'DONE'`.
      - Nếu thỏa mãn:
        - Cập nhật `UPDATE NODE SET status = 'TODO', updated_at = NOW() WHERE id = :childId`.
-       - Gửi thông báo vào bảng `NOTIFICATION` cho `assigned_user_id`: "Tác vụ [Title] đã sẵn sàng để thực hiện!".
+       - Bắn `NotificationEvent` vào RabbitMQ gửi cho `assigned_user_id`: "Tác vụ [Title] đã sẵn sàng để thực hiện!".
 4. **Response DTO & UI Mutation**:
    - Dữ liệu trả về qua WebSocket hoặc được nạp lại ở lần fetch tiếp theo: Task mới xuất hiện ngay tại cột TODO của người phụ trách.
 
