@@ -10,6 +10,7 @@ import { createDevSlice, type DevSlice } from './slices/devSlice'
 import { createAuthSlice, type AuthSlice } from './slices/authSlice'
 import { createWorkspaceSlice, type WorkspaceSlice } from './slices/workspaceSlice'
 import { createUiSlice, type UiSlice } from './slices/uiSlice'
+import { createArtifactsSlice, type ArtifactsSlice } from './slices/artifactsSlice'
 
 export type NavigationTab = 'overview' | 'workflow' | 'my-tasks' | 'settings'
 
@@ -20,13 +21,14 @@ export interface WorkflowState
     DevSlice,
     AuthSlice,
     WorkspaceSlice,
-    UiSlice {
+    UiSlice,
+    ArtifactsSlice {
   activeTab: NavigationTab
   macroPhases: MacroPhase[]
   workflowEdges: [string, string][]
   selectedPhaseId: string | null
   trees: Record<string, GraphNodeMap>
-  loadPhases: () => Promise<void>
+  loadPhases: (projectId?: string) => Promise<void>
   createPhase: (dto: CreatePhaseDto) => Promise<void>
   spawnChildPhase: (parentPhaseId: string) => Promise<void>
   connectPhases: (sourceId: string, targetId: string) => Promise<void>
@@ -46,15 +48,16 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   ...createAuthSlice(set, get),
   ...createWorkspaceSlice(set, get),
   ...createUiSlice(set, get),
+  ...createArtifactsSlice(set, get),
   activeTab: 'workflow',
   macroPhases: [],
   workflowEdges: [],
   selectedPhaseId: null,
   trees: {},
-  loadPhases: async () => {
-    const macroPhases = await service.getMacroPhases()
-    const workflowEdges = await service.getPhaseEdges()
-    const trees = await Promise.all(macroPhases.map(async (phase) => [phase.id, await service.getPhaseGraph(phase.id)] as const))
+  loadPhases: async (projectId?: string) => {
+    const macroPhases = await service.getMacroPhases(projectId)
+    const workflowEdges = await service.getPhaseEdges(projectId)
+    const trees = await Promise.all(macroPhases.map(async (phase) => [phase.id, await service.getPhaseGraph(phase.id, projectId)] as const))
     set({ macroPhases, workflowEdges, trees: Object.fromEntries(trees) as Record<string, GraphNodeMap> })
   },
   createPhase: async (dto) => {

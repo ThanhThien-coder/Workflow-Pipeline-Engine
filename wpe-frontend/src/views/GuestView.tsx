@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { AlertCircle, ArrowRight, CheckCircle2, Eye, GitBranch, Send, Sparkles, UserRound } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, CheckCircle2, Copy, Eye, FileText, GitBranch, RefreshCw, Send, Sparkles, Star, UserRound } from 'lucide-react'
 import { guestService } from '../services/container'
 import { navigate, useRouter } from '../router/useRouter'
+import { getSavedAvatar } from '../utils/avatarUtils'
 import { GuestLinkError } from '../types/guest.types'
 import type {
+  GuestAiReportDto,
   GuestAiSummaryDto,
+  GuestCriterionKey,
+  GuestEvaluationDto,
   GuestFeedbackDto,
   GuestLinkErrorCode,
   GuestLinkInfoDto,
   GuestOverviewDto,
+  GuestScores,
   GuestSessionDto,
   GuestStatusKey,
 } from '../types/guest.types'
@@ -145,6 +150,175 @@ function StatCard({ icon, tone, label, value, sub, right }: { icon: ReactNode; t
   )
 }
 
+const CRITERIA: { key: GuestCriterionKey; label: string; hint: string }[] = [
+  { key: 'architecture', label: 'Architecture & design', hint: 'Structure, patterns, diagrams' },
+  { key: 'progress', label: 'Progress vs plan', hint: 'Milestones and deadlines' },
+  { key: 'quality', label: 'Quality of deliverables', hint: 'Code, tests, artifacts' },
+  { key: 'documentation', label: 'Documentation', hint: 'Clarity and completeness' },
+]
+
+function Stars({ value, onPick, label }: { value: number; onPick?: (n: number) => void; label: string }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const icon = <Star size={onPick ? 20 : 14} className={n <= value ? 'fill-amber-400 text-amber-400' : 'text-slate-300'} />
+        return onPick ? (
+          <button key={n} type="button" aria-label={`${label}: ${n} of 5`} onClick={() => onPick(n)} className="rounded p-0.5 hover:scale-110">{icon}</button>
+        ) : (
+          <span key={n}>{icon}</span>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Use case "Tạo báo cáo AI": the teacher generates a full report on demand */
+function AiReportBlock({ token, onError }: { token: string; onError: (c: GuestLinkErrorCode | 'UNKNOWN') => void }) {
+  const [report, setReport] = useState<GuestAiReportDto | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const generate = async () => {
+    setBusy(true)
+    setFailed(false)
+    try {
+      setReport(await guestService.generateAiReport(token))
+    } catch (e) {
+      if (e instanceof GuestLinkError) onError(e.code)
+      else setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const copy = async () => {
+    if (!report) return
+    const text = [report.title, ...report.sections.flatMap((x) => [`\n${x.heading}`, x.body, ...x.bullets.map((b) => `- ${b}`)])].join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-4">
+      {!report && !busy && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500">{failed ? 'Could not generate the report. Please try again.' : 'Need more detail? Generate a full report with analysis and recommendations.'}</p>
+          <button type="button" onClick={() => void generate()} className="btn-primary-gradient flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white"><FileText size={14} /> Generate AI report</button>
+        </div>
+      )}
+      {busy && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs text-slate-500"><Sparkles size={14} className="pulse2 text-indigo-600" /> AI is writing the report…</div>
+          <div className="h-3 w-full animate-pulse rounded bg-slate-100" />
+          <div className="h-3 w-5/6 animate-pulse rounded bg-slate-100" />
+          <div className="h-3 w-2/3 animate-pulse rounded bg-slate-100" />
+        </div>
+      )}
+      {report && !busy && (
+        <div className="fade">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div><h3 className="text-sm font-bold text-slate-900">{report.title}</h3><p className="text-[11px] text-slate-400">Generated {new Date(report.generatedAt).toLocaleString()}</p></div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => void copy()} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">{copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Copied' : 'Copy'}</button>
+              <button type="button" onClick={() => void generate()} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"><RefreshCw size={13} /> Regenerate</button>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {report.sections.map((x) => (
+              <div key={x.heading} className="rounded-xl border border-slate-200 p-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-wide text-indigo-600">{x.heading}</h4>
+                <p className="mt-1.5 text-sm text-slate-700">{x.body}</p>
+                {x.bullets.length > 0 && <ul className="mt-2 space-y-1 text-xs text-slate-600">{x.bullets.map((b) => <li key={b}>• {b}</li>)}</ul>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Use case "Đánh giá": rubric scores (1-5) plus an overall comment */
+function EvaluationCard({ token, session, onError }: { token: string; session: GuestSessionDto; onError: (c: GuestLinkErrorCode | 'UNKNOWN') => void }) {
+  const [saved, setSaved] = useState<GuestEvaluationDto | null>(null)
+  const [scores, setScores] = useState<Partial<GuestScores>>({})
+  const [comment, setComment] = useState('')
+  const [editing, setEditing] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    guestService.getMyEvaluation(token, session.sessionId).then((ev) => {
+      if (!ev) return
+      setSaved(ev)
+      setScores(ev.scores)
+      setComment(ev.comment)
+      setEditing(false)
+    }).catch((e) => onError(toCode(e)))
+  }, [token, session.sessionId, onError])
+
+  const complete = CRITERIA.every((c) => scores[c.key])
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!complete) return
+    setBusy(true)
+    setFailed(false)
+    try {
+      const ev = await guestService.submitEvaluation(token, { sessionId: session.sessionId, scores: scores as GuestScores, comment: comment.trim() })
+      setSaved(ev)
+      setEditing(false)
+    } catch (err) {
+      if (err instanceof GuestLinkError) onError(err.code)
+      else setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rise rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold text-slate-900">Evaluation</h2>
+        {saved && !editing && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Submitted</span>}
+      </div>
+
+      {saved && !editing ? (
+        <div className="fade mt-3">
+          <div className="flex items-center gap-3"><span className="text-3xl font-bold text-slate-900">{saved.average.toFixed(1)}</span><div><Stars value={Math.round(saved.average)} label="Average" /><p className="text-[11px] text-slate-400">Average of 4 criteria</p></div></div>
+          <div className="mt-3 space-y-1.5">
+            {CRITERIA.map((c) => <div key={c.key} className="flex items-center justify-between text-xs text-slate-600"><span>{c.label}</span><Stars value={saved.scores[c.key]} label={c.label} /></div>)}
+          </div>
+          {saved.comment && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{saved.comment}</p>}
+          <button type="button" onClick={() => setEditing(true)} className="mt-3 text-xs font-semibold text-indigo-600 hover:underline">Edit evaluation</button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="mt-3 space-y-3">
+          {CRITERIA.map((c) => (
+            <div key={c.key} className="flex items-center justify-between gap-3">
+              <div className="min-w-0"><div className="text-sm font-medium text-slate-800">{c.label}</div><div className="text-[11px] text-slate-400">{c.hint}</div></div>
+              <Stars value={scores[c.key] ?? 0} label={c.label} onPick={(n) => setScores({ ...scores, [c.key]: n })} />
+            </div>
+          ))}
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} maxLength={1000} placeholder="Overall comments (optional)" className="w-full resize-none rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:border-indigo-400" />
+          {failed && <p className="text-xs text-red-700">Could not submit. Please try again.</p>}
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={!complete || busy} className="btn-primary-solid rounded-lg px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Submitting…' : saved ? 'Update evaluation' : 'Submit evaluation'}</button>
+            {saved && <button type="button" onClick={() => { setScores(saved.scores); setComment(saved.comment); setEditing(false) }} className="text-xs font-medium text-slate-500 hover:text-indigo-600">Cancel</button>}
+            {!complete && <span className="text-[11px] text-slate-400">Rate all 4 criteria</span>}
+          </div>
+        </form>
+      )}
+    </section>
+  )
+}
+
 function Overview({ token, info, session, onError, onSwitch }: { token: string; info: GuestLinkInfoDto; session: GuestSessionDto; onError: (c: GuestLinkErrorCode | 'UNKNOWN') => void; onSwitch: () => void }) {
   const [data, setData] = useState<GuestOverviewDto | null>(null)
   const [ai, setAi] = useState<GuestAiSummaryDto | null>(null)
@@ -155,7 +329,8 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
   useEffect(() => {
     guestService.getOverview(token).then(setData).catch((e) => onError(toCode(e)))
     guestService.getAiSummary(token).then(setAi).catch(() => setAi(null))
-  }, [token, onError])
+    guestService.listFeedback(token, session.sessionId).then(setFeedback).catch(() => undefined)
+  }, [token, session.sessionId, onError])
 
   const send = async (e: FormEvent) => {
     e.preventDefault()
@@ -163,7 +338,7 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
     setSending(true)
     try {
       const item = await guestService.submitFeedback(token, { sessionId: session.sessionId, message: message.trim() })
-      setFeedback((prev) => [{ ...item, author: session.displayName ?? 'Anonymous' }, ...prev])
+      setFeedback((prev) => [item, ...prev])
       setMessage('')
     } catch (err) {
       onError(toCode(err))
@@ -220,6 +395,7 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
               </div>
             </div>
           )}
+          <AiReportBlock token={token} onError={onError} />
         </section>
 
         {data && (
@@ -270,6 +446,8 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
               </div>
 
               <div className="space-y-6">
+                <EvaluationCard token={token} session={session} onError={onError} />
+
                 <section className="rise rounded-2xl border border-slate-200 bg-white p-5">
                   <h2 className="text-sm font-bold text-slate-900">Send Feedback</h2>
                   <form onSubmit={send} className="mt-3">
@@ -280,7 +458,7 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
                   </form>
                   {feedback.map((f) => (
                     <div key={f.id} className="pop mt-3 rounded-lg border border-slate-200 p-3 text-sm">
-                      <div className="text-xs font-semibold text-slate-800">{f.author}</div>
+                      <div className="flex items-center justify-between text-xs"><span className="font-semibold text-slate-800">{f.author}</span><span className="text-[11px] text-slate-400">{new Date(f.createdAt).toLocaleString()}</span></div>
                       <p className="mt-1 text-slate-600">{f.message}</p>
                     </div>
                   ))}
@@ -289,13 +467,25 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
                 <section className="rise rounded-2xl border border-slate-200 bg-white p-5">
                   <h2 className="text-sm font-bold text-slate-900">Recent Activity</h2>
                   <div className="mt-3 space-y-3">
-                    {data.recentActivity.map((a, i) => (
-                      <div key={a.id} className="flex items-center gap-3">
-                        <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', AVATAR[i % AVATAR.length])}>{a.initials}</div>
-                        <p className="clamp1 flex-1 text-sm text-slate-700"><b>{a.actor}</b> {a.text}</p>
-                        <span className="text-[11px] text-slate-400">{a.ago}</span>
-                      </div>
-                    ))}
+                    {data.recentActivity.map((a, i) => {
+                      const avatar = getSavedAvatar(a.actor)
+
+                      return (
+                        <div key={a.id} className="flex items-center gap-3">
+                          {avatar ? (
+                            <img
+                              src={avatar}
+                              alt={a.actor}
+                              className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                            />
+                          ) : (
+                            <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', AVATAR[i % AVATAR.length])}>{a.initials}</div>
+                          )}
+                          <p className="clamp1 flex-1 text-sm text-slate-700"><b>{a.actor}</b> {a.text}</p>
+                          <span className="text-[11px] text-slate-400">{a.ago}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </section>
               </div>

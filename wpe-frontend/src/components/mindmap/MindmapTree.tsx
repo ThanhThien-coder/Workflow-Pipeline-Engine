@@ -23,6 +23,7 @@ export function MindmapTree({
   onGhostClick,
   onUpdateNodes,
   onAddGhost,
+  onAddRootTask,
   onDelete,
   phaseId,
 }: {
@@ -34,6 +35,7 @@ export function MindmapTree({
   onGhostClick?: (id: string, rect: DOMRect) => void
   onUpdateNodes?: (update: (nodes: GraphNodeMap) => GraphNodeMap) => void
   onAddGhost?: (pos: { x: number; y: number; anchorId?: string }) => void
+  onAddRootTask?: () => void
   onDelete?: (id: string) => void
   phaseId?: string
 }) {
@@ -198,11 +200,11 @@ export function MindmapTree({
                 key={edge.id}
                 d={edge.d}
                 fill="none"
-                stroke={edge.isGhost ? '#a5a3d4' : '#cbd5e1'}
-                strokeWidth="1.5"
-                strokeDasharray={edge.isGhost || !edge.direct ? '4 4' : undefined}
-                opacity={isHoverActive ? 0.08 : 1}
-                className="transition-opacity duration-150"
+                stroke={edge.isGhost ? '#818cf8' : '#cbd5e1'}
+                strokeWidth={edge.isGhost ? '2' : '1.5'}
+                strokeDasharray={edge.isGhost ? '6 4' : !edge.direct ? '4 4' : undefined}
+                opacity={isHoverActive ? (edge.isGhost ? 0.3 : 0.08) : 1}
+                className={edge.isGhost ? 'transition-opacity duration-150 animate-ghost-dash' : 'transition-opacity duration-150'}
               />
             )
           })}
@@ -292,9 +294,13 @@ export function MindmapTree({
       />
 
       <AddNodeToolbar
-        onAddTrack={addTrack}
+        onAddTrack={onAddRootTask || addTrack}
         onAddGhost={(pos) =>
-          onAddGhost?.({ ...pos, anchorId: selectedId ?? undefined })
+          onAddGhost?.({
+            x: pos?.x ?? 0,
+            y: pos?.y ?? 0,
+            anchorId: pos?.anchorId ?? (selectedId ?? undefined),
+          })
         }
       />
 
@@ -303,11 +309,11 @@ export function MindmapTree({
           <button
             type="button"
             onClick={() => {
-              if (window.confirm('Khôi phục sơ đồ Phase về trạng thái gốc sạch sẽ (Reset Clean State)?')) {
+              if (window.confirm('Reset Phase Tree to clean initial state (Khôi phục trạng thái gốc)?')) {
                 void useWorkflowStore.getState().resetPhaseTree(phaseId)
               }
             }}
-            title="Khôi phục trạng thái gốc sạch sẽ của Phase (Xóa các node rác)"
+            title="Reset Phase Tree (Khôi phục trạng thái gốc sạch sẽ)"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/95 hover:bg-rose-50 text-slate-600 hover:text-rose-600 text-xs font-semibold border border-slate-200 hover:border-rose-300 shadow-sm transition-all backdrop-blur-sm cursor-pointer"
           >
             <RotateCcw size={13} />

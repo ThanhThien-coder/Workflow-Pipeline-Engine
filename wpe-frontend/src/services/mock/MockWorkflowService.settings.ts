@@ -12,7 +12,8 @@ import type {
   ProjectRole,
   ProjectStatus,
 } from '../../types/settings.types'
-import { mockDelay } from './MockConfig'
+import { MockConfig, mockDelay } from './MockConfig'
+import { getSavedAvatar } from '../../utils/avatarUtils'
 
 const INITIAL_PROJECT: ProjectSettingsDto = {
   id: '1',
@@ -111,6 +112,24 @@ const INITIAL_LOGS: AuditLogItem[] = [
   },
 ]
 
+const SETTINGS_STORAGE_KEY = 'wpe_mock_project_settings'
+
+function loadStoredSettings(): ProjectSettingsDto {
+  if (typeof window === 'undefined') return structuredClone(INITIAL_PROJECT)
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return structuredClone(INITIAL_PROJECT)
+}
+
+function saveStoredSettings(project: ProjectSettingsDto) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(project))
+  } catch {}
+}
+
 export class MockSettingsApi implements Pick<
   IWorkflowService,
   | 'getProjectSettings'
@@ -122,7 +141,7 @@ export class MockSettingsApi implements Pick<
   | 'removeProjectMember'
   | 'getProjectAuditLogs'
 > {
-  private project: ProjectSettingsDto = structuredClone(INITIAL_PROJECT)
+  private project: ProjectSettingsDto = loadStoredSettings()
   private members: ProjectMemberDetail[] = structuredClone(INITIAL_MEMBERS)
   private auditLogs: AuditLogItem[] = structuredClone(INITIAL_LOGS)
 
@@ -166,9 +185,9 @@ export class MockSettingsApi implements Pick<
     return structuredClone(this.project)
   }
 
-  async publishPipeline(_projectId: string, simulateCycle = false): Promise<PublishPipelineResult> {
+  async publishPipeline(_projectId: string): Promise<PublishPipelineResult> {
     await mockDelay(200)
-    if (simulateCycle) {
+    if (MockConfig.simulateCycle) {
       return {
         success: false,
         cycleDetected: true,
@@ -192,7 +211,14 @@ export class MockSettingsApi implements Pick<
 
   async getProjectMembersDetailed(_projectId: string): Promise<ProjectMemberDetail[]> {
     await mockDelay()
-    return structuredClone(this.members)
+    const list = structuredClone(this.members)
+    return list.map((m) => {
+      const savedAvatar = getSavedAvatar(m.username || m.userId)
+      return {
+        ...m,
+        avatarUrl: m.avatarUrl || savedAvatar,
+      }
+    })
   }
 
   async inviteProjectMember(_projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> {
@@ -269,14 +295,51 @@ export class MockSettingsApi implements Pick<
     return structuredClone(this.auditLogs)
   }
 
+  async archiveProject(_projectId: string): Promise<ProjectSettingsDto> {
+    await mockDelay(150)
+    this.project.status = 'ARCHIVED'
+    this.project.updatedAt = new Date().toISOString()
+    saveStoredSettings(this.project)
+    this.recordLog(
+      'PROJECT_UPDATED',
+      'Archived project. All configurations and modifications are locked in read-only mode.',
+      'Lifecycle',
+    )
+    return structuredClone(this.project)
+  }
+
+  async restoreProject(_projectId: string): Promise<ProjectSettingsDto> {
+    await mockDelay(150)
+    this.project.status = 'ACTIVE'
+    this.project.updatedAt = new Date().toISOString()
+    saveStoredSettings(this.project)
+    this.recordLog(
+      'PROJECT_UPDATED',
+      'Restored project from ARCHIVED to ACTIVE.',
+      'Lifecycle',
+    )
+    return structuredClone(this.project)
+  }
+
+  async deleteProject(_projectId: string): Promise<void> {
+    await mockDelay(200)
+    this.recordLog('PROJECT_UPDATED', 'Project deleted by Owner.', 'Lifecycle')
+  }
+
   setProjectStatus(status: ProjectStatus): void {
     this.project.status = status
     this.project.updatedAt = new Date().toISOString()
+    saveStoredSettings(this.project)
   }
 
   reset(): void {
     this.project = structuredClone(INITIAL_PROJECT)
     this.members = structuredClone(INITIAL_MEMBERS)
     this.auditLogs = structuredClone(INITIAL_LOGS)
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(SETTINGS_STORAGE_KEY)
+      } catch {}
+    }
   }
 }

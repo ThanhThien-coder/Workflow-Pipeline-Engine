@@ -13,11 +13,12 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ArtifactType, KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { ARTIFACT_TYPE_OPTIONS, artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
 import { fmtDayMonth } from '../../utils/date'
 import { useDismiss } from '../../hooks/useDismiss'
+import { getSavedAvatar } from '../../utils/avatarUtils'
 
 const statusConfigs: Record<
   TaskStatus,
@@ -65,8 +66,15 @@ export function TaskDetailModal({
   onSubmitArtifact,
 }: TaskDetailModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
+  const rejectModalRef = useRef<HTMLDivElement>(null)
   const close = useCallback(() => onClose(), [onClose])
-  useDismiss(true, close, [modalRef])
+
+  // Rejection reason state for REVIEW -> IN_PROGRESS
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReasonInput, setRejectReasonInput] = useState('')
+  const [rejectReasonError, setRejectReasonError] = useState('')
+
+  useDismiss(!showRejectModal, close, [modalRef])
 
   const [showAttachForm, setShowAttachForm] = useState(false)
   const [artType, setArtType] = useState<ArtifactType>('PR')
@@ -75,13 +83,22 @@ export function TaskDetailModal({
   const [artError, setArtError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Rejection reason state for REVIEW -> IN_PROGRESS
-  const [showRejectModal, setShowRejectModal] = useState(false)
-  const [rejectReasonInput, setRejectReasonInput] = useState('')
-  const [rejectReasonError, setRejectReasonError] = useState('')
+  // Handle Escape key specifically for the reject submodal
+  useEffect(() => {
+    if (!showRejectModal) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setShowRejectModal(false)
+      }
+    }
+    window.addEventListener('keydown', handleKey, true)
+    return () => window.removeEventListener('keydown', handleKey, true)
+  }, [showRejectModal])
 
   const isOwner = actor.projectRole === 'OWNER'
   const assignee = members.find((member) => member.id === task.assignedUserId) || actor
+  const assigneeAvatar = assignee.avatarUrl || getSavedAvatar(assignee.name || assignee.id)
   const statusCfg = statusConfigs[task.status]
 
   const handleConfirmReject = () => {
@@ -92,6 +109,7 @@ export function TaskDetailModal({
     }
     setShowRejectModal(false)
     onMove('IN_PROGRESS', trimmed)
+    onClose()
   }
 
   const handleAttachSubmit = async () => {
@@ -126,6 +144,7 @@ export function TaskDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-detail-title"
+        data-lenis-prevent
         className="pop-in relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         {/* ── Modal Header ── */}
@@ -180,13 +199,21 @@ export function TaskDetailModal({
           <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 sm:grid-cols-2">
             {/* Assignee */}
             <div className="flex items-center gap-2.5">
-              <div
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm ring-1 ring-white ${
-                  assignee.avatarClass || 'bg-indigo-500'
-                }`}
-              >
-                {assignee.initials}
-              </div>
+              {assigneeAvatar ? (
+                <img
+                  src={assigneeAvatar}
+                  alt={assignee.name}
+                  className="h-9 w-9 shrink-0 rounded-full object-cover shadow-sm ring-1 ring-white"
+                />
+              ) : (
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm ring-1 ring-white ${
+                    assignee.avatarClass || 'bg-indigo-500'
+                  }`}
+                >
+                  {assignee.initials}
+                </div>
+              )}
               <div className="min-w-0">
                 <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                   Assignee
@@ -462,7 +489,10 @@ export function TaskDetailModal({
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => onMove('DONE')}
+                    onClick={() => {
+                      onMove('DONE')
+                      onClose()
+                    }}
                     className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
                   >
                     <Check size={13} />
@@ -489,12 +519,16 @@ export function TaskDetailModal({
 
       {/* ── Sub-modal: Request Changes Confirmation (Mandatory Reject Reason) ── */}
       {showRejectModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <div
             className="fade-in absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
             onClick={() => setShowRejectModal(false)}
           />
           <div
+            ref={rejectModalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="reject-modal-title"

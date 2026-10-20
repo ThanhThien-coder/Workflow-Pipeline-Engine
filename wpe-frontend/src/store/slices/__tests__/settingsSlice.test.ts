@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createWorkflowStore } from '../../useWorkflowStore'
 import { MockWorkflowService } from '../../../services/MockWorkflowService'
+import { MockConfig } from '../../../services/mock/MockConfig'
 
 describe('Project Settings & Governance Module', () => {
   let store: ReturnType<typeof createWorkflowStore>
@@ -57,18 +58,24 @@ describe('Project Settings & Governance Module', () => {
   it('detects Kahn cycle and halts pipeline publish with error nodes without changing status', async () => {
     await store.getState().settings.loadSettings('1')
 
-    const ok = await store.getState().settings.publishProject(true)
-    expect(ok).toBe(false)
+    MockConfig.simulateCycle = true
+    try {
+      const ok = await store.getState().settings.publishProject()
+      expect(ok).toBe(false)
 
-    const state = store.getState().settings
-    expect(state.settings?.status).toBe('DRAFT')
-    expect(state.kahnCycleErrors).toEqual(['WPE-009', 'WPE-014', 'WPE-009'])
+      const state = store.getState().settings
+      expect(state.settings?.status).toBe('DRAFT')
+      expect(state.kahnCycleErrors).toEqual(['WPE-009', 'WPE-014', 'WPE-009'])
+    } finally {
+      MockConfig.simulateCycle = false
+    }
   })
 
   it('publishes pipeline to ACTIVE when no cycle is detected', async () => {
     await store.getState().settings.loadSettings('1')
 
-    const ok = await store.getState().settings.publishProject(false)
+    MockConfig.simulateCycle = false
+    const ok = await store.getState().settings.publishProject()
     expect(ok).toBe(true)
 
     const state = store.getState().settings
@@ -118,5 +125,37 @@ describe('Project Settings & Governance Module', () => {
     expect(kickOk).toBe(true)
     expect(store.getState().settings.members.find((m) => m.userId === jamie!.userId)).toBeUndefined()
     expect(store.getState().settings.auditLogs[0].action).toBe('MEMBER_REMOVED')
+  })
+
+  it('archives, restores, and deletes project with proper status and audit logging', async () => {
+    await store.getState().workspace.loadProjects()
+    await store.getState().settings.loadSettings('1')
+
+    // 1. Archive project
+    const archiveOk = await store.getState().settings.archiveProject()
+    expect(archiveOk).toBe(true)
+    expect(store.getState().settings.settings?.status).toBe('ARCHIVED')
+    const archivedInWorkspace = store.getState().workspace.projects.find((p) => String(p.id) === '1')
+    expect(archivedInWorkspace?.status).toBe('ARCHIVED')
+
+    // 2. Restore project
+    const restoreOk = await store.getState().settings.restoreProject()
+    expect(restoreOk).toBe(true)
+    expect(store.getState().settings.settings?.status).toBe('ACTIVE')
+    const restoredInWorkspace = store.getState().workspace.projects.find((p) => String(p.id) === '1')
+    expect(restoredInWorkspace?.status).toBe('ACTIVE')
+
+    // 3. Open and close delete modal
+    store.getState().settings.openDeleteModal()
+    expect(store.getState().settings.isDeleteModalOpen).toBe(true)
+    store.getState().settings.closeDeleteModal()
+    expect(store.getState().settings.isDeleteModalOpen).toBe(false)
+
+    // 4. Delete project
+    const deleteOk = await store.getState().settings.deleteProject()
+    expect(deleteOk).toBe(true)
+    expect(store.getState().settings.isDeleteModalOpen).toBe(false)
+    const deletedInWorkspace = store.getState().workspace.projects.find((p) => String(p.id) === '1')
+    expect(deletedInWorkspace).toBeUndefined()
   })
 })

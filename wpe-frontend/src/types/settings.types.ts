@@ -36,6 +36,7 @@ export interface ProjectMemberDetail {
   activeNodeCount: number; // Đếm số node đang phụ trách để cảnh báo khi kick
   avatarClass: string;
   initials: string;
+  avatarUrl?: string | null;
 }
 
 export interface ProjectSettingsDto {

@@ -2,6 +2,7 @@ import type { IWorkflowService } from '../contracts/IWorkflowService'
 import type { GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { ProjectStatus } from '../../types/settings.types'
 import { mockDelay } from './MockConfig'
+import { getSavedAvatar } from '../../utils/avatarUtils'
 
 const buildGuest = (token: string, isActive: boolean): GuestAccessState => ({
   isActive,
@@ -48,7 +49,18 @@ export class MockOverviewApi implements Pick<IWorkflowService, 'getOverviewData'
 
   async getOverviewData(_projectId: string): Promise<OverviewData> {
     await mockDelay()
-    return structuredClone(this.data)
+    const overview = structuredClone(this.data)
+    overview.recentActivity = overview.recentActivity.map((item) => {
+      const savedAvatar = getSavedAvatar(item.actor.name)
+      return {
+        ...item,
+        actor: {
+          ...item.actor,
+          avatarUrl: item.actor.avatarUrl || savedAvatar,
+        },
+      }
+    })
+    return overview
   }
 
   async resolveFeedback(_projectId: string, feedbackId: string): Promise<void> {

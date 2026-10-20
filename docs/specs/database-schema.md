@@ -131,7 +131,9 @@ erDiagram
         bigint assigned_user_id FK "nullable"
         varchar join_policy "ALL_COMPLETED ANY_COMPLETED"
         text reject_reason "nullable - required when rejected"
+        int estimated_hours "DEFAULT 8 - AI CPM & Stalled duration"
         timestamp due_date "nullable"
+        timestamp started_at "nullable - actual execution start"
         boolean is_overdue "DEFAULT FALSE"
         bigint version "DEFAULT 0 optimistic lock"
         jsonb ui_metadata "x y w h color"
@@ -306,7 +308,9 @@ Bảng trung tâm lưu trữ thông tin thực thi của từng Task trong đồ
 | `assigned_user_id` | `bigint` | FK (USERS.id), NULL | `NULL` | Người được giao việc trực tiếp (Direct Push Model). |
 | `join_policy` | `varchar(30)` | NOT NULL | `'ALL_COMPLETED'` | Điều kiện mở khóa: `'ALL_COMPLETED'` (AND-join), `'ANY_COMPLETED'` (OR-join). |
 | `reject_reason` | `text` | NULLABLE | | Lý do từ chối nghiệm thu do Owner nhập khi trả về `IN_PROGRESS`. |
+| `estimated_hours` | `int` | NOT NULL | `8` | Thời gian ước tính hoàn thành tác vụ (giờ). Phục vụ thuật toán CPM Forward Pass và tính ngưỡng ngâm việc Stalled Node ($2.5 \times \text{estimated\_hours}$). |
 | `due_date` | `timestamptz` | NULLABLE | | Hạn chót hoàn thành tác vụ. |
+| `started_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm tác vụ thực tế bắt đầu thực thi (chuyển sang `IN_PROGRESS`). Dùng đo lường thời gian ngâm tác vụ: $(\text{now} - \text{started\_at})$. |
 | `is_overdue` | `boolean` | NOT NULL | `FALSE` | Cờ trễ hạn do Background Job quét tự động. |
 | `version` | `bigint` | NOT NULL | `0` | Quản lý khóa lạc quan JPA `@Version` chống xung đột cập nhật đồng thời. |
 | `ui_metadata` | `jsonb` | NOT NULL | `'{}'` | Tọa độ x, y, width, height, màu sắc để vẽ canvas. |
@@ -415,3 +419,4 @@ Dưới đây là 12 quyết định thiết kế CSDL đã thống nhất và c
 | 10 | `NODE` Vận hành & Khóa | **BỎ `current_round`, THÊM `reject_reason`, GIỮ `version`** | Bắt buộc nhập `reject_reason` khi từ chối nghiệm thu; dùng `version` cho `@Version` Optimistic Locking. |
 | 11 | `ARTIFACTS` Lưu trữ | **CHỈ LƯU LINK URL NGOÀI & NỘP TÙY CHỌN** | Tuyệt đối không lưu file vật lý trên server; nộp artifact là optional; hỗ trợ Kho chung Project Repository (`node_id = NULL`). |
 | 12 | `NOTIFICATION` | **GIỮ BẢNG RIÊNG** | Phục vụ icon Quả Chuông Topbar, tự động thông báo khi mở khóa task, duyệt/từ chối task hoặc cảnh báo trễ hạn. |
+| 13 | `NODE` Đồng bộ AI Time | **BỔ SUNG `estimated_hours` VÀ `started_at` (V3 Migration)** | Phục vụ thuật toán CPM Forward Pass (lan truyền thời gian, phát hiện Concurrency Spike) và Trajectory Drift Engine (đo thời gian ngâm Stalled Node). |

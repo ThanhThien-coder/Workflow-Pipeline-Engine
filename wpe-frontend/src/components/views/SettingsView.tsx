@@ -1,15 +1,23 @@
 import { useEffect } from 'react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { useRouter } from '../../router/useRouter'
 import { SettingsHeader } from '../settings/SettingsHeader'
 import { GeneralSettingsSection } from '../settings/GeneralSettingsSection'
 import { WorkspaceMembersSection } from '../settings/WorkspaceMembersSection'
 import { ProjectResourcesSection } from '../settings/ProjectResourcesSection'
 import { SystemAuditLogSection } from '../settings/SystemAuditLogSection'
+import { DangerZoneSection } from '../settings/DangerZoneSection'
 import { InviteMemberModal } from '../settings/InviteMemberModal'
 import { KickMemberModal } from '../settings/KickMemberModal'
 import { KahnCycleModal } from '../settings/KahnCycleModal'
+import { DeleteProjectModal } from '../settings/DeleteProjectModal'
 
-export function SettingsView() {
+interface SettingsViewProps {
+  projectId?: string
+}
+
+export function SettingsView({ projectId = '1' }: SettingsViewProps) {
+  const { navigate } = useRouter()
   const {
     settings,
     members,
@@ -20,6 +28,7 @@ export function SettingsView() {
     status,
     error,
     isInviteModalOpen,
+    isDeleteModalOpen,
     memberPendingKick,
     memberPendingDemote,
     kahnCycleErrors,
@@ -27,6 +36,9 @@ export function SettingsView() {
     loadSettings,
     updateGeneralSettings,
     publishProject,
+    archiveProject,
+    restoreProject,
+    deleteProject,
     inviteMember,
     changeRole,
     kickMember,
@@ -34,19 +46,19 @@ export function SettingsView() {
     setAuditFilter,
     setSearchQuery,
     openInviteModal,
+    openDeleteModal,
+    closeDeleteModal,
     setMemberPendingKick,
     setMemberPendingDemote,
     setKahnCycleErrors,
     closeModals,
   } = useWorkflowStore((state) => state.settings)
 
-  const setDevProjectStatus = useWorkflowStore((state) => state.dev.setDevProjectStatus)
-
   useEffect(() => {
-    if (status === 'idle') {
-      void loadSettings('1')
+    if (status === 'idle' || (settings && String(settings.id) !== String(projectId))) {
+      void loadSettings(projectId)
     }
-  }, [status, loadSettings])
+  }, [status, loadSettings, projectId, settings])
 
   if (status === 'loading' && !settings) {
     return (
@@ -65,6 +77,17 @@ export function SettingsView() {
   }
 
   const effectiveRole = settings?.myRole || simulatedRole
+  const isOwner = effectiveRole === 'OWNER'
+  const isArchived = settings?.status === 'ARCHIVED'
+
+  const handleConfirmDelete = async () => {
+    const ok = await deleteProject()
+    if (ok) {
+      navigate('/workspaces')
+      return true
+    }
+    return false
+  }
 
   return (
     <div className="h-full w-full overflow-y-auto bg-slate-50 p-6">
@@ -76,10 +99,12 @@ export function SettingsView() {
           myRole={effectiveRole}
           onSave={updateGeneralSettings}
           onPublish={() => publishProject()}
-          onRestore={() => setDevProjectStatus('ACTIVE')}
+          onRestore={async () => {
+            await restoreProject()
+          }}
         />
 
-        <ProjectResourcesSection />
+        <ProjectResourcesSection projectId={projectId} />
 
         <WorkspaceMembersSection
           members={members}
@@ -97,6 +122,17 @@ export function SettingsView() {
           onFilterScopeChange={setAuditFilter}
           onSearchQueryChange={setSearchQuery}
         />
+
+        {/* Danger Zone: Only accessible to Project Owners */}
+        {isOwner && (
+          <DangerZoneSection
+            isArchived={isArchived}
+            isOwner={isOwner}
+            onArchive={archiveProject}
+            onRestore={restoreProject}
+            onOpenDeleteModal={openDeleteModal}
+          />
+        )}
       </div>
 
       {/* Modals */}
@@ -129,6 +165,13 @@ export function SettingsView() {
       <KahnCycleModal
         violatingNodeIds={kahnCycleErrors}
         onClose={() => setKahnCycleErrors(null)}
+      />
+
+      <DeleteProjectModal
+        isOpen={isDeleteModalOpen}
+        projectName={settings?.name || 'Project'}
+        onClose={closeDeleteModal}
+        onConfirmDelete={handleConfirmDelete}
       />
 
       {/* Toast Notification */}

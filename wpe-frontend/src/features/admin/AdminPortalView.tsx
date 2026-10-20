@@ -1,5 +1,7 @@
 import { useState, useEffect, type FC } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAdminPortal } from '../../hooks/useAdminPortal';
+import { useWorkflowStore } from '../../store/useWorkflowStore';
 import { useRouter } from '../../router/useRouter';
 import { AdminSidebar } from './components/AdminSidebar';
 import { AdminTopbar } from './components/AdminTopbar';
@@ -101,8 +103,12 @@ export const AdminPortalView: FC = () => {
     setSearchQuery(term);
   };
 
-  const handleLogout = () => {
-    showToast('Đây là bản demo — phiên đăng nhập vẫn được giữ nguyên.');
+  const logout = useWorkflowStore((state) => state.auth.logout);
+
+  const handleLogout = async () => {
+    await logout();
+    showToast('Đã đăng xuất thành công.');
+    navigate('/auth?tab=signin');
   };
 
   const handleInspectPipeline = (projectName: string) => {
@@ -132,50 +138,64 @@ export const AdminPortalView: FC = () => {
 
         {/* Tab View Container */}
         <div className="p-4 pb-24 md:p-8">
-          {currentTab === 'overview' && (
-            <AnalyticsTab
-              kpis={kpis}
-              trends={trends}
-              trendRange={trendRange}
-              onRangeChange={handleTrendRangeChange}
-              roleDistribution={roleDistribution}
-            />
-          )}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={currentTab}
+              initial={{ opacity: 0, y: 14, scale: 0.995 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.995 }}
+              transition={{
+                duration: 0.28,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              style={{ willChange: 'transform, opacity' }}
+            >
+              {currentTab === 'overview' && (
+                <AnalyticsTab
+                  kpis={kpis}
+                  trends={trends}
+                  trendRange={trendRange}
+                  onRangeChange={handleTrendRangeChange}
+                  roleDistribution={roleDistribution}
+                />
+              )}
 
-          {currentTab === 'users' && (
-            <UserManagementTab
-              users={filteredUsers}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              onOpenBanModal={openBanModal}
-              onUnban={handleUnbanUser}
-            />
-          )}
+              {currentTab === 'users' && (
+                <UserManagementTab
+                  users={filteredUsers}
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  onOpenBanModal={openBanModal}
+                  onUnban={handleUnbanUser}
+                />
+              )}
 
-          {currentTab === 'workspaces' && (
-            <WorkspacesTab
-              workspaces={workspaces}
-              onRefresh={handleRefreshWorkspaces}
-              onInspectPipeline={handleInspectPipeline}
-              onArchive={handleArchiveWorkspace}
-            />
-          )}
+              {currentTab === 'workspaces' && (
+                <WorkspacesTab
+                  workspaces={workspaces}
+                  onRefresh={handleRefreshWorkspaces}
+                  onInspectPipeline={handleInspectPipeline}
+                  onArchive={handleArchiveWorkspace}
+                />
+              )}
 
-          {currentTab === 'templates' && (
-            <TemplateCatalogView
-              onOpenStudio={handleOpenStudio}
-              onToast={(msg, tone) => showToast(msg, tone || 'blue')}
-            />
-          )}
+              {currentTab === 'templates' && (
+                <TemplateCatalogView
+                  onOpenStudio={handleOpenStudio}
+                  onToast={(msg, tone) => showToast(msg, tone || 'blue')}
+                />
+              )}
 
-          {currentTab === 'audit' && (
-            <AuditLogsTab
-              auditLogs={auditLogs}
-              onExportAudit={handleExportAudit}
-            />
-          )}
+              {currentTab === 'audit' && (
+                <AuditLogsTab
+                  auditLogs={auditLogs}
+                  onExportAudit={handleExportAudit}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Floating Live Environment Indicator */}

@@ -2,6 +2,7 @@ import type { GraphNode, GraphNodeMap, MacroPhase, NodeStatus, PhaseTree } from 
 import type { CreatePhaseDto, IWorkflowService } from './contracts/IWorkflowService'
 import { isPhaseAncestor } from '../utils/spanningTreeLayout'
 import { MockOverviewApi } from './mock/MockWorkflowService.overview'
+import { guestAccessStore } from './mock/guestAccessStore'
 import type { GuestAccessState, OverviewData } from '../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../types/kanban.types'
 import { MockTaskApi } from './mock/MockWorkflowService.tasks'
@@ -107,6 +108,7 @@ export class MockWorkflowService implements IWorkflowService {
   private readonly settingsApi = new MockSettingsApi()
   private readonly authApi = new MockAuthApi()
   private readonly workspaceApi = new MockWorkspaceApi()
+  private lastGuestToken: string | null = null
 
   // Auth contracts
   login(credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
@@ -134,15 +136,15 @@ export class MockWorkflowService implements IWorkflowService {
     return this.workspaceApi.createProject(cmd)
   }
 
-  async getMacroPhases(): Promise<MacroPhase[]> {
+  async getMacroPhases(_projectId?: string): Promise<MacroPhase[]> {
     return this.phases.map((phase) => ({ ...phase }))
   }
 
-  async getPhaseEdges(): Promise<[string, string][]> {
+  async getPhaseEdges(_projectId?: string): Promise<[string, string][]> {
     return this.phases.flatMap((phase) => phase.parentPhaseIds.map((parent) => [parent, phase.id] as [string, string]))
   }
 
-  async getPhaseGraph(phaseId: string): Promise<GraphNodeMap> {
+  async getPhaseGraph(phaseId: string, _projectId?: string): Promise<GraphNodeMap> {
     if (phaseId === 'p2a') {
       return seedP2A()
     }
@@ -151,20 +153,34 @@ export class MockWorkflowService implements IWorkflowService {
     return Object.fromEntries(Object.entries(tree.nodes).map(([id, graphNode]) => [id, { ...graphNode, parentIds: [...graphNode.parentIds] }]))
   }
 
-  getOverviewData(projectId: string): Promise<OverviewData> {
-    return this.overviewApi.getOverviewData(projectId)
+  async getOverviewData(projectId: string): Promise<OverviewData> {
+    const data = await this.overviewApi.getOverviewData(projectId)
+    if (data?.guestAccess) {
+      guestAccessStore.set(data.guestAccess.token, data.guestAccess.isActive ? 'active' : 'revoked')
+      this.lastGuestToken = data.guestAccess.token
+    }
+    return data
   }
 
   resolveFeedback(projectId: string, feedbackId: string): Promise<void> {
     return this.overviewApi.resolveFeedback(projectId, feedbackId)
   }
 
-  toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState> {
-    return this.overviewApi.toggleGuestAccess(projectId, active)
+  async toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState> {
+    const state = await this.overviewApi.toggleGuestAccess(projectId, active)
+    guestAccessStore.set(state.token, active ? 'active' : 'revoked')
+    this.lastGuestToken = state.token
+    return state
   }
 
-  generateGuestToken(projectId: string): Promise<GuestAccessState> {
-    return this.overviewApi.generateGuestToken(projectId)
+  async generateGuestToken(projectId: string): Promise<GuestAccessState> {
+    const state = await this.overviewApi.generateGuestToken(projectId)
+    if (this.lastGuestToken && this.lastGuestToken !== state.token) {
+      guestAccessStore.set(this.lastGuestToken, 'revoked')
+    }
+    guestAccessStore.set(state.token, 'active')
+    this.lastGuestToken = state.token
+    return state
   }
 
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]> { return this.taskApi.getMyTasks(projectId, userId) }
@@ -175,18 +191,32 @@ export class MockWorkflowService implements IWorkflowService {
   /* Project Governance & Settings */
   getProjectSettings(projectId: string): Promise<ProjectSettingsDto> { return this.settingsApi.getProjectSettings(projectId) }
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto> { return this.settingsApi.updateProjectSettings(projectId, cmd) }
-  publishPipeline(projectId: string, simulateCycle?: boolean): Promise<PublishPipelineResult> { return this.settingsApi.publishPipeline(projectId, simulateCycle) }
+  publishPipeline(projectId: string): Promise<PublishPipelineResult> { return this.settingsApi.publishPipeline(projectId) }
   getProjectMembersDetailed(projectId: string): Promise<ProjectMemberDetail[]> { return this.settingsApi.getProjectMembersDetailed(projectId) }
   inviteProjectMember(projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> { return this.settingsApi.inviteProjectMember(projectId, cmd) }
   changeMemberRole(projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail> { return this.settingsApi.changeMemberRole(projectId, userId, cmd) }
   removeProjectMember(projectId: string, userId: string): Promise<{ unassignedTaskCount: number }> { return this.settingsApi.removeProjectMember(projectId, userId) }
   getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]> { return this.settingsApi.getProjectAuditLogs(projectId) }
+  archiveProject(projectId: string): Promise<ProjectSettingsDto> {
+    this.workspaceApi.updateProjectStatus(projectId, 'ARCHIVED')
+    return this.settingsApi.archiveProject(projectId)
+  }
+  restoreProject(projectId: string): Promise<ProjectSettingsDto> {
+    this.workspaceApi.updateProjectStatus(projectId, 'ACTIVE')
+    return this.settingsApi.restoreProject(projectId)
+  }
+  deleteProject(projectId: string): Promise<void> {
+    this.workspaceApi.deleteProject(projectId)
+    return this.settingsApi.deleteProject(projectId)
+  }
 
   /* Dev & Simulation capabilities */
   async resetMockData(): Promise<void> {
     this.taskApi.reset()
     this.settingsApi.reset()
     this.overviewApi.reset()
+    guestAccessStore.clear()
+    this.lastGuestToken = null
   }
 
   setMockLatency(ms: number): void {
@@ -197,9 +227,14 @@ export class MockWorkflowService implements IWorkflowService {
     MockConfig.fakeError500 = hasError
   }
 
-  async setProjectStatus(_projectId: string, status: ProjectStatus): Promise<void> {
+  setMockCycleError(simulate: boolean): void {
+    MockConfig.simulateCycle = simulate
+  }
+
+  async setProjectStatus(projectId: string, status: ProjectStatus): Promise<void> {
     this.settingsApi.setProjectStatus(status)
     this.overviewApi.setProjectStatus(status)
+    this.workspaceApi.updateProjectStatus(projectId, status)
   }
 
   async createPhase(dto: CreatePhaseDto): Promise<MacroPhase> {

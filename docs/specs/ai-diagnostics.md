@@ -2,7 +2,7 @@
 
 > **Dự án**: Workflow-Pipeline-Engine  
 > **Tài liệu**: Single Source of Truth (SSOT) — Đặc tả Phân hệ AI: Kiến trúc sư Quy trình & Bộ Giám sát Quỹ đạo Dự án  
-> **Công nghệ áp dụng**: Google Gemini API (`gemini-1.5-flash` / `gemini-1.5-pro`) + Spring Boot 3 Engine + PostgreSQL JSONB
+> **Công nghệ áp dụng**: Google Gemini API (`gemini-2.5-flash` / `gemini-2.5-pro`) + Spring Boot 3 Engine + PostgreSQL JSONB
 
 ---
 
@@ -30,25 +30,27 @@ Nhằm loại bỏ hoàn toàn tình trạng **AI sinh ra đồ thị rác (AI S
 ┌────────────────────────────────────────────────────────────────────────┐
 │ PHA 1: KIẾN TRÚC SƠ BỘ & NEO Ý ĐỊNH (INTENT MIRRORING & DISCOVERY)     │
 │  - Gemini phân tích và trích xuất:                                     │
-│    + Domain, Core Entities, Tech Stack, 4 Phase Scaffold.              │
+│    + Domain, Core Entities, Tech Stack, Phase Scaffold.                │
 │  - Bắt buộc: temperature = 0.2.                                        │
-│  - Hiển thị Modal để Chủ dự án xác nhận / hiệu chỉnh phạm vi.          │
+│  - Preview trực quan & hỗ trợ Chat hiệu chỉnh phạm vi / Tech Stack.    │
 └───────────────────────────────────┬────────────────────────────────────┘
-                                    │ (Người dùng bấm "Chốt & Sinh Đồ Thị")
+                                    │ (Chủ dự án bấm "Chốt & Sinh Đồ Thị")
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ PHA 2: SINH ĐỒ THỊ DAG & KHỬ TRÙNG TOÁN HỌC (DAG SYNTHESIS & SANITIZER)│
-│  - Gemini sinh JSON chi tiết: Phases, Nodes, Dependencies.             │
+│ PHA 2: SINH ĐỒ THỊ DAG & LƯU DB 1 LẦN (DAG SYNTHESIS & SANITIZER)      │
+│  - Gemini sinh JSON chi tiết (giới hạn 15–25 Nodes cốt lõi).           │
 │  - Backend Sanitizer:                                                  │
 │    1. Thuật toán Kahn: Thẩm định 100% không có chu trình (Acyclic).   │
-│    2. Auto-Layout: Tự động tính tọa độ (x, y) chuẩn đẹp bằng Dagre/Topo│
+│    2. Auto-Layout: Tự động tính tọa độ (x, y) chuẩn đẹp bằng Topo.     │
 │    3. Lưu toàn bộ vào Database trong một Transaction duy nhất.         │
+│  - Hiển thị lên Canvas (mọi tinh chỉnh sau đó thao tác trực tiếp trên FE)│
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.1 Pha 1: Intent Mirroring & Architectural Discovery
 
 * **Mục tiêu**: Ép AI phải định nghĩa các thực thể cốt lõi trước khi được phép sinh task, khóa chặt không gian ngữ nghĩa (Attention Anchoring).
+* **Cơ chế tương tác & Xem trước (Preview)**: Pha 1 đóng vai trò là bước xem trước (Preview) cấu trúc vĩ mô. Giao diện hỗ trợ tương tác và hội thoại (chat) để Chủ dự án rà soát, tinh chỉnh linh hoạt phạm vi (Scope), ngăn xếp công nghệ (Tech Stack) và danh sách các giai đoạn (Work Phases) trước khi kích hoạt sinh chi tiết.
 * **Cấu hình Gemini**:
   * `temperature`: `0.2`
   * `responseMimeType`: `application/json`
@@ -72,7 +74,8 @@ Nhằm loại bỏ hoàn toàn tình trạng **AI sinh ra đồ thị rác (AI S
 
 ### 2.2 Pha 2: Topological Graph Synthesis & Backend Sanitizer
 
-* Khi người dùng xác nhận bản thảo ở Pha 1, Backend gửi yêu cầu sinh đồ thị chi tiết.
+* **Luồng thực thi & Lưu trữ 1 lần**: Khi Chủ dự án xác nhận bản thảo ở Pha 1, Backend gửi yêu cầu sinh đồ thị chi tiết. Backend chạy thuật toán Kahn khử chu trình rồi lưu thẳng vào Database trong một Transaction duy nhất (`@Transactional`) và hiển thị lên Canvas. Mọi thao tác bổ sung, tinh chỉnh sau khi sinh đồ thị sẽ do người dùng tự thực hiện trực tiếp trên Canvas trực quan (thêm node, nối dây, cập nhật thuộc tính trong Drawer), không cần gọi lại AI.
+* **Quy tắc Chống tràn Token (Node Cap Constraint)**: Ghi rõ trong System Prompt của Pha 2 chỉ giới hạn sinh tối đa **15–25 Nodes cốt lõi** (ở cấp độ Module / Feature chính, tuyệt đối không chia vụn thành các sub-task nhỏ lẻ hay checklist vi mô) để tránh JSON kết quả quá dài chạm trần `maxOutputTokens` gây lỗi `Malformed JSON`.
 * **Schema JSON Pha 2**:
 ```json
 {
@@ -92,7 +95,7 @@ Nhằm loại bỏ hoàn toàn tình trạng **AI sinh ra đồ thị rác (AI S
 }
 ```
 * **Chốt chặn Backend (Sanitizer Pipeline)**:
-  1. **Cycle Detection (Thuật toán Kahn)**: Nếu phát hiện cạnh gây chu trình lặp ($A \to B \to A$), Backend tự động loại bỏ cạnh đó hoặc trả lỗi chi tiết, không bao giờ để lọt đồ thị lỗi vào DB.
+  1. **Cycle Detection (Thuật toán Kahn)**: Nếu phát hiện cạnh gây chu trình lặp ($A \to B \to A$), Backend tự động loại bỏ cạnh đó hoặc trả lỗi chi tiết, thẩm định 100% đồ thị phi chu trình (Acyclic) trước khi lưu DB.
   2. **Auto-Layout Coordinate Engine**: Backend/Frontend tính toán tọa độ $X, Y$ theo cấp bậc topo (Topological Layering) để các nút hiển thị ngay ngắn trên Canvas SVG (Node tầng 1 xếp ở $X=100$, Node tầng 2 ở $X=400$...).
   3. **Khởi tạo trạng thái**: Các nút gốc (In-degree = 0) nhận trạng thái `TODO`; các nút con phụ thuộc nhận trạng thái `LOCKED`.
 
@@ -124,22 +127,35 @@ Hệ thống kết hợp 2 cơ chế giám sát: **Vĩ mô (Độ lệch quỹ �
 #### a. Thuật toán đo độ lệch (Backend chạy toán Java, 0 Token):
 Định kỳ mỗi đêm hoặc sau mỗi mốc bàn giao, Spring Boot tính toán:
 1. **Vận tốc Mục tiêu ($V_{\text{target}}$)**:
-   $$V_{\text{target}} = \frac{\text{Tổng số Node chưa hoàn tất}}{\text{Số ngày còn lại đến Deadline dự án}}$$
+   $$V_{\text{target}} = \frac{\text{Tổng số Node chưa hoàn tất}}{\max(1, \text{Số ngày còn lại đến Deadline dự án})}$$
+   * **Hạn chót dự án**: Được Backend tự động lấy từ $\max(\text{WORK\_PHASE.planned\_end})$ (hoặc fallback về $\max(\text{NODE.due\_date})$ nếu dự án không chia phase).
+   * **Bảo vệ an toàn mẫu số**: Mẫu số được bọc qua hàm $\max(1, \text{Số ngày còn lại})$ nhằm triệt tiêu hoàn toàn lỗi chia cho 0 khi dự án đã chạm hoặc vượt quá hạn chót.
+   * **Kiểm tra biên ($V_{\text{target}} > 0$)**: Nếu toàn bộ Node đã hoàn thành (`Tổng số Node chưa hoàn tất == 0` $\Rightarrow V_{\text{target}} = 0$), hệ thống kết luận dự án đã hoàn thành đúng hạn và lập tức gán $\text{DriftScore} = 0\%$ (trạng thái GREEN, kết thúc tính toán, tránh lỗi chia cho 0). Hệ thống chỉ thực hiện tính $\text{DriftScore}$ khi $V_{\text{target}} > 0$.
 2. **Vận tốc Thực tế 7 ngày gần nhất ($V_{\text{actual}}$)**:
    $$V_{\text{actual}} = \frac{\text{Số Node đã chuyển sang DONE trong 7 ngày qua}}{7}$$
 3. **Chỉ số Lệch Quỹ Đạo (Drift Score)**:
    $$\text{DriftScore} = 1 - \frac{V_{\text{actual}}}{V_{\text{target}}}$$
 
-#### b. Ma trận phân cấp cảnh báo (Drift Thresholds):
+#### b. Ma trận phân cấp cảnh báo & 2 Chốt chặn chống đốt Token:
 * **$\text{DriftScore} < 20\%$ (GREEN - Ổn định)**: Quỹ đạo đúng tiến độ, AI ngủ yên (0 token).
 * **$20\% \le \text{DriftScore} < 40\%$ (YELLOW - Chệch nhẹ)**: Cập nhật badge cảnh báo vàng trên Overview Dashboard.
-* **$\text{DriftScore} \ge 40\%$ (RED - Báo động vỡ tiến độ)**: Kích hoạt **Điều Tra Pháp Y Dữ Liệu (Forensic Profiling)**.
+* **$\text{DriftScore} \ge 40\%$ (RED - Báo động vỡ tiến độ)**: Đạt ngưỡng báo động đỏ. Tuy nhiên, trước khi kích hoạt gọi Gemini API thực hiện **Điều Tra Pháp Y Dữ Liệu (Forensic Profiling)**, Backend **BẮT BUỘC** kiểm tra 2 chốt chặn chống lãng phí token:
+  1. *Warm-up Guard (Chống lỗi Cold-Start ngày đầu khi $V_{\text{actual}} = 0$):*  
+     Khi dự án mới khởi chạy những ngày đầu, do chưa có task nào hoàn thành ($V_{\text{actual}} = 0$) sẽ dẫn đến $\text{DriftScore} = 100\%$ giả tạo. Do đó, hệ thống chỉ kích hoạt tính `DriftScore` và gọi AI khi:
+     * Dự án đã chạy tối thiểu **3–5 ngày** kể từ lúc Node đầu tiên chuyển sang trạng thái `IN_PROGRESS`.
+     * **VÀ** có ít nhất **1 Node vi phạm ngưỡng ngâm lâu (`Stalled Node`) hoặc bị Reject $\ge 2$ lần**.
+  2. *Cooldown & State Dedup (Chống gọi lặp lại mỗi đêm):*  
+     Trước khi gọi Gemini API, Backend kiểm tra bảng `PROJECT_AI_ANALYSIS`:
+     * Nếu lần phân tích gần nhất (`analyzed_at`) mới diễn ra trong vòng **24 giờ qua**,
+     * **HOẶC** danh sách mã nút nghẽn (`Stalled Node` + `Rejection Friction`) hoàn toàn **không thay đổi** so với lần phân tích trước đó,
+     * $\rightarrow$ Lập tức dùng lại kết quả cũ trong DB, chi phí tốn **0 Token** (trừ khi Chủ dự án chủ động bấm `trigger-audit` cưỡng bức).
 
-#### c. Hồ sơ Pháp y Dữ liệu (Backend tự thu thập trước khi gọi AI):
+#### c. Hồ sơ Pháp y Dữ liệu (Backend tự thu thập theo đúng ERD trước khi gọi AI):
 Backend gom đúng 3 nhóm bằng chứng định lượng:
-1. **Nút ngâm lâu nhất trên đường găng (Stalled Node)**: Nút có $\text{TimeInState}(IN\_PROGRESS) \ge 2.5 \times \text{estimatedHours}$.
-2. **Nút bị từ chối nhiều nhất (Rejection Friction)**: Nút có $\text{reject\_count} \ge 2$, đọc 2 lý do từ chối gần nhất từ audit log.
-3. **Bán kính phong tỏa (Blast Radius)**: Số lượng task con đang bị nút này giữ chân ở trạng thái `LOCKED`.
+1. **Nút ngâm lâu nhất trên đường găng (Stalled Node)**: Nút có thời gian thực thi ở trạng thái `IN_PROGRESS` vượt quá 2.5 lần ước lượng:
+   $$\text{TimeInState}(IN\_PROGRESS) = (\text{now} - \text{NODE.started\_at}) \ge 2.5 \times \text{NODE.estimated\_hours}$$
+2. **Nút bị từ chối nhiều nhất (Rejection Friction)**: Kiểm tra điều kiện `NODE.current_round >= 3` (tức đã bị từ chối nghiệm thu $\ge 2$ lần) và trích xuất đúng 2 lý do (`comment`) gần nhất có `decision = 'REJECTED'` trực tiếp từ bảng **`NODE_REVIEW`**.
+3. **Bán kính phong tỏa (Blast Radius)**: Số lượng task con downstream đang bị nút này giữ chân ở trạng thái `LOCKED`.
 
 #### d. Vòng Kim Cô (Negative Constraints) ép Gemini không lan man:
 ```text
@@ -161,7 +177,8 @@ Backend gom đúng 3 nhóm bằng chứng định lượng:
 
 #### a. Kịch bản vận hành tại giao diện (Ambient UX):
 * Khi Chủ dự án mở Modal **Phân công Tác vụ (Assign Member)** cho Node $X$ và chọn nhân sự **Nam**.
-* Frontend tự động kích hoạt API ngầm: `POST /api/nodes/{id}/simulate-assign?userId={namId}` (phản hồi trong 5ms).
+* Frontend tự động kích hoạt API ngầm: `POST /api/nodes/{id}/simulate-assign?userId={namId}`.
+* **Bản chất kỹ thuật**: Bước mô phỏng tải khi chọn thành viên trong Dropdown chạy **100% bằng thuật toán đồ thị CPM Forward Pass trên Java thuần (`< 5ms`, tốn `0 Token`)**, hoàn toàn không gọi qua mạng tới Gemini API nhằm đảm bảo phản hồi tức thì và tính khả dụng tuyệt đối.
 
 #### b. Thuật toán Lan truyền Thời gian (CPM Forward Pass - Toán học Java):
 1. **Tính Cửa sổ Thời gian Thực thi khả dĩ của Node $X$**:
@@ -181,7 +198,7 @@ Backend gom đúng 3 nhóm bằng chứng định lượng:
 ├────────────────────────────────────────────────────────────────────────┤
 │  Người thực hiện: [ Nguyễn Văn Nam  ▼ ]                                │
 │                                                                        │
-│  ┌─ ⚠️ CẢNH BÁO MÔ PHỎNG TẢI (AI WORKLOAD COLLISION) ────────────────┐ │
+│  ┌─ ⚠️ CẢNH BÁO MÔ PHỎNG TẢI (CPM WORKLOAD COLLISION) ────────────────┐ │
 │  │ Nam đang có 2 task độc lập dự kiến cùng mở khóa vào tuần sau.       │ │
 │  │ Nếu nhận thêm task này:                                             │ │
 │  │ • Khối lượng công việc tuần tới của Nam sẽ đạt 62 giờ (> 40h/tuần). │ │
@@ -197,8 +214,52 @@ Backend gom đúng 3 nhóm bằng chứng định lượng:
 
 ## 4. Đặc tả Cấu trúc Dữ liệu & JSON Schemas (SSOT Contracts)
 
-### 4.1 Schema Lưu trữ Cột `PROJECT.latest_ai_analysis` (PostgreSQL JSONB)
+### 4.1 Schema Lưu Trữ Bảng `PROJECT_AI_ANALYSIS` (PostgreSQL)
 
+Kết quả phân tích từ Phân hệ AI được lưu trữ trực tiếp vào bảng **`PROJECT_AI_ANALYSIS`** (khớp với ERD hiện tại) với cấu trúc phân bổ các trường:
+* Cột `metrics` (`jsonb`): Lưu trữ các số liệu đo lường vận tốc và độ lệch (`driftMetrics`).
+* Cột `latest_analysis` (`jsonb`): Lưu trữ hồ sơ điều tra pháp y (`forensicInvestigation`) và danh sách khuyến nghị xử lý (`triageRecommendations`).
+* Cột `analyzed_at` (`timestamptz`): Lưu thời gian hoàn tất phân tích (dùng cho chốt chặn Cooldown & State Dedup 24 giờ).
+
+> [!NOTE]
+> Cấu trúc JSON của `triageRecommendations` chỉ trả về `instruction` dạng text để đề xuất giải pháp can thiệp, không bổ sung mảng sub-nodes phức tạp nhằm giữ tính gọn nhẹ và trao toàn quyền quyết định cấu trúc đồ thị cho Project Owner.
+
+#### a. Cấu trúc Cột `metrics` (JSONB):
+```json
+{
+  "targetVelocity": 2.0,
+  "actualVelocity": 0.58,
+  "driftScore": 71.0,
+  "status": "RED_ALERT"
+}
+```
+
+#### b. Cấu trúc Cột `latest_analysis` (JSONB):
+```json
+{
+  "forensicInvestigation": {
+    "primaryBottleneckNode": "PAY-02",
+    "culpritAssignee": "Thien",
+    "daysOverrun": 5,
+    "blastRadiusBlockedNodes": ["CHECKOUT-UI", "INVOICE-GEN", "MEMBER-SYNC", "ORDER-REPORT"],
+    "rootCauseSummary": "Tác vụ Webhook VNPay đang bị phình to phạm vi (Over-scoped), chặn đứng toàn bộ luồng thanh toán downstream."
+  },
+  "triageRecommendations": [
+    {
+      "action": "SPLIT_NODE",
+      "targetNodeCode": "PAY-02",
+      "instruction": "Tách PAY-02 thành 2 subtask: Nhận IPN cơ bản (làm ngay trong 1 ngày để giải phóng CHECKOUT-UI) và Xử lý Refund tự động (dời sang Phase sau)."
+    },
+    {
+      "action": "PAIR_PROGRAMMING",
+      "targetNodeCode": "AUTH-02",
+      "instruction": "Nam đang vướng lỗi lặp Token Rotation (reject lần 2). Cử Tech Lead pair-program giải quyết dứt điểm trong 2 giờ."
+    }
+  ]
+}
+```
+
+#### c. Schema DTO Toàn Phần (`TrajectoryAnalysisResponse`):
 ```json
 {
   "driftMetrics": {
@@ -250,6 +311,15 @@ Backend gom đúng 3 nhóm bằng chứng định lượng:
   }
 }
 ```
+
+### 4.3 Đồng bộ Trường Thời Gian trên Bảng `NODE` (Đã Bổ Sung Qua Migration V3)
+
+Để phục vụ các thuật toán tính toán toán học Java thuần của Phân hệ AI (CPM Forward Pass và Trajectory Drift Engine) mà không cần truy vấn phức tạp, bảng `NODE` đã được bổ sung 2 cột sau (thực thi qua file Flyway migration `V3__add_node_ai_time_columns.sql`):
+
+| Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mặc Định | Vai Trò Kỹ Thuật trong Phân Hệ AI |
+| :--- | :--- | :--- | :--- | :--- |
+| `estimated_hours` | `int` | NOT NULL | `8` | Thời gian ước tính hoàn thành tác vụ (giờ). Đóng vai trò là $\text{Duration}$ trong thuật toán lan truyền thời gian **CPM Forward Pass** và dùng để tính ngưỡng ngâm việc của **Stalled Node** ($2.5 \times \text{estimated\_hours}$). |
+| `started_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm tác vụ thực tế bắt đầu thực thi (chuyển sang trạng thái `IN_PROGRESS`). Dùng để đo lường chính xác thời gian ngâm tác vụ: $\text{TimeInState}(IN\_PROGRESS) = (\text{now} - \text{started\_at})$. |
 
 ---
 

@@ -1,4 +1,4 @@
-import { useEffect, type FC } from 'react'
+import { useEffect, lazy, Suspense, type FC } from 'react'
 import { LandingView } from './components/landing/LandingView'
 import { AuthView } from './components/auth/AuthView'
 import { WorkspaceView } from './components/workspace/WorkspaceView'
@@ -8,9 +8,12 @@ import { AdminPortalView } from './features/admin/AdminPortalView'
 import ProfileView from './views/ProfileView'
 import NotificationsView from './views/NotificationsView'
 import { ToastHost } from './components/common/ToastHost'
-import { DevToolbar } from './components/dev/DevToolbar'
 import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
 import { useRouter } from './router/useRouter'
+
+const DevToolbar = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true'
+  ? lazy(() => import('./components/dev/DevToolbar').then((m) => ({ default: m.DevToolbar })))
+  : null
 
 
 export default function App() {
@@ -102,9 +105,11 @@ export default function App() {
       {/* Global Toast Host across all screens */}
       <ToastHost />
 
-      {/* Dev floating panel - Only in DEV environment */}
-      {import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true' && (
-        <DevToolbar />
+      {/* Dev floating panel - Only in DEV environment with mock enabled */}
+      {DevToolbar && (
+        <Suspense fallback={null}>
+          <DevToolbar />
+        </Suspense>
       )}
     </>
   )

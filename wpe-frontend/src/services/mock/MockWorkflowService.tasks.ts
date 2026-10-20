@@ -2,6 +2,7 @@ import type { IWorkflowService } from '../contracts/IWorkflowService'
 import type { ArtifactItem, ArtifactType, KanbanTask, PhaseId, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { evaluateTransition } from '../../domain/taskTransitions'
 import { mockDelay } from './MockConfig'
+import { getSavedAvatar } from '../../utils/avatarUtils'
 
 export const MOCK_NOW = Date.parse('2026-10-02T00:00:00+07:00')
 const PHASE_LABEL: Record<PhaseId, string> = { P1: 'Phase 1 · Foundation', P2A: 'Phase 2A · Auth', P2B: 'Phase 2B · Core', P3: 'Phase 3 · QA & Release' }
@@ -133,17 +134,24 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updat
 
   async getProjectMembers(_projectId: string): Promise<UserSummary[]> {
     await mockDelay(100)
-    return DEV_USERS.map((user) => ({
-      ...user,
-      assignedTaskCount: this.tasks.filter((task) => task.assignedUserId === user.id).length,
-    }))
+    return DEV_USERS.map((user) => {
+      const savedAvatar = getSavedAvatar(user.name || user.id)
+      return {
+        ...user,
+        avatarUrl: user.avatarUrl || savedAvatar,
+        assignedTaskCount: this.tasks.filter((task) => task.assignedUserId === user.id).length,
+      }
+    })
   }
 
   async updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask> {
     await mockDelay(150)
     const task = this.tasks.find((item) => item.id === taskId)
     if (!task) throw new Error('Không tìm thấy task')
-    const actor = DEV_USERS.find((user) => user.id === task.assignedUserId)
+    const isOwnerReviewAction = newStatus === 'DONE' || (task.status === 'REVIEW' && newStatus === 'IN_PROGRESS')
+    const actor = isOwnerReviewAction
+      ? DEV_USERS.find((u) => u.projectRole === 'OWNER') || DEV_USERS[0]
+      : DEV_USERS.find((user) => user.id === task.assignedUserId)
     if (!actor) throw new Error('Không tìm thấy người thực hiện')
     const decision = evaluateTransition(task, newStatus, actor)
     if (decision.kind !== 'allow') throw new Error(decision.kind === 'deny' ? decision.message : 'Cần nộp Artifact')

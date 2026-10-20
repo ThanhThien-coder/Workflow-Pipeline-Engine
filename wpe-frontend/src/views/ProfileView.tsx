@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
 import { AlertCircle, ArrowLeft, Camera, Check, Folder, Lock, Shield, Sparkles, Trash2, User, X } from 'lucide-react'
 import { navigate } from '../router/useRouter'
@@ -186,26 +187,48 @@ export default function ProfileView() {
                 { id: 'profile', label: 'General Profile', Icon: User },
                 { id: 'projects', label: 'Projects & Privacy', Icon: Folder },
                 { id: 'account', label: 'Account & Security', Icon: Shield },
-              ].map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setActiveTab(id as 'profile' | 'projects' | 'account')}
-                  className={clsx(
-                    'flex min-w-[180px] items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors lg:min-w-0',
-                    activeTab === id
-                      ? 'border-indigo-200 bg-indigo-600 text-white shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                  )}
-                >
-                  <Icon size={16} className={activeTab === id ? 'text-white' : 'text-slate-500'} />
-                  <span>{label}</span>
-                </button>
-              ))}
+              ].map(({ id, label, Icon }) => {
+                const isActive = activeTab === id
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveTab(id as 'profile' | 'projects' | 'account')}
+                    className={clsx(
+                      'relative flex min-w-[180px] items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left text-sm font-semibold transition-colors lg:min-w-0 cursor-pointer overflow-hidden',
+                      isActive
+                        ? 'border-transparent text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                    )}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="profileTabSlider"
+                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    <Icon size={16} className={clsx('relative z-10', isActive ? 'text-white' : 'text-slate-500')} />
+                    <span className="relative z-10">{label}</span>
+                  </button>
+                )
+              })}
             </div>
           </aside>
 
           <div className="flex-1 space-y-6">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 14, scale: 0.995 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.995 }}
+                transition={{
+                  duration: 0.28,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                style={{ willChange: 'transform, opacity' }}
+              >
             {activeTab === 'profile' && (
               <div className="grid gap-6 xl:grid-cols-[0.95fr_1.45fr]">
                 <div className="space-y-6">
@@ -359,6 +382,8 @@ export default function ProfileView() {
                 </Card>
               </div>
             )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </main>

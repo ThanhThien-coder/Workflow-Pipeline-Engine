@@ -2,10 +2,10 @@
   "name": "workflow-pipeline-engine",
   "private": true,
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
-    "typecheck": "npm --prefix frontend run typecheck",
-    "test": "npm --prefix frontend test",
-    "preview": "npm --prefix frontend run preview"
+    "dev": "npm --prefix wpe-frontend run dev",
+    "build": "npm --prefix wpe-frontend run build",
+    "typecheck": "npm --prefix wpe-frontend run typecheck",
+    "test": "npm --prefix wpe-frontend test",
+    "preview": "npm --prefix wpe-frontend run preview"
   }
 }

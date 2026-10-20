@@ -1,4 +1,4 @@
-import type { MacroPhase, PhaseTreeData } from '../../types/workflow.types'
+import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency } from '../../types/workflow.types'
 import type { GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import type {
@@ -44,9 +44,12 @@ export interface IWorkflowService {
   getProjectsList(): Promise<readonly ProjectSummaryDto[]>
   createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto>
 
-  getMacroPhases(): Promise<MacroPhase[]>
-  getPhaseEdges(): Promise<[string, string][]>
-  getPhaseGraph(phaseId: string): Promise<PhaseTreeData>
+  getMacroPhases(projectId?: string): Promise<MacroPhase[]>
+  getPhaseEdges(projectId?: string): Promise<[string, string][]>
+  getPhaseGraph(phaseId: string, projectId?: string): Promise<PhaseTreeData>
+  addRootTask?(phaseId: string, payload: { title: string }): Promise<PhaseNode>
+  attachGhostNode?(phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }): Promise<GhostDependency>
+  resetPhaseTree?(phaseId: string): Promise<void>
   createPhase(dto: CreatePhaseDto): Promise<MacroPhase>
   connectPhases(sourcePhaseId: string, targetPhaseId: string): Promise<void>
   deletePhase(phaseId: string): Promise<void>
@@ -62,16 +65,20 @@ export interface IWorkflowService {
   /* Project Governance & Settings */
   getProjectSettings(projectId: string): Promise<ProjectSettingsDto>
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto>
-  publishPipeline(projectId: string, simulateCycle?: boolean): Promise<PublishPipelineResult>
+  publishPipeline(projectId: string): Promise<PublishPipelineResult>
   getProjectMembersDetailed(projectId: string): Promise<ProjectMemberDetail[]>
   inviteProjectMember(projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail>
   changeMemberRole(projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail>
   removeProjectMember(projectId: string, userId: string): Promise<{ unassignedTaskCount: number }>
   getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]>
+  archiveProject(projectId: string): Promise<ProjectSettingsDto>
+  restoreProject(projectId: string): Promise<ProjectSettingsDto>
+  deleteProject(projectId: string): Promise<void>
 
   /* Dev & Simulation capabilities (Optional, for mock/staging) */
   resetMockData?(): Promise<void>
   setMockLatency?(ms: number): void
   setMockError?(hasError: boolean): void
+  setMockCycleError?(simulate: boolean): void
   setProjectStatus?(projectId: string, status: ProjectStatus): Promise<void>
 }

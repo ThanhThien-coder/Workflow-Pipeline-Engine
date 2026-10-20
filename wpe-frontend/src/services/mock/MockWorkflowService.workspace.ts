@@ -3,6 +3,7 @@ import type {
   MemberSummaryDto,
   ProjectSummaryDto,
 } from '../../types/workspace.types'
+import type { ProjectStatus } from '../../types/settings.types'
 
 const INITIAL_PROJECTS: ProjectSummaryDto[] = [
   {
@@ -107,8 +108,26 @@ const INITIAL_PROJECTS: ProjectSummaryDto[] = [
   },
 ]
 
+const WORKSPACE_STORAGE_KEY = 'wpe_mock_workspace_projects'
+
+function loadStoredProjects(): ProjectSummaryDto[] {
+  if (typeof window === 'undefined') return [...INITIAL_PROJECTS]
+  try {
+    const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return [...INITIAL_PROJECTS]
+}
+
+function saveStoredProjects(projects: ProjectSummaryDto[]) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(projects))
+  } catch {}
+}
+
 export class MockWorkspaceApi {
-  private projects: ProjectSummaryDto[] = [...INITIAL_PROJECTS]
+  private projects: ProjectSummaryDto[] = loadStoredProjects()
 
   async getProjectsList(): Promise<readonly ProjectSummaryDto[]> {
     await new Promise((resolve) => setTimeout(resolve, 200))
@@ -133,6 +152,30 @@ export class MockWorkspaceApi {
     }
 
     this.projects = [newProject, ...this.projects]
+    saveStoredProjects(this.projects)
     return newProject
+  }
+
+  updateProjectStatus(id: number | string, status: ProjectStatus): void {
+    const p = this.projects.find((item) => String(item.id) === String(id))
+    if (p) {
+      p.status = status
+      p.updatedAt = new Date().toISOString()
+      saveStoredProjects(this.projects)
+    }
+  }
+
+  deleteProject(id: number | string): void {
+    this.projects = this.projects.filter((item) => String(item.id) !== String(id))
+    saveStoredProjects(this.projects)
+  }
+
+  reset(): void {
+    this.projects = [...INITIAL_PROJECTS]
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(WORKSPACE_STORAGE_KEY)
+      } catch {}
+    }
   }
 }

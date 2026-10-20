@@ -1,6 +1,7 @@
 import type { KanbanTask, UserSummary } from '../../types/kanban.types'
+import { getSavedAvatar } from '../../utils/avatarUtils'
 
-const DEFAULT_MEMBERS: Record<string, { name: string; initials: string; avatarClass: string }> = {
+const DEFAULT_MEMBERS: Record<string, { name: string; initials: string; avatarClass: string; avatarUrl?: string | null }> = {
   '1': { name: 'Alex Kim', initials: 'AK', avatarClass: 'bg-emerald-500' },
   '2': { name: 'Sarah Chen', initials: 'SC', avatarClass: 'bg-indigo-500' },
   '3': { name: 'Marcus Liu', initials: 'ML', avatarClass: 'bg-rose-500' },
@@ -39,6 +40,7 @@ export function TaskCard({
     fallback?.initials ||
     'AK'
   const avatarClass = targetUser?.avatarClass || fallback?.avatarClass || 'bg-emerald-500'
+  const avatarUrl = targetUser?.avatarUrl || getSavedAvatar(assigneeName || task.assignedUserId)
 
   return (
     <div
@@ -69,11 +71,19 @@ export function TaskCard({
       {/* 3. Footer: Nằm trọn vẹn bên trong card */}
       <div className="flex items-center justify-between border-t border-slate-100 pt-2">
         <div className="flex items-center gap-1.5" title={assigneeName}>
-          <div
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ring-1 ring-white ${avatarClass}`}
-          >
-            {assigneeInitials}
-          </div>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={assigneeName}
+              className="h-5 w-5 shrink-0 rounded-full object-cover ring-1 ring-white"
+            />
+          ) : (
+            <div
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ring-1 ring-white ${avatarClass}`}
+            >
+              {assigneeInitials}
+            </div>
+          )}
           <span className="max-w-[90px] truncate text-[11px] font-medium text-slate-600">
             {assigneeName}
           </span>

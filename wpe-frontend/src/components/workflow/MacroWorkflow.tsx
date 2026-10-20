@@ -6,8 +6,10 @@ import { PhaseCard } from './PhaseCard'
 import { ZoomControls } from '../mindmap/ZoomControls'
 import { usePhaseConnectDrag } from '../../hooks/usePhaseConnectDrag'
 import { computeMacroGraphLayout, MACRO_CARD_H, MACRO_CARD_W } from '../../utils/macroLayout'
+import { WorkflowArtifactsIsland } from '../workspace/WorkflowArtifactsIsland'
+import { WorkflowArtifactsDrawer } from '../workspace/WorkflowArtifactsDrawer'
 
-export function MacroWorkflow({ className = '' }: { className?: string }) {
+export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?: string; className?: string }) {
   const phases = useWorkflowStore((state) => state.macroPhases)
   const workflowEdges = useWorkflowStore((state) => state.workflowEdges)
   const selectedPhaseId = useWorkflowStore((state) => state.selectedPhaseId)
@@ -26,7 +28,7 @@ export function MacroWorkflow({ className = '' }: { className?: string }) {
       height: Math.max(520, ...positions.map((position) => position.y + MACRO_CARD_H + 100)),
     }
   }, [layoutPositions])
-  useEffect(() => { void loadPhases() }, [loadPhases])
+  useEffect(() => { void loadPhases(projectId) }, [loadPhases, projectId])
   return <section className={`relative flex h-full min-w-0 flex-col ${className}`}>
     <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5 shrink-0">
       <div>
@@ -41,7 +43,12 @@ export function MacroWorkflow({ className = '' }: { className?: string }) {
         {phases.map((phase) => <PhaseCard key={phase.id} phase={phase} position={layoutPositions[phase.id] || { x: phase.x, y: phase.y }} selected={selectedPhaseId === phase.id} onClick={() => selectPhase(selectedPhaseId === phase.id ? null : phase.id)} onSpawnDown={phaseConnect.onSpawnDown} />)}
       </div>
       {phaseConnect.line && <svg className="pointer-events-none fixed inset-0 z-50 h-screen w-screen"><line x1={phaseConnect.line.x1} y1={phaseConnect.line.y1} x2={phaseConnect.line.x2} y2={phaseConnect.line.y2} stroke="#3b82f6" strokeWidth="2.5" strokeDasharray="6 5" /></svg>}
-      {phaseConnect.error && <div className="pointer-events-none fixed z-[60] rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-lg" style={{ left: phaseConnect.error.x, top: phaseConnect.error.y }}>{phaseConnect.error.message}</div>}
+      <div data-pan-zoom-ignore className="absolute top-4 right-6 z-30 flex items-center" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+        <div className="relative inline-block">
+          <WorkflowArtifactsIsland />
+          <WorkflowArtifactsDrawer projectId={projectId} />
+        </div>
+      </div>
       <div data-pan-zoom-ignore className="absolute bottom-6 right-6 z-30 flex items-center" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
         <ZoomControls className="static" scale={panZoom.scale} onZoomIn={panZoom.zoomIn} onZoomOut={panZoom.zoomOut} onReset={panZoom.reset} />
       </div>

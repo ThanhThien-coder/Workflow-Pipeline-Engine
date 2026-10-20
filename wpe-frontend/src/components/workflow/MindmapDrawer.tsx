@@ -1,9 +1,11 @@
 import { Link2, Merge, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { useResizable } from '../../hooks/useResizable'
 import { MindmapTree } from '../mindmap/MindmapTree'
 import { NodePropertiesModal } from '../mindmap/NodePropertiesModal'
+import { AddGhostModal } from '../mindmap/AddGhostModal'
 import { Popover } from '../popovers/Popover'
 import { GhostInfo } from '../popovers/GhostInfo'
 import { GhostPicker } from '../popovers/GhostPicker'
@@ -13,6 +15,7 @@ import { PhaseKanbanBoard } from '../kanban/PhaseKanbanBoard'
 import { TaskDetailModal } from '../kanban/TaskDetailModal'
 import { SubmitArtifactModal } from '../kanban/SubmitArtifactModal'
 import { usePhaseKanban } from '../../hooks/usePhaseKanban'
+import { useWorkflowService } from '../../services/workflow/WorkflowContext'
 import type { KanbanTask } from '../../types/kanban.types'
 
 export function MindmapDrawer() {
@@ -33,10 +36,13 @@ export function MindmapDrawer() {
   )
 
   // View mode switcher: 'graph' (default) ⇄ 'kanban'
+  const workflowService = useWorkflowService()
   const [viewMode, setViewMode] = useState<'graph' | 'kanban'>('graph')
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null)
   const [mergeSelection, setMergeSelection] = useState(new Set<string>())
+  const [isGhostModalOpen, setIsGhostModalOpen] = useState(false)
+  const [ghostAnchorTaskId, setGhostAnchorTaskId] = useState<string | undefined>()
   const [popover, setPopover] = useState<{
     type: 'info' | 'picker'
     id?: string
@@ -78,38 +84,17 @@ export function MindmapDrawer() {
     refId: string
     dir: 'up' | 'down'
     anchorId?: string
+    targetTaskId?: string
   }) => {
     if (!selectedPhaseId) return
-    updateTree(selectedPhaseId, (nodes) => {
-      const id = `ghost-${Date.now()}`
-      const parentIds =
-        value.anchorId && value.dir === 'down' ? [value.anchorId] : ['root']
-      const ghost: GhostGraphNode = {
-        kind: 'ghost',
-        id,
-        title: value.refId,
-        parentIds,
-        refPhase: value.refPhase,
-        refId: value.refId,
-        dir: value.dir,
-        width: W.ghost,
-        height: TASK_H,
-      }
-      const next = { ...nodes, [id]: ghost }
-      if (
-        value.anchorId &&
-        value.dir === 'up' &&
-        next[value.anchorId] &&
-        !next[value.anchorId].parentIds.includes(id) &&
-        !isAncestor(next, value.anchorId, id)
-      ) {
-        next[value.anchorId] = {
-          ...next[value.anchorId],
-          parentIds: [...next[value.anchorId].parentIds, id],
-        }
-      }
-      return next
-    })
+    const targetTaskId = value.targetTaskId || value.anchorId
+    if (targetTaskId) {
+      void workflowService.attachGhostNode(selectedPhaseId, {
+        sourcePhaseId: value.refPhase,
+        sourceTaskId: value.refId,
+        targetTaskId,
+      })
+    }
     setPopover(null)
   }
 
@@ -133,7 +118,7 @@ export function MindmapDrawer() {
       trackId,
       parentId: parents[0],
       parentIds: parents,
-      description: 'Hội tụ từ các task tiền đề',
+      description: 'Converged from prerequisite tasks',
       isTrack: false,
       status: parents.every(
         (id) => tree?.[id]?.kind === 'branch' && tree[id].status === 'DONE'
@@ -252,12 +237,13 @@ export function MindmapDrawer() {
           {viewMode === 'graph' && (
             <button
               type="button"
-              onClick={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect()
-                setPopover({ type: 'picker', x: rect.left, y: rect.bottom + 8 })
+              onClick={() => {
+                setGhostAnchorTaskId(selectedNodeId ?? undefined)
+                setIsGhostModalOpen(true)
               }}
+              title="Attach Ghost Prerequisite"
               aria-label="Add ghost node"
-              className="rounded-lg p-1.5 text-indigo-500 hover:bg-indigo-50 transition-colors"
+              className="rounded-lg p-1.5 text-indigo-500 hover:bg-indigo-50 transition-colors cursor-pointer"
             >
               <Link2 size={16} />
             </button>
@@ -268,7 +254,7 @@ export function MindmapDrawer() {
             type="button"
             onClick={() => selectPhase(null)}
             aria-label="Close drawer"
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 transition-colors"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -302,14 +288,10 @@ export function MindmapDrawer() {
                 onUpdateNodes={(update) =>
                   selectedPhaseId && updateTree(selectedPhaseId, update)
                 }
-                onAddGhost={(pos) =>
-                  setPopover({
-                    type: 'picker',
-                    x: pos.x,
-                    y: pos.y,
-                    anchorId: pos.anchorId,
-                  })
-                }
+                onAddGhost={(pos) => {
+                  setGhostAnchorTaskId(pos?.anchorId || selectedNodeId || undefined)
+                  setIsGhostModalOpen(true)
+                }}
                 phaseId={selectedPhaseId ?? undefined}
               />
             )}
@@ -319,7 +301,7 @@ export function MindmapDrawer() {
           <div className="w-full h-full p-4 overflow-y-auto">
             {loadingTasks && phaseTasks.length === 0 ? (
               <div className="grid h-full place-items-center text-xs text-slate-400">
-                Đang tải bảng Kanban của {phase.name}…
+                Loading Kanban board for {phase.name}…
               </div>
             ) : (
               <PhaseKanbanBoard
@@ -340,74 +322,102 @@ export function MindmapDrawer() {
       {viewMode === 'graph' && mergeSelection.size >= 2 && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-amber-200 bg-amber-50 px-4 py-2.5">
           <span className="text-xs font-medium text-amber-700">
-            Đã chọn {mergeSelection.size} task
+            {mergeSelection.size} tasks selected
           </span>
           <button
             type="button"
             onClick={createMerge}
-            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors cursor-pointer"
           >
             <Merge size={13} />
-            Tạo Task hội tụ từ {mergeSelection.size} task đã chọn
+            Create converged task from {mergeSelection.size} selected tasks
           </button>
         </div>
       )}
 
       {/* ── Modals & Popovers ── */}
-      {selectedNodeId && tree?.[selectedNodeId]?.kind === 'branch' && (
-        <NodePropertiesModal
-          node={tree[selectedNodeId] as BranchGraphNode}
-          onClose={() => setSelectedNodeId(null)}
-          onDelete={() => {
-            if (selectedPhaseId) deleteNode(selectedPhaseId, selectedNodeId)
-            setSelectedNodeId(null)
-          }}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {selectedNodeId && tree?.[selectedNodeId]?.kind === 'branch' && (
+          <NodePropertiesModal
+            key="node-properties"
+            node={tree[selectedNodeId] as BranchGraphNode}
+            onClose={() => setSelectedNodeId(null)}
+            onDelete={() => {
+              if (selectedPhaseId) deleteNode(selectedPhaseId, selectedNodeId)
+              setSelectedNodeId(null)
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Task Details Modal in Phase Kanban */}
-      {activeSelectedTask && (
-        <TaskDetailModal
-          task={activeSelectedTask}
-          actor={actor}
-          members={members}
-          pending={pendingTaskIds.includes(activeSelectedTask.id)}
-          onClose={() => setSelectedTask(null)}
-          onMove={(to, rejectReason) => void moveTask(activeSelectedTask.id, to, rejectReason)}
-          onSubmitArtifact={(dto) => submitArtifact(activeSelectedTask.id, dto)}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {activeSelectedTask && (
+          <TaskDetailModal
+            key="task-detail"
+            task={activeSelectedTask}
+            actor={actor}
+            members={members}
+            pending={pendingTaskIds.includes(activeSelectedTask.id)}
+            onClose={() => setSelectedTask(null)}
+            onMove={(to, rejectReason) => void moveTask(activeSelectedTask.id, to, rejectReason)}
+            onSubmitArtifact={(dto) => submitArtifact(activeSelectedTask.id, dto)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Submit Artifact Modal for Transition Review Requirement */}
-      {isSubmitModalOpen && submittingTask && (
-        <SubmitArtifactModal
-          task={submittingTask}
-          submitting={pendingTaskIds.includes(submittingTask.id)}
-          onClose={closeSubmitModal}
-          onSubmit={(dto) => submitArtifact(submittingTask.id, dto)}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {isSubmitModalOpen && submittingTask && (
+          <SubmitArtifactModal
+            key="submit-artifact"
+            task={submittingTask}
+            submitting={pendingTaskIds.includes(submittingTask.id)}
+            onClose={closeSubmitModal}
+            onSubmit={(dto) => submitArtifact(submittingTask.id, dto)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Popovers for Ghosts in Graph View */}
-      {popover?.type === 'info' &&
-        popover.id &&
-        tree?.[popover.id]?.kind === 'ghost' && (
-          <Popover x={popover.x} y={popover.y} w={290} onClose={() => setPopover(null)}>
-            <GhostInfo node={tree[popover.id] as GhostGraphNode} />
+      <AnimatePresence mode="wait">
+        {popover?.type === 'info' &&
+          popover.id &&
+          tree?.[popover.id]?.kind === 'ghost' && (
+            <Popover key="ghost-info" x={popover.x} y={popover.y} w={290} onClose={() => setPopover(null)}>
+              <GhostInfo node={tree[popover.id] as GhostGraphNode} />
+            </Popover>
+          )}
+
+        {popover?.type === 'picker' && (
+          <Popover key="ghost-picker" x={popover.x} y={popover.y} w={310} onClose={() => setPopover(null)}>
+            <GhostPicker
+              trees={trees}
+              currentPhase={selectedPhaseId ?? ''}
+              anchorId={popover.anchorId}
+              onConfirm={addGhost}
+              onClose={() => setPopover(null)}
+            />
           </Popover>
         )}
+      </AnimatePresence>
 
-      {popover?.type === 'picker' && (
-        <Popover x={popover.x} y={popover.y} w={310} onClose={() => setPopover(null)}>
-          <GhostPicker
-            trees={trees}
-            currentPhase={selectedPhaseId ?? ''}
-            anchorId={popover.anchorId}
-            onConfirm={addGhost}
-            onClose={() => setPopover(null)}
-          />
-        </Popover>
-      )}
+      {/* Redesigned 3-Step Add Ghost Node Modal */}
+      <AddGhostModal
+        isOpen={isGhostModalOpen}
+        onClose={() => {
+          setIsGhostModalOpen(false)
+          setGhostAnchorTaskId(undefined)
+        }}
+        currentPhaseId={selectedPhaseId ?? ''}
+        anchorTaskId={ghostAnchorTaskId}
+        onAttach={async (payload) => {
+          if (!selectedPhaseId) return
+          await workflowService.attachGhostNode(selectedPhaseId, payload)
+          setIsGhostModalOpen(false)
+          setGhostAnchorTaskId(undefined)
+        }}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

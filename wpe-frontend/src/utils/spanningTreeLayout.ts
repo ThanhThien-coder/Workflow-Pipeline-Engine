@@ -7,6 +7,8 @@ export const CARD_DIMENSIONS = {
   TRACK_HEIGHT: 64,
   ROOT_WIDTH: 180,
   ROOT_HEIGHT: 60,
+  GHOST_WIDTH: 240,
+  GHOST_HEIGHT: 110,
   GAP_Y: 16,         // Khoảng cách theo trục Y giữa 2 card lá kề nhau
   TRACK_SPACING: 48, // Khoảng cách bổ sung giữa 2 cụm track của Root
   LEVEL_STEP_X: 280, // Khoảng cách cột X theo từng cấp level (Ví dụ: 40, 320, 600, 880, 1160...)
@@ -25,11 +27,12 @@ export const GAP = 10
 export const ROOT_H = CARD_DIMENSIONS.ROOT_HEIGHT
 export const TRACK_H = CARD_DIMENSIONS.TRACK_HEIGHT
 export const TASK_H = CARD_DIMENSIONS.TASK_HEIGHT
+export const GHOST_H = CARD_DIMENSIONS.GHOST_HEIGHT
 export const W = {
   track: CARD_DIMENSIONS.TRACK_WIDTH,
   task: CARD_DIMENSIONS.TASK_WIDTH,
   root: CARD_DIMENSIONS.ROOT_WIDTH,
-  ghost: CARD_DIMENSIONS.TASK_WIDTH,
+  ghost: CARD_DIMENSIONS.GHOST_WIDTH,
 } as const
 
 export function childrenOf(nodes: GraphNodeMap, id: string): GraphNode[] {
@@ -306,14 +309,15 @@ export function calculatePhaseGraphLayout(
     childrenMap[rootNode.id].push(track)
   })
 
-  // Non-track branch nodes and ghost nodes
-  const nonTrackNodes = nodeList.filter(
-    (n) => n.kind !== 'root' && !(n.kind === 'branch' && Boolean((n as BranchGraphNode).isTrack))
+  // Non-track branch nodes (exclude ghost nodes from tree hierarchy)
+  const branchTasks = nodeList.filter(
+    (n): n is BranchGraphNode =>
+      n.kind === 'branch' && !Boolean((n as BranchGraphNode).isTrack)
   )
 
-  nonTrackNodes.forEach((node) => {
+  branchTasks.forEach((node) => {
     let parentId: string | null = null
-    const candParent = (node as BranchGraphNode).parentId || node.parentIds[0]
+    const candParent = node.parentId || node.parentIds[0]
 
     if (candParent && candParent !== node.id && nodes[candParent]) {
       if (!isAncestor(nodes, node.id, candParent)) {
@@ -351,6 +355,7 @@ export function calculatePhaseGraphLayout(
     if (node.width) return node.width
     if (node.kind === 'root') return CARD_DIMENSIONS.ROOT_WIDTH
     if (node.kind === 'branch' && node.isTrack) return CARD_DIMENSIONS.TRACK_WIDTH
+    if (node.kind === 'ghost') return CARD_DIMENSIONS.GHOST_WIDTH
     return CARD_DIMENSIONS.TASK_WIDTH
   }
 
@@ -358,6 +363,7 @@ export function calculatePhaseGraphLayout(
     if (node.height) return node.height
     if (node.kind === 'root') return CARD_DIMENSIONS.ROOT_HEIGHT
     if (node.kind === 'branch' && node.isTrack) return CARD_DIMENSIONS.TRACK_HEIGHT
+    if (node.kind === 'ghost') return CARD_DIMENSIONS.GHOST_HEIGHT
     return CARD_DIMENSIONS.TASK_HEIGHT
   }
 
@@ -502,7 +508,7 @@ export function calculatePhaseGraphLayout(
   // Execute recursive layout starting at root (Level 0: X = 40, Y = 60)
   layoutSubtree(rootNode.id, 0, CARD_DIMENSIONS.START_X, CARD_DIMENSIONS.START_Y)
 
-  // 5. Generate primary SVG Bézier edges (from parent right to child left)
+  // 5. Generate primary SVG Bézier edges for spanning tree (from parent right to child left)
   placedIds.forEach((childId) => {
     if (childId === rootNode.id) return
     const parentId = parentMap[childId]
@@ -519,21 +525,108 @@ export function calculatePhaseGraphLayout(
     const midX = (startX + endX) / 2
     const d = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`
 
-    const isGhost = nodes[childId]?.kind === 'ghost' || nodes[parentId]?.kind === 'ghost'
-
     layoutEdges.push({
       id: `edge-${parentId}-${childId}`,
       sourceId: parentId,
       targetId: childId,
       d,
       direct: true,
-      isGhost,
+      isGhost: false,
     })
   })
 
-  // 6. Add secondary prerequisite edges (AND-Join, cross-track, ghost dependencies)
+  // 6. Anchor Ghost Nodes strictly to the RIGHT of their dependent target task
+  // Rule: Ghost nodes are external prerequisites anchored to the right of the task they guard.
+  // Floating or unanchored ghost nodes are discarded.
+  const ghostNodes = nodeList.filter(
+    (n): n is GhostGraphNode => n.kind === 'ghost'
+  )
+
+  const ghostsByTarget: Record<string, GhostGraphNode[]> = {}
+
+  ghostNodes.forEach((ghost) => {
+    let targetTaskId = ghost.targetTaskId
+    if (!targetTaskId) {
+      // Find candidate target from parentIds pointing to a branch task
+      targetTaskId = ghost.parentIds.find(
+        (p) => p !== 'root' && nodePosMap[p] && nodes[p]?.kind === 'branch'
+      )
+    }
+    if (!targetTaskId) {
+      // Find candidate target from any branch task that has this ghost in its parentIds
+      targetTaskId = Object.values(nodes).find(
+        (n) => n.kind === 'branch' && n.parentIds.includes(ghost.id)
+      )?.id
+    }
+
+    if (targetTaskId && nodePosMap[targetTaskId]) {
+      if (!ghostsByTarget[targetTaskId]) {
+        ghostsByTarget[targetTaskId] = []
+      }
+      ghostsByTarget[targetTaskId].push(ghost)
+    }
+  })
+
+  const GHOST_OFFSET_X = 60
+  const GHOST_GAP_Y = 12
+
+  Object.entries(ghostsByTarget).forEach(([targetTaskId, attachedGhosts]) => {
+    const targetPos = nodePosMap[targetTaskId]
+    if (!targetPos) return
+
+    const count = attachedGhosts.length
+    const ghostH = CARD_DIMENSIONS.GHOST_HEIGHT
+    const ghostW = CARD_DIMENSIONS.GHOST_WIDTH
+    const totalH = count * ghostH + (count - 1) * GHOST_GAP_Y
+    const startY = targetPos.centerY - totalH / 2
+
+    attachedGhosts.forEach((ghost, idx) => {
+      const ghostX = targetPos.right + GHOST_OFFSET_X
+      const ghostY = startY + idx * (ghostH + GHOST_GAP_Y)
+      const centerY = ghostY + ghostH / 2
+
+      const ghostLayoutNode: GraphLayoutNode = {
+        ...ghost,
+        id: ghost.id,
+        x: ghostX,
+        y: ghostY,
+        width: ghostW,
+        height: ghostH,
+        left: ghostX,
+        right: ghostX + ghostW,
+        centerY,
+        level: targetPos.level + 1,
+        order: idx,
+        type: 'ghost',
+        trackId: targetPos.trackId,
+      }
+
+      layoutNodes.push(ghostLayoutNode)
+      nodePosMap[ghost.id] = ghostLayoutNode
+      placedIds.add(ghost.id)
+
+      // Cubic Bezier curve connecting target task right to ghost node left:
+      // M (targetX) (targetY) C (targetX + 50) (targetY), (ghostX - 50) (ghostY), (ghostX) (ghostY)
+      const targetX = targetPos.right
+      const targetY = targetPos.centerY
+      const gX = ghostLayoutNode.left
+      const gY = ghostLayoutNode.centerY
+      const d = `M ${targetX} ${targetY} C ${targetX + 50} ${targetY}, ${gX - 50} ${gY}, ${gX} ${gY}`
+
+      layoutEdges.push({
+        id: `ghost-edge-${targetTaskId}-${ghost.id}`,
+        sourceId: targetTaskId,
+        targetId: ghost.id,
+        d,
+        direct: false,
+        isGhost: true,
+      })
+    })
+  })
+
+  // 7. Add secondary prerequisite edges between branch tasks (AND-Join, cross-track)
   nodeList.forEach((n) => {
-    if (n.kind === 'root') return
+    if (n.kind !== 'branch') return
     const childPos = nodePosMap[n.id]
     if (!childPos) return
 
@@ -541,6 +634,8 @@ export function calculatePhaseGraphLayout(
 
     n.parentIds.forEach((pId) => {
       if (pId === primaryParent || pId === 'root') return
+      // Skip ghost parents since they are connected by right-anchored ghost edges
+      if (nodes[pId]?.kind === 'ghost') return
       const parentPos = nodePosMap[pId]
       if (!parentPos) return
 
@@ -558,26 +653,26 @@ export function calculatePhaseGraphLayout(
         d = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`
       }
 
-      const isGhost = n.kind === 'ghost' || nodes[pId]?.kind === 'ghost'
-
       layoutEdges.push({
         id: `edge-${pId}-${n.id}`,
         sourceId: pId,
         targetId: n.id,
         d,
         direct: false,
-        isGhost,
+        isGhost: false,
       })
     })
   })
 
-  // 7. Safety fallback: Place any unplaced / disconnected nodes
+  // 8. Safety fallback: Place any unplaced / disconnected branch nodes only
+  // (Loose, unanchored ghost nodes are explicitly discarded per specification)
   let fallbackY = Math.max(
     ...layoutNodes.map((n) => n.y + n.height),
     CARD_DIMENSIONS.START_Y
   ) + CARD_DIMENSIONS.GAP_Y
 
   nodeList.forEach((n) => {
+    if (n.kind === 'ghost') return // Exclude unanchored ghost nodes from fallback
     if (!nodePosMap[n.id]) {
       const visualW = getVisualWidth(n)
       const visualH = getVisualHeight(n)
@@ -601,8 +696,6 @@ export function calculatePhaseGraphLayout(
             ? 'root'
             : (n as BranchGraphNode).isTrack
             ? 'track'
-            : n.kind === 'ghost'
-            ? 'ghost'
             : 'task',
         trackId:
           (n as BranchGraphNode).trackId ||
