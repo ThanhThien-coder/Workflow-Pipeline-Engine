@@ -26,6 +26,40 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.FORBIDDEN.value(),
+            ex.getErrorCode(),
+            ex.getMessage(),
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.UNAUTHORIZED.value(),
+            "UNAUTHORIZED",
+            ex.getMessage(),
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(CooldownActiveException.class)
+    public ResponseEntity<ErrorResponse> handleCooldownActive(CooldownActiveException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.withRetryAfter(
+            HttpStatus.TOO_MANY_REQUESTS.value(),
+            "COOLDOWN_ACTIVE",
+            ex.getMessage(),
+            request.getRequestURI(),
+            ex.getRemainingSeconds()
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
+    }
+
     @ExceptionHandler(CycleDetectedException.class)
     public ResponseEntity<ErrorResponse> handleCycleDetected(CycleDetectedException ex, HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.withCycle(
@@ -68,6 +102,7 @@ public class GlobalExceptionHandler {
             "Dữ liệu gửi lên không hợp lệ",
             request.getRequestURI(),
             validationErrors,
+            null,
             null
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);

@@ -55,6 +55,12 @@ app:
       notification-all: wpe.notification.#
       ai-diagnostics: wpe.ai.diagnostics
       dead-letter: wpe.workflow.dlq.key
+  security:
+    debug-user-id-enabled: true
+    default-debug-user-id: 2
+  ai:
+    cooldown-seconds: 180
+    service-url: ${AI_SERVICE_URL:http://localhost:8081}
 
 # Cấu hình Token bảo mật JWT
 jwt:
