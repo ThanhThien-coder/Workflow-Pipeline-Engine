@@ -167,6 +167,10 @@ Khi một nút đạt trạng thái `DONE`, Engine kích hoạt luồng quét to
 * Nhằm phục vụ kịch bản thành viên cần làm trước bằng mock data khi task cha chưa xong, Project Owner được cung cấp nút **"Force Unlock"**.
 * Bấm Force Unlock lập tức chuyển task từ `LOCKED` sang `TODO` và ghi log audit mà không phá vỡ liên kết DAG.
 
+### 3.5 Đồng bộ Thời gian thực qua Server-Sent Events (SSE)
+* Ngay khi nút con được chuyển trạng thái từ `LOCKED` sang `TODO` (qua hội tụ AND/OR Join hoặc Force Unlock), hệ thống tự động đẩy sự kiện `TASK_UNLOCKED` kèm `KanbanTaskResponse` qua `SseEmitterService` xuống trình duyệt của người phụ trách (`assigned_user_id`).
+* Thẻ công việc tự động nạp vào cột TODO trên bảng Kanban của người dùng trong thời gian thực mà không yêu cầu tải lại trang (Zero-Reload Experience).
+
 ---
 
 ## 4. Thuật toán Sắp xếp Topo & Phát hiện Chu trình (Kahn's DAG Algorithm)

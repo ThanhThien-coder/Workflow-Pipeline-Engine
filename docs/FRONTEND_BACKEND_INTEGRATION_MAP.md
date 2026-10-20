@@ -711,8 +711,32 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      - Nếu thỏa mãn:
        - Cập nhật `UPDATE NODE SET status = 'TODO', updated_at = NOW() WHERE id = :childId`.
        - Bắn `NotificationEvent` vào RabbitMQ gửi cho `assigned_user_id`: "Tác vụ [Title] đã sẵn sàng để thực hiện!".
+       - Đẩy sự kiện Real-time `TASK_UNLOCKED` qua `SseEmitterService` xuống trực tiếp phiên làm việc của `assigned_user_id`.
 4. **Response DTO & UI Mutation**:
-   - Dữ liệu trả về qua WebSocket hoặc được nạp lại ở lần fetch tiếp theo: Task mới xuất hiện ngay tại cột TODO của người phụ trách.
+   - Dữ liệu đẩy thời gian thực qua `SseEmitter`: Frontend lắng nghe qua `EventSource` bắt sự kiện `TASK_UNLOCKED`, tự động đưa thẻ task vào cột TODO và nảy Toast thông báo xanh mà **không cần reload (F5) trang**.
+
+---
+
+### 5.7 Đăng ký kênh Real-time Stream Server-Sent Events (`GET /api/v1/realtime/subscribe?userId={userId}`)
+1. **Mục tiêu Nghiệp vụ**: Thiết lập đường ống truyền dữ liệu thời gian thực 1 chiều từ Spring Boot xuống trình duyệt Client. Khi có sự kiện mở khóa task, đổi trạng thái Kanban, hoặc có thông báo chuông, Server lập tức phát tín hiệu xuống Client đang mở.
+2. **Luồng Mã Nguồn**:
+   - `src/components/common/NotificationBell.tsx` / `PhaseKanbanBoard.tsx` -> Khởi tạo `new EventSource('/api/v1/realtime/subscribe?userId=' + currentUser.id)` -> Lắng nghe các event: `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `NOTIFICATION_RECEIVED`.
+3. **Request DTO**:
+   - **Method & URL**: `GET /api/v1/realtime/subscribe?userId={userId}`
+   - **Headers**: `Accept: text/event-stream`
+4. **Xử lý Backend**:
+   - Khởi tạo đối tượng `SseEmitter` với thời gian sống (timeout 30 phút).
+   - Lưu trữ `emitter` vào `ConcurrentHashMap<Long, SseEmitter>` trong `SseEmitterService`.
+   - Đăng ký hook dọn dẹp `onCompletion`, `onTimeout`, `onError` để gỡ bỏ khi tab trình duyệt đóng.
+   - Gửi sự kiện khởi tạo ban đầu: `data: "Connected successfully"`.
+5. **Response Stream & UI Mutation**:
+   - **Status Code**: `200 OK` (Content-Type: `text/event-stream`).
+   - **Cấu trúc sự kiện đẩy xuống**:
+     ```text
+     event: TASK_UNLOCKED
+     data: {"id":"4","code":"WPE-004","title":"Kahn Algorithm DAG","status":"TODO","version":0}
+     ```
+   - **UI Mutation**: Frontend tự động cập nhật State trong Zustand Store (`useWorkflowStore`), vẽ lại card trên cột TODO và phát âm thanh/hiệu ứng chuông thông báo.
 
 ---
 

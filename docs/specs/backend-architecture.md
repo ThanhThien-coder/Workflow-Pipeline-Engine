@@ -212,6 +212,15 @@ src/main/java/com/pipeline/wpe/
 
 ---
 
+### 3.10 Tầng Real-time Stream với `SseEmitter` (Server-Sent Events) — Đẩy Dữ Liệu Thời Gian Thực Xuống Trình Duyệt
+* **Nó là gì?**: Công nghệ truyền dữ liệu thời gian thực 1 chiều từ Server xuống Client qua giao thức HTTP thuần (`text/event-stream`), tích hợp sẵn trong Spring Web (`org.springframework.web.servlet.mvc.method.annotation.SseEmitter`).
+* **Tại sao hệ thống cần SseEmitter thay vì WebSocket?**:
+  1. **Tối ưu kiến trúc 1 chiều**: Client gửi thao tác đổi trạng thái qua các HTTP REST API (`POST`, `PATCH`) chuẩn hóa. Client không cần gửi dữ liệu qua Socket. Client chỉ cần nhận tín hiệu từ Server khi có sự kiện mở khóa hoặc cập nhật task.
+  2. **Giải phóng người dùng khỏi việc tự F5 (Manual Reload)**: Khi RabbitMQ Worker hoàn tất mở khóa downstream nodes (từ `LOCKED` sang `TODO`), hệ thống gọi `SseEmitterService.sendToUser(assigneeId, "TASK_UNLOCKED", taskDto)` bắn thẳng dữ liệu xuống tab trình duyệt đang mở của thành viên. Card task tự động xuất hiện trên cột TODO mà người dùng không cần reload trang.
+  3. **Không cần cài thêm thư viện phụ thuộc**: Backend sử dụng `SseEmitter` có sẵn trong Spring Web; Frontend React sử dụng chuẩn HTML5 `new EventSource('/api/v1/realtime/subscribe?userId=...')` có sẵn trên mọi trình duyệt với khả năng tự động Reconnect khi mất mạng.
+
+---
+
 ## 4. Minh họa Vòng đời của 1 Request Thực tế (Walkthrough Example)
 
 Hãy xem chuyện gì xảy ra khi một Thành viên bấm nút **"Nộp bài nghiệm thu"** trên bảng Kanban:
