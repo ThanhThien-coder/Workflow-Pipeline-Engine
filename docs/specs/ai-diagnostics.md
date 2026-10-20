@@ -24,7 +24,7 @@ Khác biệt hoàn toàn với các mô hình AI "bấm nút thụ động" (Pas
 Nhằm loại bỏ hoàn toàn tình trạng **AI sinh ra đồ thị rác (AI Slop)**, sai lệch ngữ cảnh (ví dụ: yêu cầu làm E-commerce lại sinh ra Quản lý lớp học), quy trình sinh đồ thị được chia làm 2 pha nghiêm ngặt:
 
 ```text
-[Người dùng nhập Prompt mô tả yêu cầu]
+[Người dùng nhập Prompt mô tả yêu cầu]V
                     │
                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
