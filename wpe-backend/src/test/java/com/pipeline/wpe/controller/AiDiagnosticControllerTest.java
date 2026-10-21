@@ -57,7 +57,7 @@ class AiDiagnosticControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.analyzedAt").exists());
     }
-
+//hihi
     @Test
     @DisplayName("POST /api/v1/projects/{id}/ai-diagnostics - Cooldown còn hiệu lực trả về 429 COOLDOWN_ACTIVE")
     void testTriggerAiDiagnostics_CooldownActive() throws Exception {
