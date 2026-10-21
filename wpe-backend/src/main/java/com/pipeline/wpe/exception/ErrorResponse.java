@@ -13,7 +13,8 @@ public record ErrorResponse(
     String message,
     String path,
     List<ValidationErrorItem> validationErrors,
-    List<String> cycleNodes
+    List<String> cycleNodes,
+    Long retryAfterSeconds
 ) {
     public record ValidationErrorItem(
         String field,
@@ -22,10 +23,14 @@ public record ErrorResponse(
     ) {}
 
     public static ErrorResponse of(int status, String error, String message, String path) {
-        return new ErrorResponse(Instant.now(), status, error, message, path, null, null);
+        return new ErrorResponse(Instant.now(), status, error, message, path, null, null, null);
     }
 
     public static ErrorResponse withCycle(int status, String error, String message, String path, List<String> cycleNodes) {
-        return new ErrorResponse(Instant.now(), status, error, message, path, null, cycleNodes);
+        return new ErrorResponse(Instant.now(), status, error, message, path, null, cycleNodes, null);
+    }
+
+    public static ErrorResponse withRetryAfter(int status, String error, String message, String path, Long retryAfterSeconds) {
+        return new ErrorResponse(Instant.now(), status, error, message, path, null, null, retryAfterSeconds);
     }
 }

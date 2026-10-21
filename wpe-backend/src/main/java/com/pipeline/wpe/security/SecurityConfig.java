@@ -34,9 +34,9 @@ public class SecurityConfig {
                     "/v3/api-docs.yaml"
                 ).permitAll()
                 // Công khai Auth API
-                .requestMatchers("/api/v1/auth/**").permitAll()
+                .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
                 // Công khai Guest Link & Health check
-                .requestMatchers("/api/v1/guest/**", "/actuator/**", "/error").permitAll()
+                .requestMatchers("/api/v1/guest/**", "/api/guest/**", "/actuator/**", "/error").permitAll()
                 // Mọi API khác tạm thời yêu cầu xác thực hoặc mở theo cấu hình
                 .anyRequest().permitAll() // Tạm permitAll trong giai đoạn dev skeleton để team test thoải mái
             );
