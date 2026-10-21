@@ -21,3 +21,4 @@ public record GuestAccessResponse(
         return new GuestAccessResponse(false, null, null, null);
     }
 }
+

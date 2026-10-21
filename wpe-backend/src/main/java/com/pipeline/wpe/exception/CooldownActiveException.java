@@ -12,3 +12,4 @@ public class CooldownActiveException extends RuntimeException {
         return remainingSeconds;
     }
 }
+

@@ -70,3 +70,4 @@ public class GuestGatewayController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
+

@@ -74,3 +74,4 @@ public record GuestOverviewResponse(
         String url
     ) {}
 }
+

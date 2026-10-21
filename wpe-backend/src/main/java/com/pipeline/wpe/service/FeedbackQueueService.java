@@ -165,3 +165,4 @@ public class FeedbackQueueService {
         return new ResolveFeedbackResponse(true, feedback.getId(), FeedbackStatus.RESOLVED);
     }
 }
+

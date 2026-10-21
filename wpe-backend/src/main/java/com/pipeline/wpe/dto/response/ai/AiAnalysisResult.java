@@ -67,3 +67,4 @@ public record AiAnalysisResult(
         String priority
     ) {}
 }
+

@@ -23,3 +23,4 @@ public interface AiServiceClient {
      */
     Map<String, Object> requestDiagnosis(ProjectEntity project, List<NodeEntity> nodes, List<ProjectFeedbackEntity> openFeedbacks);
 }
+

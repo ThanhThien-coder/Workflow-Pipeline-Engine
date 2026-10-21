@@ -136,3 +136,4 @@ class AiDiagnosticServiceTest {
         verify(projectRepository, never()).save(any());
     }
 }
+

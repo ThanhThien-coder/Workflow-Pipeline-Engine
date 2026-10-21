@@ -23,3 +23,4 @@ public record CreateGuestFeedbackRequest(
     @Schema(description = "ID nút công việc được tham chiếu (tùy chọn)", example = "2")
     Long nodeId
 ) {}
+

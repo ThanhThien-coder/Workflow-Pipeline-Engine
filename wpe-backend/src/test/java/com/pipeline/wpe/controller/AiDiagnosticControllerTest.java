@@ -70,3 +70,4 @@ class AiDiagnosticControllerTest {
             .andExpect(jsonPath("$.retryAfterSeconds").value(145));
     }
 }
+

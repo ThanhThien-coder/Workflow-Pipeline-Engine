@@ -102,3 +102,4 @@ public class AiServiceClientImpl implements AiServiceClient {
         return result;
     }
 }
+

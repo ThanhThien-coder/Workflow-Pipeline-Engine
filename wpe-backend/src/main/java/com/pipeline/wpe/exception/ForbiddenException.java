@@ -17,3 +17,4 @@ public class ForbiddenException extends RuntimeException {
         return errorCode;
     }
 }
+

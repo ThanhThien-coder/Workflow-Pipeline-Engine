@@ -13,3 +13,4 @@ public record ResolveFeedbackResponse(
     @Schema(description = "Trạng thái mới", example = "RESOLVED")
     FeedbackStatus status
 ) {}
+

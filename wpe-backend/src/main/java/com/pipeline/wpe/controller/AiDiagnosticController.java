@@ -32,3 +32,4 @@ public class AiDiagnosticController {
         return ResponseEntity.ok(response);
     }
 }
+

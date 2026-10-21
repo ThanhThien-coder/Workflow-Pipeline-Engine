@@ -130,3 +130,4 @@ class GuestGatewayControllerTest {
             .andExpect(jsonPath("$.error").value("VALIDATION_FAILED"));
     }
 }
+

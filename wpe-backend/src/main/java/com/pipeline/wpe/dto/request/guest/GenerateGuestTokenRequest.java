@@ -14,3 +14,4 @@ public record GenerateGuestTokenRequest(
         return (expiryDays != null && expiryDays > 0) ? expiryDays : 30;
     }
 }
+

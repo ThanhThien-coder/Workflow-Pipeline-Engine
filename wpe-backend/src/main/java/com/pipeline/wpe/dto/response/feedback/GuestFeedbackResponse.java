@@ -31,3 +31,4 @@ public record GuestFeedbackResponse(
     @Schema(description = "Thời gian gửi")
     Instant createdAt
 ) {}
+
