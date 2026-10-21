@@ -166,7 +166,7 @@ Phần của Dev D đã được thiết kế phân tách ranh giới độc l�
     app:
       security:
         debug-user-id-enabled: false
-    ```
+    ```'
 
 ### 🔹 4.3 Khi nhóm AI gửi Contract & Endpoint chính thức:
 - Mở file [`AiServiceClientImpl.java`](file:///c:/STUDY/OOAD/Workflow-Pipeline-Engine/wpe-backend/src/main/java/com/pipeline/wpe/service/ai/AiServiceClientImpl.java):
