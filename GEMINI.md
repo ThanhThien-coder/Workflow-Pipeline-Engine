@@ -42,6 +42,7 @@ Toàn bộ thông số kỹ thuật chuẩn (Single Source of Truth - SSOT) nằ
 | **Backend Architecture** | Hướng dẫn phân tầng Spring Boot 3 & cẩm nang vận hành thư mục | [backend-architecture.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/backend-architecture.md) |
 | **FE-BE Integration Map** | Cẩm nang tích hợp chi tiết 10 cụm nghiệp vụ, 27 tính năng, DTO & Error Map | [FRONTEND_BACKEND_INTEGRATION_MAP.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/FRONTEND_BACKEND_INTEGRATION_MAP.md) |
 | **Team Development Guide** | Nhập môn HTTP API & Swagger, hướng dẫn cài môi trường, luật chơi Flyway & troubleshooting | [TEAM_DEVELOPMENT_GUIDE.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/TEAM_DEVELOPMENT_GUIDE.md) |
+| **Dev D Handover Guide** | Báo cáo chi tiết các API Cụm 7, 8, 9, danh sách 32 file và cẩm nang bàn giao | [DEV_D_IMPLEMENTATION_REPORT.md](file:///c:/STUDY/OOAD/Workflow-Pipeline-Engine/docs/DEV_D_IMPLEMENTATION_REPORT.md) |
 
 ---
 
