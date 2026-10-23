@@ -21,6 +21,8 @@ import org.springframework.stereotype.Component;
 public class WorkflowEventConsumer {
 
     private final NotificationRepository notificationRepository;
+    private final com.pipeline.wpe.service.engine.StateMachineService stateMachineService;
+    private final SseEmitterService sseEmitterService;
 
     /**
      * 1. Hứng sự kiện Task DONE để tự động mở khóa các node con theo thuật toán DAG (AND/OR join).
@@ -31,10 +33,12 @@ public class WorkflowEventConsumer {
         log.info("Processing TaskCompletedEvent in background: Task ID={}, Code={}, Project ID={}",
                 event.taskId(), event.taskCode(), event.projectId());
 
-        // Do Thành viên C (Dev C) phụ trách triển khai:
-        // 1. Quét danh sách các con trực tiếp trong bảng NODE_DEPENDENCY.
-        // 2. Kiểm tra join_policy (ALL_COMPLETED: tất cả cha đều DONE; ANY_COMPLETED: ít nhất 1 cha DONE).
-        // 3. Nếu thỏa điều kiện, chuyển NODE.status = 'TODO' và bắn NotificationEvent cho Assignee.
+        try {
+            stateMachineService.unlockDownstreamTasks(event.taskId());
+        } catch (Exception e) {
+            log.error("Lỗi khi mở khóa downstream tasks cho Task ID [{}]: {}", event.taskId(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
@@ -54,8 +58,11 @@ public class WorkflowEventConsumer {
                         .linkUrl(event.targetUrl())
                         .isRead(false)
                         .build();
-                notificationRepository.save(notification);
-                log.info("Saved notification ID: {} for user: {}", notification.getId(), event.recipientUserId());
+                NotificationEntity saved = notificationRepository.save(notification);
+                log.info("Saved notification ID: {} for user: {}", saved.getId(), event.recipientUserId());
+
+                // Đẩy thông báo thời gian thực xuống client qua SSE
+                sseEmitterService.sendToUser(event.recipientUserId(), "NOTIFICATION_RECEIVED", saved);
             } catch (Exception e) {
                 log.error("Failed to persist notification in background: {}", e.getMessage(), e);
             }
