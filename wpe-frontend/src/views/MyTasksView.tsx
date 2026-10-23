@@ -4,6 +4,8 @@ import { KanbanToolbar } from '../components/kanban/KanbanToolbar'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { SubmitArtifactModal } from '../components/kanban/SubmitArtifactModal'
 import { TaskDetailModal } from '../components/kanban/TaskDetailModal'
+import { workflowService } from '../services/container'
+import { HttpWorkflowService } from '../services/impl/HttpWorkflowService'
 
 export function MyTasksView({
   projectId = '1',
@@ -47,6 +49,18 @@ export function MyTasksView({
     const defaultUserId = String(currentUser?.id || '1')
     void setUserId(projectId, defaultUserId)
   }, [projectId, currentUser?.id, setUserId])
+
+  // Tự động kết nối đường ống Real-time SSE để nhận sự kiện Task Unlocked/Status Changed
+  useEffect(() => {
+    if (workflowService instanceof HttpWorkflowService) {
+      const unsubscribe = workflowService.connectRealtime(userId, (eventName, data) => {
+        if (eventName === 'TASK_UNLOCKED' || eventName === 'TASK_STATUS_CHANGED' || eventName === 'TASK_REJECTED') {
+          void loadTasks(projectId)
+        }
+      })
+      return () => unsubscribe()
+    }
+  }, [userId, projectId, loadTasks])
 
   const visible = useMemo(() => {
     const keyword = query.trim().toLowerCase()

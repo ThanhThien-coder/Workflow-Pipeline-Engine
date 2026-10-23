@@ -65,6 +65,13 @@ public class NodeEntity {
     @Builder.Default
     private Boolean isOverdue = false;
 
+    @Column(name = "estimated_hours", nullable = false)
+    @Builder.Default
+    private Integer estimatedHours = 8;
+
+    @Column(name = "started_at")
+    private Instant startedAt;
+
     @Version
     @Column(nullable = false)
     @Builder.Default

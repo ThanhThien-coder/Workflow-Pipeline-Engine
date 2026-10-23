@@ -1,4 +1,5 @@
 import { MockWorkflowService } from './MockWorkflowService'
+import { HttpWorkflowService } from './impl/HttpWorkflowService'
 import type { IWorkflowService } from './contracts/IWorkflowService'
 import { MockGuestApi } from './mock/MockWorkflowService.guest'
 import type { IGuestService } from './contracts/IGuestService'
@@ -20,8 +21,10 @@ export interface ServiceContainer {
   notificationService: INotificationService
 }
 
+const isMock = import.meta.env.VITE_USE_MOCK !== 'false'
+
 export const container: ServiceContainer = {
-  workflowService: new MockWorkflowService(),
+  workflowService: isMock ? new MockWorkflowService() : new HttpWorkflowService(),
   guestService: new MockGuestApi(),
   profileService: new MockProfileApi(),
   adminService: new MockAdminService(),

@@ -22,4 +22,6 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
     List<NodeEntity> findByProjectIdAndStatus(Long projectId, NodeStatus status);
     long countByProjectIdAndStatus(Long projectId, NodeStatus status);
     long countByProjectId(Long projectId);
+
+    List<NodeEntity> findByStatusAndDueDateBeforeAndIsOverdueFalse(NodeStatus status, java.time.Instant now);
 }
