@@ -60,12 +60,27 @@
 
 ---
 
-### 6. Bảng `PROJECT_INVITATION` - Mời Thành Viên (Câu 4) (ĐÃ CHỐT: XÓA BỎ BẢNG)
-* **Kết luận:** **XÓA BỎ HOÀN TOÀN BẢNG `PROJECT_INVITATION`**.
-* **Quyết định của Nhóm:**
-  * Chỉ hỗ trợ thêm những người đã có tài khoản trong hệ thống (Direct Add).
-  * Chủ dự án vào Settings gõ username/email $\rightarrow$ thêm thẳng vào `PROJECT_MEMBER`. Hệ thống đồng thời gửi 1 thông báo vào bảng `NOTIFICATION` cho người đó.
-  * Không làm luồng gửi mail/token phức tạp như GitHub để tiết kiệm thời gian code và tránh phiền toái.
+### 6. Bảng `PROJECT_INVITATION` - Quy Trình Mời Thành Viên Bất Đồng Bộ & Deep-Link (Câu 4) (ĐÃ CHỐT: TÁI THIẾT LẬP BẢNG)
+* **Kết luận:** **TÁI THIẾT LẬP BẢNG `PROJECT_INVITATION`** (Bãi bỏ hoàn toàn cơ chế Direct Add không có xác nhận từ người dùng).
+* **Cấu trúc bảng:**
+  * `id`: bigint PK
+  * `project_id`: bigint FK (liên kết đến `PROJECT`, ON DELETE CASCADE)
+  * `inviter_id`: bigint FK (liên kết đến `USERS.id`, người gửi lời mời)
+  * `invitee_id`: bigint FK (liên kết đến `USERS.id`, người được mời tham gia)
+  * `role`: varchar(20) NOT NULL DEFAULT 'MEMBER' ('COLLABORATOR' hoặc 'VIEWER')
+  * `status`: varchar(20) NOT NULL DEFAULT 'PENDING' (`PENDING`, `ACCEPTED`, `REJECTED`, `REVOKED`, `EXPIRED`)
+  * `created_at`: timestamptz DEFAULT CURRENT_TIMESTAMP
+  * `responded_at`: timestamptz NULLABLE (thời điểm người dùng bấm Chấp nhận / Từ chối)
+  * `expires_at`: timestamptz NOT NULL (hạn chót phản hồi lời mời, mặc định 7 ngày)
+  * `version`: bigint NOT NULL DEFAULT 0 (Khóa lạc quan `@Version` chống Race Condition khi Owner thu hồi đồng thời với Invitee chấp thuận)
+  * **Ràng buộc:** `CONSTRAINT uq_pending_project_invitation UNIQUE (project_id, invitee_id, status)` (chống spam nhiều lời mời cùng lúc khi đang PENDING).
+  * **Chỉ mục:** `CREATE INDEX idx_invitation_invitee_status ON project_invitation(invitee_id, status);`
+* **Quy trình Mời Thành viên Chuẩn Kiến trúc:**
+  1. Chủ dự án/Admin gửi lời mời: Hệ thống tạo bản ghi `PROJECT_INVITATION` (`status = PENDING`).
+  2. Bắn sự kiện `InvitationCreatedEvent` vào RabbitMQ -> Consumer đẩy chuông thông báo `NOTIFICATION` với deep-link: `/workspace?action=open-invite-modal&invitationId={id}` và stream thời gian thực qua SSE (`SseEmitterService`).
+  3. Người được mời click thông báo -> Trình duyệt kích hoạt Popup Modal xác nhận (Accept / Decline) mà không reload trang.
+  4. Khi Accept: Giao dịch nguyên tử (Atomic `@Transactional`) kiểm tra hạn dùng, chuyển `status = ACCEPTED`, cập nhật `responded_at = NOW()`, đồng thời thêm bản ghi chính thức vào `PROJECT_MEMBER`.
+  5. Bảo mật RBAC: Người dùng có lời mời `PENDING` tuyệt đối không được truy cập tài nguyên dự án cho đến khi chấp nhận.
 
 ---
 

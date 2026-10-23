@@ -145,7 +145,7 @@ export function TaskDetailModal({
         aria-modal="true"
         aria-labelledby="task-detail-title"
         data-lenis-prevent
-        className="pop-in relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="pop-in relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         {/* ── Modal Header ── */}
         <header className="flex shrink-0 items-start justify-between border-b border-slate-100 bg-white px-6 py-4">
@@ -532,7 +532,7 @@ export function TaskDetailModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="reject-modal-title"
-            className="pop-in relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4"
+            className="pop-in relative w-full max-w-md max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">

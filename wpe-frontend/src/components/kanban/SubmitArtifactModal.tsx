@@ -39,9 +39,9 @@ export function SubmitArtifactModal({
         ref={ref}
         role="dialog"
         aria-label="Submit Deliverable"
-        className="pop-in relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="pop-in relative w-full max-w-lg max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
-        <header className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+        <header className="flex items-start justify-between border-b border-slate-100 px-5 py-4 shrink-0">
           <div>
             <h2 className="font-semibold text-slate-900">Submit Deliverable (Artifact)</h2>
             <p className="mt-1 text-xs text-slate-500">
@@ -57,7 +57,7 @@ export function SubmitArtifactModal({
             <X size={16} />
           </button>
         </header>
-        <div className="space-y-4 px-5 py-4">
+        <div className="flex-1 overflow-y-auto space-y-4 px-5 py-4">
           <label className="block text-sm font-medium text-slate-700">
             Deliverable Type <span className="text-xs font-normal text-slate-400">(Tùy chọn / Optional)</span>
             <select

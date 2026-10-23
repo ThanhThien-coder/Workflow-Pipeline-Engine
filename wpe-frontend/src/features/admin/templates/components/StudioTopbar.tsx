@@ -160,7 +160,7 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
       {/* Description Modal */}
       {isDescModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-pop">
+          <div className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-pop">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">
                 Template Description

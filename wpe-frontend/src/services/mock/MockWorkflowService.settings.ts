@@ -2,6 +2,7 @@ import type { IWorkflowService } from '../contracts/IWorkflowService'
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
+  ProjectInvitationDto,
   AuditLogItem,
   UpdateProjectCommand,
   InviteMemberCommand,
@@ -144,6 +145,22 @@ export class MockSettingsApi implements Pick<
   private project: ProjectSettingsDto = loadStoredSettings()
   private members: ProjectMemberDetail[] = structuredClone(INITIAL_MEMBERS)
   private auditLogs: AuditLogItem[] = structuredClone(INITIAL_LOGS)
+  private invitations: ProjectInvitationDto[] = [
+    {
+      id: 'inv-101',
+      projectId: '1',
+      projectName: 'Marketing Campaign Q4',
+      inviterId: '1',
+      inviterName: 'Alex Kim',
+      inviteeId: 'user-invitee-1',
+      inviteeEmail: 'sarah.chen@pipeline.engine',
+      role: 'COLLABORATOR',
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+      version: 0,
+    },
+  ]
 
   private recordLog(
     action: AuditLogAction,
@@ -251,9 +268,116 @@ export class MockSettingsApi implements Pick<
     }
 
     this.members.push(newMember)
+
+    const newInvitation: ProjectInvitationDto = {
+      id: `inv-${Date.now()}`,
+      projectId: _projectId || '1',
+      projectName: this.project.name,
+      inviterId: '1',
+      inviterName: 'Alex Kim',
+      inviteeId: newMember.userId,
+      inviteeEmail: email,
+      role: cmd.role,
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+      version: 0,
+    }
+    this.invitations.unshift(newInvitation)
+
     this.recordLog('MEMBER_INVITED', `Invited ${email} as ${cmd.role}.`, 'Access')
 
     return structuredClone(newMember)
+  }
+
+  async createProjectInvitation(projectId: string, cmd: InviteMemberCommand): Promise<ProjectInvitationDto> {
+    await mockDelay(150)
+    const raw = cmd.usernameOrEmail.trim()
+    if (!raw) throw new Error('Username or email is required')
+
+    const isEmail = raw.includes('@')
+    const username = isEmail ? raw.split('@')[0] : raw
+    const email = isEmail ? raw : `${raw.toLowerCase().replace(/\s+/g, '.')}@acme.io`
+
+    const newInvitation: ProjectInvitationDto = {
+      id: `inv-${Date.now()}`,
+      projectId: projectId || '1',
+      projectName: this.project.name,
+      inviterId: '1',
+      inviterName: 'Alex Kim',
+      inviteeId: `user-${Date.now()}`,
+      inviteeEmail: email,
+      role: cmd.role,
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+      version: 0,
+    }
+    this.invitations.unshift(newInvitation)
+    this.recordLog('MEMBER_INVITED', `Invited ${email} as ${cmd.role}.`, 'Access')
+    return structuredClone(newInvitation)
+  }
+
+  async getProjectPendingInvitations(projectId: string): Promise<ProjectInvitationDto[]> {
+    await mockDelay(80)
+    return structuredClone(this.invitations.filter((i) => i.projectId === projectId && i.status === 'PENDING'))
+  }
+
+  async getInvitation(invitationId: string): Promise<ProjectInvitationDto | null> {
+    await mockDelay(60)
+    const inv = this.invitations.find((i) => i.id === invitationId)
+    return inv ? structuredClone(inv) : null
+  }
+
+  async acceptInvitation(invitationId: string): Promise<{ success: boolean; projectId?: string }> {
+    await mockDelay(150)
+    const inv = this.invitations.find((i) => i.id === invitationId)
+    if (!inv) throw new Error('Invitation not found')
+    if (inv.status !== 'PENDING') throw new Error(`Invitation is ${inv.status}`)
+
+    inv.status = 'ACCEPTED'
+    inv.respondedAt = new Date().toISOString()
+    inv.version = (inv.version ?? 0) + 1
+
+    const colors = ['bg-indigo-500', 'bg-blue-500', 'bg-violet-500', 'bg-teal-500', 'bg-emerald-500', 'bg-rose-500']
+    const avatarClass = colors[this.members.length % colors.length]
+    const username = inv.inviteeEmail.split('@')[0]
+    const initials = username.slice(0, 2).toUpperCase() || 'U'
+
+    const newMember: ProjectMemberDetail = {
+      userId: inv.inviteeId || `usr-${Date.now()}`,
+      username,
+      email: inv.inviteeEmail,
+      role: inv.role,
+      joinedAt: new Date().toISOString(),
+      activeNodeCount: 0,
+      avatarClass,
+      initials,
+    }
+    this.members.push(newMember)
+    this.recordLog('MEMBER_INVITED', `${username} accepted invitation and joined as ${inv.role}.`, 'Access')
+    return { success: true, projectId: inv.projectId }
+  }
+
+  async rejectInvitation(invitationId: string): Promise<{ success: boolean }> {
+    await mockDelay(100)
+    const inv = this.invitations.find((i) => i.id === invitationId)
+    if (!inv) throw new Error('Invitation not found')
+    inv.status = 'REJECTED'
+    inv.respondedAt = new Date().toISOString()
+    inv.version = (inv.version ?? 0) + 1
+    return { success: true }
+  }
+
+  async revokeInvitation(_projectId: string, invitationId: string): Promise<boolean> {
+    await mockDelay(100)
+    const inv = this.invitations.find((i) => i.id === invitationId)
+    if (!inv) throw new Error('Invitation not found')
+    inv.status = 'REVOKED'
+    inv.respondedAt = new Date().toISOString()
+    inv.version = (inv.version ?? 0) + 1
+    this.recordLog('MEMBER_REMOVED', `Revoked invitation for ${inv.inviteeEmail}.`, 'Access')
+    return true
   }
 
   async changeMemberRole(_projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail> {
@@ -336,6 +460,22 @@ export class MockSettingsApi implements Pick<
     this.project = structuredClone(INITIAL_PROJECT)
     this.members = structuredClone(INITIAL_MEMBERS)
     this.auditLogs = structuredClone(INITIAL_LOGS)
+    this.invitations = [
+      {
+        id: 'inv-101',
+        projectId: '1',
+        projectName: 'Marketing Campaign Q4',
+        inviterId: '1',
+        inviterName: 'Alex Kim',
+        inviteeId: 'user-invitee-1',
+        inviteeEmail: 'sarah.chen@pipeline.engine',
+        role: 'COLLABORATOR',
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+        version: 0,
+      },
+    ]
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(SETTINGS_STORAGE_KEY)

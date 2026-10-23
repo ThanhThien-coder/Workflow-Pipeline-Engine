@@ -20,7 +20,7 @@ Khi mới vào dự án hoặc bắt đầu một phân hệ mới, **đừng nh
 [BƯỚC 3: KIẾN TRÚC]  Đọc docs/specs/backend-architecture.md (Hiểu luồng Entity ➔ Repo ➔ Service ➔ DTO ➔ Controller).
        │
        ▼
-[BƯỚC 4: TRA CỨU DB] Đọc docs/specs/database-schema.md (Hiểu cấu trúc 12 bảng 3NF & quan hệ khóa ngoại).
+[BƯỚC 4: TRA CỨU DB] Đọc docs/specs/database-schema.md (Hiểu cấu trúc 13 bảng 3NF & quan hệ khóa ngoại).
        │
        ▼
 [BƯỚC 5: HỢP ĐỒNG]   Mở docs/FRONTEND_BACKEND_INTEGRATION_MAP.md để lấy đúng URL, DTO Request/Response khi code.
@@ -370,3 +370,16 @@ Trước khi gõ lệnh `git push` và mở Pull Request vào `main`, mỗi thà
 - [ ] 5. Đã kéo code `main` mới nhất về merge/rebase để giải quyết conflict trước khi tạo PR.
 - [ ] 6. Luôn chạy `git status` trước khi push: Đảm bảo KHÔNG commit nhầm file mật khẩu (`.env`), file rác IDE (`.settings/`, `.classpath`, `.vscode/`), hoặc thư mục build (`target/`, `bin/`, `node_modules/`).
 - [ ] 7. Không tự ý sửa đổi phiên bản thư viện trong `pom.xml`, `package.json` hoặc xóa `package-lock.json` khi chưa thống nhất với cả nhóm.
+
+---
+
+## PHẦN 8: QUY TẮC NGHIỆP VỤ CHO DEV A (WORKSPACE, MEMBERS & ARTIFACTS HUB)
+
+Nhằm đảm bảo tính nhất quán kiến trúc sau khi tái thiết lập bảng `PROJECT_INVITATION`:
+1. **Bãi bỏ hoàn toàn Direct Add**: Tuyệt đối không được viết API hoặc câu lệnh INSERT trực tiếp người dùng vào `PROJECT_MEMBER` (ngoại trừ duy nhất trường hợp tự động gán tài khoản tạo dự án làm `OWNER` khi tạo Workspace).
+2. **Tuân thủ Vòng đời Lời mời (Invitation Lifecycle)**:
+   - Khi Chủ dự án mời thành viên: Gọi `POST /api/v1/projects/{projectId}/invitations` lưu vào `PROJECT_INVITATION` với `status = 'PENDING'`, `expires_at = NOW() + 7 days`.
+   - Hệ thống phát `InvitationCreatedEvent` qua RabbitMQ -> SSE đẩy chuông thông báo có deep-link `/workspace?action=open-invite-modal&invitationId={id}`.
+   - Thành viên được mời xác nhận qua Modal: `POST /api/v1/invitations/{id}/accept` (giao dịch nguyên tử đổi `ACCEPTED` và thêm vào `PROJECT_MEMBER`) hoặc `POST /api/v1/invitations/{id}/reject`.
+3. **Bảo mật RBAC**: `ProjectAuthorizationService` kiểm tra quyền dựa trên `PROJECT_MEMBER`. Người dùng chỉ có lời mời `PENDING` bị từ chối truy cập tài nguyên dự án (HTTP 403) cho đến khi bấm Chấp nhận.
+4. **Optimistic Locking**: Bắt buộc khai báo `@Version private Long version;` trên `ProjectInvitationEntity` để ngăn chặn xung đột đồng thời giữa thao tác thu hồi của Owner và thao tác chấp nhận của Invitee.

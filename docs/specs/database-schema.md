@@ -1,7 +1,7 @@
 # Database Schema Specification (SSOT — 3NF & ERD)
 
 > **Dự án**: Workflow-Pipeline-Engine  
-> **Tài liệu**: Single Source of Truth (SSOT) — Đặc tả Cơ sở Dữ liệu 12 Bảng Chuẩn hóa 3NF  
+> **Tài liệu**: Single Source of Truth (SSOT) — Đặc tả Cơ sở Dữ liệu 13 Bảng Chuẩn hóa 3NF  
 > **Hệ quản trị CSDL mục tiêu**: PostgreSQL 15+ (Hỗ trợ kiểu JSONB & Timestamp with Time Zone)  
 > **Ánh xạ tầng Backend**: Spring Boot 3 + Spring Data JPA (Hibernate 6)
 
@@ -10,8 +10,8 @@
 ## 1. Nguyên tắc Thiết kế & Chuẩn hóa (Database Principles)
 
 1. **Chuẩn hóa 3NF (Third Normal Form)**:
-   - Toàn bộ 12 bảng đều tuân thủ chuẩn 3NF, loại bỏ hoàn toàn dư thừa dữ liệu và các phụ thuộc bắc cầu (transitive dependencies).
-   - Tối ưu hóa các bảng nối quan hệ (`PROJECT_MEMBER`, `NODE_DEPENDENCY`) với ràng buộc Unique Constraint.
+   - Toàn bộ 13 bảng đều tuân thủ chuẩn 3NF, loại bỏ hoàn toàn dư thừa dữ liệu và các phụ thuộc bắc cầu (transitive dependencies).
+   - Tối ưu hóa các bảng nối quan hệ (`PROJECT_MEMBER`, `PROJECT_INVITATION`, `NODE_DEPENDENCY`) với ràng buộc Unique Constraint.
 2. **Quy ước Khóa chính (PK) & Khóa ngoại (FK)**:
    - Tất cả các trường định danh `id` đều sử dụng kiểu `bigint` tự tăng (Identity / Sequence), tương ứng kiểu `Long` trong Java.
    - Các khóa ngoại bắt buộc khai báo rõ ràng quy tắc toàn vẹn tham chiếu (Foreign Key Constraint).
@@ -27,19 +27,22 @@
 
 ---
 
-## 2. Sơ đồ Thực thể Quan hệ (Mermaid ERD — 12 Bảng Chuẩn)
+## 2. Sơ đồ Thực thể Quan hệ (Mermaid ERD — 13 Bảng Chuẩn)
 
 ```mermaid
 erDiagram
     USERS ||--o{ REFRESH_TOKEN : "has sessions"
     USERS ||--o{ PROJECT : "owns"
     USERS ||--o{ PROJECT_MEMBER : "participates"
+    USERS ||--o{ PROJECT_INVITATION : "invites (inviter)"
+    USERS ||--o{ PROJECT_INVITATION : "receives invite (invitee)"
     USERS ||--o{ PIPELINE_TEMPLATE : "creates"
     USERS ||--o{ NOTIFICATION : "receives"
     USERS ||--o{ NODE : "assigned to"
     USERS ||--o{ ARTIFACTS : "uploads"
 
     PROJECT ||--o{ PROJECT_MEMBER : "has members"
+    PROJECT ||--o{ PROJECT_INVITATION : "has invitations"
     PROJECT ||--o{ WORK_PHASE : "structured into"
     PROJECT ||--o{ NODE : "contains"
     PROJECT ||--o{ NODE_DEPENDENCY : "defines DAG"
@@ -94,6 +97,19 @@ erDiagram
         varchar role "OWNER COLLABORATOR VIEWER"
         timestamp joined_at
         timestamp removed_at "NULL when active"
+    }
+
+    PROJECT_INVITATION {
+        bigint id PK
+        bigint project_id FK
+        bigint inviter_id FK
+        bigint invitee_id FK
+        varchar role "COLLABORATOR or VIEWER"
+        varchar status "PENDING ACCEPTED REJECTED REVOKED EXPIRED"
+        timestamp created_at
+        timestamp responded_at "nullable"
+        timestamp expires_at
+        bigint version "DEFAULT 0 optimistic lock"
     }
 
     PIPELINE_TEMPLATE {
@@ -244,7 +260,7 @@ Quản lý thông tin chung, trạng thái dự án và lưu đệm chẩn đoá
 ---
 
 ### 3.4 Bảng `PROJECT_MEMBER` (Thành viên Tham gia Dự án)
-Quản lý thành viên được kết nạp trực tiếp (Direct Add) và vai trò trong dự án.
+Quản lý thành viên chính thức đã chấp nhận lời mời tham gia dự án (hoặc Owner tạo dự án ban đầu) và vai trò trong dự án.
 
 | Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mặc Định | Ý Nghĩa Nghiệp Vụ |
 | :--- | :--- | :--- | :--- | :--- |
@@ -259,7 +275,28 @@ Quản lý thành viên được kết nạp trực tiếp (Direct Add) và vai 
 
 ---
 
-### 3.5 Bảng `PIPELINE_TEMPLATE` (Kho Mẫu Quy trình Chuẩn)
+### 3.5 Bảng `PROJECT_INVITATION` (Lời Mời Tham Gia Dự Án & Quản Lý Vòng Đời Mời Bất Đồng Bộ)
+Quản lý toàn bộ vòng đời lời mời tham gia dự án (Asynchronous Invitation Lifecycle) thay thế hoàn toàn cơ chế Direct Add cũ.
+
+| Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mặc Định | Ý Nghĩa Nghiệp Vụ |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `bigint` | PK, Auto Increment | | Khóa chính bản ghi lời mời. |
+| `project_id` | `bigint` | FK (PROJECT.id), NOT NULL | | Dự án đích mời vào (ON DELETE CASCADE). |
+| `inviter_id` | `bigint` | FK (USERS.id), NOT NULL | | Người gửi lời mời (Chủ dự án / Admin). |
+| `invitee_id` | `bigint` | FK (USERS.id), NOT NULL | | Người được mời gia nhập dự án. |
+| `role` | `varchar(20)` | NOT NULL | `'COLLABORATOR'` | Vai trò dự kiến gán: `'COLLABORATOR'`, `'VIEWER'`. |
+| `status` | `varchar(20)` | NOT NULL | `'PENDING'` | Trạng thái: `'PENDING'`, `'ACCEPTED'`, `'REJECTED'`, `'REVOKED'`, `'EXPIRED'`. |
+| `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm khởi tạo lời mời. |
+| `responded_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm người được mời bấm Chấp nhận / Từ chối. |
+| `expires_at` | `timestamptz` | NOT NULL | | Hạn phản hồi (mặc định 7 ngày kể từ lúc tạo). |
+| `version` | `bigint` | NOT NULL | `0` | Khóa lạc quan `@Version` chống Race Condition (khi Owner thu hồi đồng thời với Invitee bấm nhận). |
+
+* **Ràng buộc duy nhất**: `CONSTRAINT uq_pending_project_invitation UNIQUE (project_id, invitee_id, status)` (ngăn chặn spam trùng lặp nhiều lời mời khi đang ở trạng thái `PENDING`).
+* **Chỉ mục**: `CREATE INDEX idx_invitation_invitee_status ON project_invitation(invitee_id, status);` (tối ưu tra cứu danh sách lời mời đang chờ của người dùng).
+
+---
+
+### 3.6 Bảng `PIPELINE_TEMPLATE` (Kho Mẫu Quy trình Chuẩn)
 Lưu trữ các mẫu quy trình tiêu chuẩn do Quản trị viên thiết lập hoặc xuất bản.
 
 | Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mặc Định | Ý Nghĩa Nghiệp Vụ |
@@ -412,7 +449,7 @@ Dưới đây là 12 quyết định thiết kế CSDL đã thống nhất và c
 | 3 | `NODE_DEPENDENCY` & Task Tự Do | **GIỮ QUAN HỆ DAG + CHO PHÉP TASK TỰ DO** | Giữ DAG cho lõi thuật toán Kahn; cho phép `phase_id = NULL` cho việc hành chính (họp, slide) với status khởi tạo là `TODO`. |
 | 4 | `PROJECT.completed_at` | **KHÔNG BỔ SUNG** | Giao diện chỉ quản lý 4 trạng thái (`DRAFT`, `ACTIVE`, `INACTIVE`, `ARCHIVED`) và tính `% hoàn thành` qua count node. |
 | 5 | `PROJECT_AI_ANALYSIS` | **CHUYỂN THÀNH CỘT JSONB `latest_ai_analysis`** | Giảm 1 bảng, bớt Entity/Repository/Service trong Spring Boot; lưu trữ trực tiếp kết quả quét mới nhất của AI Worker. |
-| 6 | `PROJECT_INVITATION` | **XÓA BỎ HOÀN TOÀN** | Thay bằng cơ chế **Direct Add**: thêm trực tiếp người dùng đã có tài khoản vào `PROJECT_MEMBER` và bắn `NOTIFICATION`. |
+| 6 | `PROJECT_INVITATION` | **TÁI THIẾT LẬP BẢNG & LUỒNG MỜI BẤT ĐỒNG BỘ** | Tái lập bảng; bãi bỏ Direct Add không xác nhận; dùng luồng mời bất đồng bộ qua RabbitMQ/SSE, deep-link `/workspace?action=open-invite-modal&invitationId={id}` và popup modal xác nhận (Accept/Decline). |
 | 7 | `PROJECT_FEEDBACK` | **ĐỔI TÊN & PHẢN HỒI 1 CHIỀU** | Đổi từ `NODE_FEEDBACK`; cho phép `node_id = NULL`; bỏ cột `reply_content` (chỉ tiếp thu và chuyển `RESOLVED`). |
 | 8 | `GUEST_LINK` | **GIỮ BẢNG RIÊNG** | Tra cứu tức thì qua Spring Data JPA `findByToken(token)`; bảo mật và linh hoạt tạo nhiều link cho các giảng viên khác nhau. |
 | 9 | `WORK_PHASE` | **TINH GỌN CỘT** | Bỏ cột `code` và `gate_info`; thay bằng `order_index: int DEFAULT 0`; giữ `sub_title` và `accent_color` để vẽ Macro Card. |

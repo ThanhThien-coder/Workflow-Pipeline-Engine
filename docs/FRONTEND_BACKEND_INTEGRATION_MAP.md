@@ -405,22 +405,80 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 
 ---
 
-### 3.3 Quản lý thành viên Direct Add & Gán Role (`POST/PATCH/DELETE /api/projects/{id}/members`)
-1. **Mục tiêu Nghiệp vụ**: Chủ dự án thêm trực tiếp thành viên theo email/username (Direct Add), thay đổi vai trò (OWNER / COLLABORATOR / VIEWER), và xóa mềm thành viên (`removed_at`).
+### 3.3 Quản lý Lời Mời Tham Gia Dự Án & Vai Trò (`POST /api/v1/projects/{projectId}/invitations`, `PATCH/DELETE /api/v1/projects/{projectId}/members/{userId}`)
+1. **Mục tiêu Nghiệp vụ**: Chủ dự án tạo lời mời bất đồng bộ gửi tới người dùng theo email/username (thay thế hoàn toàn Direct Add cũ). Thành viên nhận thông báo và tự quyết định Chấp nhận/Từ chối. Đồng thời hỗ trợ thay đổi vai trò (OWNER / COLLABORATOR / VIEWER) và xóa mềm thành viên (`removed_at`).
 2. **Luồng Mã Nguồn**:
    - `src/components/settings/InviteMemberModal.tsx` / `WorkspaceMembersSection.tsx` / `KickMemberModal.tsx` -> `useWorkflowStore.settings` (`inviteMember`, `changeRole`, `kickMember`) -> `container.workflowService` (`inviteProjectMember`, `changeMemberRole`, `removeProjectMember`).
 3. **Request DTO**:
-   - Thêm: `POST /api/projects/{id}/members`, Body: `{ "identifier": "sarah.chen@pipeline.engine", "role": "COLLABORATOR" }`.
-   - Đổi Role: `PATCH /api/projects/{id}/members/{userId}`, Body: `{ "role": "OWNER" }`.
-   - Xóa: `DELETE /api/projects/{id}/members/{userId}`.
+   - Gửi Lời Mời: `POST /api/v1/projects/{projectId}/invitations`
+     - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
+     - **Body**: `{ "inviteeEmailOrUsername": "sarah.chen@pipeline.engine", "role": "COLLABORATOR" }`
+   - Đổi Role: `PATCH /api/v1/projects/{projectId}/members/{userId}`, Body: `{ "role": "OWNER" }`.
+   - Xóa: `DELETE /api/v1/projects/{projectId}/members/{userId}`.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `PROJECT_MEMBER`, `NOTIFICATION`, `NODE`.
+   - Bảng tác động: `PROJECT_INVITATION`, `PROJECT_MEMBER`, `USERS`, `NOTIFICATION`, `NODE`.
    - Kiểm tra RBAC: Caller bắt buộc có vai trò `OWNER` trong dự án.
-   - Khi Add: Tìm user trong `USERS`. Tạo bản ghi trong `PROJECT_MEMBER`. Tạo bản ghi trong `NOTIFICATION` gửi cho thành viên được thêm.
+   - Khi Tạo Lời Mời:
+     - Tìm kiếm user trong bảng `USERS`. Kiểm tra nếu đã là thành viên trong `PROJECT_MEMBER` -> Ném `400 Bad Request`.
+     - Kiểm tra nếu đã có lời mời `PENDING` -> Ném `409 Conflict`.
+     - Chèn vào `PROJECT_INVITATION` (`status = 'PENDING'`, `expires_at = NOW() + 7 days`, `version = 0`).
+     - Bắn `InvitationCreatedEvent` vào RabbitMQ. Background Consumer tạo `NOTIFICATION` cho invitee với `link_url = /workspace?action=open-invite-modal&invitationId={id}` và stream qua SSE.
    - Khi Xóa: Cập nhật `PROJECT_MEMBER.removed_at = NOW()`. Gỡ người thực hiện: `UPDATE NODE SET assigned_user_id = NULL WHERE project_id = :id AND assigned_user_id = :userId`. Trả về `unassignedTaskCount`.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `200 OK` / `201 Created`. Body: `ProjectMemberDetail`.
-   - **UI Mutation**: Re-render danh sách thành viên, cập nhật Audit Log, hiển thị thông báo.
+   - **Status Code**: `201 Created` / `200 OK`.
+   - **Response Body**:
+     ```json
+     {
+       "id": 101,
+       "projectId": 1,
+       "projectName": "FinTech Core Migration",
+       "inviterId": 1,
+       "inviterName": "Alex Kim",
+       "inviteeId": 2,
+       "inviteeEmail": "sarah.chen@pipeline.engine",
+       "role": "COLLABORATOR",
+       "status": "PENDING",
+       "createdAt": "2026-10-21T10:00:00Z",
+       "expiresAt": "2026-10-28T10:00:00Z",
+       "version": 0
+     }
+     ```
+   - **UI Mutation**: Đóng modal mời, hiển thị lời mời trong danh sách "Pending Invitations", cập nhật Audit Log `MEMBER_INVITED`, hiển thị Toast xanh.
+
+---
+
+### 3.4 Phản Hồi & Thu Hồi Lời Mời (`GET/POST /api/v1/invitations/*`, `DELETE /api/v1/projects/{projectId}/invitations/{id}`)
+1. **Mục tiêu Nghiệp vụ**:
+   - Người được mời xem chi tiết lời mời qua Popup Modal khi click vào thông báo Topbar (`action=open-invite-modal`).
+   - Người được mời bấm Chấp nhận (`POST /api/v1/invitations/{id}/accept`) hoặc Từ chối (`POST /api/v1/invitations/{id}/reject`).
+   - Chủ dự án thu hồi lời mời đang chờ (`DELETE /api/v1/projects/{projectId}/invitations/{id}`).
+2. **Luồng Mã Nguồn**:
+   - `src/components/common/NotificationBell.tsx` (Bắt `action=open-invite-modal&invitationId={id}`) -> Mở `ProjectInviteAcceptModal.tsx` -> Gọi `container.workflowService.getInvitation(id)`, `acceptInvitation(id)`, `rejectInvitation(id)`.
+3. **Request DTOs**:
+   - Lấy chi tiết: `GET /api/v1/invitations/{id}` (Headers: `Authorization: Bearer <jwt>`)
+   - Chấp nhận: `POST /api/v1/invitations/{id}/accept` (Headers: `Authorization: Bearer <jwt>`)
+   - Từ chối: `POST /api/v1/invitations/{id}/reject` (Headers: `Authorization: Bearer <jwt>`)
+   - Chủ dự án thu hồi: `DELETE /api/v1/projects/{projectId}/invitations/{id}` (Headers: `Authorization: Bearer <jwt>`)
+4. **Xử lý Backend & Bảng CSDL Tác động**:
+   - Bảng tác động: `PROJECT_INVITATION`, `PROJECT_MEMBER`, `NOTIFICATION`.
+   - **Khi Chấp nhận (`accept`)**:
+     - Kiểm tra `invitation.invitee_id == currentUserId`. Nếu không khớp -> `403 Forbidden`.
+     - Kiểm tra `invitation.status == 'PENDING'` và `invitation.expires_at > NOW()`. Nếu đã quá hạn -> Cập nhật `status = 'EXPIRED'`, trả về `400 Bad Request`.
+     - Giao dịch nguyên tử (`@Transactional`):
+       + Cập nhật `PROJECT_INVITATION`: `status = 'ACCEPTED'`, `responded_at = NOW()`.
+       + Chèn vào `PROJECT_MEMBER`: `project_id`, `user_id = currentUserId`, `role = invitation.role`, `joined_at = NOW()`.
+       + Bắn `InvitationAcceptedEvent` vào RabbitMQ để thông báo cho Chủ dự án.
+   - **Khi Từ chối (`reject`)**:
+     - Kiểm tra xác thực. Cập nhật `PROJECT_INVITATION`: `status = 'REJECTED'`, `responded_at = NOW()`.
+   - **Khi Chủ dự án Thu hồi (`revoke`)**:
+     - Thẩm định quyền: Caller bắt buộc là `OWNER` của `project_id`.
+     - Cập nhật `PROJECT_INVITATION`: `status = 'REVOKED'`.
+   - **Optimistic Locking**: Mọi thay đổi trạng thái đều tăng `version += 1`. Nếu có xung đột đồng thời giữa Accept và Revoke, JPA ném `OptimisticLockException` (`409 Conflict`).
+5. **Response DTO & UI Mutation**:
+   - `GET /api/v1/invitations/{id}`: Trả về `InvitationDetailResponse` (tên dự án, tên người mời, vai trò gán, ngày hết hạn).
+   - `POST /api/v1/invitations/{id}/accept`: Trả về `200 OK` `{ "success": true, "projectId": 1, "status": "ACCEPTED" }`. Frontend chuyển hướng hoặc kích hoạt nạp lại Workspace của dự án.
+   - `POST /api/v1/invitations/{id}/reject`: Trả về `200 OK` `{ "success": true, "status": "REJECTED" }`. Đóng modal.
+   - `DELETE /api/v1/projects/{projectId}/invitations/{id}`: Trả về `204 No Content`. Gỡ bỏ lời mời khỏi danh sách Pending.
 
 ---
 
@@ -737,6 +795,9 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      data: {"id":"4","code":"WPE-004","title":"Kahn Algorithm DAG","status":"TODO","version":0}
      ```
    - **UI Mutation**: Frontend tự động cập nhật State trong Zustand Store (`useWorkflowStore`), vẽ lại card trên cột TODO và phát âm thanh/hiệu ứng chuông thông báo.
+   - **Hợp đồng Deep-Link Chuông Thông Báo (Notification Bell Deep-Link Contract)**:
+     - Mọi bản ghi `NOTIFICATION` sinh ra từ lời mời tham gia dự án mang trường `link_url = /workspace?action=open-invite-modal&invitationId={id}`.
+     - Khi người dùng click vào dòng thông báo trên `NotificationBell.tsx`, bộ định tuyến UI (UI Router / Event Handler) **bắt buộc chặn điều hướng trang mặc định (Prevent Full-page Reload)**, trích xuất `invitationId` từ query params và kích hoạt mở trực tiếp `ProjectInviteAcceptModal.tsx` để người dùng xác nhận Accept / Decline.
 
 ---
 

@@ -59,4 +59,30 @@ public class WorkflowEventPublisher {
                 event
         );
     }
+
+    /**
+     * Bắn sự kiện khi Lời mời tham gia dự án được khởi tạo.
+     */
+    public void publishInvitationCreated(com.pipeline.wpe.dto.event.InvitationCreatedEvent event) {
+        log.info("Publishing InvitationCreatedEvent for Invitation ID: {}, Project: {}, Invitee: {}",
+                event.invitationId(), event.projectName(), event.inviteeEmail());
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_WORKFLOW,
+                "wpe.notification.invitation_created",
+                event
+        );
+    }
+
+    /**
+     * Bắn sự kiện khi Lời mời được chấp thuận.
+     */
+    public void publishInvitationAccepted(com.pipeline.wpe.dto.event.InvitationAcceptedEvent event) {
+        log.info("Publishing InvitationAcceptedEvent for Invitation ID: {}, Project: {}, Invitee: {}",
+                event.invitationId(), event.projectName(), event.inviteeId());
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_WORKFLOW,
+                "wpe.notification.invitation_accepted",
+                event
+        );
+    }
 }

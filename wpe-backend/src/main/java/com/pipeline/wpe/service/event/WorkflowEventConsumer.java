@@ -63,6 +63,38 @@ public class WorkflowEventConsumer {
     }
 
     /**
+     * Hứng sự kiện khi Lời mời được tạo -> Lưu bản ghi thông báo với deep-link open-invite-modal.
+     */
+    public void handleInvitationCreated(com.pipeline.wpe.dto.event.InvitationCreatedEvent event) {
+        log.info("Processing InvitationCreatedEvent in background: Invitation ID={}, Project={}, Invitee={}",
+                event.invitationId(), event.projectName(), event.inviteeId());
+
+        if (event.inviteeId() != null) {
+            try {
+                NotificationEntity notification = NotificationEntity.builder()
+                        .userId(event.inviteeId())
+                        .title("Lời mời tham gia dự án: " + event.projectName())
+                        .message(event.inviterName() + " đã mời bạn tham gia dự án \"" + event.projectName() + "\" với vai trò " + event.role())
+                        .linkUrl(event.linkUrl())
+                        .isRead(false)
+                        .build();
+                notificationRepository.save(notification);
+                log.info("Saved invitation notification ID: {} for user: {}", notification.getId(), event.inviteeId());
+            } catch (Exception e) {
+                log.error("Failed to persist invitation notification: {}", e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Hứng sự kiện khi Lời mời được chấp thuận.
+     */
+    public void handleInvitationAccepted(com.pipeline.wpe.dto.event.InvitationAcceptedEvent event) {
+        log.info("Processing InvitationAcceptedEvent in background: Invitation ID={}, Project={}, Invitee={}",
+                event.invitationId(), event.projectName(), event.inviteeId());
+    }
+
+    /**
      * 3. Hứng sự kiện chẩn đoán sự cố ngầm (gọi Google Gemini API).
      */
     @RabbitListener(queues = RabbitMQConfig.QUEUE_AI_DIAGNOSTICS)

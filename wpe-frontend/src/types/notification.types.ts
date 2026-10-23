@@ -1,4 +1,4 @@
-export type NotificationKind = 'approval' | 'comment' | 'overdue' | 'assignment' | 'pr' | 'system'
+export type NotificationKind = 'approval' | 'comment' | 'overdue' | 'assignment' | 'pr' | 'system' | 'invitation'
 
 export interface NotificationDto {
   id: string

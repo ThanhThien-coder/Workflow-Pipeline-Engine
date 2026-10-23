@@ -4,6 +4,7 @@ import type {
   ChangeMemberRoleCommand,
   InviteMemberCommand,
   ProjectMemberDetail,
+  ProjectInvitationDto,
   ProjectRole,
   ProjectSettingsDto,
   UpdateProjectCommand,
@@ -16,6 +17,7 @@ export interface SettingsSlice {
   settings: {
     settings: ProjectSettingsDto | null
     members: ProjectMemberDetail[]
+    pendingInvitations: ProjectInvitationDto[]
     auditLogs: AuditLogItem[]
     simulatedRole: ProjectRole
     auditFilter: string
@@ -37,6 +39,9 @@ export interface SettingsSlice {
     restoreProject: () => Promise<boolean>
     deleteProject: () => Promise<boolean>
     inviteMember: (cmd: InviteMemberCommand) => Promise<boolean>
+    revokeInvitation: (invitationId: string) => Promise<boolean>
+    acceptInvitation: (invitationId: string) => Promise<boolean>
+    rejectInvitation: (invitationId: string) => Promise<boolean>
     changeRole: (userId: string, role: 'COLLABORATOR' | 'VIEWER') => Promise<boolean>
     kickMember: (userId: string) => Promise<boolean>
     demoteMember: (userId: string) => Promise<boolean>
@@ -77,6 +82,7 @@ export const createSettingsSlice = (
     settings: {
       settings: null,
       members: [],
+      pendingInvitations: [],
       auditLogs: [],
       simulatedRole: 'OWNER',
       auditFilter: 'All Events',
@@ -99,16 +105,18 @@ export const createSettingsSlice = (
         )
 
         try {
-          const [settingsData, membersData, logsData] = await Promise.all([
+          const [settingsData, membersData, logsData, pendingData] = await Promise.all([
             workflowService.getProjectSettings(projectId),
             workflowService.getProjectMembersDetailed(projectId),
             workflowService.getProjectAuditLogs(projectId),
+            workflowService.getProjectPendingInvitations ? workflowService.getProjectPendingInvitations(projectId) : Promise.resolve([]),
           ])
 
           set((state) =>
             produce(state, (draft) => {
               draft.settings.settings = settingsData
               draft.settings.members = membersData
+              draft.settings.pendingInvitations = pendingData || []
               draft.settings.auditLogs = logsData
               draft.settings.status = 'ready'
             }),
@@ -277,10 +285,17 @@ export const createSettingsSlice = (
       inviteMember: async (cmd: InviteMemberCommand) => {
         const pid = currentProjectId()
         try {
+          let inviteDto: ProjectInvitationDto | null = null
+          if (workflowService.createProjectInvitation) {
+            inviteDto = await workflowService.createProjectInvitation(pid, cmd)
+          }
           const newMember = await workflowService.inviteProjectMember(pid, cmd)
           set((state) =>
             produce(state, (draft) => {
               draft.settings.members.push(newMember)
+              if (inviteDto) {
+                draft.settings.pendingInvitations.unshift(inviteDto)
+              }
               draft.settings.isInviteModalOpen = false
             }),
           )
@@ -289,6 +304,61 @@ export const createSettingsSlice = (
           return true
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Failed to invite member'
+          get().settings.showToast(msg)
+          return false
+        }
+      },
+
+      revokeInvitation: async (invitationId: string) => {
+        const pid = currentProjectId()
+        try {
+          if (workflowService.revokeInvitation) {
+            await workflowService.revokeInvitation(pid, invitationId)
+          }
+          set((state) =>
+            produce(state, (draft) => {
+              draft.settings.pendingInvitations = draft.settings.pendingInvitations.filter(
+                (i) => i.id !== invitationId,
+              )
+            }),
+          )
+          await refreshLogs(pid)
+          get().settings.showToast('Invitation revoked.')
+          return true
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Failed to revoke invitation'
+          get().settings.showToast(msg)
+          return false
+        }
+      },
+
+      acceptInvitation: async (invitationId: string) => {
+        try {
+          if (workflowService.acceptInvitation) {
+            const res = await workflowService.acceptInvitation(invitationId)
+            const pid = res.projectId || currentProjectId()
+            await get().settings.loadSettings(pid)
+            get().settings.showToast('You have joined the project!')
+            return true
+          }
+          return false
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Failed to accept invitation'
+          get().settings.showToast(msg)
+          return false
+        }
+      },
+
+      rejectInvitation: async (invitationId: string) => {
+        try {
+          if (workflowService.rejectInvitation) {
+            await workflowService.rejectInvitation(invitationId)
+            get().settings.showToast('Invitation declined.')
+            return true
+          }
+          return false
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Failed to decline invitation'
           get().settings.showToast(msg)
           return false
         }

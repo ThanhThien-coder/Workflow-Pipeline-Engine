@@ -43,13 +43,13 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
         {phases.map((phase) => <PhaseCard key={phase.id} phase={phase} position={layoutPositions[phase.id] || { x: phase.x, y: phase.y }} selected={selectedPhaseId === phase.id} onClick={() => selectPhase(selectedPhaseId === phase.id ? null : phase.id)} onSpawnDown={phaseConnect.onSpawnDown} />)}
       </div>
       {phaseConnect.line && <svg className="pointer-events-none fixed inset-0 z-50 h-screen w-screen"><line x1={phaseConnect.line.x1} y1={phaseConnect.line.y1} x2={phaseConnect.line.x2} y2={phaseConnect.line.y2} stroke="#3b82f6" strokeWidth="2.5" strokeDasharray="6 5" /></svg>}
-      <div data-pan-zoom-ignore className="absolute top-4 right-6 z-30 flex items-center" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+      <div data-pan-zoom-ignore className="absolute top-4 right-6 z-40 flex items-center" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
         <div className="relative inline-block">
           <WorkflowArtifactsIsland />
           <WorkflowArtifactsDrawer projectId={projectId} />
         </div>
       </div>
-      <div data-pan-zoom-ignore className="absolute bottom-6 right-6 z-30 flex items-center" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+      <div data-pan-zoom-ignore className="absolute bottom-6 right-6 z-20 flex items-center" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
         <ZoomControls className="static" scale={panZoom.scale} onZoomIn={panZoom.zoomIn} onZoomOut={panZoom.zoomOut} onReset={panZoom.reset} />
       </div>
     </div>

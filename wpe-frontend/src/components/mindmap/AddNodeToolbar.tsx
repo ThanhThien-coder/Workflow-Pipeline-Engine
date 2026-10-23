@@ -9,7 +9,7 @@ export interface AddNodeToolbarProps {
 export function AddNodeToolbar({ onAddTrack, onAddGhost }: AddNodeToolbarProps) {
   return (
     <div
-      className="absolute bottom-6 left-6 z-30 flex items-center gap-2.5"
+      className="absolute bottom-6 left-6 z-30 flex items-center gap-3 shrink-0 whitespace-nowrap select-none"
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}

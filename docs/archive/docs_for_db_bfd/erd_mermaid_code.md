@@ -2,12 +2,15 @@ erDiagram
     USERS ||--o{ REFRESH_TOKEN : "has sessions"
     USERS ||--o{ PROJECT : "owns"
     USERS ||--o{ PROJECT_MEMBER : "participates"
+    USERS ||--o{ PROJECT_INVITATION : "invites (inviter)"
+    USERS ||--o{ PROJECT_INVITATION : "receives invite (invitee)"
     USERS ||--o{ PIPELINE_TEMPLATE : "creates"
     USERS ||--o{ NOTIFICATION : "receives"
     USERS ||--o{ NODE : "assigned to"
     USERS ||--o{ ARTIFACTS : "uploads"
 
     PROJECT ||--o{ PROJECT_MEMBER : "has members"
+    PROJECT ||--o{ PROJECT_INVITATION : "has invitations"
     PROJECT ||--o{ WORK_PHASE : "structured into"
     PROJECT ||--o{ NODE : "contains"
     PROJECT ||--o{ NODE_DEPENDENCY : "defines DAG"
@@ -72,6 +75,19 @@ erDiagram
         varchar role "OWNER COLLABORATOR VIEWER"
         timestamp joined_at
         timestamp removed_at "NULL when active"
+    }
+
+    PROJECT_INVITATION {
+        bigint id PK
+        bigint project_id FK
+        bigint inviter_id FK
+        bigint invitee_id FK
+        varchar role "COLLABORATOR or VIEWER"
+        varchar status "PENDING ACCEPTED REJECTED REVOKED EXPIRED"
+        timestamp created_at
+        timestamp responded_at "nullable"
+        timestamp expires_at
+        bigint version "DEFAULT 0 optimistic lock"
     }
 
     WORK_PHASE {

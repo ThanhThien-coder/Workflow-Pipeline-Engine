@@ -43,7 +43,7 @@ export function Popover({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: isBottomHalf ? 8 : -8 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="fixed z-50 max-w-[calc(100vw-16px)] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xl"
+      className="fixed z-50 max-w-[calc(100vw-16px)] max-h-[88vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xl"
       style={{ left: safeLeft, top: safeTop, bottom: safeBottom, width: w }}
     >
       {children}

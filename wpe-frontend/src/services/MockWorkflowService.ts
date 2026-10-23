@@ -13,6 +13,7 @@ import { MockConfig } from './mock/MockConfig'
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
+  ProjectInvitationDto,
   AuditLogItem,
   UpdateProjectCommand,
   InviteMemberCommand,
@@ -208,6 +209,26 @@ export class MockWorkflowService implements IWorkflowService {
   deleteProject(projectId: string): Promise<void> {
     this.workspaceApi.deleteProject(projectId)
     return this.settingsApi.deleteProject(projectId)
+  }
+
+  /* Project Invitations */
+  createProjectInvitation(projectId: string, cmd: InviteMemberCommand): Promise<ProjectInvitationDto> {
+    return this.settingsApi.createProjectInvitation(projectId, cmd)
+  }
+  getProjectPendingInvitations(projectId: string): Promise<ProjectInvitationDto[]> {
+    return this.settingsApi.getProjectPendingInvitations(projectId)
+  }
+  getInvitation(invitationId: string): Promise<ProjectInvitationDto | null> {
+    return this.settingsApi.getInvitation(invitationId)
+  }
+  acceptInvitation(invitationId: string): Promise<{ success: boolean; projectId?: string }> {
+    return this.settingsApi.acceptInvitation(invitationId)
+  }
+  rejectInvitation(invitationId: string): Promise<{ success: boolean }> {
+    return this.settingsApi.rejectInvitation(invitationId)
+  }
+  revokeInvitation(projectId: string, invitationId: string): Promise<boolean> {
+    return this.settingsApi.revokeInvitation(projectId, invitationId)
   }
 
   /* Dev & Simulation capabilities */

@@ -1,0 +1,14 @@
+package com.pipeline.wpe.dto.request.project;
+
+import com.pipeline.wpe.common.enums.ProjectRole;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record CreateInvitationRequest(
+    @NotBlank(message = "Invitee email or username is required")
+    String inviteeEmailOrUsername,
+
+    @NotNull(message = "Role is required")
+    ProjectRole role
+) {
+}

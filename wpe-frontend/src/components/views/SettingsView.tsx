@@ -21,6 +21,7 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
   const {
     settings,
     members,
+    pendingInvitations,
     auditLogs,
     simulatedRole,
     auditFilter,
@@ -40,6 +41,7 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
     restoreProject,
     deleteProject,
     inviteMember,
+    revokeInvitation,
     changeRole,
     kickMember,
     demoteMember,
@@ -108,11 +110,13 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
 
         <WorkspaceMembersSection
           members={members}
+          pendingInvitations={pendingInvitations}
           simulatedRole={effectiveRole}
           onOpenInvite={openInviteModal}
           onRoleChange={changeRole}
           onPromptDemote={setMemberPendingDemote}
           onPromptKick={setMemberPendingKick}
+          onRevokeInvitation={revokeInvitation}
         />
 
         <SystemAuditLogSection

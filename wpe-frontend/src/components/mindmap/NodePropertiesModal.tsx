@@ -11,7 +11,7 @@ export function NodePropertiesModal({ node, onClose, onDelete }: { node: BranchG
   const [join, setJoin] = useState(node.joinPolicy === 'ANY_COMPLETED' ? 'ANY' : 'ALL')
   const [description, setDescription] = useState(node.description)
   return <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-slate-900/30" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-    <div className="w-full max-w-md max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200">
+    <div className="w-full max-w-md max-h-[88vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0"><h3 className="text-[15px] font-bold text-slate-800">Node Properties</h3><button onClick={(event) => { event.stopPropagation(); onClose() }} title="Đóng" className="grid place-items-center w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={18} /></button></div>
       <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
         <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Task Name<input value={title} onChange={(event) => setTitle(event.target.value)} className={INPUT} /></label>

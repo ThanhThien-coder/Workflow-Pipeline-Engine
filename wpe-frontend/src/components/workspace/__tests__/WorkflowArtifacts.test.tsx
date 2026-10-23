@@ -112,4 +112,38 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
       expect(newCount).toBe(initialCount - 1)
     })
   })
+
+  it('adheres to strict 3-tier Dual-Anchor Viewport Bounding and responsive classes', () => {
+    const { container } = render(<WorkflowArtifactsDrawer isOpen={true} />)
+
+    const panel = container.querySelector('aside')
+    expect(panel).not.toBeNull()
+    expect(panel?.className).toContain('fixed')
+    expect(panel?.className).toContain('top-20')
+    expect(panel?.className).toContain('bottom-20')
+    expect(panel?.className).toContain('right-6')
+    expect(panel?.className).toContain('z-50')
+    expect(panel?.className).toContain('w-[380px]')
+    expect(panel?.className).toContain('max-w-[calc(100vw-48px)]')
+    expect(panel?.className).toContain('flex-col')
+    expect(panel?.className).toContain('overflow-hidden')
+
+    // Tier 1: Header (flex-shrink-0)
+    const header = container.querySelector('header')
+    expect(header).not.toBeNull()
+    expect(header?.className).toContain('flex-shrink-0')
+
+    // Tier 2: Form (flex-shrink-0)
+    const formSection = container.querySelector('section')
+    expect(formSection).not.toBeNull()
+    expect(formSection?.className).toContain('flex-shrink-0')
+
+    // Tier 3: List (flex-1 min-h-0 overflow-y-auto overscroll-contain)
+    const list = panel?.querySelector('[data-lenis-prevent="true"]')
+    expect(list).not.toBeNull()
+    expect(list?.className).toContain('flex-1')
+    expect(list?.className).toContain('min-h-0')
+    expect(list?.className).toContain('overflow-y-auto')
+    expect(list?.className).toContain('overscroll-contain')
+  })
 })

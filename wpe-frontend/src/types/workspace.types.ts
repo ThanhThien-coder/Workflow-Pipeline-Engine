@@ -1,5 +1,16 @@
 export type ProjectStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
 export type ProjectRole = 'OWNER' | 'COLLABORATOR' | 'VIEWER'
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED'
+
+export interface ProjectInvitation {
+  id: string
+  projectId: string
+  projectName: string
+  inviterName: string
+  role: 'COLLABORATOR' | 'VIEWER'
+  status: InvitationStatus
+  expiresAt: string
+}
 
 export interface MemberSummaryDto {
   id: number | string

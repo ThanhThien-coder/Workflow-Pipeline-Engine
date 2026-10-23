@@ -38,9 +38,9 @@ export const AdminTopbar: FC<AdminTopbarProps> = ({
         {/* Left: Breadcrumbs & Page Heading */}
         <div className="min-w-0">
           <div className="mb-1 hidden items-center gap-2 text-xs text-slate-400 sm:flex">
-            <span>Admin Console</span>
+            <span className="truncate max-w-[200px] xl:max-w-none">Admin Console</span>
             <span>/</span>
-            <span id="breadcrumb" className="font-semibold text-slate-600">
+            <span id="breadcrumb" className="font-semibold text-slate-600 truncate max-w-[200px] xl:max-w-none">
               {title}
             </span>
           </div>
@@ -54,7 +54,7 @@ export const AdminTopbar: FC<AdminTopbarProps> = ({
 
         {/* Right: Global Search, Notification, Profile Avatar */}
         <div className="flex items-center gap-2.5">
-          <label className="hidden w-64 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-400 lg:flex focus-within:border-blue-400 focus-within:bg-white transition-all">
+          <label className="hidden w-48 lg:w-64 focus-within:w-80 transition-all items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-400 sm:flex focus-within:border-blue-400 focus-within:bg-white">
             <Search className="h-4 w-4 text-slate-400 shrink-0" />
             <input
               id="globalSearch"

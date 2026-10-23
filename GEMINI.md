@@ -36,7 +36,7 @@ Toàn bộ thông số kỹ thuật chuẩn (Single Source of Truth - SSOT) nằ
 | Tài liệu | Mô tả | Liên kết |
 | :--- | :--- | :--- |
 | **System Overview & RBAC** | Kiến trúc 5 phân hệ cốt lõi & ma trận phân quyền RBAC | [system-overview.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/system-overview.md) |
-| **Database Schema** | 12 bảng chuẩn hóa 3NF, ràng buộc toàn vẹn & Mermaid ERD | [database-schema.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/database-schema.md) |
+| **Database Schema** | 13 bảng chuẩn hóa 3NF, ràng buộc toàn vẹn & Mermaid ERD | [database-schema.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/database-schema.md) |
 | **Workflow Engine** | State Machine 4 cột trạng thái & Thuật toán Kahn (DAG Sort) | [workflow-engine.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/workflow-engine.md) |
 | **AI Diagnostics** | Schema JSON chẩn đoán sự cố & Cơ chế Gemini Worker | [ai-diagnostics.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/ai-diagnostics.md) |
 | **Backend Architecture** | Hướng dẫn phân tầng Spring Boot 3 & cẩm nang vận hành thư mục | [backend-architecture.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/backend-architecture.md) |
@@ -69,7 +69,7 @@ Toàn bộ thông số kỹ thuật chuẩn (Single Source of Truth - SSOT) nằ
        ▼
 [BƯỚC 5: TRA CỨU KHI BẮT TAY VÀO CODE CỤ THỂ]
    ├── FRONTEND_BACKEND_INTEGRATION_MAP.md ──► [TRA CỨU API] Tra cứu 27 API, DTO & mã lỗi.
-   ├── database-schema.md                  ──► [TRA CỨU DB] Tra cứu 12 bảng 3NF & ràng buộc khóa.
+   ├── database-schema.md                  ──► [TRA CỨU DB] Tra cứu 13 bảng 3NF & ràng buộc khóa.
    ├── workflow-engine.md                  ──► [TRA CỨU ENGINE] Máy trạng thái FSM 5 bước & Thuật toán Kahn DAG.
    └── ai-diagnostics.md                   ──► [TRA CỨU AI] Schema JSON phân tích & Gemini Worker.
 ```
@@ -103,14 +103,14 @@ Khi cần tra cứu lý do đằng sau các quyết định thiết kế cũ, c�
 > **Cảnh báo dành cho AI Agent khi khởi động phiên chat mới**: Dự án này đã hoàn thiện 100% tài liệu đặc tả kiến trúc (SSOT). **TUYỆT ĐỐI KHÔNG HỎI LẠI** người dùng các câu hỏi về nghiệp vụ, cấu trúc bảng, hay các quyết định đã được chốt trong tài liệu. (hỏi cũng được nhưng mà nhớ là xứng đáng thì hãy hỏi, nó làm hệ thống bị dở đi thì hỏi)
 
 1. **Luôn bắt đầu từ GEMINI.md**: Định vị chính xác phân hệ và file đặc tả liên quan trước khi đọc hoặc sửa code.
-2. **SSOT là tối thượng**: Mọi cấu trúc Database (12 bảng), logic DAG Kahn (phát hiện chu trình, AND/OR join), State Machine 5 trạng thái (`LOCKED`, `TODO`, `IN_PROGRESS`, `REVIEW`, `DONE`) và 27 endpoint API phải tuân thủ nghiêm ngặt các file trong [docs/specs/](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs) và [FRONTEND_BACKEND_INTEGRATION_MAP.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/FRONTEND_BACKEND_INTEGRATION_MAP.md).
-3. **Không tự ý sửa file Migration đã chạy**: Tuyệt đối không sửa `V1` và `V2` trong Flyway. Muốn đổi DB, tạo file mới `V3...`.
+2. **SSOT là tối thượng**: Mọi cấu trúc Database (13 bảng), quy trình kết nạp thành viên bất đồng bộ (`PROJECT_INVITATION` ➔ `PROJECT_MEMBER` sau khi Accept), logic DAG Kahn (phát hiện chu trình, AND/OR join), State Machine 5 trạng thái (`LOCKED`, `TODO`, `IN_PROGRESS`, `REVIEW`, `DONE`) và 27 endpoint API phải tuân thủ nghiêm ngặt các file trong [docs/specs/](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs) và [FRONTEND_BACKEND_INTEGRATION_MAP.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/FRONTEND_BACKEND_INTEGRATION_MAP.md).
+3. **Không tự ý sửa file Migration đã chạy**: Tuyệt đối không sửa `V1`, `V2`, `V3` trong Flyway. Muốn đổi DB, tạo file mới `V4...`.
 4. **Không xóa dữ liệu Archive**: Thư mục [docs/archive/](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/archive) là dữ liệu đối chiếu lịch sử, không tự ý chỉnh sửa hay ghi đè.
 5. **Đồng bộ hóa Tài liệu**: Khi cập nhật API hoặc logic mới, luôn cập nhật ngược lại đặc tả tương ứng trong `docs/specs/` và bản đồ `GEMINI.md`.
 6. **Chuẩn mực Code Java/Spring Boot**:
    * **CẤM** dùng `@Data` trên JPA Entity (dùng `@Getter`, `@Setter`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Builder`).
    * **CẤM** trả thẳng JPA Entity ra ngoài Controller (bắt buộc dùng Java `record` DTO).
    * Dùng `@JdbcTypeCode(SqlTypes.JSON)` cho các trường JSONB (`ui_metadata`, `latest_ai_analysis`, `graph_data`).
-   * **Kiến trúc Bất đồng bộ với RabbitMQ & Real-time SSE**: Các tác vụ tính toán nặng sau khi đổi trạng thái Task (như quét mở khóa node con DAG, phát thông báo, xếp hàng phân tích AI) bắt buộc bắn event qua `WorkflowEventPublisher` và xử lý ngầm tại `WorkflowEventConsumer.java`. Khi mở khóa hoặc đổi trạng thái, đẩy dữ liệu real-time qua `SseEmitterService` xuống trình duyệt mà không bắt người dùng phải F5. Tuyệt đối không để HTTP Request bị block quá 50ms.
+   * **Kiến trúc Bất đồng bộ với RabbitMQ & Real-time SSE**: Các tác vụ tính toán nặng sau khi đổi trạng thái Task hoặc tạo lời mời (mở khóa node con DAG, phát thông báo, xếp hàng phân tích AI, `InvitationCreatedEvent`, `InvitationAcceptedEvent`) bắt buộc bắn event qua `WorkflowEventPublisher` và xử lý ngầm tại `WorkflowEventConsumer.java`. Khi mở khóa hoặc đổi trạng thái, đẩy dữ liệu real-time qua `SseEmitterService` xuống trình duyệt mà không bắt người dùng phải F5. Tuyệt đối không để HTTP Request bị block quá 50ms.
    * Kiểm thử API tương tác trực tiếp qua Swagger UI: `http://localhost:8080/swagger-ui.html`.
    * Quản trị RabbitMQ trực quan qua Dashboard: `http://localhost:15672` (User/Pass: `wpe_rabbit` / `wpe_rabbit_pass`).

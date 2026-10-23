@@ -4,6 +4,7 @@ import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSumma
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
+  ProjectInvitationDto,
   AuditLogItem,
   UpdateProjectCommand,
   InviteMemberCommand,
@@ -74,6 +75,14 @@ export interface IWorkflowService {
   archiveProject(projectId: string): Promise<ProjectSettingsDto>
   restoreProject(projectId: string): Promise<ProjectSettingsDto>
   deleteProject(projectId: string): Promise<void>
+
+  /* Project Invitations (Asynchronous Lifecycle) */
+  createProjectInvitation?(projectId: string, cmd: InviteMemberCommand): Promise<ProjectInvitationDto>
+  getProjectPendingInvitations?(projectId: string): Promise<ProjectInvitationDto[]>
+  getInvitation?(invitationId: string): Promise<ProjectInvitationDto | null>
+  acceptInvitation?(invitationId: string): Promise<{ success: boolean; projectId?: string }>
+  rejectInvitation?(invitationId: string): Promise<{ success: boolean }>
+  revokeInvitation?(projectId: string, invitationId: string): Promise<boolean>
 
   /* Dev & Simulation capabilities (Optional, for mock/staging) */
   resetMockData?(): Promise<void>

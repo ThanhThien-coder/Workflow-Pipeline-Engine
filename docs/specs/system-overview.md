@@ -47,7 +47,7 @@ Hệ thống được tổ chức thành 5 phân hệ chức năng độc lập 
 * **Vai trò**: Không gian trực quan để khởi tạo, tổ chức thành viên và thiết kế cấu trúc quy trình công việc.
 * **Chức năng chính**:
   1. *Khởi tạo dự án & Clone Template*: Tạo dự án mới từ đầu hoặc sao chép sâu toàn bộ cấu trúc quy trình từ kho mẫu chuẩn (`PIPELINE_TEMPLATE`).
-  2. *Thêm thành viên trực tiếp (Direct Add)*: Chủ dự án thêm trực tiếp người dùng đã có tài khoản qua username/email; hệ thống kích hoạt chuông báo `NOTIFICATION` (không dùng email token xác nhận phức tạp).
+  2. *Quy trình mời thành viên bất đồng bộ (Invitation Flow)*: Chủ dự án tạo lời mời (`PROJECT_INVITATION`), hệ thống phát `InvitationCreatedEvent` đẩy thông báo `NOTIFICATION` kèm deep-link `/workspace?action=open-invite-modal&invitationId={id}` và stream SSE thời gian thực. Người được mời nhận popup modal xác nhận Chấp nhận (Accept) / Từ chối (Decline). Khi chấp nhận, giao dịch nguyên tử tạo `PROJECT_MEMBER` và chuyển trạng thái lời mời sang `ACCEPTED`.
   3. *Quản lý quyền thành viên*: Gán các vai trò dự án (`OWNER`, `COLLABORATOR`, `VIEWER`) hoặc loại bỏ thành viên (Soft Remove bằng `removed_at`).
   4. *Giao diện thiết kế Dual-View (Phase Graph / Kanban)*: Chuyển đổi linh hoạt giữa giao diện đồ thị nối dây SVG (Bézier curve) và bảng Kanban phân theo giai đoạn vĩ mô (`WORK_PHASE`).
   5. *Thẩm định đồ thị DAG (Thuật toán Kahn)*: Giải thuật kiểm tra tính chu trình lặp (Cycle Detection) nhằm ngăn ngừa tình trạng bế tắc (Deadlock) trước khi xuất bản dự án.
@@ -127,7 +127,7 @@ Dưới đây là ma trận phân quyền chi tiết cho toàn bộ 23 chức n�
 | **UC5** | CRUD Mẫu quy trình chuẩn (System Template Studio) | - | ✅ | - | - | - | - |
 | **UC6** | Giám sát hạ tầng & Chuyển Archive dự án rác | - | ✅ | - | - | - | - |
 | **UC7** | Khởi tạo Dự án mới & Clone Template | - | - | - | - | - | ✅ |
-| **UC8** | Thêm thành viên trực tiếp (Direct Add) & Gán Role | - | - | - | - | - | ✅ |
+| **UC8** | Mời thành viên tham gia (Invitation Flow) & Gán Role | - | - | - | - | - | ✅ |
 | **UC9** | Điều chỉnh vai trò thành viên / Loại bỏ (Soft Remove) | - | - | - | - | - | ✅ |
 | **UC10** | Thiết kế, chỉnh sửa & Lưu tọa độ đồ thị DAG Canvas | - | - | - | - | - | ✅ |
 | **UC11** | Chạy kiểm tra chu trình đồ thị (Kahn DAG Algorithm) | - | - | - | - | - | ✅ |

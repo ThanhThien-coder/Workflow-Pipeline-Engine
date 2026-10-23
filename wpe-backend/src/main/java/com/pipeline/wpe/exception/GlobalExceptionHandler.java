@@ -83,6 +83,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.CONFLICT.value(),
+            ex.getErrorCode(),
+            ex.getMessage(),
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<ErrorResponse.ValidationErrorItem> validationErrors = ex.getBindingResult()

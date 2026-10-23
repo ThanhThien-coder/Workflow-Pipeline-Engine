@@ -55,8 +55,8 @@ Thay vì viết tất cả code vào một file dài nghìn dòng, chúng ta áp
                                     │ (5) Ánh xạ Entity thành các bảng SQL
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 5. TẦNG ĐỐI TƯỢNG CƠ SỞ DỮ LIỆU (entity/) ───► POSTGRESQL DATABASE (12 BẢNG 3NF)       │
-│    - Java Class ánh xạ 1-1 với bảng trong DB (User, Project, Node, WorkPhase...)       │
+│ 5. TẦNG ĐỐI TƯỢNG CƠ SỞ DỮ LIỆU (entity/) ───► POSTGRESQL DATABASE (13 BẢNG 3NF)       │
+│    - Java Class ánh xạ 1-1 với bảng trong DB (User, Project, Node, ProjectInvitation...)│
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -72,7 +72,7 @@ src/main/java/com/pipeline/wpe/
 ├── security/                   # Kiểm soát an ninh, bộ lọc JWT Token
 ├── common/                     # Enum trạng thái, Hằng số, Base Entity dùng chung
 ├── exception/                  # Bộ gom lỗi tập trung (@RestControllerAdvice)
-├── entity/                     # 12 Entity ánh xạ trực tiếp 12 bảng PostgreSQL
+├── entity/                     # 13 Entity ánh xạ trực tiếp 13 bảng PostgreSQL
 ├── repository/                 # Các Interface truy xuất dữ liệu (Spring Data JPA)
 ├── dto/                        # Hộp đóng gói dữ liệu trao đổi
 │   ├── request/                # Dữ liệu Frontend gửi lên (Java Record)
@@ -89,14 +89,14 @@ src/main/java/com/pipeline/wpe/
 ---
 
 ### 3.1 Thư mục `entity/` — Lớp Thực thể Dữ liệu
-* **Nó là gì?**: Là các Class Java đại diện 1-1 cho các bảng trong PostgreSQL (theo đặc tả 12 bảng chuẩn 3NF tại [database-schema.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/database-schema.md)).
+* **Nó là gì?**: Là các Class Java đại diện 1-1 cho các bảng trong PostgreSQL (theo đặc tả 13 bảng chuẩn 3NF tại [database-schema.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/database-schema.md)).
 * **Tại sao cần có?**: Ngôn ngữ Java thao tác trên **Đối tượng (Object)** trong bộ nhớ, còn CSDL lưu trữ theo **Dòng & Cột (Relational Table)**. Entity là cầu nối để thư viện Hibernate tự động chuyển dòng dữ liệu thành Object Java.
 * **Quy tắc vàng khi code**:
   * **TUYỆT ĐỐI KHÔNG DÙNG `@Data`** của Lombok trên Entity (vì `@Data` sinh `toString()` và `hashCode()` gây lỗi đệ quy vô tận `StackOverflowError` khi 2 bảng trỏ vào nhau).
   * **BẮT BUỘC DÙNG**: `@Getter`, `@Setter`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Builder`.
   * Các trường tọa độ Canvas (`ui_metadata`) hoặc log AI (`latest_ai_analysis`) dùng:
     `@JdbcTypeCode(SqlTypes.JSON) private Map<String, Object> metadata;`
-  * Bảng `NodeEntity` có `@Version private Long version;` để kích hoạt khóa lạc quan (Optimistic Locking).
+  * Bảng `NodeEntity` và `ProjectInvitationEntity` có `@Version private Long version;` để kích hoạt khóa lạc quan (Optimistic Locking) chống Race Condition (ngăn chặn tình huống xung đột khi Owner thu hồi lời mời đúng tích tắc Invitee bấm Chấp nhận).
 
 ---
 
@@ -145,6 +145,14 @@ src/main/java/com/pipeline/wpe/
   * Kiểm tra xem người đang thao tác có quyền không? (Ví dụ: Chỉ `OWNER` mới có quyền duyệt task `REVIEW` sang `DONE`).
   * Kiểm tra hợp lệ dữ liệu: Nếu từ chối bài (`REVIEW` ➔ `IN_PROGRESS`) thì bắt buộc phải có nội dung `reject_reason`.
   * Quản lý giao dịch bằng `@Transactional`: Đảm bảo tính toàn vẹn, nếu có bất kỳ bước nào lỗi thì CSDL tự động rollback về ban đầu.
+  * **Quản lý Thành viên & Cỗ máy Trạng thái Lời mời (Invitation State Machine)**:
+    - Bãi bỏ hoàn toàn cơ chế "Direct Add" cũ. Mọi sự kết nạp thành viên mới bắt buộc trải qua vòng đời lời mời (`ProjectInvitationService`):
+      `PENDING` ➔ `ACCEPTED` (thành viên đồng ý, sinh bản ghi `PROJECT_MEMBER` trong 1 giao dịch `@Transactional`).
+      `PENDING` ➔ `REJECTED` (thành viên từ chối).
+      `PENDING` ➔ `REVOKED` (Chủ dự án thu hồi lời mời).
+      `PENDING` ➔ `EXPIRED` (quá hạn `expires_at` 7 ngày, worker ngầm tự động đánh dấu).
+    - **Kiểm soát Xung đột Đồng thời (Optimistic Locking)**: Cột `version` trên `ProjectInvitationEntity` ngăn chặn việc Owner vừa bấm Revoke mà Invitee cũng vừa bấm Accept. Thao tác sau sẽ bị văng `OptimisticLockException` và trả về `409 Conflict`.
+    - **Luồng Sự kiện Hướng Bất đồng bộ & Real-time SSE**: Khi lời mời được tạo, Service bắn `InvitationCreatedEvent` vào RabbitMQ. Background Consumer ghi nhận vào `NOTIFICATION` với deep-link `/workspace?action=open-invite-modal&invitationId={id}` và đẩy trực tiếp qua `SseEmitterService` xuống trình duyệt mà không làm nghẽn kết nối API.
 * **Thư mục con đặc thù**:
   * `service/engine/DagEngineService.java`: Chứa thuật toán **Kahn DAG** (duyệt bậc vào In-Degree để phát hiện chu trình lặp).
   * `service/engine/StateMachineService.java`: Quản lý 5 trạng thái của Task (`LOCKED`, `TODO`, `IN_PROGRESS`, `REVIEW`, `DONE`) và tự động mở khóa các downstream tasks theo chính sách AND-join / OR-join.

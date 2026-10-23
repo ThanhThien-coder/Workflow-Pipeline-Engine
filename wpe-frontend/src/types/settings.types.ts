@@ -1,6 +1,24 @@
 export type ISODateTime = string;
 export type ProjectRole = 'OWNER' | 'COLLABORATOR' | 'VIEWER';
 export type ProjectStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
+
+export interface ProjectInvitationDto {
+  id: string;
+  projectId: string;
+  projectName: string;
+  inviterId: string;
+  inviterName: string;
+  inviterEmail?: string;
+  inviteeId?: string;
+  inviteeEmail: string;
+  role: 'COLLABORATOR' | 'VIEWER';
+  status: InvitationStatus;
+  createdAt: ISODateTime;
+  respondedAt?: ISODateTime | null;
+  expiresAt: ISODateTime;
+  version?: number;
+}
 
 export type AuditLogAction =
   | 'MEMBER_INVITED'

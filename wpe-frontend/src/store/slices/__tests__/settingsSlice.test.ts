@@ -158,4 +158,32 @@ describe('Project Settings & Governance Module', () => {
     const deletedInWorkspace = store.getState().workspace.projects.find((p) => String(p.id) === '1')
     expect(deletedInWorkspace).toBeUndefined()
   })
+
+  it('handles asynchronous invitation lifecycle: pending, revoke, accept', async () => {
+    await store.getState().settings.loadSettings('1')
+    const initialInvCount = store.getState().settings.pendingInvitations.length
+
+    // 1. Inviting a member creates a pending invitation
+    await store.getState().settings.inviteMember({
+      usernameOrEmail: 'invitee.test@pipeline.org',
+      role: 'VIEWER',
+    })
+
+    const pending = store.getState().settings.pendingInvitations
+    expect(pending.length).toBe(initialInvCount + 1)
+    const addedInv = pending.find((i) => i.inviteeEmail === 'invitee.test@pipeline.org')
+    expect(addedInv).toBeDefined()
+    expect(addedInv?.role).toBe('VIEWER')
+    expect(addedInv?.status).toBe('PENDING')
+
+    // 2. Revoking an invitation
+    const revokeOk = await store.getState().settings.revokeInvitation(addedInv!.id)
+    expect(revokeOk).toBe(true)
+    expect(store.getState().settings.pendingInvitations.find((i) => i.id === addedInv!.id)).toBeUndefined()
+
+    // 3. Accepting an existing seeded invitation (inv-101)
+    const acceptOk = await store.getState().settings.acceptInvitation('inv-101')
+    expect(acceptOk).toBe(true)
+    expect(store.getState().settings.pendingInvitations.find((i) => i.id === 'inv-101')).toBeUndefined()
+  })
 })
