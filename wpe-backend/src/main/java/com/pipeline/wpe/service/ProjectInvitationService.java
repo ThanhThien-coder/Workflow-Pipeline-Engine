@@ -2,11 +2,13 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.InvitationStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.event.InvitationAcceptedEvent;
 import com.pipeline.wpe.dto.event.InvitationCreatedEvent;
 import com.pipeline.wpe.dto.request.project.CreateInvitationRequest;
 import com.pipeline.wpe.dto.response.project.InvitationDetailResponse;
 import com.pipeline.wpe.dto.response.project.InvitationResponse;
+import com.pipeline.wpe.entity.NotificationEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectInvitationEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
@@ -14,6 +16,7 @@ import com.pipeline.wpe.entity.UserEntity;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
+import com.pipeline.wpe.repository.NotificationRepository;
 import com.pipeline.wpe.repository.ProjectInvitationRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
@@ -27,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -38,15 +42,31 @@ public class ProjectInvitationService {
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectAuthorizationService projectAuthorizationService;
+    private final NotificationRepository notificationRepository;
     private final WorkflowEventPublisher workflowEventPublisher;
 
     /**
-     * 1. Chủ dự án tạo Lời mời tham gia dự án (Asynchronous Invitation).
+     * 1. Gửi Lời mời tham gia dự án (Asynchronous Invitation & Notification Deep-Link).
      */
     @Transactional
-    public InvitationResponse createInvitation(Long projectId, Long inviterUserId, CreateInvitationRequest request) {
-        ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, inviterUserId);
-        UserEntity inviter = userRepository.findById(inviterUserId)
+    public InvitationResponse sendInvitation(Long projectId, CreateInvitationRequest request, Long currentUserId) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án với ID: " + projectId));
+
+        // Kiểm tra quyền: currentUserId phải là OWNER hoặc COLLABORATOR của projectId (hoặc ADMIN)
+        boolean isOwner = project.getOwnerId().equals(currentUserId);
+        boolean isAuthorizedMember = projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, currentUserId)
+                .map(pm -> pm.getRole() == ProjectRole.OWNER || pm.getRole() == ProjectRole.COLLABORATOR)
+                .orElse(false);
+        boolean isAdmin = userRepository.findById(currentUserId)
+                .map(u -> u.getSystemRole() == SystemRole.ADMIN)
+                .orElse(false);
+
+        if (!isOwner && !isAuthorizedMember && !isAdmin) {
+            throw new ForbiddenException("ACCESS_DENIED", "Chỉ chủ dự án hoặc cộng sự (COLLABORATOR) mới có quyền gửi lời mời tham gia dự án.");
+        }
+
+        UserEntity inviter = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người gửi lời mời"));
 
         String identifier = request.inviteeEmailOrUsername().trim();
@@ -54,7 +74,7 @@ public class ProjectInvitationService {
                 .or(() -> userRepository.findByUsername(identifier))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với định danh: " + identifier));
 
-        if (invitee.getId().equals(inviterUserId)) {
+        if (invitee.getId().equals(currentUserId)) {
             throw new IllegalArgumentException("Chủ dự án không thể tự gửi lời mời cho chính mình.");
         }
 
@@ -74,11 +94,13 @@ public class ProjectInvitationService {
         }
 
         Instant expiresAt = Instant.now().plus(7, ChronoUnit.DAYS);
+        ProjectRole role = request.role() != null ? request.role() : ProjectRole.COLLABORATOR;
+
         ProjectInvitationEntity invitation = ProjectInvitationEntity.builder()
                 .projectId(projectId)
-                .inviterId(inviterUserId)
+                .inviterId(currentUserId)
                 .inviteeId(invitee.getId())
-                .role(request.role())
+                .role(role)
                 .status(InvitationStatus.PENDING)
                 .expiresAt(expiresAt)
                 .version(0L)
@@ -87,14 +109,29 @@ public class ProjectInvitationService {
         invitation = projectInvitationRepository.save(invitation);
         log.info("Created ProjectInvitation id={} for project={} invitee={}", invitation.getId(), projectId, invitee.getId());
 
-        // Bắn sự kiện bất đồng bộ qua RabbitMQ -> đẩy Notification với deep-link
+        String inviterName = inviter.getFullName() != null && !inviter.getFullName().isBlank() 
+                ? inviter.getFullName() : inviter.getUsername();
+
+        // Chuẩn Deep-link bắt buộc theo SSOT
         String deepLink = "/workspace?action=open-invite-modal&invitationId=" + invitation.getId();
+
+        // 1. Tạo Notification trực tiếp cho Invitee vào bảng notification
+        NotificationEntity notification = NotificationEntity.builder()
+                .userId(invitee.getId())
+                .title("Lời mời tham gia dự án: " + project.getName())
+                .message(inviterName + " đã mời bạn tham gia dự án \"" + project.getName() + "\"")
+                .linkUrl(deepLink)
+                .isRead(false)
+                .build();
+        notificationRepository.save(notification);
+
+        // 2. Bắn sự kiện bất đồng bộ qua RabbitMQ -> Real-time SSE Stream
         workflowEventPublisher.publishInvitationCreated(new InvitationCreatedEvent(
                 invitation.getId(),
                 projectId,
                 project.getName(),
-                inviterUserId,
-                inviter.getFullName() != null ? inviter.getFullName() : inviter.getUsername(),
+                currentUserId,
+                inviterName,
                 invitee.getId(),
                 invitee.getEmail(),
                 invitation.getRole().name(),
@@ -102,11 +139,19 @@ public class ProjectInvitationService {
                 invitation.getCreatedAt()
         ));
 
-        return toResponse(invitation, project.getName(), inviter.getFullName() != null ? inviter.getFullName() : inviter.getUsername(), invitee.getEmail());
+        return toResponse(invitation, project.getName(), inviterName, invitee.getEmail());
     }
 
     /**
-     * 2. Lấy chi tiết lời mời cho Popup Modal.
+     * Alias tương thích ngược: createInvitation.
+     */
+    @Transactional
+    public InvitationResponse createInvitation(Long projectId, Long inviterUserId, CreateInvitationRequest request) {
+        return sendInvitation(projectId, request, inviterUserId);
+    }
+
+    /**
+     * 2. Lấy chi tiết lời mời cho Popup Modal ở Frontend.
      */
     @Transactional(readOnly = true)
     public InvitationDetailResponse getInvitationDetail(Long invitationId, Long currentUserId) {
@@ -119,12 +164,15 @@ public class ProjectInvitationService {
         UserEntity inviter = userRepository.findById(invitation.getInviterId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin người mời"));
 
+        String inviterName = inviter.getFullName() != null && !inviter.getFullName().isBlank()
+                ? inviter.getFullName() : inviter.getUsername();
+
         return new InvitationDetailResponse(
                 invitation.getId(),
                 project.getId(),
                 project.getName(),
                 project.getDescription(),
-                inviter.getFullName() != null ? inviter.getFullName() : inviter.getUsername(),
+                inviterName,
                 invitation.getRole(),
                 invitation.getStatus(),
                 invitation.getExpiresAt()
@@ -132,7 +180,7 @@ public class ProjectInvitationService {
     }
 
     /**
-     * 3. Người được mời chấp thuận lời mời (Atomic Transaction).
+     * 3. Người được mời chấp thuận lời mời (Atomic Transaction -> Kết nạp Thành viên).
      */
     @Transactional
     public void acceptInvitation(Long invitationId, Long currentUserId) {
@@ -154,20 +202,34 @@ public class ProjectInvitationService {
             throw new IllegalArgumentException("Lời mời tham gia dự án đã hết hạn.");
         }
 
-        // Cập nhật trạng thái Lời mời
+        // Cập nhật trạng thái Lời mời sang ACCEPTED
         invitation.setStatus(InvitationStatus.ACCEPTED);
         invitation.setRespondedAt(Instant.now());
         projectInvitationRepository.save(invitation);
 
-        // Chèn vào bảng PROJECT_MEMBER
-        ProjectMemberEntity member = ProjectMemberEntity.builder()
-                .projectId(invitation.getProjectId())
-                .userId(currentUserId)
-                .role(invitation.getRole())
-                .joinedAt(Instant.now())
-                .build();
-        projectMemberRepository.save(member);
+        // THỰC HIỆN KẾT NẠP THÀNH VIÊN: Chèn vào bảng PROJECT_MEMBER
+        Optional<ProjectMemberEntity> existingMember = projectMemberRepository
+                .findByProjectIdAndUserIdAndRemovedAtIsNull(invitation.getProjectId(), currentUserId);
+
+        if (existingMember.isEmpty()) {
+            ProjectMemberEntity member = ProjectMemberEntity.builder()
+                    .projectId(invitation.getProjectId())
+                    .userId(currentUserId)
+                    .role(invitation.getRole())
+                    .joinedAt(Instant.now())
+                    .removedAt(null)
+                    .build();
+            projectMemberRepository.save(member);
+        }
         log.info("User id={} accepted invitation id={} and joined project={}", currentUserId, invitationId, invitation.getProjectId());
+
+        // Đánh dấu đã đọc notification liên quan (nếu có)
+        notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(currentUserId).stream()
+                .filter(n -> n.getLinkUrl() != null && n.getLinkUrl().contains("invitationId=" + invitationId))
+                .forEach(n -> {
+                    n.setIsRead(true);
+                    notificationRepository.save(n);
+                });
 
         ProjectEntity project = projectRepository.findById(invitation.getProjectId()).orElse(null);
         UserEntity invitee = userRepository.findById(currentUserId).orElse(null);
@@ -204,20 +266,35 @@ public class ProjectInvitationService {
         invitation.setRespondedAt(Instant.now());
         projectInvitationRepository.save(invitation);
         log.info("User id={} rejected invitation id={}", currentUserId, invitationId);
+
+        // Đánh dấu đã đọc notification liên quan
+        notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(currentUserId).stream()
+                .filter(n -> n.getLinkUrl() != null && n.getLinkUrl().contains("invitationId=" + invitationId))
+                .forEach(n -> {
+                    n.setIsRead(true);
+                    notificationRepository.save(n);
+                });
     }
 
     /**
-     * 5. Chủ dự án thu hồi lời mời.
+     * 5. Thu hồi lời mời (chỉ Inviter hoặc OWNER dự án).
      */
     @Transactional
-    public void revokeInvitation(Long projectId, Long invitationId, Long currentUserId) {
-        projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
-
+    public void revokeInvitation(Long invitationId, Long currentUserId) {
         ProjectInvitationEntity invitation = projectInvitationRepository.findById(invitationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời với ID: " + invitationId));
 
-        if (!invitation.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Lời mời không thuộc dự án này.");
+        ProjectEntity project = projectRepository.findById(invitation.getProjectId())
+                .orElseThrow(() -> new ResourceNotFoundException("Dự án của lời mời không còn tồn tại"));
+
+        boolean isInviter = invitation.getInviterId().equals(currentUserId);
+        boolean isOwner = project.getOwnerId().equals(currentUserId);
+        boolean isAdmin = userRepository.findById(currentUserId)
+                .map(u -> u.getSystemRole() == SystemRole.ADMIN)
+                .orElse(false);
+
+        if (!isInviter && !isOwner && !isAdmin) {
+            throw new ForbiddenException("ACCESS_DENIED", "Chỉ người gửi lời mời hoặc chủ dự án mới có quyền thu hồi lời mời này.");
         }
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
@@ -227,7 +304,15 @@ public class ProjectInvitationService {
         invitation.setStatus(InvitationStatus.REVOKED);
         invitation.setRespondedAt(Instant.now());
         projectInvitationRepository.save(invitation);
-        log.info("Owner id={} revoked invitation id={} in project={}", currentUserId, invitationId, projectId);
+        log.info("User id={} revoked invitation id={} in project={}", currentUserId, invitationId, invitation.getProjectId());
+    }
+
+    /**
+     * Overload tương thích ngược: revokeInvitation với projectId.
+     */
+    @Transactional
+    public void revokeInvitation(Long projectId, Long invitationId, Long currentUserId) {
+        revokeInvitation(invitationId, currentUserId);
     }
 
     /**
@@ -243,12 +328,9 @@ public class ProjectInvitationService {
                 .map(inv -> {
                     UserEntity inviter = userRepository.findById(inv.getInviterId()).orElse(null);
                     UserEntity invitee = userRepository.findById(inv.getInviteeId()).orElse(null);
-                    return toResponse(
-                            inv,
-                            project.getName(),
-                            inviter != null ? (inviter.getFullName() != null ? inviter.getFullName() : inviter.getUsername()) : "Owner",
-                            invitee != null ? invitee.getEmail() : "Unknown"
-                    );
+                    String inviterName = inviter != null ? (inviter.getFullName() != null && !inviter.getFullName().isBlank() ? inviter.getFullName() : inviter.getUsername()) : "Owner";
+                    String inviteeEmail = invitee != null ? invitee.getEmail() : "Unknown";
+                    return toResponse(inv, project.getName(), inviterName, inviteeEmail);
                 })
                 .toList();
     }

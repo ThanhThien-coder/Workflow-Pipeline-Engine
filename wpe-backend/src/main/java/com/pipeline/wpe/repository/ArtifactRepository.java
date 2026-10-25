@@ -12,4 +12,7 @@ public interface ArtifactRepository extends JpaRepository<ArtifactEntity, Long> 
     List<ArtifactEntity> findByNodeId(Long nodeId);
     List<ArtifactEntity> findByProjectIdAndIsPublicForGuestTrue(Long projectId);
     List<ArtifactEntity> findByProjectIdAndIsInRepositoryTrue(Long projectId);
+    List<ArtifactEntity> findByProjectIdAndIsInRepositoryTrueOrderByCreatedAtDesc(Long projectId);
+    List<ArtifactEntity> findByProjectIdAndNodeIdOrderByCreatedAtDesc(Long projectId, Long nodeId);
+    List<ArtifactEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
 }

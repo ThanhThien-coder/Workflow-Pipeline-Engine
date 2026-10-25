@@ -1,12 +1,13 @@
 import React from 'react';
 import type { TemplateSummaryDto, TemplateCategory } from '../../../../types/template.types';
-import { Layers, Copy, Trash2, ArrowUpRight } from 'lucide-react';
+import { Layers, Copy, Trash2, ArrowUpRight, Sparkles } from 'lucide-react';
 
 interface TemplateCardProps {
   template: TemplateSummaryDto;
   onEdit: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  onUseTemplate?: (template: TemplateSummaryDto) => void;
 }
 
 const CATEGORY_GRADIENTS: Record<TemplateCategory, string> = {
@@ -21,6 +22,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   onEdit,
   onDuplicate,
   onDelete,
+  onUseTemplate,
 }) => {
   const gradient =
     CATEGORY_GRADIENTS[template.category] || CATEGORY_GRADIENTS['General'];
@@ -99,6 +101,18 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 
       {/* Actions */}
       <div className="mt-5 flex items-center gap-2 border-t border-slate-100 pt-4">
+        {onUseTemplate && (
+          <button
+            type="button"
+            onClick={() => onUseTemplate(template)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 active:scale-95"
+            title="Sử dụng mẫu này để tạo dự án mới"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+            <span>Use</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => onEdit(template.id)}

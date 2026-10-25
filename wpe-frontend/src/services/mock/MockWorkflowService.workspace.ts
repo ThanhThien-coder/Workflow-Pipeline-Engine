@@ -1,6 +1,8 @@
 import type {
+  CloneTemplateCommand,
   CreateProjectCommand,
   MemberSummaryDto,
+  ProjectDetailDto,
   ProjectSummaryDto,
 } from '../../types/workspace.types'
 import type { ProjectStatus } from '../../types/settings.types'
@@ -134,6 +136,10 @@ export class MockWorkspaceApi {
     return [...this.projects]
   }
 
+  async getMyProjects(): Promise<readonly ProjectSummaryDto[]> {
+    return this.getProjectsList()
+  }
+
   async createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto> {
     await new Promise((resolve) => setTimeout(resolve, 300))
 
@@ -141,7 +147,7 @@ export class MockWorkspaceApi {
     const newProject: ProjectSummaryDto = {
       id: Date.now(),
       name: cmd.name.trim(),
-      description: cmd.desc.trim() || 'No description provided.',
+      description: (cmd.desc || cmd.description || '').trim() || 'No description provided.',
       status: 'DRAFT',
       role: 'OWNER',
       nodeCount: isFromTemplate ? 14 : 0,
@@ -154,6 +160,58 @@ export class MockWorkspaceApi {
     this.projects = [newProject, ...this.projects]
     saveStoredProjects(this.projects)
     return newProject
+  }
+
+  async cloneTemplate(cmd: CloneTemplateCommand): Promise<ProjectDetailDto> {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    const newId = Date.now()
+    const newProject: ProjectSummaryDto = {
+      id: newId,
+      name: cmd.projectName.trim(),
+      description: cmd.description?.trim() || 'Nhân bản từ mẫu quy trình chuẩn.',
+      status: 'PLANNING',
+      role: 'OWNER',
+      nodeCount: 14,
+      totalNodes: 14,
+      completedNodes: 0,
+      inProgressNodes: 0,
+      criticalPathLength: 5,
+      completionPercent: 0,
+      progressPercentage: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      members: [{ id: 'u1', displayName: 'Alex Kim' }],
+    }
+
+    this.projects = [newProject, ...this.projects]
+    saveStoredProjects(this.projects)
+
+    const detail: ProjectDetailDto = {
+      id: String(newId),
+      name: newProject.name,
+      description: newProject.description,
+      status: 'PLANNING',
+      ownerId: 'u1',
+      ownerName: 'Alex Kim',
+      role: 'OWNER',
+      totalNodes: 14,
+      nodeCount: 14,
+      completedNodes: 0,
+      inProgressNodes: 0,
+      progressPercentage: 0,
+      completionPercent: 0,
+      createdAt: newProject.createdAt,
+      updatedAt: newProject.updatedAt,
+      latestAiAnalysis: null,
+      phases: [
+        { id: '1', name: 'Foundation', orderIndex: 0, nodeCount: 4 },
+        { id: '2', name: 'Core Engine', orderIndex: 1, nodeCount: 10 },
+      ],
+      members: newProject.members,
+    }
+
+    return detail
   }
 
   updateProjectStatus(id: number | string, status: ProjectStatus): void {

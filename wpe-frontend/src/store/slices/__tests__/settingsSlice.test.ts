@@ -95,10 +95,10 @@ describe('Project Settings & Governance Module', () => {
 
     expect(ok).toBe(true)
     const state = store.getState().settings
-    expect(state.members.length).toBe(initialCount + 1)
-    const newMember = state.members.find((m) => m.email === 'david.beck@acme.io')
-    expect(newMember).toBeDefined()
-    expect(newMember?.role).toBe('COLLABORATOR')
+    expect(state.members.length).toBe(initialCount)
+    const pendingInv = state.pendingInvitations.find((i) => i.inviteeEmail === 'david.beck@acme.io')
+    expect(pendingInv).toBeDefined()
+    expect(pendingInv?.role).toBe('COLLABORATOR')
     expect(state.auditLogs[0].action).toBe('MEMBER_INVITED')
   })
 

@@ -8,6 +8,7 @@ import type {
 import { TemplateCard } from './components/TemplateCard';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { Search, Plus, RefreshCw, AlertCircle, Sparkles, Layers } from 'lucide-react';
+import { CreatePipelineModal } from '../../../components/workspace/CreatePipelineModal';
 
 interface TemplateCatalogViewProps {
   onOpenStudio: (templateId: string | null) => void;
@@ -29,6 +30,9 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<TemplateSummaryDto | null>(null);
+
+  // Clone template modal state
+  const [cloneTarget, setCloneTarget] = useState<TemplateSummaryDto | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -116,6 +120,30 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Lỗi khi xóa template';
       onToast(msg, 'rose');
+    }
+  };
+
+  const handleCloneProject = async (data: {
+    name: string;
+    desc: string;
+    templateId?: string;
+    visibility?: string;
+  }) => {
+    try {
+      const targetId = data.templateId || cloneTarget?.id || '';
+      const cloned = await container.workflowService.cloneTemplate({
+        templateId: targetId,
+        projectName: data.name,
+        description: data.desc,
+        visibility: data.visibility || 'PRIVATE',
+      });
+      onToast('Nhân bản quy trình thành công!', 'emerald');
+      setCloneTarget(null);
+      window.location.hash = `#/project/${cloned.id}/workflow`;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Nhân bản quy trình thất bại';
+      onToast(msg, 'rose');
+      throw err;
     }
   };
 
@@ -255,10 +283,19 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
               onEdit={(id) => onOpenStudio(id)}
               onDuplicate={(id) => handleDuplicate(id)}
               onDelete={() => setDeleteTarget(t)}
+              onUseTemplate={(t) => setCloneTarget(t)}
             />
           ))}
         </div>
       )}
+
+      {/* Clone Template Modal */}
+      <CreatePipelineModal
+        isOpen={cloneTarget !== null}
+        onClose={() => setCloneTarget(null)}
+        onCreate={handleCloneProject}
+        initialTemplateId={cloneTarget?.id}
+      />
 
       {/* Confirm Delete Dialog */}
       <ConfirmDialog

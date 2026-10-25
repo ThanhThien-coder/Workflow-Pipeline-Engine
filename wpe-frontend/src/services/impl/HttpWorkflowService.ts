@@ -1,7 +1,43 @@
 import { MockWorkflowService } from '../MockWorkflowService'
-import type { ArtifactItem, ArtifactType, KanbanTask, PhaseId, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
+import type { ArtifactItem, ArtifactType, KanbanTask, PhaseId, SubmitArtifactDto, TaskStatus } from '../../types/kanban.types'
+import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand } from '../../types/artifact.types'
+import type {
+  CloneTemplateCommand,
+  CreateProjectCommand,
+  ProjectDetailDto,
+  ProjectRole,
+  ProjectStatus,
+  ProjectSummaryDto,
+} from '../../types/workspace.types'
+import type { ProjectInvitationDto } from '../../types/settings.types'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+function getAuthHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
+  const token = typeof window !== 'undefined'
+    ? (localStorage.getItem('wpe_auth_token') || sessionStorage.getItem('wpe_auth_token'))
+    : null
+  const headers: Record<string, string> = {
+    ...extraHeaders,
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+function getCurrentUserId(): string | null {
+  try {
+    const raw = typeof window !== 'undefined'
+      ? (localStorage.getItem('wpe_auth_user') || sessionStorage.getItem('wpe_auth_user'))
+      : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed.id != null ? String(parsed.id) : null
+  } catch {
+    return null
+  }
+}
 
 interface BackendTaskResponse {
   id: string
@@ -35,7 +71,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]> {
     try {
       const res = await fetch(`${API_BASE_URL}/projects/${projectId}/my-tasks?userId=${userId}`, {
-        headers: { 'Accept': 'application/json' }
+        headers: getAuthHeaders({ 'Accept': 'application/json' })
       })
 
       if (!res.ok) {
@@ -64,10 +100,10 @@ export class HttpWorkflowService extends MockWorkflowService {
 
       const res = await fetch(`${API_BASE_URL}/nodes/${taskId}/status`, {
         method: 'PATCH',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'Accept': 'application/json'
-        },
+        }),
         body: JSON.stringify({
           status: newStatus,
           rejectReason: rejectReason || null,
@@ -102,10 +138,10 @@ export class HttpWorkflowService extends MockWorkflowService {
 
       const res = await fetch(`${API_BASE_URL}/nodes/${dto.taskId}/submit`, {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'Accept': 'application/json'
-        },
+        }),
         body: JSON.stringify({
           taskId: dto.taskId,
           type: dto.type,
@@ -136,6 +172,110 @@ export class HttpWorkflowService extends MockWorkflowService {
     } catch (error) {
       console.warn('[HttpWorkflowService] Lỗi khi gọi API submitTaskArtifact:', error)
       return super.submitTaskArtifact(dto)
+    }
+  }
+
+  /**
+   * Gọi API thật GET /api/v1/projects/{projectId}/artifacts
+   */
+  async getProjectArtifacts(projectId: string): Promise<ProjectArtifactItem[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/artifacts?inRepo=true`, {
+        headers: getAuthHeaders({ 'Accept': 'application/json' })
+      })
+
+      if (!res.ok) {
+        console.warn(`[HttpWorkflowService] getProjectArtifacts trả về ${res.status}, chuyển sang mock fallback.`)
+        return super.getProjectArtifacts(projectId)
+      }
+
+      const data = await res.json()
+      return (data || []).map((item: any) => ({
+        id: String(item.id),
+        projectId: String(item.projectId),
+        nodeId: item.nodeId ? String(item.nodeId) : null,
+        name: item.name,
+        title: item.name,
+        type: item.type,
+        url: item.url,
+        isInRepository: item.isInRepository ?? true,
+        isPublicForGuest: item.isPublicForGuest ?? true,
+        uploadedBy: item.uploadedBy ? String(item.uploadedBy) : null,
+        createdAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : ''
+      }))
+    } catch (error) {
+      console.warn('[HttpWorkflowService] Lỗi khi gọi getProjectArtifacts, chuyển sang mock fallback:', error)
+      return super.getProjectArtifacts(projectId)
+    }
+  }
+
+  /**
+   * Gọi API thật POST /api/v1/projects/{projectId}/artifacts
+   */
+  async createArtifact(projectId: string, payload: CreateArtifactCommand): Promise<ProjectArtifactItem> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/artifacts`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }),
+        body: JSON.stringify({
+          name: payload.name,
+          url: payload.url,
+          type: payload.type || null,
+          nodeId: payload.nodeId ? Number(payload.nodeId) : null,
+          isInRepository: payload.isInRepository ?? true
+        })
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.message || `Thêm tài nguyên thất bại (HTTP ${res.status})`)
+      }
+
+      const item = await res.json()
+      return {
+        id: String(item.id),
+        projectId: String(item.projectId),
+        nodeId: item.nodeId ? String(item.nodeId) : null,
+        name: item.name,
+        title: item.name,
+        type: item.type,
+        url: item.url,
+        isInRepository: item.isInRepository ?? true,
+        isPublicForGuest: item.isPublicForGuest ?? true,
+        uploadedBy: item.uploadedBy ? String(item.uploadedBy) : null,
+        createdAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : ''
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Thêm tài nguyên thất bại')) {
+        throw error
+      }
+      console.warn('[HttpWorkflowService] Lỗi khi gọi createArtifact, chuyển sang mock fallback:', error)
+      return super.createArtifact(projectId, payload)
+    }
+  }
+
+  /**
+   * Gọi API thật DELETE /api/v1/projects/{projectId}/artifacts/{artifactId}
+   */
+  async deleteArtifact(projectId: string, artifactId: string): Promise<void> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/artifacts/${artifactId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      })
+
+      if (!res.ok && res.status !== 404) {
+        throw new Error(`Xóa tài nguyên thất bại (HTTP ${res.status})`)
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Xóa tài nguyên thất bại')) {
+        throw error
+      }
+      console.warn('[HttpWorkflowService] Lỗi khi gọi deleteArtifact, chuyển sang mock fallback:', error)
+      return super.deleteArtifact(projectId, artifactId)
     }
   }
 
@@ -179,6 +319,329 @@ export class HttpWorkflowService extends MockWorkflowService {
 
     return () => {
       eventSource.close()
+    }
+  }
+
+  /**
+   * Gọi API thật GET /api/v1/projects
+   */
+  async getMyProjects(): Promise<readonly ProjectSummaryDto[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects`, {
+        headers: getAuthHeaders({ 'Accept': 'application/json' }),
+      })
+
+      if (!res.ok) {
+        console.warn(`[HttpWorkflowService] Backend GET /projects trả về ${res.status}, chuyển sang mock fallback.`)
+        return super.getMyProjects()
+      }
+
+      const currentUserId = getCurrentUserId()
+      const data: any[] = await res.json()
+      return data.map((item) => {
+        const itemOwnerId = item.ownerId != null ? String(item.ownerId) : undefined
+        const computedRole: ProjectRole = item.role
+          ? (item.role as ProjectRole)
+          : (currentUserId && itemOwnerId && currentUserId === itemOwnerId ? 'OWNER' : 'COLLABORATOR')
+        return {
+          id: String(item.id),
+          name: item.name,
+          description: item.description || '',
+          status: (item.status || 'ACTIVE') as ProjectStatus,
+          ownerId: itemOwnerId,
+          ownerName: item.ownerName || '',
+          role: computedRole,
+          nodeCount: item.totalNodes ?? item.nodeCount ?? 0,
+          totalNodes: item.totalNodes ?? item.nodeCount ?? 0,
+          completedNodes: item.completedNodes ?? 0,
+          inProgressNodes: item.inProgressNodes ?? 0,
+          completionPercent: item.progressPercentage != null ? Math.round(item.progressPercentage) : (item.completionPercent ?? 0),
+          progressPercentage: item.progressPercentage ?? item.completionPercent ?? 0,
+          criticalPathLength: item.criticalPathLength ?? 0,
+          createdAt: item.createdAt || new Date().toISOString(),
+          updatedAt: item.updatedAt || new Date().toISOString(),
+          members: (item.members || (item.ownerName ? [{ id: String(item.ownerId || '1'), displayName: item.ownerName }] : [])).map((m: any) => ({
+            id: String(m.id),
+            displayName: m.displayName || m.username || 'Member',
+          })),
+        }
+      })
+    } catch (error) {
+      console.warn('[HttpWorkflowService] Không thể kết nối backend GET /projects, chuyển sang mock fallback:', error)
+      return super.getMyProjects()
+    }
+  }
+
+  async getProjectsList(): Promise<readonly ProjectSummaryDto[]> {
+    return this.getMyProjects()
+  }
+
+  /**
+   * Gọi API thật POST /api/v1/projects
+   */
+  async createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+        body: JSON.stringify({
+          name: cmd.name,
+          description: cmd.desc ?? cmd.description ?? '',
+          templateId: cmd.templateId ? Number(cmd.templateId) : null,
+          visibility: cmd.visibility || 'PRIVATE',
+        }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.message || `Tạo dự án thất bại (HTTP ${res.status})`)
+      }
+
+      const item = await res.json()
+      return {
+        id: String(item.id),
+        name: item.name,
+        description: item.description || '',
+        status: (item.status || 'DRAFT') as ProjectStatus,
+        ownerId: item.ownerId != null ? String(item.ownerId) : undefined,
+        ownerName: item.ownerName || '',
+        role: 'OWNER',
+        nodeCount: item.totalNodes ?? item.nodeCount ?? 0,
+        totalNodes: item.totalNodes ?? item.nodeCount ?? 0,
+        completedNodes: item.completedNodes ?? 0,
+        inProgressNodes: item.inProgressNodes ?? 0,
+        criticalPathLength: item.criticalPathLength ?? 0,
+        completionPercent: item.progressPercentage != null ? Math.round(item.progressPercentage) : 0,
+        progressPercentage: item.progressPercentage ?? 0,
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+        members: (item.members || (item.ownerName ? [{ id: String(item.ownerId || '1'), displayName: item.ownerName }] : [])).map((m: any) => ({
+          id: String(m.id),
+          displayName: m.displayName || m.username || 'Member',
+        })),
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Tạo dự án thất bại')) {
+        throw error
+      }
+      console.warn('[HttpWorkflowService] Lỗi khi gọi createProject, chuyển sang mock fallback:', error)
+      return super.createProject(cmd)
+    }
+  }
+
+  /**
+   * Gọi API thật POST /api/v1/projects/clone-template
+   */
+  async cloneTemplate(req: CloneTemplateCommand | {
+    templateId: string | number
+    projectName: string
+    description?: string
+    visibility?: string
+  }): Promise<ProjectDetailDto> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/clone-template`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+        body: JSON.stringify({
+          templateId: Number(req.templateId),
+          projectName: req.projectName.trim(),
+          description: req.description?.trim() || '',
+          visibility: req.visibility || 'PRIVATE',
+        }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.message || `Nhân bản quy trình thất bại (HTTP ${res.status})`)
+      }
+
+      const item = await res.json()
+      return {
+        id: String(item.id),
+        name: item.name,
+        description: item.description || '',
+        status: (item.status || 'PLANNING') as ProjectStatus,
+        ownerId: item.ownerId != null ? String(item.ownerId) : undefined,
+        ownerName: item.ownerName || '',
+        role: 'OWNER',
+        totalNodes: item.totalNodes ?? item.nodeCount ?? 0,
+        nodeCount: item.totalNodes ?? item.nodeCount ?? 0,
+        completedNodes: item.completedNodes ?? 0,
+        inProgressNodes: item.inProgressNodes ?? 0,
+        completionPercent: item.progressPercentage != null ? Math.round(item.progressPercentage) : 0,
+        progressPercentage: item.progressPercentage ?? 0,
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+        latestAiAnalysis: item.latestAiAnalysis || null,
+        phases: (item.phases || []).map((p: any) => ({
+          id: String(p.id),
+          name: p.name,
+          subTitle: p.subTitle || '',
+          accentColor: p.accentColor || '',
+          orderIndex: p.orderIndex ?? 0,
+          nodeCount: p.nodeCount ?? 0,
+        })),
+        members: item.ownerName ? [{ id: String(item.ownerId || '1'), displayName: item.ownerName }] : [],
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Nhân bản quy trình thất bại')) {
+        throw error
+      }
+      console.warn('[HttpWorkflowService] Lỗi khi gọi cloneTemplate, chuyển sang mock fallback:', error)
+      return super.cloneTemplate(req)
+    }
+  }
+
+  /**
+   * Gọi API thật PATCH /api/v1/projects/{id}/status
+   */
+  async updateProjectStatus(projectId: string, status: ProjectStatus | string): Promise<ProjectSummaryDto> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/status`, {
+        method: 'PATCH',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+        body: JSON.stringify({ status }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.message || `Cập nhật trạng thái dự án thất bại (HTTP ${res.status})`)
+      }
+
+      const item = await res.json()
+      return {
+        id: String(item.id),
+        name: item.name,
+        description: item.description || '',
+        status: (item.status || status) as ProjectStatus,
+        ownerId: item.ownerId != null ? String(item.ownerId) : undefined,
+        ownerName: item.ownerName || '',
+        role: 'OWNER',
+        nodeCount: item.totalNodes ?? 0,
+        totalNodes: item.totalNodes ?? 0,
+        completedNodes: item.completedNodes ?? 0,
+        inProgressNodes: item.inProgressNodes ?? 0,
+        criticalPathLength: 0,
+        completionPercent: item.progressPercentage != null ? Math.round(item.progressPercentage) : 0,
+        progressPercentage: item.progressPercentage ?? 0,
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+        members: [],
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Cập nhật trạng thái dự án thất bại')) {
+        throw error
+      }
+      console.warn('[HttpWorkflowService] Lỗi khi gọi updateProjectStatus, chuyển sang mock fallback:', error)
+      return super.updateProjectStatus(projectId, status as ProjectStatus)
+    }
+  }
+
+  /**
+   * Gọi API thật GET /api/v1/invitations/{id}
+   */
+  async getInvitationDetail(invitationId: string): Promise<ProjectInvitationDto | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/invitations/${invitationId}`, {
+        headers: getAuthHeaders({ 'Accept': 'application/json' }),
+      })
+
+      if (!res.ok) {
+        if (res.status === 404) return null
+        console.warn(`[HttpWorkflowService] getInvitationDetail trả về ${res.status}, chuyển sang mock fallback.`)
+        return super.getInvitationDetail(invitationId)
+      }
+
+      const data = await res.json()
+      return {
+        id: String(data.id),
+        projectId: String(data.projectId),
+        projectName: data.projectName || '',
+        inviterId: data.inviterId ? String(data.inviterId) : '1',
+        inviterName: data.inviterName || 'Workspace Owner',
+        inviterEmail: data.inviterEmail,
+        inviteeEmail: data.inviteeEmail || '',
+        role: data.role || 'COLLABORATOR',
+        status: data.status || 'PENDING',
+        createdAt: data.createdAt || new Date().toISOString(),
+        expiresAt: data.expiresAt || new Date(Date.now() + 7 * 86400000).toISOString(),
+      }
+    } catch (error) {
+      console.warn('[HttpWorkflowService] Lỗi khi gọi getInvitationDetail, chuyển sang mock fallback:', error)
+      return super.getInvitationDetail(invitationId)
+    }
+  }
+
+  async getInvitation(invitationId: string): Promise<ProjectInvitationDto | null> {
+    return this.getInvitationDetail(invitationId)
+  }
+
+  /**
+   * Gọi API thật POST /api/v1/invitations/{id}/accept
+   */
+  async acceptInvitation(invitationId: string): Promise<{ success: boolean; projectId?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/invitations/${invitationId}/accept`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.message || `Chấp nhận lời mời thất bại (HTTP ${res.status})`)
+      }
+
+      const data = await res.json().catch(() => ({}))
+      return {
+        success: true,
+        projectId: data.projectId ? String(data.projectId) : undefined,
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Chấp nhận lời mời thất bại')) {
+        throw error
+      }
+      console.warn('[HttpWorkflowService] Lỗi khi gọi acceptInvitation, chuyển sang mock fallback:', error)
+      return super.acceptInvitation(invitationId)
+    }
+  }
+
+  /**
+   * Gọi API thật POST /api/v1/invitations/{id}/reject
+   */
+  async rejectInvitation(invitationId: string): Promise<{ success: boolean }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/invitations/${invitationId}/reject`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.message || `Từ chối lời mời thất bại (HTTP ${res.status})`)
+      }
+
+      return { success: true }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Từ chối lời mời thất bại')) {
+        throw error
+      }
+      console.warn('[HttpWorkflowService] Lỗi khi gọi rejectInvitation, chuyển sang mock fallback:', error)
+      return super.rejectInvitation(invitationId)
     }
   }
 

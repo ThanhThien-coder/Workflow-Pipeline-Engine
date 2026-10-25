@@ -8,7 +8,15 @@ public record CreateInvitationRequest(
     @NotBlank(message = "Invitee email or username is required")
     String inviteeEmailOrUsername,
 
-    @NotNull(message = "Role is required")
     ProjectRole role
 ) {
+    public CreateInvitationRequest {
+        if (role == null) {
+            role = ProjectRole.COLLABORATOR;
+        }
+    }
+
+    public CreateInvitationRequest(String inviteeEmailOrUsername) {
+        this(inviteeEmailOrUsername, ProjectRole.COLLABORATOR);
+    }
 }

@@ -19,9 +19,13 @@ import type {
   UserDto,
 } from '../../types/auth.types'
 import type {
+  CloneTemplateCommand,
   CreateProjectCommand,
+  ProjectDetailDto,
   ProjectSummaryDto,
 } from '../../types/workspace.types'
+
+import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand } from '../../types/artifact.types'
 
 export type { MacroPhase } from '../../types/workflow.types'
 
@@ -42,8 +46,11 @@ export interface IWorkflowService {
   logout(): Promise<void>
 
   // Workspace contracts
+  getMyProjects(): Promise<readonly ProjectSummaryDto[]>
   getProjectsList(): Promise<readonly ProjectSummaryDto[]>
   createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto>
+  cloneTemplate(req: CloneTemplateCommand | { templateId: string | number; projectName: string; description?: string; visibility?: string }): Promise<ProjectDetailDto>
+  updateProjectStatus?(projectId: string, status: ProjectStatus | string): Promise<ProjectSummaryDto>
 
   getMacroPhases(projectId?: string): Promise<MacroPhase[]>
   getPhaseEdges(projectId?: string): Promise<[string, string][]>
@@ -63,6 +70,11 @@ export interface IWorkflowService {
   submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }>
   getProjectMembers(projectId: string): Promise<UserSummary[]>
 
+  /* Artifacts Hub (Repository & Deliverables) */
+  getProjectArtifacts(projectId: string): Promise<ProjectArtifactItem[]>
+  createArtifact(projectId: string, payload: CreateArtifactCommand): Promise<ProjectArtifactItem>
+  deleteArtifact(projectId: string, artifactId: string): Promise<void>
+
   /* Project Governance & Settings */
   getProjectSettings(projectId: string): Promise<ProjectSettingsDto>
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto>
@@ -79,6 +91,7 @@ export interface IWorkflowService {
   /* Project Invitations (Asynchronous Lifecycle) */
   createProjectInvitation?(projectId: string, cmd: InviteMemberCommand): Promise<ProjectInvitationDto>
   getProjectPendingInvitations?(projectId: string): Promise<ProjectInvitationDto[]>
+  getInvitationDetail?(invitationId: string): Promise<ProjectInvitationDto | null>
   getInvitation?(invitationId: string): Promise<ProjectInvitationDto | null>
   acceptInvitation?(invitationId: string): Promise<{ success: boolean; projectId?: string }>
   rejectInvitation?(invitationId: string): Promise<{ success: boolean }>

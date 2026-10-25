@@ -1,6 +1,8 @@
 import type {
+  CloneTemplateCommand,
   CreateProjectCommand,
   ProjectCardVm,
+  ProjectDetailDto,
   ProjectSummaryDto,
 } from '../../types/workspace.types'
 import { workflowService } from '../../services/container'
@@ -30,13 +32,16 @@ export interface WorkspaceState {
   isCreateModalOpen: boolean
   activeProjectId: number | string | null
   status: 'idle' | 'loading' | 'ready' | 'error'
+  isLoading: boolean
   error: string | null
 }
 
 export interface WorkspaceSlice {
   workspace: WorkspaceState & {
     loadProjects: () => Promise<void>
+    fetchProjects: () => Promise<void>
     createProject: (cmd: CreateProjectCommand) => Promise<ProjectSummaryDto>
+    cloneTemplate: (req: CloneTemplateCommand) => Promise<ProjectDetailDto>
     setTab: (tab: WorkspaceTab) => void
     setQuery: (q: string) => void
     setSort: (sort: WorkspaceSort) => void
@@ -107,21 +112,26 @@ export const createWorkspaceSlice = (
     isCreateModalOpen: false,
     activeProjectId: null,
     status: 'idle',
+    isLoading: false,
     error: null,
 
-    loadProjects: async () => {
+    fetchProjects: async () => {
       set((state) => ({
-        workspace: { ...state.workspace, status: 'loading', error: null },
+        workspace: { ...state.workspace, isLoading: true, status: 'loading', error: null },
       }))
 
       try {
-        const dtos = await workflowService.getProjectsList()
+        const getProjects = workflowService.getMyProjects
+          ? workflowService.getMyProjects.bind(workflowService)
+          : workflowService.getProjectsList.bind(workflowService)
+        const dtos = await getProjects()
         const cardVms = dtos.map(mapProjectDtoToVm)
 
         set((state) => ({
           workspace: {
             ...state.workspace,
             projects: cardVms,
+            isLoading: false,
             status: 'ready',
             error: null,
           },
@@ -129,28 +139,115 @@ export const createWorkspaceSlice = (
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load projects'
         set((state) => ({
-          workspace: { ...state.workspace, status: 'error', error: message },
+          workspace: { ...state.workspace, isLoading: false, status: 'error', error: message },
         }))
       }
     },
 
+    loadProjects: async () => {
+      return get().workspace.fetchProjects()
+    },
+
     createProject: async (cmd: CreateProjectCommand) => {
+      set((state) => ({
+        workspace: { ...state.workspace, isLoading: true, error: null },
+      }))
       try {
-        const newProjectDto = await workflowService.createProject(cmd)
+        let newProjectDto: ProjectSummaryDto
+        if (cmd.templateId) {
+          const detail = await workflowService.cloneTemplate({
+            templateId: cmd.templateId,
+            projectName: cmd.name,
+            description: cmd.desc ?? cmd.description ?? '',
+            visibility: cmd.visibility,
+          })
+          newProjectDto = {
+            id: detail.id,
+            name: detail.name,
+            description: detail.description || '',
+            status: detail.status,
+            role: detail.role || 'OWNER',
+            nodeCount: detail.totalNodes ?? detail.nodeCount ?? 0,
+            totalNodes: detail.totalNodes ?? detail.nodeCount ?? 0,
+            completedNodes: detail.completedNodes ?? 0,
+            inProgressNodes: detail.inProgressNodes ?? 0,
+            criticalPathLength: 0,
+            completionPercent: detail.completionPercent ?? 0,
+            progressPercentage: detail.progressPercentage ?? 0,
+            updatedAt: detail.updatedAt || new Date().toISOString(),
+            createdAt: detail.createdAt || new Date().toISOString(),
+            members: detail.members || [{ id: 'u1', displayName: detail.ownerName || 'Owner' }],
+          }
+        } else {
+          newProjectDto = await workflowService.createProject(cmd)
+        }
         const newCardVm = mapProjectDtoToVm(newProjectDto)
 
         set((state) => ({
           workspace: {
             ...state.workspace,
             projects: [newCardVm, ...state.workspace.projects],
+            isLoading: false,
             isCreateModalOpen: false,
             tab: 'all',
             q: '',
+            error: null,
           },
         }))
 
         return newProjectDto
       } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to create project'
+        set((state) => ({
+          workspace: { ...state.workspace, isLoading: false, error: message },
+        }))
+        throw err
+      }
+    },
+
+    cloneTemplate: async (req: CloneTemplateCommand) => {
+      set((state) => ({
+        workspace: { ...state.workspace, isLoading: true, error: null },
+      }))
+      try {
+        const detailDto = await workflowService.cloneTemplate(req)
+        const summaryLike: ProjectSummaryDto = {
+          id: detailDto.id,
+          name: detailDto.name,
+          description: detailDto.description || '',
+          status: detailDto.status,
+          role: detailDto.role || 'OWNER',
+          nodeCount: detailDto.totalNodes ?? detailDto.nodeCount ?? 0,
+          totalNodes: detailDto.totalNodes ?? detailDto.nodeCount ?? 0,
+          completedNodes: detailDto.completedNodes ?? 0,
+          inProgressNodes: detailDto.inProgressNodes ?? 0,
+          criticalPathLength: 0,
+          completionPercent: detailDto.completionPercent ?? 0,
+          progressPercentage: detailDto.progressPercentage ?? 0,
+          updatedAt: detailDto.updatedAt || new Date().toISOString(),
+          createdAt: detailDto.createdAt || new Date().toISOString(),
+          members: detailDto.members || [{ id: 'u1', displayName: detailDto.ownerName || 'Owner' }],
+        }
+        const newCardVm = mapProjectDtoToVm(summaryLike)
+
+        set((state) => ({
+          workspace: {
+            ...state.workspace,
+            projects: [newCardVm, ...state.workspace.projects],
+            isLoading: false,
+            isCreateModalOpen: false,
+            tab: 'all',
+            q: '',
+            error: null,
+          },
+        }))
+
+        return detailDto
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to clone template'
+        set((state) => ({
+          workspace: { ...state.workspace, isLoading: false, error: message },
+        }))
         throw err
       }
     },

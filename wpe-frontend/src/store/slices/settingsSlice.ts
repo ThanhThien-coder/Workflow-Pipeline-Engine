@@ -292,7 +292,6 @@ export const createSettingsSlice = (
           const newMember = await workflowService.inviteProjectMember(pid, cmd)
           set((state) =>
             produce(state, (draft) => {
-              draft.settings.members.push(newMember)
               if (inviteDto) {
                 draft.settings.pendingInvitations.unshift(inviteDto)
               }
@@ -300,7 +299,7 @@ export const createSettingsSlice = (
             }),
           )
           await refreshLogs(pid)
-          get().settings.showToast(`Invitation sent to ${newMember.email}.`)
+          get().settings.showToast(`Invitation sent to ${newMember.email || cmd.usernameOrEmail}.`)
           return true
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Failed to invite member'

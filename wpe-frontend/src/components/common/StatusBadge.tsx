@@ -6,6 +6,9 @@ const STATUS_STYLES: Record<ProjectStatus, string> = {
   DRAFT: 'bg-amber-50 text-amber-700 border-amber-200',
   INACTIVE: 'bg-orange-50 text-orange-700 border-orange-200',
   ARCHIVED: 'bg-slate-100 text-slate-500 border-slate-200',
+  PLANNING: 'bg-sky-50 text-sky-700 border-sky-200',
+  PAUSED: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  COMPLETED: 'bg-indigo-50 text-indigo-700 border-indigo-200',
 }
 
 interface StatusBadgeProps {

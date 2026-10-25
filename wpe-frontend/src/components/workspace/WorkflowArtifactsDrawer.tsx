@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -13,6 +13,7 @@ import {
   Link2,
 } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { workflowService } from '../../services/container'
 import type { ProjectArtifact } from '../../types/artifact.types'
 
 // Brand Icons
@@ -138,6 +139,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const artifacts = useWorkflowStore((state) => state.artifacts.items)
   const addArtifact = useWorkflowStore((state) => state.artifacts.addArtifact)
   const removeArtifact = useWorkflowStore((state) => state.artifacts.removeArtifact)
+  const showToast = useWorkflowStore((state) => state.ui?.showToast)
   const currentPersona = useWorkflowStore(
     (state) => state.auth.currentUser?.username || 'Owner',
   )
@@ -151,13 +153,51 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
     }
   }
 
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Load deliverables from backend service when opened or project changes
+  useEffect(() => {
+    let isMounted = true
+    const fetchArtifacts = async () => {
+      if (artifacts.length === 0) {
+        setIsLoading(true)
+      }
+      try {
+        if (workflowService && workflowService.getProjectArtifacts) {
+          const items = await workflowService.getProjectArtifacts(projectId)
+          if (isMounted && Array.isArray(items)) {
+            useWorkflowStore.setState((state) => ({
+              artifacts: {
+                ...state.artifacts,
+                items,
+              },
+            }))
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch deliverables from backend:', err)
+      } finally {
+        if (isMounted) setIsLoading(false)
+      }
+    }
+
+    if (isOpen) {
+      void fetchArtifacts()
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [projectId, isOpen])
+
   // Quick Add Form State
   const [formTitle, setFormTitle] = useState('')
   const [formUrl, setFormUrl] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  const handleAddLink = (e: React.FormEvent) => {
+  const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage(null)
 
@@ -184,26 +224,71 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
         ? trimmedUrl
         : `https://${trimmedUrl}`
 
-    addArtifact(
-      {
-        title: trimmedTitle,
-        url: normalizedUrl,
-        createdBy: currentPersona,
-      },
-      projectId,
-    )
+    setSubmitting(true)
+    try {
+      if (workflowService && workflowService.createArtifact) {
+        const created = await workflowService.createArtifact(projectId, {
+          name: trimmedTitle,
+          url: normalizedUrl,
+          isInRepository: true,
+        })
+        useWorkflowStore.setState((state) => ({
+          artifacts: {
+            ...state.artifacts,
+            items: [created, ...state.artifacts.items.filter((i) => String(i.id) !== String(created.id))],
+          },
+        }))
+        showToast?.('Đã thêm liên kết tài nguyên thành công.')
+      } else {
+        addArtifact(
+          {
+            title: trimmedTitle,
+            name: trimmedTitle,
+            url: normalizedUrl,
+            createdBy: currentPersona,
+          },
+          projectId,
+        )
+      }
 
-    setFormTitle('')
-    setFormUrl('')
-    setErrorMessage(null)
+      setFormTitle('')
+      setFormUrl('')
+      setErrorMessage(null)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Thêm tài nguyên thất bại.'
+      setErrorMessage(msg)
+      showToast?.(msg)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteLink = async (artifact: ProjectArtifact) => {
+    try {
+      if (workflowService && workflowService.deleteArtifact) {
+        await workflowService.deleteArtifact(projectId, String(artifact.id))
+      }
+      removeArtifact(String(artifact.id), projectId)
+      useWorkflowStore.setState((state) => ({
+        artifacts: {
+          ...state.artifacts,
+          items: state.artifacts.items.filter((i) => String(i.id) !== String(artifact.id)),
+        },
+      }))
+      showToast?.('Đã xóa liên kết tài nguyên.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Xóa tài nguyên thất bại.'
+      console.warn('Failed to delete artifact:', err)
+      showToast?.(msg)
+    }
   }
 
   const handleCopyLink = async (artifact: ProjectArtifact) => {
     try {
       await navigator.clipboard.writeText(artifact.url)
-      setCopiedId(artifact.id)
+      setCopiedId(String(artifact.id))
       setTimeout(() => {
-        setCopiedId((curr) => (curr === artifact.id ? null : curr))
+        setCopiedId((curr) => (curr === String(artifact.id) ? null : curr))
       }, 1500)
     } catch {
       // fallback
@@ -273,7 +358,8 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                 <div className="space-y-1.5">
                   <input
                     type="text"
-                    className="w-full bg-white dark:bg-slate-800 border border-mp-n-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-mp-ink dark:text-slate-100 placeholder:text-mp-n-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all"
+                    disabled={submitting}
+                    className="w-full bg-white dark:bg-slate-800 border border-mp-n-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-mp-ink dark:text-slate-100 placeholder:text-mp-n-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="Tên link (ví dụ: Figma Design, PR GitHub...)"
                     value={formTitle}
                     onChange={(e) => {
@@ -284,7 +370,8 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
                   <input
                     type="text"
-                    className="w-full bg-white dark:bg-slate-800 border border-mp-n-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-mp-ink dark:text-slate-100 placeholder:text-mp-n-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all"
+                    disabled={submitting}
+                    className="w-full bg-white dark:bg-slate-800 border border-mp-n-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-mp-ink dark:text-slate-100 placeholder:text-mp-n-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="https://..."
                     value={formUrl}
                     onChange={(e) => {
@@ -302,11 +389,20 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
                 <button
                   type="submit"
-                  disabled={!formTitle.trim() || !formUrl.trim()}
+                  disabled={submitting || !formTitle.trim() || !formUrl.trim()}
                   className="w-full py-2 rounded-xl font-medium text-xs text-white bg-gradient-to-r from-mp-eggplant via-mp-purple-600 to-indigo-600 hover:opacity-95 shadow-mp-glow transition-all active:scale-[0.99] flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none"
                 >
-                  <Plus size={14} />
-                  <span>+ Add Link</span>
+                  {submitting ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
+                      <span>Đang thêm link...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={14} />
+                      <span>+ Add Link</span>
+                    </>
+                  )}
                 </button>
               </form>
             </section>
@@ -316,17 +412,36 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
               className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-2.5 overscroll-contain [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-mp-n-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700"
               data-lenis-prevent="true"
             >
-              {artifacts.length === 0 ? (
-                /* Empty State */
-                <div className="grid place-items-center p-7 text-center bg-mp-n-50/70 rounded-2xl border border-dashed border-mp-n-200 my-2">
-                  <div className="grid h-11 w-11 place-items-center rounded-full bg-mp-purple-50 text-mp-purple-700 mb-2.5 border border-mp-purple-200/50">
+              {isLoading && artifacts.length === 0 ? (
+                /* Skeleton Loading State (Chống giật layout khi fetch) */
+                <div className="space-y-2.5 py-1" role="status" aria-label="Đang tải danh sách tài nguyên">
+                  {[1, 2, 3].map((n) => (
+                    <div
+                      key={n}
+                      className="rounded-2xl border border-mp-n-200/80 bg-white dark:bg-slate-800/80 p-3 flex items-center justify-between animate-pulse"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-9 h-9 rounded-xl bg-mp-n-200/70 dark:bg-slate-700 shrink-0" />
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="h-3.5 bg-mp-n-200/80 dark:bg-slate-700 rounded w-2/3" />
+                          <div className="h-2.5 bg-mp-n-200/50 dark:bg-slate-700/60 rounded w-1/3" />
+                        </div>
+                      </div>
+                      <div className="w-6 h-6 rounded-lg bg-mp-n-100 dark:bg-slate-700/50 shrink-0 ml-2" />
+                    </div>
+                  ))}
+                </div>
+              ) : artifacts.length === 0 ? (
+                /* Empty State thân thiện */
+                <div className="grid place-items-center p-7 text-center bg-mp-n-50/70 dark:bg-slate-800/40 rounded-2xl border border-dashed border-mp-n-200 dark:border-slate-700 my-2">
+                  <div className="grid h-11 w-11 place-items-center rounded-full bg-mp-purple-50 dark:bg-mp-purple-900/30 text-mp-purple-700 dark:text-mp-purple-300 mb-2.5 border border-mp-purple-200/50 dark:border-mp-purple-800/50">
                     <FolderOpen size={20} />
                   </div>
-                  <h3 className="text-sm font-semibold text-mp-ink">
-                    Chưa có sản phẩm nghiệm thu nào được gán.
+                  <h3 className="text-sm font-semibold text-mp-ink dark:text-slate-100">
+                    Chưa có tài nguyên nào.
                   </h3>
-                  <p className="text-xs text-mp-n-500 mt-1 max-w-[240px]">
-                    Hãy dán link tài liệu đầu tiên ở trên để nhóm cùng truy cập.
+                  <p className="text-xs text-mp-n-500 dark:text-slate-400 mt-1 max-w-[260px] leading-relaxed">
+                    Hãy dán link Figma, PR hoặc tài liệu đầu tiên ở trên để nhóm cùng truy cập.
                   </p>
                 </div>
               ) : (
@@ -350,7 +465,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium text-mp-ink group-hover:text-mp-purple-700 transition-colors">
-                            {artifact.title}
+                            {artifact.name || artifact.title}
                           </div>
                           <div className="text-xs text-mp-n-400 flex items-center gap-1.5 mt-0.5">
                             <span className="truncate max-w-[160px]">
@@ -380,7 +495,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                               : 'text-mp-n-400 hover:text-mp-purple-600 hover:bg-mp-purple-50'
                           }`}
                           title={isCopied ? 'Copied!' : 'Copy link'}
-                          aria-label={`Copy link for ${artifact.title}`}
+                          aria-label={`Copy link for ${artifact.name || artifact.title}`}
                         >
                           {isCopied ? <Check size={14} /> : <Copy size={14} />}
                         </button>
@@ -392,7 +507,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                           rel="noopener noreferrer"
                           className="p-1.5 rounded-lg text-mp-n-400 hover:text-mp-purple-600 hover:bg-mp-purple-50 transition-colors"
                           title="Open link in new tab"
-                          aria-label={`Open ${artifact.title} in new tab`}
+                          aria-label={`Open ${artifact.name || artifact.title} in new tab`}
                         >
                           <ExternalLink size={14} />
                         </a>
@@ -400,10 +515,10 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                         {/* Remove */}
                         <button
                           type="button"
-                          onClick={() => removeArtifact(artifact.id, projectId)}
+                          onClick={() => handleDeleteLink(artifact)}
                           className="p-1.5 rounded-lg text-mp-n-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
                           title="Remove artifact"
-                          aria-label={`Remove ${artifact.title}`}
+                          aria-label={`Remove ${artifact.name || artifact.title}`}
                         >
                           <Trash2 size={14} />
                         </button>

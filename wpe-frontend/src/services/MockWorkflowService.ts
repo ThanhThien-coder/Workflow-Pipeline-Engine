@@ -28,9 +28,16 @@ import type {
   UserDto,
 } from '../types/auth.types'
 import type {
+  CloneTemplateCommand,
   CreateProjectCommand,
+  ProjectDetailDto,
   ProjectSummaryDto,
 } from '../types/workspace.types'
+import {
+  type ArtifactItem as ProjectArtifactItem,
+  type CreateArtifactCommand,
+  INITIAL_PROJECT_ARTIFACTS,
+} from '../types/artifact.types'
 
 export const PHASES: MacroPhase[] = [
   { id: 'p1', name: 'PHASE 1', sub: 'Nền tảng (Foundation)', status: 'COMPLETED', pct: 100, accent: 'emerald', x: 20, y: 140, w: 250, h: 220, parentPhaseIds: [] },
@@ -129,12 +136,46 @@ export class MockWorkflowService implements IWorkflowService {
   }
 
   // Workspace contracts
+  getMyProjects(): Promise<readonly ProjectSummaryDto[]> {
+    return this.workspaceApi.getMyProjects()
+  }
+
   getProjectsList(): Promise<readonly ProjectSummaryDto[]> {
     return this.workspaceApi.getProjectsList()
   }
 
   createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto> {
     return this.workspaceApi.createProject(cmd)
+  }
+
+  cloneTemplate(req: CloneTemplateCommand | { templateId: string | number; projectName: string; description?: string; visibility?: string }): Promise<ProjectDetailDto> {
+    return this.workspaceApi.cloneTemplate({
+      templateId: req.templateId,
+      projectName: req.projectName,
+      description: req.description,
+      visibility: req.visibility,
+    })
+  }
+
+  async updateProjectStatus(projectId: string, status: ProjectStatus | string): Promise<ProjectSummaryDto> {
+    this.workspaceApi.updateProjectStatus(projectId, status as ProjectStatus)
+    this.settingsApi.setProjectStatus(status as ProjectStatus)
+    this.overviewApi.setProjectStatus(status as ProjectStatus)
+    const list = await this.getProjectsList()
+    const found = list.find((p) => String(p.id) === String(projectId))
+    if (found) return found
+    return {
+      id: String(projectId),
+      name: 'Project',
+      description: '',
+      status: status as ProjectStatus,
+      role: 'OWNER',
+      nodeCount: 0,
+      criticalPathLength: 0,
+      completionPercent: 0,
+      updatedAt: new Date().toISOString(),
+      members: [],
+    }
   }
 
   async getMacroPhases(_projectId?: string): Promise<MacroPhase[]> {
@@ -218,6 +259,9 @@ export class MockWorkflowService implements IWorkflowService {
   getProjectPendingInvitations(projectId: string): Promise<ProjectInvitationDto[]> {
     return this.settingsApi.getProjectPendingInvitations(projectId)
   }
+  getInvitationDetail(invitationId: string): Promise<ProjectInvitationDto | null> {
+    return this.settingsApi.getInvitation(invitationId)
+  }
   getInvitation(invitationId: string): Promise<ProjectInvitationDto | null> {
     return this.settingsApi.getInvitation(invitationId)
   }
@@ -229,6 +273,41 @@ export class MockWorkflowService implements IWorkflowService {
   }
   revokeInvitation(projectId: string, invitationId: string): Promise<boolean> {
     return this.settingsApi.revokeInvitation(projectId, invitationId)
+  }
+
+  /* Artifacts Hub */
+  private mockArtifacts: Map<string, ProjectArtifactItem[]> = new Map()
+
+  async getProjectArtifacts(projectId: string): Promise<ProjectArtifactItem[]> {
+    if (!this.mockArtifacts.has(projectId)) {
+      this.mockArtifacts.set(projectId, structuredClone(INITIAL_PROJECT_ARTIFACTS))
+    }
+    return structuredClone(this.mockArtifacts.get(projectId) || [])
+  }
+
+  async createArtifact(projectId: string, payload: CreateArtifactCommand): Promise<ProjectArtifactItem> {
+    const list = await this.getProjectArtifacts(projectId)
+    const newArt: ProjectArtifactItem = {
+      id: `art-${Date.now()}`,
+      projectId,
+      nodeId: payload.nodeId || null,
+      name: payload.name,
+      title: payload.name,
+      type: payload.type || 'OTHER_LINK',
+      url: payload.url,
+      isInRepository: payload.isInRepository !== false,
+      isPublicForGuest: true,
+      uploadedBy: 'Alex Kim',
+      createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+    }
+    list.unshift(newArt)
+    this.mockArtifacts.set(projectId, list)
+    return structuredClone(newArt)
+  }
+
+  async deleteArtifact(projectId: string, artifactId: string): Promise<void> {
+    const list = await this.getProjectArtifacts(projectId)
+    this.mockArtifacts.set(projectId, list.filter((a) => a.id !== artifactId))
   }
 
   /* Dev & Simulation capabilities */

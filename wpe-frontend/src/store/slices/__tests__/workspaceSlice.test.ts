@@ -89,4 +89,48 @@ describe('Workspace Module (workspaceSlice)', () => {
     expect(afterProjects[0].name).toBe('Authentication Service V2')
     expect(afterProjects[0].status).toBe('DRAFT')
   })
+
+  it('clones a template DAG and updates store state with deep-copied project', async () => {
+    await store.getState().workspace.loadProjects()
+    const beforeCount = store.getState().workspace.projects.length
+
+    const cloned = await store.getState().workspace.cloneTemplate({
+      templateId: '1',
+      projectName: 'Cloned Banking DAG',
+      description: 'Cloned from core template',
+      visibility: 'PRIVATE',
+    })
+
+    expect(cloned.name).toBe('Cloned Banking DAG')
+    expect(cloned.status).toBe('PLANNING')
+    expect(cloned.role).toBe('OWNER')
+    expect(cloned.totalNodes).toBe(14)
+    expect(cloned.phases).toHaveLength(2)
+
+    const afterProjects = store.getState().workspace.projects
+    expect(afterProjects).toHaveLength(beforeCount + 1)
+    expect(afterProjects[0].name).toBe('Cloned Banking DAG')
+    expect(afterProjects[0].status).toBe('PLANNING')
+  })
+
+  it('creates a pipeline with templateId using cloneTemplate flow', async () => {
+    await store.getState().workspace.loadProjects()
+    const beforeCount = store.getState().workspace.projects.length
+
+    const created = await store.getState().workspace.createProject({
+      name: 'E-Commerce Microservices Pipeline',
+      desc: 'Cloned via createProject with templateId',
+      templateId: 'tpl-101',
+      visibility: 'PRIVATE',
+    })
+
+    expect(created.name).toBe('E-Commerce Microservices Pipeline')
+    expect(created.status).toBe('PLANNING')
+    expect(created.role).toBe('OWNER')
+
+    const afterProjects = store.getState().workspace.projects
+    expect(afterProjects).toHaveLength(beforeCount + 1)
+    expect(afterProjects[0].name).toBe('E-Commerce Microservices Pipeline')
+    expect(afterProjects[0].status).toBe('PLANNING')
+  })
 })
