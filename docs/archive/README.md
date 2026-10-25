@@ -27,3 +27,9 @@ Thư mục này lưu trữ toàn bộ các tài liệu nháp cũ, câu hỏi Q&A
 - [PROJECT_STRUCTURE_REPORT.md](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/archive/docs-demo/PROJECT_STRUCTURE_REPORT.md)
 - [SSOTofTemplate.md](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/archive/docs-demo/SSOTofTemplate.md)
 - Các file HTML prototype gốc: `adminDemo.html`, `admin_dashboard_demo.html`, `MyTaskDemo.html`, `overviewDemo.html`, `templateAdminDemo.html`, ...
+
+---
+
+## 3. `dev_b/` (Hướng dẫn và Kế hoạch Kỹ thuật cho Thành viên B)
+- [DEV_B_IMPLEMENTATION_GUIDE.md](file:///c:/Users/Minh%20Dang/Desktop/Ky_thuat_phan_mem/nam_3/HKI/OOAD/PROJECT/Workflow-Pipeline-Engine/docs/archive/dev_b/DEV_B_IMPLEMENTATION_GUIDE.md): Kế hoạch thực chiến, ma trận 11 API (Cụm 4 & 10.3), thiết kế thuật toán Kahn DAG $O(V+E)$, danh sách DTO và lộ trình triển khai chi tiết cho Dev B.
+
