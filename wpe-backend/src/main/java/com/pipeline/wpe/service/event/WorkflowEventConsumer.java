@@ -78,15 +78,19 @@ public class WorkflowEventConsumer {
 
         if (event.inviteeId() != null) {
             try {
-                NotificationEntity notification = NotificationEntity.builder()
-                        .userId(event.inviteeId())
-                        .title("Lời mời tham gia dự án: " + event.projectName())
-                        .message(event.inviterName() + " đã mời bạn tham gia dự án \"" + event.projectName() + "\" với vai trò " + event.role())
-                        .linkUrl(event.linkUrl())
-                        .isRead(false)
-                        .build();
-                notificationRepository.save(notification);
-                log.info("Saved invitation notification ID: {} for user: {}", notification.getId(), event.inviteeId());
+                boolean alreadySaved = notificationRepository.findByUserIdOrderByCreatedAtDesc(event.inviteeId()).stream()
+                        .anyMatch(n -> n.getLinkUrl() != null && n.getLinkUrl().equals(event.linkUrl()));
+                if (!alreadySaved) {
+                    NotificationEntity notification = NotificationEntity.builder()
+                            .userId(event.inviteeId())
+                            .title("Lời mời tham gia dự án: " + event.projectName())
+                            .message(event.inviterName() + " đã mời bạn tham gia dự án \"" + event.projectName() + "\" với vai trò " + event.role())
+                            .linkUrl(event.linkUrl())
+                            .isRead(false)
+                            .build();
+                    notificationRepository.save(notification);
+                    log.info("Saved invitation notification ID: {} for user: {}", notification.getId(), event.inviteeId());
+                }
             } catch (Exception e) {
                 log.error("Failed to persist invitation notification: {}", e.getMessage(), e);
             }

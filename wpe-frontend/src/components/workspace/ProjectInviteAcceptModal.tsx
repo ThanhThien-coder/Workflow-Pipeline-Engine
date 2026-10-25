@@ -32,10 +32,11 @@ export function ProjectInviteAcceptModal({
 }: ProjectInviteAcceptModalProps) {
   const [invitation, setInvitation] = useState<ProjectInvitationDto | null>(null)
   const [loading, setLoading] = useState(false)
-  const [actionLoading, setActionLoading] = useState<'accept' | 'decline' | null>(null)
+  const [submitting, setSubmitting] = useState<'accept' | 'decline' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  const showToast = useWorkflowStore((state) => state.ui.showToast)
+  const fetchProjects = useWorkflowStore((state) => state.workspace.fetchProjects)
   const acceptInvitationStore = useWorkflowStore((state) => state.settings.acceptInvitation)
   const rejectInvitationStore = useWorkflowStore((state) => state.settings.rejectInvitation)
 
@@ -43,7 +44,6 @@ export function ProjectInviteAcceptModal({
     if (!isOpen || !invitationId) {
       setInvitation(null)
       setError(null)
-      setSuccessMessage(null)
       return
     }
 
@@ -53,30 +53,22 @@ export function ProjectInviteAcceptModal({
 
     const fetchDetail = async () => {
       try {
-        if (workflowService.getInvitation) {
-          const data = await workflowService.getInvitation(invitationId)
-          if (isMounted) setInvitation(data)
-        } else {
-          // Fallback mock detail
-          if (isMounted) {
-            setInvitation({
-              id: invitationId,
-              projectId: '1',
-              projectName: 'Workflow Pipeline Alpha',
-              inviterId: 'usr-1',
-              inviterName: 'Lead Architect',
-              inviterEmail: 'architect@pipeline.org',
-              inviteeEmail: 'current_user@pipeline.org',
-              role: 'COLLABORATOR',
-              status: 'PENDING',
-              createdAt: new Date().toISOString(),
-              expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
-            })
+        let data: ProjectInvitationDto | null = null
+        if (workflowService.getInvitationDetail) {
+          data = await workflowService.getInvitationDetail(invitationId)
+        } else if (workflowService.getInvitation) {
+          data = await workflowService.getInvitation(invitationId)
+        }
+        if (isMounted) {
+          if (data) {
+            setInvitation(data)
+          } else {
+            setError('Không tìm thấy thông tin lời mời hoặc lời mời đã hết hạn.')
           }
         }
       } catch (err: unknown) {
         if (isMounted) {
-          const msg = err instanceof Error ? err.message : 'Unable to load invitation details'
+          const msg = err instanceof Error ? err.message : 'Không thể tải chi tiết lời mời.'
           setError(msg)
         }
       } finally {
@@ -93,59 +85,48 @@ export function ProjectInviteAcceptModal({
 
   const handleAccept = async () => {
     if (!invitationId) return
-    setActionLoading('accept')
+    setSubmitting('accept')
     setError(null)
     try {
-      let ok = false
-      if (acceptInvitationStore) {
-        ok = await acceptInvitationStore(invitationId)
-      } else if (workflowService.acceptInvitation) {
+      if (workflowService.acceptInvitation) {
         await workflowService.acceptInvitation(invitationId)
-        ok = true
+      } else if (acceptInvitationStore) {
+        await acceptInvitationStore(invitationId)
       }
-      if (ok) {
-        setSuccessMessage('Invitation accepted! Welcome to the workspace.')
-        onAccepted?.(invitationId)
-        setTimeout(() => {
-          onClose()
-        }, 1200)
-      } else {
-        setError('Failed to accept invitation. It may have expired or been revoked.')
+      showToast('Tham gia dự án thành công!')
+      if (fetchProjects) {
+        await fetchProjects()
       }
+      onAccepted?.(invitationId)
+      onClose()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to accept invitation.'
+      const msg = err instanceof Error ? err.message : 'Chấp nhận lời mời thất bại.'
       setError(msg)
+      showToast(msg)
     } finally {
-      setActionLoading(null)
+      setSubmitting(null)
     }
   }
 
   const handleDecline = async () => {
     if (!invitationId) return
-    setActionLoading('decline')
+    setSubmitting('decline')
     setError(null)
     try {
-      let ok = false
-      if (rejectInvitationStore) {
-        ok = await rejectInvitationStore(invitationId)
-      } else if (workflowService.rejectInvitation) {
+      if (workflowService.rejectInvitation) {
         await workflowService.rejectInvitation(invitationId)
-        ok = true
+      } else if (rejectInvitationStore) {
+        await rejectInvitationStore(invitationId)
       }
-      if (ok) {
-        setSuccessMessage('Invitation declined.')
-        onDeclined?.(invitationId)
-        setTimeout(() => {
-          onClose()
-        }, 1000)
-      } else {
-        setError('Failed to decline invitation.')
-      }
+      showToast('Đã từ chối lời mời tham gia dự án.')
+      onDeclined?.(invitationId)
+      onClose()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to decline invitation.'
+      const msg = err instanceof Error ? err.message : 'Từ chối lời mời thất bại.'
       setError(msg)
+      showToast(msg)
     } finally {
-      setActionLoading(null)
+      setSubmitting(null)
     }
   }
 
@@ -177,7 +158,7 @@ export function ProjectInviteAcceptModal({
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
             aria-label="Close modal"
           >
             <X size={18} />
@@ -189,19 +170,40 @@ export function ProjectInviteAcceptModal({
               <Mail size={24} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Project Collaboration Invite</h2>
+              <h2 className="text-base font-bold text-slate-900">Lời mời tham gia dự án</h2>
               <p className="text-xs text-slate-500">
-                You have been invited to join a collaborative pipeline workspace.
+                Bạn đã được mời cùng xây dựng và vận hành quy trình trên Workflow Pipeline Engine.
               </p>
             </div>
           </div>
 
           {/* Body Content */}
           <div className="my-5 space-y-4">
+            {/* Skeleton Loader */}
             {loading && (
-              <div className="flex flex-col items-center justify-center py-8 text-center text-sm text-slate-500">
-                <Loader2 size={28} className="animate-spin text-indigo-600 mb-2" />
-                <span>Loading invitation details...</span>
+              <div data-testid="invitation-skeleton" className="space-y-4 animate-pulse">
+                <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="h-3 w-16 bg-slate-200 rounded"></div>
+                    <div className="h-4 w-40 bg-slate-200 rounded"></div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                    <div className="h-3 w-20 bg-slate-200 rounded"></div>
+                    <div className="space-y-1.5 flex flex-col items-end">
+                      <div className="h-3.5 w-28 bg-slate-200 rounded"></div>
+                      <div className="h-2.5 w-36 bg-slate-200 rounded"></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                    <div className="h-3 w-24 bg-slate-200 rounded"></div>
+                    <div className="h-5 w-24 bg-indigo-100 rounded-full"></div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                    <div className="h-3 w-16 bg-slate-200 rounded"></div>
+                    <div className="h-3 w-32 bg-slate-200 rounded"></div>
+                  </div>
+                </div>
+                <div className="h-3 w-5/6 bg-slate-200 rounded mx-auto"></div>
               </div>
             )}
 
@@ -212,29 +214,22 @@ export function ProjectInviteAcceptModal({
               </div>
             )}
 
-            {successMessage && (
-              <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-800">
-                <CheckCircle2 size={16} className="shrink-0 mt-0.5 text-emerald-600" />
-                <div className="flex-1 font-semibold">{successMessage}</div>
-              </div>
-            )}
-
-            {!loading && invitation && !successMessage && (
+            {!loading && invitation && (
               <div className="space-y-4">
                 {/* Details Box */}
                 <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-500">Project</span>
+                    <span className="text-xs font-medium text-slate-500">Dự án</span>
                     <span className="text-sm font-bold text-slate-800">
                       {invitation.projectName || 'Pipeline Project'}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
-                    <span className="text-xs font-medium text-slate-500">Invited By</span>
+                    <span className="text-xs font-medium text-slate-500">Người mời</span>
                     <div className="text-right">
                       <div className="text-xs font-semibold text-slate-700">
-                        {invitation.inviterName || 'Workspace Owner'}
+                        {invitation.inviterName || 'Chủ dự án'}
                       </div>
                       {invitation.inviterEmail && (
                         <div className="text-[11px] text-slate-400">{invitation.inviterEmail}</div>
@@ -243,7 +238,7 @@ export function ProjectInviteAcceptModal({
                   </div>
 
                   <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
-                    <span className="text-xs font-medium text-slate-500">Assigned Role</span>
+                    <span className="text-xs font-medium text-slate-500">Vai trò được chỉ định</span>
                     <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-700">
                       <ShieldCheck size={13} />
                       {invitation.role}
@@ -253,10 +248,10 @@ export function ProjectInviteAcceptModal({
                   <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5 text-[11px] text-slate-500">
                     <span className="flex items-center gap-1">
                       <Clock size={12} className="text-slate-400" />
-                      Expires
+                      Hạn phản hồi
                     </span>
                     <span className="font-medium text-slate-600">
-                      {new Date(invitation.expiresAt).toLocaleDateString(undefined, {
+                      {new Date(invitation.expiresAt).toLocaleDateString('vi-VN', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
@@ -268,55 +263,55 @@ export function ProjectInviteAcceptModal({
                 </div>
 
                 <div className="text-[11px] leading-relaxed text-slate-500">
-                  Accepting this invitation will grant you access to pipeline DAG execution,
-                  task transitions, and artifacts in accordance with the <b>{invitation.role}</b> permissions.
+                  Khi chấp nhận lời mời, bạn sẽ có quyền truy cập vào đồ thị DAG quy trình,
+                  thực hiện chuyển trạng thái Task và nộp bài nghiệm thu tương ứng với vai trò <b>{invitation.role}</b>.
                 </div>
               </div>
             )}
           </div>
 
           {/* Action Footer */}
-          {!loading && invitation && !successMessage && (
+          {!loading && invitation && (
             <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 pt-4">
               <button
                 type="button"
                 onClick={handleDecline}
-                disabled={actionLoading !== null}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
+                disabled={submitting !== null}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50 cursor-pointer"
               >
-                {actionLoading === 'decline' ? (
+                {submitting === 'decline' ? (
                   <Loader2 size={14} className="animate-spin text-slate-500" />
                 ) : (
                   <UserX size={14} />
                 )}
-                <span>Decline</span>
+                <span>Từ chối</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleAccept}
-                disabled={actionLoading !== null}
-                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+                disabled={submitting !== null}
+                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
               >
-                {actionLoading === 'accept' ? (
+                {submitting === 'accept' ? (
                   <Loader2 size={14} className="animate-spin text-white" />
                 ) : (
                   <UserCheck size={14} />
                 )}
-                <span>Accept Invitation</span>
+                <span>Chấp nhận</span>
               </button>
             </div>
           )}
 
-          {/* Close-only footer if finished or failed */}
-          {(successMessage || (error && !invitation)) && (
+          {/* Close-only footer if error occurred and no invitation */}
+          {!loading && error && !invitation && (
             <div className="flex justify-end border-t border-slate-100 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 cursor-pointer"
               >
-                Close
+                Đóng
               </button>
             </div>
           )}

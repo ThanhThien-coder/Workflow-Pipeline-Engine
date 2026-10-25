@@ -70,17 +70,31 @@ export const WorkspaceView: FC = () => {
     navigate(`/project/${project.id}/workflow`)
   }
 
-  const handleCreatePipeline = async (data: { name: string; desc: string; templateId?: string }) => {
+  const handleCreatePipeline = async (data: {
+    name: string
+    desc: string
+    templateId?: string
+    visibility?: string
+  }) => {
     try {
       const created = await createProjectAction({
         name: data.name,
         desc: data.desc,
         templateId: data.templateId,
+        visibility: data.visibility || 'PRIVATE',
       })
-      showToast(`Pipeline "${data.name}" created as DRAFT.`)
+      if (data.templateId) {
+        showToast('Nhân bản quy trình thành công!')
+      } else {
+        showToast(`Pipeline "${data.name}" created as DRAFT.`)
+      }
+      await loadProjects()
+      closeModal()
       navigate(`/project/${created.id}/workflow`)
-    } catch {
-      showToast('Failed to create pipeline.')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create pipeline.'
+      showToast(msg)
+      throw err
     }
   }
 

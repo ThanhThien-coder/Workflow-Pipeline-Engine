@@ -5,7 +5,6 @@ import { navigate } from '../../router/useRouter'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import type { NotificationDto, NotificationKind } from '../../types/notification.types'
 import { getSavedAvatar } from '../../utils/avatarUtils'
-import { ProjectInviteAcceptModal } from '../workspace/ProjectInviteAcceptModal'
 
 const AVATAR_BG = ['bg-indigo-500', 'bg-emerald-500', 'bg-blue-500', 'bg-rose-500', 'bg-violet-500']
 const KIND_ICON: Record<NotificationKind, { icon: typeof Bell; tone: string }> = {
@@ -54,34 +53,8 @@ export function NotificationSender({ n }: { n: NotificationDto }) {
 export default function NotificationBell() {
   const { items, unreadCount, loading, error, load, markRead, markAllRead } = useNotificationStore()
   const [open, setOpen] = useState(false)
-  const [activeInviteId, setActiveInviteId] = useState<string | null>(null)
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
-
-  // Deep-link interception from URL search params (e.g. /workspace?action=open-invite-modal&invitationId={id})
-  useEffect(() => {
-    const checkInviteDeepLink = () => {
-      if (typeof window === 'undefined') return
-      const search = window.location.search
-      if (search.includes('action=open-invite-modal')) {
-        const params = new URLSearchParams(search)
-        const id = params.get('invitationId')
-        if (id) {
-          setActiveInviteId(id)
-          setIsInviteModalOpen(true)
-        }
-      }
-    }
-
-    checkInviteDeepLink()
-    window.addEventListener('popstate', checkInviteDeepLink)
-    window.addEventListener('wpe_route_change', checkInviteDeepLink)
-    return () => {
-      window.removeEventListener('popstate', checkInviteDeepLink)
-      window.removeEventListener('wpe_route_change', checkInviteDeepLink)
-    }
-  }, [])
 
   // Initial load + light polling so the badge stays fresh
   useEffect(() => {
@@ -109,22 +82,15 @@ export default function NotificationBell() {
     setOpen(!open)
   }
 
-  // Row click = 3 actions at once: close popover, mark as read, navigate (or open modal if invite link)
+  // Row click = 3 actions at once: close popover, mark as read, navigate (which triggers deep-link handler in App if invite)
   const pick = (n: NotificationDto) => {
     setOpen(false)
     void markRead(n.id)
 
     const path = n.targetPath || ''
-    if (path.includes('action=open-invite-modal')) {
-      const match = path.match(/invitationId=([^&]+)/)
-      if (match && match[1]) {
-        setActiveInviteId(match[1])
-        setIsInviteModalOpen(true)
-        return
-      }
+    if (path) {
+      navigate(path)
     }
-
-    navigate(path)
   }
 
   return (
@@ -187,16 +153,6 @@ export default function NotificationBell() {
           </div>
         </div>
       )}
-
-      {/* Project Invitation Acceptance Modal via Deep-Link */}
-      <ProjectInviteAcceptModal
-        isOpen={isInviteModalOpen}
-        invitationId={activeInviteId}
-        onClose={() => {
-          setIsInviteModalOpen(false)
-          setActiveInviteId(null)
-        }}
-      />
     </div>
   )
 }

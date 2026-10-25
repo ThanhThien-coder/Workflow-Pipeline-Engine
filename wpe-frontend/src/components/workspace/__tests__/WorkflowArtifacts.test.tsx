@@ -4,6 +4,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { WorkflowArtifactsIsland } from '../WorkflowArtifactsIsland'
 import { WorkflowArtifactsDrawer } from '../WorkflowArtifactsDrawer'
 import { useWorkflowStore } from '../../../store/useWorkflowStore'
+import { workflowService } from '../../../services/container'
 
 describe('Workflow Artifacts Island & Drawer UI Components', () => {
   beforeEach(() => {
@@ -146,4 +147,49 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     expect(list?.className).toContain('overflow-y-auto')
     expect(list?.className).toContain('overscroll-contain')
   })
+
+  it('renders friendly Empty State when no artifacts are present', async () => {
+    vi.spyOn(workflowService, 'getProjectArtifacts').mockResolvedValueOnce([])
+    useWorkflowStore.setState((state) => ({
+      artifacts: {
+        ...state.artifacts,
+        items: [],
+      },
+    }))
+
+    render(<WorkflowArtifactsDrawer isOpen={true} projectId="empty-project" />)
+
+    // Initially displays the skeleton loader while fetching
+    expect(screen.getByRole('status', { name: /Đang tải danh sách tài nguyên/i })).toBeDefined()
+
+    // Smoothly displays the friendly Empty State once fetch finishes
+    await waitFor(() => {
+      expect(screen.getByText('Chưa có tài nguyên nào.')).toBeDefined()
+      expect(
+        screen.getByText(/Hãy dán link Figma, PR hoặc tài liệu đầu tiên ở trên để nhóm cùng truy cập./i),
+      ).toBeDefined()
+    })
+  })
+
+  it('resets form and unlocks inputs and submit button after submission', async () => {
+    render(<WorkflowArtifactsDrawer isOpen={true} projectId="1" />)
+
+    const nameInput = screen.getByPlaceholderText(/Tên link/i) as HTMLInputElement
+    const urlInput = screen.getByPlaceholderText(/https:\/\//i) as HTMLInputElement
+    const addButton = screen.getByRole('button', { name: /Add Link/i }) as HTMLButtonElement
+
+    fireEvent.change(nameInput, { target: { value: 'API Spec Swagger' } })
+    fireEvent.change(urlInput, { target: { value: 'https://petstore.swagger.io' } })
+    expect(addButton.disabled).toBe(false)
+
+    fireEvent.click(addButton)
+
+    await waitFor(() => {
+      expect(nameInput.value).toBe('')
+      expect(urlInput.value).toBe('')
+      expect(nameInput.disabled).toBe(false)
+      expect(urlInput.disabled).toBe(false)
+    })
+  })
 })
+

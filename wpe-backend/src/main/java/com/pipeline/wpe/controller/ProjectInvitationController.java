@@ -31,7 +31,7 @@ public class ProjectInvitationController {
             @Valid @RequestBody CreateInvitationRequest request
     ) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        InvitationResponse response = projectInvitationService.createInvitation(projectId, currentUserId, request);
+        InvitationResponse response = projectInvitationService.sendInvitation(projectId, request, currentUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -45,9 +45,9 @@ public class ProjectInvitationController {
         return ResponseEntity.ok(responses);
     }
 
-    @Operation(summary = "Chủ dự án thu hồi lời mời")
+    @Operation(summary = "Chủ dự án thu hồi lời mời theo dự án và mã lời mời")
     @DeleteMapping("/api/v1/projects/{projectId}/invitations/{invitationId}")
-    public ResponseEntity<Void> revokeInvitation(
+    public ResponseEntity<Void> revokeInvitationByProject(
             @PathVariable Long projectId,
             @PathVariable Long invitationId
     ) {
@@ -56,7 +56,31 @@ public class ProjectInvitationController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Lấy chi tiết lời mời cho Popup Modal xác nhận")
+    @Operation(summary = "Thu hồi lời mời tham gia dự án (DELETE)")
+    @DeleteMapping("/api/v1/invitations/{id}")
+    public ResponseEntity<Void> revokeInvitation(
+            @PathVariable Long id
+    ) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        projectInvitationService.revokeInvitation(id, currentUserId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Thu hồi lời mời tham gia dự án (POST)")
+    @PostMapping("/api/v1/invitations/{id}/revoke")
+    public ResponseEntity<Map<String, Object>> revokeInvitationPost(
+            @PathVariable Long id
+    ) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        projectInvitationService.revokeInvitation(id, currentUserId);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Đã thu hồi lời mời tham gia dự án.",
+                "invitationId", id
+        ));
+    }
+
+    @Operation(summary = "Lấy chi tiết lời mời cho Popup Modal xác nhận ở Frontend")
     @GetMapping("/api/v1/invitations/{id}")
     public ResponseEntity<InvitationDetailResponse> getInvitationDetail(
             @PathVariable Long id
