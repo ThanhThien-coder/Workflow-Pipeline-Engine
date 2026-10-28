@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/health")
+@RequestMapping({"/api/v1/health", "/api/health"})
 @RequiredArgsConstructor
 @Tag(name = "10. System Health", description = "Kiểm tra tình trạng hoạt động của hệ thống và Database")
 public class HealthCheckController {

@@ -55,24 +55,31 @@ public class TemplateCloneService {
         // Bước 1: Xác thực Nguồn mẫu (Source Template / Project)
         // =====================================================================
         Long sourceProjectId = null;
-        Optional<ProjectEntity> sourceProjectOpt = projectRepository.findById(req.templateId());
-        Optional<PipelineTemplateEntity> pipelineTemplateOpt = pipelineTemplateRepository.findById(req.templateId());
+        Long numericId = req.getNumericTemplateId();
+        String identifier = req.getTemplateIdentifier();
+
+        Optional<PipelineTemplateEntity> pipelineTemplateOpt = Optional.empty();
+        Optional<ProjectEntity> sourceProjectOpt = Optional.empty();
+
+        if (numericId != null) {
+            pipelineTemplateOpt = pipelineTemplateRepository.findById(numericId);
+            if (pipelineTemplateOpt.isEmpty()) {
+                sourceProjectOpt = projectRepository.findById(numericId);
+            }
+        }
+
+        if (pipelineTemplateOpt.isEmpty() && identifier != null) {
+            pipelineTemplateOpt = pipelineTemplateRepository.findBySlug(identifier);
+        }
 
         if (sourceProjectOpt.isPresent()) {
             sourceProjectId = sourceProjectOpt.get().getId();
             log.info("Tìm thấy dự án mẫu nguồn: '{}' (ID: {})", sourceProjectOpt.get().getName(), sourceProjectId);
         } else if (pipelineTemplateOpt.isPresent()) {
-            // Trường hợp templateId nằm trong bảng pipeline_template
             PipelineTemplateEntity tpl = pipelineTemplateOpt.get();
-            log.info("Tìm thấy PipelineTemplate mẫu: '{}' (ID: {})", tpl.getName(), tpl.getId());
-            // Nếu có project cùng ID hoặc ánh xạ, fallback về ID đó
-            if (projectRepository.existsById(tpl.getId())) {
-                sourceProjectId = tpl.getId();
-            }
-        }
-
-        if (sourceProjectId == null && pipelineTemplateOpt.isEmpty()) {
-            throw new ResourceNotFoundException("Không tìm thấy mẫu quy trình hoặc dự án nguồn với ID: " + req.templateId());
+            log.info("Tìm thấy PipelineTemplate mẫu: '{}' (ID: {}, Slug: {})", tpl.getName(), tpl.getId(), tpl.getSlug());
+        } else {
+            throw new ResourceNotFoundException("Không tìm thấy mẫu quy trình hoặc dự án nguồn với ID: " + identifier);
         }
 
         // Tăng số lượt clone nếu nguồn là PipelineTemplateEntity
@@ -283,23 +290,84 @@ public class TemplateCloneService {
             return;
         }
 
+        Map<String, Long> phaseKeyMap = new HashMap<>();
+        Map<String, Long> nodeKeyMap = new HashMap<>();
+
+        // 1. Nhân bản các WorkPhase từ Template graphData
         List<Map<String, Object>> phasesData = (List<Map<String, Object>>) graphData.get("phases");
         if (phasesData != null) {
             int order = 0;
             for (Map<String, Object> p : phasesData) {
-                Long oldId = p.get("id") != null ? Long.valueOf(p.get("id").toString()) : (long) order;
+                String phaseKey = p.get("id") != null ? p.get("id").toString() : String.valueOf(order);
+                String phaseName = (String) p.getOrDefault("name", "Phase " + (order + 1));
+                String subTitle = p.get("subTitle") != null ? p.get("subTitle").toString() :
+                    (p.get("sub") != null ? p.get("sub").toString() : null);
+                String accentColor = p.get("accentColor") != null ? p.get("accentColor").toString() :
+                    (p.get("accent") != null ? p.get("accent").toString() : "blue");
+
+                int phaseOrder = order;
+                if (p.get("orderIndex") != null) {
+                    try { phaseOrder = Integer.parseInt(p.get("orderIndex").toString()); } catch (Exception ignored) {}
+                } else if (p.get("order") != null) {
+                    try { phaseOrder = Integer.parseInt(p.get("order").toString()); } catch (Exception ignored) {}
+                }
+                order++;
+
                 WorkPhaseEntity newPhase = WorkPhaseEntity.builder()
                     .projectId(newProjectId)
-                    .name((String) p.getOrDefault("name", "Phase " + (order + 1)))
-                    .subTitle((String) p.get("subTitle"))
-                    .accentColor((String) p.getOrDefault("accentColor", "blue"))
-                    .orderIndex(order++)
+                    .name(phaseName)
+                    .subTitle(subTitle)
+                    .accentColor(accentColor)
+                    .orderIndex(phaseOrder)
                     .build();
                 WorkPhaseEntity savedPhase = workPhaseRepository.save(newPhase);
-                phaseIdMap.put(oldId, savedPhase.getId());
+                phaseKeyMap.put(phaseKey, savedPhase.getId());
+                try {
+                    phaseIdMap.put(Long.parseLong(phaseKey), savedPhase.getId());
+                } catch (NumberFormatException ignored) {}
             }
         }
 
+        // 2. Tái lập liên kết thứ tự Phase (Phase DAG edges & runsAfter)
+        List<Map<String, Object>> phaseEdgesData = (List<Map<String, Object>>) graphData.get("phaseEdges");
+        if (phaseEdgesData != null) {
+            for (Map<String, Object> pe : phaseEdgesData) {
+                Object parentKeyObj = pe.get("parentPhaseId");
+                Object childKeyObj = pe.get("childPhaseId");
+                if (parentKeyObj != null && childKeyObj != null) {
+                    Long parentPhaseId = phaseKeyMap.get(parentKeyObj.toString());
+                    Long childPhaseId = phaseKeyMap.get(childKeyObj.toString());
+                    if (parentPhaseId != null && childPhaseId != null) {
+                        WorkPhaseEntity childPhase = workPhaseRepository.findById(childPhaseId).orElse(null);
+                        if (childPhase != null && childPhase.getParentPhaseId() == null) {
+                            childPhase.setParentPhaseId(parentPhaseId);
+                            workPhaseRepository.save(childPhase);
+                        }
+                    }
+                }
+            }
+        }
+        if (phasesData != null) {
+            for (Map<String, Object> p : phasesData) {
+                String childKey = p.get("id") != null ? p.get("id").toString() : null;
+                Long childPhaseId = childKey != null ? phaseKeyMap.get(childKey) : null;
+                if (childPhaseId != null && p.get("runsAfter") instanceof List<?> runsAfterList && !runsAfterList.isEmpty()) {
+                    Object firstParent = runsAfterList.get(0);
+                    if (firstParent != null) {
+                        Long parentPhaseId = phaseKeyMap.get(firstParent.toString());
+                        if (parentPhaseId != null) {
+                            WorkPhaseEntity childPhase = workPhaseRepository.findById(childPhaseId).orElse(null);
+                            if (childPhase != null && childPhase.getParentPhaseId() == null) {
+                                childPhase.setParentPhaseId(parentPhaseId);
+                                workPhaseRepository.save(childPhase);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Nhân bản các Node và bảo toàn tọa độ uiMetadata
         List<Map<String, Object>> nodesData = (List<Map<String, Object>>) graphData.get("nodes");
         List<Map<String, Object>> edgesData = (List<Map<String, Object>>) graphData.get("edges");
 
@@ -312,70 +380,120 @@ public class TemplateCloneService {
                 }
             }
         }
+        if (nodesData != null) {
+            for (Map<String, Object> n : nodesData) {
+                Object parentId = n.get("parentId");
+                if (parentId != null && !parentId.toString().isBlank()) {
+                    nodeIdsWithIncoming.add(n.get("id") != null ? n.get("id").toString() : "");
+                }
+            }
+        }
 
         if (nodesData != null) {
             int nodeSeq = 1;
             for (Map<String, Object> n : nodesData) {
                 String rawId = n.get("id") != null ? n.get("id").toString() : String.valueOf(nodeSeq);
-                Long oldId = null;
-                try {
-                    oldId = Long.parseLong(rawId);
-                } catch (NumberFormatException ignored) {
-                    oldId = (long) nodeSeq;
-                }
-
-                Long oldPhaseId = n.get("phaseId") != null ? Long.valueOf(n.get("phaseId").toString()) : null;
-                Long newPhaseId = oldPhaseId != null ? phaseIdMap.get(oldPhaseId) : null;
+                String oldPhaseKey = n.get("phaseId") != null ? n.get("phaseId").toString() : null;
+                Long newPhaseId = oldPhaseKey != null ? phaseKeyMap.get(oldPhaseKey) : null;
                 boolean hasIncoming = nodeIdsWithIncoming.contains(rawId);
 
                 NodeStatus initialStatus = hasIncoming ? NodeStatus.LOCKED : NodeStatus.TODO;
+                String code = n.get("code") != null ? n.get("code").toString() : "WPE-" + String.format("%03d", nodeSeq++);
+                String title = n.get("title") != null ? n.get("title").toString() : "Untitled Task";
+                String description = n.get("description") != null ? n.get("description").toString() : null;
+
+                JoinPolicy joinPolicy = JoinPolicy.ALL_COMPLETED;
+                if (n.get("joinPolicy") != null) {
+                    try {
+                        joinPolicy = JoinPolicy.valueOf(n.get("joinPolicy").toString().toUpperCase());
+                    } catch (Exception ignored) {}
+                }
+
+                // Bảo toàn nguyên vẹn tọa độ canvas uiMetadata (position {x, y})
+                Map<String, Object> nodeUiMetadata = new HashMap<>();
+                if (n.get("uiMetadata") instanceof Map<?, ?> m) {
+                    nodeUiMetadata.putAll((Map<String, Object>) m);
+                } else if (n.get("ui_metadata") instanceof Map<?, ?> m) {
+                    nodeUiMetadata.putAll((Map<String, Object>) m);
+                } else {
+                    nodeUiMetadata.put("position", Map.of("x", 200, "y", 150));
+                }
 
                 NodeEntity newNode = NodeEntity.builder()
                     .projectId(newProjectId)
                     .phaseId(newPhaseId)
-                    .code((String) n.getOrDefault("code", "TASK-" + String.format("%03d", nodeSeq++)))
-                    .title((String) n.getOrDefault("title", "Untitled Task"))
-                    .description((String) n.get("description"))
+                    .code(code)
+                    .title(title)
+                    .description(description)
                     .status(initialStatus)
-                    .joinPolicy(JoinPolicy.ALL_COMPLETED)
+                    .joinPolicy(joinPolicy)
                     .estimatedHours(8)
                     .version(0L)
-                    .uiMetadata(new HashMap<>())
+                    .uiMetadata(nodeUiMetadata)
                     .build();
 
                 NodeEntity savedNode = nodeRepository.save(newNode);
-                nodeIdMap.put(oldId, savedNode.getId());
+                nodeKeyMap.put(rawId, savedNode.getId());
+                try {
+                    nodeIdMap.put(Long.parseLong(rawId), savedNode.getId());
+                } catch (NumberFormatException ignored) {}
             }
         }
 
+        // 4. Tái lập quan hệ phụ thuộc DAG (Cả Explicit Edges và Implicit Tree Edges)
+        Set<String> seenEdges = new HashSet<>();
+        List<NodeDependencyEntity> newDependencies = new ArrayList<>();
+
+        // 4a. Cạnh tường minh từ mảng edges
         if (edgesData != null) {
-            List<NodeDependencyEntity> newDependencies = new ArrayList<>();
             for (Map<String, Object> edge : edgesData) {
                 Object sourceObj = edge.get("source") != null ? edge.get("source") : edge.get("parentId");
                 Object targetObj = edge.get("target") != null ? edge.get("target") : edge.get("childId");
 
                 if (sourceObj != null && targetObj != null) {
-                    try {
-                        Long oldParentId = Long.parseLong(sourceObj.toString());
-                        Long oldChildId = Long.parseLong(targetObj.toString());
+                    Long newParentId = nodeKeyMap.get(sourceObj.toString());
+                    Long newChildId = nodeKeyMap.get(targetObj.toString());
 
-                        Long newParentId = nodeIdMap.get(oldParentId);
-                        Long newChildId = nodeIdMap.get(oldChildId);
-
-                        if (newParentId != null && newChildId != null) {
+                    if (newParentId != null && newChildId != null && !newParentId.equals(newChildId)) {
+                        String edgeKey = newParentId + "->" + newChildId;
+                        if (seenEdges.add(edgeKey)) {
                             newDependencies.add(NodeDependencyEntity.builder()
                                 .projectId(newProjectId)
                                 .parentNodeId(newParentId)
                                 .childNodeId(newChildId)
                                 .build());
                         }
-                    } catch (NumberFormatException ignored) {
                     }
                 }
             }
-            if (!newDependencies.isEmpty()) {
-                nodeDependencyRepository.saveAll(newDependencies);
+        }
+
+        // 4b. Cạnh ngầm định từ quan hệ cây parentId -> id
+        if (nodesData != null) {
+            for (Map<String, Object> n : nodesData) {
+                Object childIdObj = n.get("id");
+                Object parentIdObj = n.get("parentId");
+                if (childIdObj != null && parentIdObj != null && !parentIdObj.toString().isBlank()) {
+                    Long newParentId = nodeKeyMap.get(parentIdObj.toString());
+                    Long newChildId = nodeKeyMap.get(childIdObj.toString());
+                    if (newParentId != null && newChildId != null && !newParentId.equals(newChildId)) {
+                        String edgeKey = newParentId + "->" + newChildId;
+                        if (seenEdges.add(edgeKey)) {
+                            newDependencies.add(NodeDependencyEntity.builder()
+                                .projectId(newProjectId)
+                                .parentNodeId(newParentId)
+                                .childNodeId(newChildId)
+                                .build());
+                        }
+                    }
+                }
             }
+        }
+
+        if (!newDependencies.isEmpty()) {
+            nodeDependencyRepository.saveAll(newDependencies);
+            log.info("Đã tạo {} cạnh phụ thuộc DAG mới từ Template cho dự án ID {}",
+                newDependencies.size(), newProjectId);
         }
     }
 

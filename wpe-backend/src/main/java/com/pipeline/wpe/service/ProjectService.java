@@ -35,6 +35,7 @@ public class ProjectService {
     private final WorkPhaseRepository workPhaseRepository;
     private final ProjectAuthorizationService projectAuthorizationService;
     private final UserRepository userRepository;
+    private final TemplateCloneService templateCloneService;
 
     public List<ProjectSummaryResponse> getMyProjects(Long currentUserId) {
         List<ProjectEntity> projects = projectRepository.findAllAccessibleProjects(currentUserId);
@@ -110,6 +111,16 @@ public class ProjectService {
 
     @Transactional
     public ProjectDetailResponse createProject(CreateProjectRequest req, Long currentUserId) {
+        if (req.templateId() != null) {
+            CloneTemplateRequest cloneReq = new CloneTemplateRequest(
+                req.templateId(),
+                req.name(),
+                req.description(),
+                req.visibility()
+            );
+            return templateCloneService.cloneTemplate(cloneReq, currentUserId);
+        }
+
         ProjectEntity newProject = ProjectEntity.builder()
             .name(req.name().trim())
             .description(req.description())

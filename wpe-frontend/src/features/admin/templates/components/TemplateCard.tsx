@@ -1,13 +1,12 @@
 import React from 'react';
 import type { TemplateSummaryDto, TemplateCategory } from '../../../../types/template.types';
-import { Layers, Copy, Trash2, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Layers, Copy, Trash2, ArrowUpRight } from 'lucide-react';
 
 interface TemplateCardProps {
   template: TemplateSummaryDto;
   onEdit: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
-  onUseTemplate?: (template: TemplateSummaryDto) => void;
 }
 
 const CATEGORY_GRADIENTS: Record<TemplateCategory, string> = {
@@ -22,7 +21,6 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   onEdit,
   onDuplicate,
   onDelete,
-  onUseTemplate,
 }) => {
   const gradient =
     CATEGORY_GRADIENTS[template.category] || CATEGORY_GRADIENTS['General'];
@@ -101,22 +99,10 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 
       {/* Actions */}
       <div className="mt-5 flex items-center gap-2 border-t border-slate-100 pt-4">
-        {onUseTemplate && (
-          <button
-            type="button"
-            onClick={() => onUseTemplate(template)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 active:scale-95"
-            title="Sử dụng mẫu này để tạo dự án mới"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-            <span>Use</span>
-          </button>
-        )}
-
         <button
           type="button"
           onClick={() => onEdit(template.id)}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-600 h-9 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
         >
           <span>Open Studio / Edit</span>
           <ArrowUpRight className="h-3.5 w-3.5" />
@@ -126,7 +112,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           type="button"
           onClick={() => onDuplicate(template.id)}
           title="Duplicate template"
-          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 active:scale-95 shadow-sm"
         >
           <Copy className="h-4 w-4" />
         </button>
@@ -135,7 +121,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           type="button"
           onClick={() => onDelete(template.id)}
           title="Delete template"
-          className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white p-2 text-rose-600 transition hover:bg-rose-50 hover:border-rose-300"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-white text-rose-600 transition hover:bg-rose-50 hover:border-rose-300 active:scale-95 shadow-sm"
         >
           <Trash2 className="h-4 w-4" />
         </button>

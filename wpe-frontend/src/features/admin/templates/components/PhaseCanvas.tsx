@@ -7,7 +7,7 @@ import {
   PHH,
 } from '../../../../lib/graph/phaseLayout';
 import { validateDag } from '../../../../lib/graph/kahn';
-import { Plus, Trash2, ArrowUpRight, ZoomIn, ZoomOut, Maximize2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, ArrowUpRight, ZoomIn, ZoomOut, Maximize2, AlertCircle, X, LayoutGrid } from 'lucide-react';
 
 interface PhaseCanvasProps {
   phases: PhaseDto[];
@@ -17,8 +17,10 @@ interface PhaseCanvasProps {
   onOpenPhase: (phaseId: string) => void;
   onDeletePhase: (phaseId: string) => void;
   onAddPhase: () => void;
+  onAutoLayout?: () => void;
   onUpdatePhasePosition?: (phaseId: string, position: { x: number; y: number }) => void;
   onConnectPhases?: (sourceId: string, targetId: string) => void;
+  onDisconnectPhases?: (sourceId: string, targetId: string) => void;
   onSpawnChildPhase?: (sourceId: string) => void;
 }
 
@@ -30,8 +32,10 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
   onOpenPhase,
   onDeletePhase,
   onAddPhase,
+  onAutoLayout,
   onUpdatePhasePosition,
   onConnectPhases,
+  onDisconnectPhases,
   onSpawnChildPhase,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,8 +80,32 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
   } | null>(null);
 
   const cardMovedRef = useRef(false);
+  const isSpawningRef = useRef(false);
 
-  // Compute Layout positions
+  const handleAddPhase = useCallback(() => {
+    if (isSpawningRef.current) return;
+    isSpawningRef.current = true;
+    onAddPhase();
+    setTimeout(() => {
+      isSpawningRef.current = false;
+    }, 250);
+  }, [onAddPhase]);
+
+  const handleSpawnChild = useCallback(
+    (sourceId: string) => {
+      if (isSpawningRef.current) return;
+      isSpawningRef.current = true;
+      if (onSpawnChildPhase) {
+        onSpawnChildPhase(sourceId);
+      } else {
+        onAddPhase();
+      }
+      setTimeout(() => {
+        isSpawningRef.current = false;
+      }, 250);
+    },
+    [onSpawnChildPhase, onAddPhase]
+  );
   const layout = useMemo(() => {
     return calculatePhaseLayout(phases, phaseEdges);
   }, [phases, phaseEdges]);
@@ -91,17 +119,20 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
   const getPhasePosition = useCallback(
     (phase: PhaseDto): { x: number; y: number } => {
       if (draggingCard && draggingCard.id === phase.id) {
-        return { x: draggingCard.currX, y: draggingCard.currY };
+        return {
+          x: Number.isFinite(draggingCard.currX) ? draggingCard.currX : (draggingCard.origX ?? 0),
+          y: Number.isFinite(draggingCard.currY) ? draggingCard.currY : (draggingCard.origY ?? 0),
+        };
       }
       if (
         phase.uiMetadata?.position &&
-        typeof phase.uiMetadata.position.x === 'number' &&
-        typeof phase.uiMetadata.position.y === 'number'
+        Number.isFinite(phase.uiMetadata.position.x) &&
+        Number.isFinite(phase.uiMetadata.position.y)
       ) {
         return phase.uiMetadata.position;
       }
       const layoutPos = layout.positions.get(phase.id);
-      if (layoutPos) {
+      if (layoutPos && Number.isFinite(layoutPos.x) && Number.isFinite(layoutPos.y)) {
         return { x: layoutPos.x, y: layoutPos.y };
       }
       return { x: 0, y: 0 };
@@ -112,18 +143,40 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
   // Fit view helper
   const handleFit = useCallback(() => {
     if (!containerRef.current || phases.length === 0) return;
-    const w = containerRef.current.clientWidth;
-    const h = containerRef.current.clientHeight;
+    const w = containerRef.current.clientWidth || 1200;
+    const h = containerRef.current.clientHeight || 700;
+    const lw = Number.isFinite(layout.width) && layout.width > 0 ? layout.width : 1000;
+    const lh = Number.isFinite(layout.height) && layout.height > 0 ? layout.height : 600;
 
-    const scaleX = (w - 120) / layout.width;
-    const scaleY = (h - 180) / layout.height;
-    const k = Math.min(1.5, Math.max(0.4, Math.min(scaleX, scaleY)));
+    const scaleX = (w - 120) / lw;
+    const scaleY = (h - 180) / lh;
+    const validScale = Number.isFinite(scaleX) && Number.isFinite(scaleY) ? Math.min(scaleX, scaleY) : 1;
+    const k = Math.min(1.5, Math.max(0.4, validScale));
 
-    const x = Math.max(40, (w - layout.width * k) / 2);
-    const y = Math.max(60, (h - layout.height * k) / 2);
+    const x = Math.max(40, (w - lw * k) / 2);
+    const y = Math.max(60, (h - lh * k) / 2);
 
-    setView({ x, y, k });
+    setView({
+      x: Number.isFinite(x) ? x : 40,
+      y: Number.isFinite(y) ? y : 60,
+      k: Number.isFinite(k) && k > 0 ? k : 1,
+    });
   }, [layout.width, layout.height, phases.length]);
+
+  // Auto Layout action: neatly aligns all phases using calculated DAG layout
+  const handleAutoLayout = useCallback(() => {
+    if (onAutoLayout) {
+      onAutoLayout();
+    } else if (onUpdatePhasePosition) {
+      phases.forEach((p) => {
+        const pos = layout.positions.get(p.id);
+        if (pos) {
+          onUpdatePhasePosition(p.id, { x: pos.x, y: pos.y });
+        }
+      });
+    }
+    handleFit();
+  }, [onAutoLayout, onUpdatePhasePosition, phases, layout.positions, handleFit]);
 
   // Initial fit on mount
   useEffect(() => {
@@ -168,16 +221,19 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
   };
 
   const handleMouseMoveCanvas = (e: React.MouseEvent) => {
-    if (panRef.current) {
-      const dx = e.clientX - panRef.current.sx;
-      const dy = e.clientY - panRef.current.sy;
+    const pan = panRef.current;
+    if (pan) {
+      const dx = e.clientX - pan.sx;
+      const dy = e.clientY - pan.sy;
       if (Math.abs(dx) + Math.abs(dy) > 4) {
-        panRef.current.moved = true;
+        pan.moved = true;
       }
+      const targetX = pan.vx + dx;
+      const targetY = pan.vy + dy;
       setView((prev) => ({
         ...prev,
-        x: panRef.current!.vx + dx,
-        y: panRef.current!.vy + dy,
+        x: Number.isFinite(targetX) ? targetX : prev.x,
+        y: Number.isFinite(targetY) ? targetY : prev.y,
       }));
     }
   };
@@ -209,21 +265,31 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
   // Window-level listeners for card drag & connect drag
   useEffect(() => {
     const handleWindowMouseMove = (e: MouseEvent) => {
+      // Guard against mouseup being swallowed or missed outside window
+      if (e.buttons === 0 && (draggingCard || connectingLine)) {
+        handleWindowMouseUp(e);
+        return;
+      }
+
       // 1. Handling Card Drag
       if (draggingCard) {
-        const dx = (e.clientX - draggingCard.startClientX) / view.k;
-        const dy = (e.clientY - draggingCard.startClientY) / view.k;
+        const k = Number.isFinite(view.k) && view.k > 0 ? view.k : 1;
+        const dx = (e.clientX - draggingCard.startClientX) / k;
+        const dy = (e.clientY - draggingCard.startClientY) / k;
         const moved = draggingCard.moved || Math.hypot(dx, dy) > 4;
         if (moved) {
           cardMovedRef.current = true;
         }
 
+        const validDx = Number.isFinite(dx) ? dx : 0;
+        const validDy = Number.isFinite(dy) ? dy : 0;
+
         setDraggingCard((prev) =>
           prev
             ? {
                 ...prev,
-                currX: Math.max(0, Math.round(prev.origX + dx)),
-                currY: Math.max(0, Math.round(prev.origY + dy)),
+                currX: Math.max(0, Math.round(prev.origX + validDx)),
+                currY: Math.max(0, Math.round(prev.origY + validDy)),
                 moved,
               }
             : null
@@ -233,15 +299,18 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
       // 2. Handling Drag-to-Connect wire
       if (connectingLine && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        const worldX = (e.clientX - rect.left - view.x) / view.k;
-        const worldY = (e.clientY - rect.top - view.y) / view.k;
+        const k = Number.isFinite(view.k) && view.k > 0 ? view.k : 1;
+        const vx = Number.isFinite(view.x) ? view.x : 0;
+        const vy = Number.isFinite(view.y) ? view.y : 0;
+        const worldX = (e.clientX - rect.left - vx) / k;
+        const worldY = (e.clientY - rect.top - vy) / k;
 
         setConnectingLine((prev) =>
           prev
             ? {
                 ...prev,
-                currX: worldX,
-                currY: worldY,
+                currX: Number.isFinite(worldX) ? worldX : prev.startX,
+                currY: Number.isFinite(worldY) ? worldY : prev.startY,
               }
             : null
         );
@@ -252,15 +321,21 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
       // 1. Finish Card Drag
       if (draggingCard) {
         if (draggingCard.moved) {
+          cardMovedRef.current = true;
+          window.setTimeout(() => {
+            cardMovedRef.current = false;
+          }, 80);
+
+          const finalX = Number.isFinite(draggingCard.currX) ? draggingCard.currX : draggingCard.origX;
+          const finalY = Number.isFinite(draggingCard.currY) ? draggingCard.currY : draggingCard.origY;
           if (onUpdatePhasePosition) {
             onUpdatePhasePosition(draggingCard.id, {
-              x: draggingCard.currX,
-              y: draggingCard.currY,
+              x: finalX,
+              y: finalY,
             });
           }
-          setTimeout(() => {
-            cardMovedRef.current = false;
-          }, 100);
+        } else {
+          cardMovedRef.current = false;
         }
         setDraggingCard(null);
       }
@@ -270,8 +345,8 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
         const sourceId = connectingLine.sourcePhaseId;
         const targetEl = document
           .elementFromPoint(e.clientX, e.clientY)
-          ?.closest<HTMLElement>('[data-phase-id]');
-        const targetId = targetEl?.dataset.phaseId;
+          ?.closest<HTMLElement>('[data-target-handle], [data-phase-id]');
+        const targetId = targetEl?.dataset.targetHandle || targetEl?.dataset.phaseId;
 
         const flashError = (message: string) => {
           setConnectError({ message, x: e.clientX, y: e.clientY });
@@ -285,11 +360,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
 
         if (distanceMoved < 6) {
           // User just clicked the connector button -> spawn new child phase
-          if (onSpawnChildPhase) {
-            onSpawnChildPhase(sourceId);
-          } else {
-            onAddPhase();
-          }
+          handleSpawnChild(sourceId);
         } else if (targetId && targetId !== sourceId) {
           // Check if connection already exists
           const exists = phaseEdges.some(
@@ -363,7 +434,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
 
   // Helper to count tracks and tasks in a phase
   const getPhaseStats = (phaseId: string) => {
-    const phaseNodes = nodes.filter((n) => n.phaseId === phaseId);
+    const phaseNodes = (nodes || []).filter((n) => n && n.phaseId === phaseId);
     let tracks = 0;
     let tasks = 0;
     for (const n of phaseNodes) {
@@ -375,16 +446,16 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
 
   // Canvas bounds computed dynamically
   const canvasBounds = useMemo(() => {
-    let maxX = layout.width;
-    let maxY = layout.height;
+    let maxX = Number.isFinite(layout.width) ? layout.width : 1600;
+    let maxY = Number.isFinite(layout.height) ? layout.height : 900;
     for (const p of phases) {
       const pos = getPhasePosition(p);
-      maxX = Math.max(maxX, pos.x + PW + 200);
-      maxY = Math.max(maxY, pos.y + PHH + 200);
+      if (Number.isFinite(pos.x)) maxX = Math.max(maxX, pos.x + PW + 200);
+      if (Number.isFinite(pos.y)) maxY = Math.max(maxY, pos.y + PHH + 200);
     }
     return {
-      width: Math.max(1600, maxX),
-      height: Math.max(900, maxY),
+      width: Math.max(1600, Number.isFinite(maxX) ? maxX : 1600),
+      height: Math.max(900, Number.isFinite(maxY) ? maxY : 900),
     };
   }, [layout.width, layout.height, phases, getPhasePosition]);
 
@@ -439,9 +510,10 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
           </defs>
 
           {/* Render static/persisted edges */}
-          {phaseEdges.map((edge, idx) => {
-            const parentPhase = phases.find((p) => p.id === edge.parentPhaseId);
-            const childPhase = phases.find((p) => p.id === edge.childPhaseId);
+          {(phaseEdges || []).map((edge, idx) => {
+            if (!edge || !edge.parentPhaseId || !edge.childPhaseId) return null;
+            const parentPhase = (phases || []).find((p) => p && p.id === edge.parentPhaseId);
+            const childPhase = (phases || []).find((p) => p && p.id === edge.childPhaseId);
             if (!parentPhase || !childPhase) return null;
 
             const posA = getPhasePosition(parentPhase);
@@ -451,11 +523,15 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
             const y1 = posA.y + PHH / 2;
             const x2 = posB.x;
             const y2 = posB.y + PHH / 2;
+            if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+              return null;
+            }
+
             const dx = Math.max(60, Math.abs(x2 - x1) / 2);
 
             const isCyclic =
-              cyclePhaseIds.has(edge.parentPhaseId) &&
-              cyclePhaseIds.has(edge.childPhaseId);
+              (cyclePhaseIds?.has(edge.parentPhaseId) || false) &&
+              (cyclePhaseIds?.has(edge.childPhaseId) || false);
 
             return (
               <path
@@ -471,29 +547,72 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
           })}
 
           {/* Render live Drag-to-Connect wire */}
-          {connectingLine && (
-            <path
-              d={`M${connectingLine.startX} ${connectingLine.startY} C${
-                connectingLine.startX +
-                Math.max(50, Math.abs(connectingLine.currX - connectingLine.startX) / 2)
-              } ${connectingLine.startY}, ${
-                connectingLine.currX -
-                Math.max(50, Math.abs(connectingLine.currX - connectingLine.startX) / 2)
-              } ${connectingLine.currY}, ${connectingLine.currX} ${connectingLine.currY}`}
-              fill="none"
-              stroke="#2563eb"
-              strokeWidth={3}
-              strokeDasharray="6 6"
-              className="animate-pulse"
-            />
-          )}
+          {connectingLine &&
+            Number.isFinite(connectingLine.currX) &&
+            Number.isFinite(connectingLine.currY) && (
+              <path
+                d={`M${connectingLine.startX} ${connectingLine.startY} C${
+                  connectingLine.startX +
+                  Math.max(50, Math.abs(connectingLine.currX - connectingLine.startX) / 2)
+                } ${connectingLine.startY}, ${
+                  connectingLine.currX -
+                  Math.max(50, Math.abs(connectingLine.currX - connectingLine.startX) / 2)
+                } ${connectingLine.currY}, ${connectingLine.currX} ${connectingLine.currY}`}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth={3}
+                strokeDasharray="6 6"
+                className="animate-pulse"
+              />
+            )}
         </svg>
 
+        {/* Delete Edge Action Buttons at Midpoint of Curve */}
+        {(phaseEdges || []).map((edge, idx) => {
+          if (!edge || !edge.parentPhaseId || !edge.childPhaseId) return null;
+          const parentPhase = (phases || []).find((p) => p && p.id === edge.parentPhaseId);
+          const childPhase = (phases || []).find((p) => p && p.id === edge.childPhaseId);
+          if (!parentPhase || !childPhase) return null;
+
+          const posA = getPhasePosition(parentPhase);
+          const posB = getPhasePosition(childPhase);
+
+          const midX = (posA.x + PW + posB.x) / 2;
+          const midY = (posA.y + PHH / 2 + posB.y + PHH / 2) / 2;
+          if (!Number.isFinite(midX) || !Number.isFinite(midY)) {
+            return null;
+          }
+
+          return (
+            <div
+              key={`edge-del-${edge.parentPhaseId}-${edge.childPhaseId}-${idx}`}
+              style={{
+                left: `${midX - 12}px`,
+                top: `${midY - 12}px`,
+              }}
+              className="absolute z-20"
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDisconnectPhases?.(edge.parentPhaseId, edge.childPhaseId);
+                }}
+                title={`Xóa liên kết: ${parentPhase.name} ➔ ${childPhase.name}`}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-white border border-slate-300 text-slate-400 opacity-70 transition-all hover:opacity-100 hover:scale-125 hover:bg-rose-50 hover:border-rose-400 hover:text-rose-600 shadow-md"
+              >
+                <X className="h-3.5 w-3.5 stroke-[2.5]" />
+              </button>
+            </div>
+          );
+        })}
+
         {/* Macro Phase Cards (Light Blueprint Grid Style) */}
-        {phases.map((phase, idx) => {
+        {(phases || []).map((phase, idx) => {
+          if (!phase || !phase.id) return null;
           const pos = getPhasePosition(phase);
           const stats = getPhaseStats(phase.id);
-          const isBad = cyclePhaseIds.has(phase.id);
+          const isBad = cyclePhaseIds?.has(phase.id) || false;
           const topoRank = topoRanks.get(phase.id) || idx + 1;
           const isBeingDragged = draggingCard?.id === phase.id;
 
@@ -504,9 +623,8 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
               onMouseDown={(e) => handleCardMouseDown(e, phase)}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!cardMovedRef.current) {
-                  onOpenPhase(phase.id);
-                }
+                if (cardMovedRef.current) return;
+                onOpenPhase(phase.id);
               }}
               style={{
                 left: `${pos.x}px`,
@@ -532,6 +650,24 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
                     : 'bg-blue-600'
                 }`}
               />
+
+              {/* 1. TARGET HANDLE (Cổng vào mép trái): Nhận các mũi tên phụ thuộc tiền đề */}
+              <div
+                data-target-handle={phase.id}
+                data-phase-id={phase.id}
+                title={`Cổng vào: Nhận phụ thuộc cho ${phase.name}`}
+                className={`absolute -left-3.5 top-1/2 -translate-y-1/2 z-20 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200 ${
+                  connectingLine
+                    ? 'scale-125 bg-blue-100 border-2 border-blue-600 ring-4 ring-blue-400/50 animate-pulse cursor-crosshair'
+                    : 'bg-white border-2 border-slate-300 text-slate-400 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 shadow-sm'
+                }`}
+              >
+                <div
+                  className={`h-2.5 w-2.5 rounded-full transition-colors ${
+                    connectingLine ? 'bg-blue-600' : 'bg-slate-400 group-hover:bg-blue-500'
+                  }`}
+                />
+              </div>
 
               <div className="p-4 flex flex-col h-[calc(100%-6px)] justify-between">
                 {/* Header: Topological Sort Badge & Delete */}
@@ -595,7 +731,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
                 </div>
               </div>
 
-              {/* Connector Handle on Right Edge: Click to Spawn, Drag to Connect */}
+              {/* 2. SOURCE HANDLE (Cổng ra mép phải / Nút +): Click tạo phase con, Kéo nối dây sang phase khác */}
               <button
                 type="button"
                 onMouseDown={(e) => handleStartConnect(e, phase.id)}
@@ -603,10 +739,10 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
                   e.stopPropagation();
                   e.preventDefault();
                 }}
-                title="Kéo sang Phase khác để nối phụ thuộc · Bấm để tạo Phase con"
-                className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 group-hover:opacity-100 opacity-0 cursor-grab active:cursor-grabbing"
+                title="Kéo sang Cổng vào (mép trái) Phase khác để nối dây · Click để tạo nhanh Phase con nối tiếp"
+                className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md border-2 border-white transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 cursor-grab active:cursor-grabbing"
               >
-                <Plus className="h-3.5 w-3.5 stroke-[3]" />
+                <Plus className="h-4 w-4 stroke-[3]" />
               </button>
             </div>
           );
@@ -623,15 +759,27 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
         </div>
       )}
 
-      {/* Floating: Add New Phase Button */}
-      <button
-        type="button"
-        onClick={onAddPhase}
-        className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-blue-700 active:scale-95"
-      >
-        <Plus className="h-4 w-4" />
-        <span>Add New Phase</span>
-      </button>
+      {/* Floating: Action Buttons (Add Phase + Auto Layout) */}
+      <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleAddPhase}
+          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-blue-700 active:scale-95 cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add New Phase</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleAutoLayout}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 px-3.5 py-2.5 text-xs font-semibold text-slate-700 shadow-md backdrop-blur-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
+          title="Auto-layout phases into a clean DAG (Sắp xếp tự động)"
+        >
+          <LayoutGrid className="h-4 w-4 text-slate-500" />
+          <span>Auto Layout</span>
+        </button>
+      </div>
 
       {/* Floating: Navigation Hint */}
       <div className="pointer-events-none absolute right-4 top-4 z-10 hidden sm:flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/95 px-3.5 py-2 text-xs font-medium text-slate-500 shadow-sm backdrop-blur-sm">

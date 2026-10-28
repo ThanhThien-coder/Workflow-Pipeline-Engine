@@ -1,6 +1,7 @@
 import type { GraphNode, GraphNodeMap, MacroPhase, NodeStatus, PhaseTree } from '../types/workflow.types'
 import type { CreatePhaseDto, IWorkflowService } from './contracts/IWorkflowService'
 import { isPhaseAncestor } from '../utils/spanningTreeLayout'
+import { computeSmartMacroPhasePosition } from '../utils/macroLayout'
 import { MockOverviewApi } from './mock/MockWorkflowService.overview'
 import { guestAccessStore } from './mock/guestAccessStore'
 import type { GuestAccessState, OverviewData } from '../types/overview.types'
@@ -10,6 +11,16 @@ import { MockSettingsApi } from './mock/MockWorkflowService.settings'
 import { MockAuthApi } from './mock/MockWorkflowService.auth'
 import { MockWorkspaceApi } from './mock/MockWorkflowService.workspace'
 import { MockConfig } from './mock/MockConfig'
+import {
+  getStoredProjectGraph,
+  saveStoredProjectGraph,
+  cloneTemplateToProject,
+  addPhaseToProject,
+  connectPhasesInProject,
+  disconnectPhasesInProject,
+  deletePhaseInProject,
+  updatePhasePositionInProject,
+} from './mock/mockProjectGraphStore'
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
@@ -178,21 +189,54 @@ export class MockWorkflowService implements IWorkflowService {
     }
   }
 
-  async getMacroPhases(_projectId?: string): Promise<MacroPhase[]> {
+  async getMacroPhases(projectId?: string): Promise<MacroPhase[]> {
+    if (projectId && projectId !== '1') {
+      const customGraph = getStoredProjectGraph(projectId)
+      if (customGraph) {
+        return customGraph.phases.map((phase) => ({ ...phase }))
+      }
+    }
     return this.phases.map((phase) => ({ ...phase }))
   }
 
-  async getPhaseEdges(_projectId?: string): Promise<[string, string][]> {
-    return this.phases.flatMap((phase) => phase.parentPhaseIds.map((parent) => [parent, phase.id] as [string, string]))
+  async getPhaseEdges(projectId?: string): Promise<[string, string][]> {
+    if (projectId && projectId !== '1') {
+      const customGraph = getStoredProjectGraph(projectId)
+      if (customGraph) {
+        return customGraph.phases.flatMap((phase) =>
+          phase.parentPhaseIds.map((parent) => [parent, phase.id] as [string, string])
+        )
+      }
+    }
+    return this.phases.flatMap((phase) =>
+      phase.parentPhaseIds.map((parent) => [parent, phase.id] as [string, string])
+    )
   }
 
-  async getPhaseGraph(phaseId: string, _projectId?: string): Promise<GraphNodeMap> {
+  async getPhaseGraph(phaseId: string, projectId?: string): Promise<GraphNodeMap> {
+    if (projectId && projectId !== '1') {
+      const customGraph = getStoredProjectGraph(projectId)
+      if (customGraph && customGraph.trees[phaseId]) {
+        const tree = customGraph.trees[phaseId]
+        return Object.fromEntries(
+          Object.entries(tree.nodes).map(([id, graphNode]) => [
+            id,
+            { ...graphNode, parentIds: [...graphNode.parentIds] },
+          ])
+        )
+      }
+    }
     if (phaseId === 'p2a') {
       return seedP2A()
     }
     const tree = TREES[phaseId]
     if (!tree) throw new Error(`Unknown phase: ${phaseId}`)
-    return Object.fromEntries(Object.entries(tree.nodes).map(([id, graphNode]) => [id, { ...graphNode, parentIds: [...graphNode.parentIds] }]))
+    return Object.fromEntries(
+      Object.entries(tree.nodes).map(([id, graphNode]) => [
+        id,
+        { ...graphNode, parentIds: [...graphNode.parentIds] },
+      ])
+    )
   }
 
   async getOverviewData(projectId: string): Promise<OverviewData> {
@@ -337,41 +381,103 @@ export class MockWorkflowService implements IWorkflowService {
     this.workspaceApi.updateProjectStatus(projectId, status)
   }
 
-  async createPhase(dto: CreatePhaseDto): Promise<MacroPhase> {
-    await new Promise((resolve) => setTimeout(resolve, 150))
+  async createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase> {
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const pId = projectId || dto.projectId
+    if (pId && pId !== '1') {
+      return addPhaseToProject(pId, dto)
+    }
     const timestamp = Date.now()
     const id = `p_${timestamp}_${this.phases.length}`
-    const parent = dto.parentPhaseId ? this.phases.find((phase) => phase.id === dto.parentPhaseId) : undefined
+    const smartPos = computeSmartMacroPhasePosition(this.phases, dto.parentPhaseId)
     const phase: MacroPhase = {
       id,
       name: dto.name,
       sub: dto.sub ?? 'Nền tảng mới',
-      status: 'TODO',
+      status: dto.parentPhaseId ? 'LOCKED' : 'TODO',
       pct: 0,
-      accent: dto.accent ?? 'slate',
-      x: dto.x ?? (parent ? parent.x + parent.w + 100 : 400),
-      y: dto.y ?? (parent ? parent.y : 150),
-      w: 250,
-      h: 220,
-      parentPhaseIds: parent ? [parent.id] : [],
+      accent: dto.accent ?? (dto.parentPhaseId ? 'slate' : 'blue'),
+      x: dto.x ?? smartPos.x,
+      y: dto.y ?? smartPos.y,
+      w: 440,
+      h: 170,
+      parentPhaseIds: dto.parentPhaseId ? [dto.parentPhaseId] : [],
     }
     const rootTree = seedSimple(`${dto.name}: ${phase.sub}`, `Dự án Marketing Q4 › ${phase.name}`, 0, { prLink: null, prMerged: false, swagger: '' }, `Track: ${phase.sub}`, 'TODO', 'Khởi tạo Phase', 'TODO', '', '', 'Chưa có')
     TREES[id] = { title: phase.name, breadcrumb: `Dự án Marketing Q4 › ${phase.name}`, pct: 0, gate: { prLink: null, prMerged: false, swagger: '' }, nodes: rootTree.nodes }
     this.phases = [...this.phases, phase]
+    if (pId) {
+      addPhaseToProject(pId, dto)
+    }
     return phase
   }
 
-  async connectPhases(sourcePhaseId: string, targetPhaseId: string): Promise<void> {
+  async connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void> {
+    if (projectId && projectId !== '1') {
+      const ok = connectPhasesInProject(projectId, sourcePhaseId, targetPhaseId)
+      if (!ok) throw new Error('Phase không tồn tại')
+      return
+    }
     const target = this.phases.find((phase) => phase.id === targetPhaseId)
-    if (!target || !this.phases.some((phase) => phase.id === sourcePhaseId)) throw new Error('Phase không tồn tại')
+    if (!target || !this.phases.some((phase) => phase.id === sourcePhaseId)) {
+      if (projectId) {
+        const ok = connectPhasesInProject(projectId, sourcePhaseId, targetPhaseId)
+        if (ok) return
+      }
+      throw new Error('Phase không tồn tại')
+    }
     if (target.parentPhaseIds.includes(sourcePhaseId)) throw new Error('Liên kết giữa 2 Phase đã tồn tại')
     const phaseMap = Object.fromEntries(this.phases.map((phase) => [phase.id, phase]))
     if (isPhaseAncestor(phaseMap, targetPhaseId, sourcePhaseId)) throw new Error('Không thể nối ngược (tránh chu trình lặp đồ thị)')
     target.parentPhaseIds = [...target.parentPhaseIds, sourcePhaseId]
+    target.locked = true
+    target.status = 'LOCKED'
+    if (projectId) {
+      connectPhasesInProject(projectId, sourcePhaseId, targetPhaseId)
+    }
   }
 
-  async deletePhase(phaseId: string): Promise<void> {
+  async disconnectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void> {
+    if (projectId && projectId !== '1') {
+      disconnectPhasesInProject(projectId, sourcePhaseId, targetPhaseId)
+      return
+    }
+    const target = this.phases.find((phase) => phase.id === targetPhaseId)
+    if (target) {
+      target.parentPhaseIds = target.parentPhaseIds.filter((parent) => parent !== sourcePhaseId)
+      if (target.parentPhaseIds.length === 0) {
+        target.locked = false
+        target.status = 'IN_PROGRESS'
+      }
+    }
+    if (projectId) {
+      disconnectPhasesInProject(projectId, sourcePhaseId, targetPhaseId)
+    }
+  }
+
+  async deletePhase(phaseId: string, projectId?: string): Promise<void> {
+    if (projectId && projectId !== '1') {
+      deletePhaseInProject(projectId, phaseId)
+    }
     this.phases = this.phases.filter((phase) => phase.id !== phaseId).map((phase) => ({ ...phase, parentPhaseIds: phase.parentPhaseIds.filter((parent) => parent !== phaseId) }))
     delete TREES[phaseId]
+    if (projectId) {
+      deletePhaseInProject(projectId, phaseId)
+    }
+  }
+
+  async updatePhasePosition(phaseId: string, pos: { x: number; y: number }, projectId?: string): Promise<void> {
+    if (projectId && projectId !== '1') {
+      updatePhasePositionInProject(projectId, phaseId, pos)
+      return
+    }
+    const found = this.phases.find((p) => p.id === phaseId)
+    if (found) {
+      found.x = pos.x
+      found.y = pos.y
+    }
+    if (projectId) {
+      updatePhasePositionInProject(projectId, phaseId, pos)
+    }
   }
 }

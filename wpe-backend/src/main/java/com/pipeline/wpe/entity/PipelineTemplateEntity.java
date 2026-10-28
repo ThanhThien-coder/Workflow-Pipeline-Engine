@@ -26,6 +26,9 @@ public class PipelineTemplateEntity {
     @Column(nullable = false, length = 150)
     private String name;
 
+    @Column(length = 100, unique = true)
+    private String slug;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

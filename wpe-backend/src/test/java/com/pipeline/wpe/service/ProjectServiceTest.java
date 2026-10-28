@@ -55,6 +55,9 @@ class ProjectServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private TemplateCloneService templateCloneService;
+
     @InjectMocks
     private ProjectService projectService;
 

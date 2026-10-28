@@ -23,6 +23,7 @@ export interface PhaseDto {
   order: number;
   rootNodeId: string;
   uiMetadata: UiMetadata;
+  runsAfter?: string[];
 }
 
 export interface PhaseEdgeDto {

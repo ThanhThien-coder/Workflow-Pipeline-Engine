@@ -34,6 +34,7 @@ export interface CreatePhaseDto {
   sub?: string
   accent?: 'emerald' | 'blue' | 'slate'
   parentPhaseId?: string
+  projectId?: string
   x?: number
   y?: number
 }
@@ -58,9 +59,11 @@ export interface IWorkflowService {
   addRootTask?(phaseId: string, payload: { title: string }): Promise<PhaseNode>
   attachGhostNode?(phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }): Promise<GhostDependency>
   resetPhaseTree?(phaseId: string): Promise<void>
-  createPhase(dto: CreatePhaseDto): Promise<MacroPhase>
-  connectPhases(sourcePhaseId: string, targetPhaseId: string): Promise<void>
-  deletePhase(phaseId: string): Promise<void>
+  createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase>
+  connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void>
+  disconnectPhases?(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void>
+  deletePhase(phaseId: string, projectId?: string): Promise<void>
+  updatePhasePosition?(phaseId: string, pos: { x: number; y: number }, projectId?: string): Promise<void>
   getOverviewData(projectId: string): Promise<OverviewData>
   resolveFeedback(projectId: string, feedbackId: string): Promise<void>
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState>

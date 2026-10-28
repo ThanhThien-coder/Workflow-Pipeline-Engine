@@ -6,7 +6,7 @@ import {
   NODE_H,
   PAD,
 } from '../../../../lib/graph/treeLayout';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface TreeGraphViewProps {
   nodes: TemplateNodeDto[];
@@ -14,13 +14,13 @@ interface TreeGraphViewProps {
   cycleNodeIds: Set<string>;
   onSelectNode: (id: string) => void;
   onAddChild: (parentId: string) => void;
+  onDeleteNode?: (id: string) => void;
 }
 
 const typeOf = (level: number) => {
   if (level === 0) return 'Phase Root';
   if (level === 1) return 'Track';
-  if (level === 2) return 'Task';
-  return 'Sub-task';
+  return 'Task';
 };
 
 // Memoized individual Node Card with ISOLATED hover (CSS only, zero parent layout re-render)
@@ -33,6 +33,7 @@ const TreeNodeCard = React.memo(
     isViolating,
     onSelect,
     onAdd,
+    onDelete,
   }: {
     node: TemplateNodeDto;
     x: number;
@@ -41,6 +42,7 @@ const TreeNodeCard = React.memo(
     isViolating: boolean;
     onSelect: (id: string) => void;
     onAdd: (id: string) => void;
+    onDelete?: (id: string) => void;
   }) => {
     const isRoot = node.level === 0;
 
@@ -48,9 +50,7 @@ const TreeNodeCard = React.memo(
       ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-100'
       : node.level === 1
       ? 'bg-blue-50/90 border-blue-200 text-slate-900 shadow-blue-50'
-      : node.level === 2
-      ? 'bg-white border-slate-200/90 text-slate-900 shadow-slate-100'
-      : 'bg-slate-50 border-slate-200 text-slate-800';
+      : 'bg-white border-slate-200/90 text-slate-900 shadow-slate-100';
 
     return (
       <div
@@ -75,17 +75,33 @@ const TreeNodeCard = React.memo(
             {typeOf(node.level)}
           </span>
 
-          {node.level >= 1 && (
-            <span
-              className={`rounded px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide ${
-                node.joinPolicy === 'ANY_COMPLETED'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-blue-100 text-blue-700'
-              }`}
-            >
-              {node.joinPolicy === 'ANY_COMPLETED' ? 'OR' : 'AND'}
-            </span>
-          )}
+          <div className="flex items-center gap-1">
+            {node.level >= 1 && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide ${
+                  node.joinPolicy === 'ANY_COMPLETED'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}
+              >
+                {node.joinPolicy === 'ANY_COMPLETED' ? 'OR' : 'AND'}
+              </span>
+            )}
+
+            {!isRoot && onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(node.id);
+                }}
+                title={`Xóa node: ${node.title}`}
+                className="rounded p-0.5 text-slate-400 opacity-60 transition hover:opacity-100 hover:bg-rose-50 hover:text-rose-600"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Node Title */}
@@ -123,6 +139,7 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
   cycleNodeIds,
   onSelectNode,
   onAddChild,
+  onDeleteNode,
 }) => {
   // Pure layout calculation - only recomputes when nodes change
   const layout = useMemo(() => {
@@ -143,8 +160,8 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
     return map;
   }, [nodes]);
 
-  const canvasWidth = layout.width + PAD * 2 + 100;
-  const canvasHeight = layout.height + PAD * 2 + 60;
+  const canvasWidth = Math.max(400, (Number.isFinite(layout.width) ? layout.width : 600) + PAD * 2 + 100);
+  const canvasHeight = Math.max(300, (Number.isFinite(layout.height) ? layout.height : 400) + PAD * 2 + 60);
 
   return (
     <div
@@ -160,24 +177,30 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
         height={canvasHeight}
         className="pointer-events-none absolute left-0 top-0 overflow-visible"
       >
-        {nodes.map((parent) => {
+        {(nodes || []).map((parent) => {
+          if (!parent || !parent.id) return null;
           const children = childrenMap.get(parent.id) || [];
           const parentPos = layout.positions.get(parent.id);
-          if (!parentPos || children.length === 0) return null;
+          if (!parentPos || !Number.isFinite(parentPos.x) || !Number.isFinite(parentPos.y) || children.length === 0) return null;
 
           const x1 = parentPos.x + NODE_W + PAD;
           const y1 = parentPos.y + NODE_H / 2 + PAD;
 
           return children.map((child) => {
+            if (!child || !child.id) return null;
             const childPos = layout.positions.get(child.id);
-            if (!childPos) return null;
+            if (!childPos || !Number.isFinite(childPos.x) || !Number.isFinite(childPos.y)) return null;
 
             const x2 = childPos.x + PAD;
             const y2 = childPos.y + NODE_H / 2 + PAD;
             const dx = (x2 - x1) / 2;
 
+            if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || !Number.isFinite(dx)) {
+              return null;
+            }
+
             const isCycle =
-              cycleNodeIds.has(parent.id) && cycleNodeIds.has(child.id);
+              cycleNodeIds?.has(parent.id) && cycleNodeIds?.has(child.id);
 
             return (
               <path
@@ -193,9 +216,10 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
       </svg>
 
       {/* Node Cards */}
-      {nodes.map((node) => {
+      {(nodes || []).map((node) => {
+        if (!node || !node.id) return null;
         const pos = layout.positions.get(node.id);
-        if (!pos) return null;
+        if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null;
 
         return (
           <TreeNodeCard
@@ -204,9 +228,10 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
             x={pos.x + PAD}
             y={pos.y + PAD}
             isSelected={node.id === selectedNodeId}
-            isViolating={cycleNodeIds.has(node.id)}
+            isViolating={cycleNodeIds?.has(node.id) || false}
             onSelect={onSelectNode}
             onAdd={onAddChild}
+            onDelete={onDeleteNode}
           />
         );
       })}

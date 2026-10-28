@@ -33,82 +33,92 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
 
     if (lineChartRef.current) {
       lineChartRef.current.destroy();
+      lineChartRef.current = null;
+    }
+
+    const existingChart = Chart.getChart(lineCanvasRef.current);
+    if (existingChart) {
+      existingChart.destroy();
     }
 
     const ctx = lineCanvasRef.current.getContext('2d');
     if (!ctx) return;
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 280);
-    gradient.addColorStop(0, 'rgba(37, 99, 235, 0.22)');
-    gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
+    try {
+      const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+      gradient.addColorStop(0, 'rgba(37, 99, 235, 0.22)');
+      gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
 
-    const labels = trends.map((t) => t.label);
-    const executions = trends.map((t) => t.dagExecutions);
-    const activeUsers = trends.map((t) => t.activeUsers);
+      const labels = trends.map((t) => t.label);
+      const executions = trends.map((t) => t.dagExecutions);
+      const activeUsers = trends.map((t) => t.activeUsers);
 
-    lineChartRef.current = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Executions',
-            data: executions,
-            borderColor: '#2563eb',
-            backgroundColor: gradient,
-            fill: true,
-            tension: 0.4,
-            yAxisID: 'y',
-          },
-          {
-            label: 'Active users',
-            data: activeUsers,
-            borderColor: '#6366f1',
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            yAxisID: 'y1',
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-          mode: 'index',
-          intersect: false,
+      lineChartRef.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Executions',
+              data: executions,
+              borderColor: '#2563eb',
+              backgroundColor: gradient,
+              fill: true,
+              tension: 0.4,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Active users',
+              data: activeUsers,
+              borderColor: '#6366f1',
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              yAxisID: 'y1',
+            },
+          ],
         },
-        plugins: {
-          legend: {
-            labels: {
-              usePointStyle: true,
-              boxWidth: 7,
-              color: '#64748b',
-              font: {
-                family: 'Inter',
-                size: 11,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              labels: {
+                usePointStyle: true,
+                boxWidth: 7,
+                color: '#64748b',
+                font: {
+                  family: 'Inter',
+                  size: 11,
+                },
               },
             },
           },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { size: 11 } },
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: '#f1f5f9' },
+              ticks: { color: '#94a3b8', font: { size: 10 } },
+            },
+            y1: {
+              position: 'right',
+              beginAtZero: true,
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#94a3b8', font: { size: 10 } },
+            },
+          },
         },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: '#94a3b8', font: { size: 11 } },
-          },
-          y: {
-            beginAtZero: true,
-            grid: { color: '#f1f5f9' },
-            ticks: { color: '#94a3b8', font: { size: 10 } },
-          },
-          y1: {
-            position: 'right',
-            beginAtZero: true,
-            grid: { drawOnChartArea: false },
-            ticks: { color: '#94a3b8', font: { size: 10 } },
-          },
-        },
-      },
-    });
+      });
+    } catch (err) {
+      console.warn('Could not initialize line chart:', err);
+    }
 
     return () => {
       if (lineChartRef.current) {
@@ -124,37 +134,47 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
 
     if (roleChartRef.current) {
       roleChartRef.current.destroy();
+      roleChartRef.current = null;
+    }
+
+    const existingChart = Chart.getChart(roleCanvasRef.current);
+    if (existingChart) {
+      existingChart.destroy();
     }
 
     const ctx = roleCanvasRef.current.getContext('2d');
     if (!ctx) return;
 
-    roleChartRef.current = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: ['Owner', 'Collaborator', 'Viewer'],
-        datasets: [
-          {
-            data: [
-              roleDistribution.ownerCount,
-              roleDistribution.collaboratorCount,
-              roleDistribution.viewerCount,
-            ],
-            backgroundColor: ['#2563eb', '#818cf8', '#cbd5e1'],
-            borderWidth: 0,
-            hoverOffset: 5,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '72%',
-        plugins: {
-          legend: { display: false },
+    try {
+      roleChartRef.current = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Owner', 'Collaborator', 'Viewer'],
+          datasets: [
+            {
+              data: [
+                roleDistribution.ownerCount,
+                roleDistribution.collaboratorCount,
+                roleDistribution.viewerCount,
+              ],
+              backgroundColor: ['#2563eb', '#818cf8', '#cbd5e1'],
+              borderWidth: 0,
+              hoverOffset: 5,
+            },
+          ],
         },
-      },
-    });
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '72%',
+          plugins: {
+            legend: { display: false },
+          },
+        },
+      });
+    } catch (err) {
+      console.warn('Could not initialize role distribution chart:', err);
+    }
 
     return () => {
       if (roleChartRef.current) {

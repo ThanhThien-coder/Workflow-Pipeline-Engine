@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/v1/realtime")
+@RequestMapping({"/api/v1/realtime", "/api/realtime"})
 @RequiredArgsConstructor
 @Tag(name = "00. Real-time Gateway", description = "Đường ống đẩy dữ liệu thời gian thực Server-Sent Events (SSE)")
 public class RealtimeController {

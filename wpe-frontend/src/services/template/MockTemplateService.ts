@@ -109,7 +109,7 @@ export class MockTemplateService implements ITemplateService {
   }
 
   async createTemplate(dto: CreateTemplateRequestDto): Promise<TemplateDetailDto> {
-    await delay(300);
+    await delay(100);
     this.templates = loadPersistedTemplates();
     const validation = validateTemplateGraph(dto.graphData);
     if (!validation.valid) {
@@ -117,7 +117,7 @@ export class MockTemplateService implements ITemplateService {
     }
 
     const now = new Date().toISOString();
-    const newId = `tpl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const newId = (dto as any).id || `tpl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
     const newTemplate: TemplateDetailDto = {
       id: newId,
@@ -134,13 +134,14 @@ export class MockTemplateService implements ITemplateService {
       graphData: structuredClone(dto.graphData),
     };
 
+    this.templates = this.templates.filter((t) => t.id !== newId);
     this.templates.unshift(newTemplate);
     persistTemplates(this.templates);
     return structuredClone(newTemplate);
   }
 
   async updateTemplate(id: string, dto: UpdateTemplateRequestDto): Promise<TemplateDetailDto> {
-    await delay(300);
+    await delay(100);
     this.templates = loadPersistedTemplates();
     const validation = validateTemplateGraph(dto.graphData);
     if (!validation.valid) {
@@ -149,7 +150,8 @@ export class MockTemplateService implements ITemplateService {
 
     const index = this.templates.findIndex((t) => t.id === id);
     if (index === -1) {
-      throw new Error(`Template not found with ID: ${id}`);
+      // Upsert: if template was not yet persisted under this ID, create it under this ID
+      return this.createTemplate({ ...dto, id } as any);
     }
 
     const existing = this.templates[index];

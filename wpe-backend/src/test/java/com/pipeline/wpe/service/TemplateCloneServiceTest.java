@@ -299,4 +299,128 @@ class TemplateCloneServiceTest {
         assertThat(stats.clonedNodesCount()).isEqualTo(1);
         assertThat(stats.clonedDependenciesCount()).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("cloneTemplate: Sao chép thành công từ PipelineTemplateEntity với slug và ID chuỗi chữ (alphanumeric IDs)")
+    void shouldCloneSuccessfullyFromPipelineTemplateEntity_withSlugAndAlphanumericIds() {
+        // GIVEN: PipelineTemplateEntity có slug "tpl-sdlc" với 2 phases và 2 nodes có ID chuỗi (alphanumeric)
+        Map<String, Object> graphData = new HashMap<>();
+        graphData.put("phases", List.of(
+            Map.of("id", "ph-sdlc-1", "name", "Phase 1 - Khảo sát", "orderIndex", 0, "accentColor", "blue"),
+            Map.of("id", "ph-sdlc-2", "name", "Phase 2 - Thiết kế", "orderIndex", 1, "accentColor", "purple", "runsAfter", List.of("ph-sdlc-1"))
+        ));
+        graphData.put("nodes", List.of(
+            Map.of("id", "nd-req", "phaseId", "ph-sdlc-1", "code", "REQ-01", "title", "Thu thập YCKT",
+                   "uiMetadata", Map.of("position", Map.of("x", 120, "y", 80))),
+            Map.of("id", "nd-arch", "phaseId", "ph-sdlc-2", "code", "ARCH-01", "title", "Thiết kế Kiến trúc",
+                   "uiMetadata", Map.of("position", Map.of("x", 450, "y", 220)))
+        ));
+        graphData.put("edges", List.of(
+            Map.of("source", "nd-req", "target", "nd-arch")
+        ));
+
+        PipelineTemplateEntity templateEntity = PipelineTemplateEntity.builder()
+            .id(10L)
+            .slug("tpl-sdlc")
+            .name("Mẫu Phát triển Phần mềm Chuẩn")
+            .graphData(graphData)
+            .cloneCount(5)
+            .build();
+
+        when(pipelineTemplateRepository.findBySlug("tpl-sdlc")).thenReturn(Optional.of(templateEntity));
+
+        // Mock lưu project
+        when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> {
+            ProjectEntity p = invocation.getArgument(0);
+            return ProjectEntity.builder()
+                .id(888L)
+                .name(p.getName())
+                .description(p.getDescription())
+                .ownerId(p.getOwnerId())
+                .status(p.getStatus())
+                .build();
+        });
+
+        // Mock lưu phases
+        long[] phaseSeq = {1001L, 1002L};
+        int[] pIdx = {0};
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(invocation -> {
+            WorkPhaseEntity p = invocation.getArgument(0);
+            if (p.getId() != null) {
+                return p;
+            }
+            return WorkPhaseEntity.builder()
+                .id(phaseSeq[pIdx[0]++])
+                .projectId(p.getProjectId())
+                .name(p.getName())
+                .parentPhaseId(p.getParentPhaseId())
+                .orderIndex(p.getOrderIndex())
+                .build();
+        });
+        when(workPhaseRepository.findById(1002L)).thenReturn(Optional.of(
+            WorkPhaseEntity.builder().id(1002L).projectId(888L).name("Phase 2 - Thiết kế").build()
+        ));
+
+        // Mock lưu nodes
+        long[] nodeSeq = {2001L, 2002L};
+        int[] nIdx = {0};
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(invocation -> {
+            NodeEntity n = invocation.getArgument(0);
+            return NodeEntity.builder()
+                .id(nodeSeq[nIdx[0]++])
+                .projectId(n.getProjectId())
+                .phaseId(n.getPhaseId())
+                .code(n.getCode())
+                .title(n.getTitle())
+                .status(n.getStatus())
+                .uiMetadata(n.getUiMetadata())
+                .build();
+        });
+
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(888L)).thenReturn(List.of(
+            WorkPhaseEntity.builder().id(1001L).projectId(888L).name("Phase 1 - Khảo sát").build(),
+            WorkPhaseEntity.builder().id(1002L).projectId(888L).name("Phase 2 - Thiết kế").build()
+        ));
+        when(nodeRepository.findByProjectId(888L)).thenReturn(List.of(
+            NodeEntity.builder().id(2001L).projectId(888L).phaseId(1001L).code("REQ-01").status(NodeStatus.TODO).build(),
+            NodeEntity.builder().id(2002L).projectId(888L).phaseId(1002L).code("ARCH-01").status(NodeStatus.LOCKED).build()
+        ));
+        when(userRepository.findById(currentUserId)).thenReturn(Optional.of(
+            UserEntity.builder().id(currentUserId).username("admin").build()
+        ));
+
+        // WHEN: Clone qua slug
+        CloneTemplateRequest req = new CloneTemplateRequest("tpl-sdlc", "SDLC Cloned", "New SDLC", "PUBLIC");
+        ProjectDetailResponse result = templateCloneService.cloneTemplate(req, currentUserId);
+
+        // THEN:
+        assertThat(result).isNotNull();
+        assertThat(result.id()).isEqualTo(888L);
+        assertThat(result.name()).isEqualTo("SDLC Cloned");
+        assertThat(templateEntity.getCloneCount()).isEqualTo(6); // Tăng clone_count
+
+        // Kiểm tra bảo toàn uiMetadata và trạng thái FSM
+        ArgumentCaptor<NodeEntity> nodeCaptor = ArgumentCaptor.forClass(NodeEntity.class);
+        verify(nodeRepository, times(2)).save(nodeCaptor.capture());
+        List<NodeEntity> savedNodes = nodeCaptor.getAllValues();
+
+        assertThat(savedNodes.get(0).getCode()).isEqualTo("REQ-01");
+        assertThat(savedNodes.get(0).getStatus()).isEqualTo(NodeStatus.TODO);
+        assertThat(savedNodes.get(0).getUiMetadata()).isNotNull();
+        assertThat(savedNodes.get(0).getUiMetadata()).containsKey("position");
+
+        assertThat(savedNodes.get(1).getCode()).isEqualTo("ARCH-01");
+        assertThat(savedNodes.get(1).getStatus()).isEqualTo(NodeStatus.LOCKED);
+        assertThat(savedNodes.get(1).getUiMetadata()).isNotNull();
+        assertThat(savedNodes.get(1).getUiMetadata()).containsKey("position");
+
+        // Kiểm tra tái lập dependency giữa 2001L và 2002L
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NodeDependencyEntity>> depsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(nodeDependencyRepository, times(1)).saveAll(depsCaptor.capture());
+        List<NodeDependencyEntity> savedDeps = depsCaptor.getValue();
+        assertThat(savedDeps).hasSize(1);
+        assertThat(savedDeps.get(0).getParentNodeId()).isEqualTo(2001L);
+        assertThat(savedDeps.get(0).getChildNodeId()).isEqualTo(2002L);
+    }
 }
