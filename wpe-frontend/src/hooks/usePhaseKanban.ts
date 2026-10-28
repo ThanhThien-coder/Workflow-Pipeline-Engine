@@ -13,10 +13,10 @@ import { evaluateTransition } from '../domain/taskTransitions'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 
 const SUCCESS_MESSAGES: Partial<Record<string, (code: string) => string>> = {
-  'TODO>IN_PROGRESS': (code) => `Đã bắt đầu thực hiện task ${code}.`,
-  'IN_PROGRESS>TODO': (code) => `Đã chuyển task ${code} về Chờ thực hiện.`,
-  'REVIEW>DONE': (code) => `Đã phê duyệt ${code}: Đánh dấu Hoàn thành.`,
-  'REVIEW>IN_PROGRESS': (code) => `Yêu cầu chỉnh sửa ${code}: Chuyển về Đang làm.`,
+  'TODO>IN_PROGRESS': (code) => `Started task ${code}.`,
+  'IN_PROGRESS>TODO': (code) => `Moved task ${code} back to To Do.`,
+  'REVIEW>DONE': (code) => `Approved task ${code}: Marked as Done.`,
+  'REVIEW>IN_PROGRESS': (code) => `Changes requested for ${code}: Moved back to In Progress.`,
 }
 
 export function usePhaseKanban(
@@ -68,7 +68,7 @@ export function usePhaseKanban(
       setAllTasks(tasksPerMember.flat())
     } catch (err) {
       console.error('Failed to load phase tasks:', err)
-      showToast('Không thể tải danh sách công việc của Phase.')
+      showToast('Failed to load phase tasks.')
     } finally {
       setLoading(false)
     }
@@ -106,9 +106,40 @@ export function usePhaseKanban(
 
     if (!phaseTree) return apiTasks
 
-    const existingIds = new Set(apiTasks.map((t) => t.id))
+    const mappedApiTasks = apiTasks.map((task) => {
+      const matching = Object.values(phaseTree).find(
+        (n): n is BranchGraphNode =>
+          n.kind === 'branch' &&
+          (n.id === task.id ||
+            Boolean(n.code && task.code && n.code.toUpperCase() === task.code.toUpperCase()))
+      )
+      if (!matching) return task
+
+      const taskStatus: TaskStatus =
+        matching.status === 'LOCKED' ? 'TODO' : (matching.status as TaskStatus)
+
+      let assignedUserId = task.assignedUserId
+      if (matching.assignee) {
+        if (matching.assignee.includes('Sarah')) assignedUserId = '2'
+        else if (matching.assignee.includes('Marcus')) assignedUserId = '3'
+        else if (matching.assignee.includes('Jamie')) assignedUserId = '4'
+        else if (matching.assignee.includes('Alex')) assignedUserId = '1'
+      }
+
+      return {
+        ...task,
+        title: matching.title || task.title,
+        status: taskStatus,
+        assignedUserId,
+        description: matching.description !== undefined ? matching.description : task.description,
+        dueDate: matching.due ? `${matching.due}T23:59:59+07:00` : task.dueDate,
+        joinPolicySummary: matching.joinPolicy ? `${matching.joinPolicy}-Join` : task.joinPolicySummary,
+      }
+    })
+
+    const existingIds = new Set(mappedApiTasks.map((t) => t.id))
     const existingCodes = new Set(
-      apiTasks.map((t) => (t.code ? t.code.toUpperCase() : ''))
+      mappedApiTasks.map((t) => (t.code ? t.code.toUpperCase() : ''))
     )
 
     const treeTasks: KanbanTask[] = []
@@ -132,6 +163,8 @@ export function usePhaseKanban(
                 ? '2'
                 : branch.assignee.includes('Marcus')
                 ? '3'
+                : branch.assignee.includes('Jamie')
+                ? '4'
                 : '1'
               : '1',
             phaseId: ((phase.id || 'P2A').toUpperCase() as PhaseId) || 'P2A',
@@ -148,7 +181,7 @@ export function usePhaseKanban(
       }
     })
 
-    return [...apiTasks, ...treeTasks]
+    return [...mappedApiTasks, ...treeTasks]
   }, [allTasks, phase, phaseTree])
 
   // 4. Moving a task between columns

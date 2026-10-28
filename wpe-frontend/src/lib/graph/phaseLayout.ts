@@ -16,31 +16,36 @@ export interface PhaseLayoutResult {
  * Assigns columns according to topological depth and stacks phases in rows.
  */
 export function calculatePhaseLayout(
-  phases: PhaseDto[],
-  edges: PhaseEdgeDto[]
+  phases: PhaseDto[] = [],
+  edges: PhaseEdgeDto[] = []
 ): PhaseLayoutResult {
   const positions = new Map<string, { x: number; y: number; level: number; row: number }>();
 
-  if (phases.length === 0) {
+  if (!phases || !Array.isArray(phases) || phases.length === 0) {
     return { positions, width: 0, height: 0 };
   }
 
-  const phaseIds = phases.map((p) => p.id);
+  const safePhases = phases.filter((p) => p && p.id);
+  const safeEdges = Array.isArray(edges)
+    ? edges.filter((e) => e && e.parentPhaseId && e.childPhaseId)
+    : [];
+
+  const phaseIds = safePhases.map((p) => p.id);
   const levels: Record<string, number> = {};
   for (const id of phaseIds) {
     levels[id] = 0;
   }
 
-  // Bellman-Ford style topological leveling (capped at phases.length)
-  for (let k = 0; k < phases.length; k++) {
-    for (const edge of edges) {
+  // Bellman-Ford style topological leveling (capped at safePhases.length)
+  for (let k = 0; k < safePhases.length; k++) {
+    for (const edge of safeEdges) {
       const from = edge.parentPhaseId;
       const to = edge.childPhaseId;
       if (
         levels[from] !== undefined &&
         levels[to] !== undefined &&
         levels[from] + 1 > levels[to] &&
-        levels[from] < phases.length
+        levels[from] < safePhases.length
       ) {
         levels[to] = levels[from] + 1;
       }
@@ -51,7 +56,7 @@ export function calculatePhaseLayout(
   let maxLevel = 0;
   let maxRow = 0;
 
-  for (const phase of phases) {
+  for (const phase of safePhases) {
     const level = levels[phase.id] || 0;
     const row = rowCounter[level] || 0;
     rowCounter[level] = row + 1;
@@ -84,22 +89,27 @@ export function calculatePhaseLayout(
  * so that re-ordering, inserting, or deleting phases immediately adjusts all badges in real-time.
  */
 export function computeTopologicalPhaseRanks(
-  phases: PhaseDto[],
-  edges: PhaseEdgeDto[]
+  phases: PhaseDto[] = [],
+  edges: PhaseEdgeDto[] = []
 ): Map<string, number> {
   const ranks = new Map<string, number>();
-  if (phases.length === 0) return ranks;
+  if (!phases || !Array.isArray(phases) || phases.length === 0) return ranks;
 
-  const phaseIdSet = new Set(phases.map((p) => p.id));
+  const safePhases = phases.filter((p) => p && p.id);
+  const safeEdges = Array.isArray(edges)
+    ? edges.filter((e) => e && e.parentPhaseId && e.childPhaseId)
+    : [];
+
+  const phaseIdSet = new Set(safePhases.map((p) => p.id));
   const indeg: Record<string, number> = {};
   const adj: Record<string, string[]> = {};
 
-  for (const p of phases) {
+  for (const p of safePhases) {
     indeg[p.id] = 0;
     adj[p.id] = [];
   }
 
-  for (const edge of edges) {
+  for (const edge of safeEdges) {
     if (phaseIdSet.has(edge.parentPhaseId) && phaseIdSet.has(edge.childPhaseId)) {
       indeg[edge.childPhaseId] = (indeg[edge.childPhaseId] || 0) + 1;
       adj[edge.parentPhaseId].push(edge.childPhaseId);
@@ -107,7 +117,7 @@ export function computeTopologicalPhaseRanks(
   }
 
   // Deterministic queue ordered by initial index
-  const queue: string[] = phases
+  const queue: string[] = safePhases
     .filter((p) => indeg[p.id] === 0)
     .map((p) => p.id);
 
@@ -119,7 +129,7 @@ export function computeTopologicalPhaseRanks(
     visited.add(u);
     ranks.set(u, rankCounter++);
 
-    for (const neighbor of adj[u]) {
+    for (const neighbor of adj[u] || []) {
       indeg[neighbor]--;
       if (indeg[neighbor] === 0) {
         queue.push(neighbor);
@@ -128,7 +138,7 @@ export function computeTopologicalPhaseRanks(
   }
 
   // Graceful fallback for any phases that are part of cycles or unreachable
-  for (const p of phases) {
+  for (const p of safePhases) {
     if (!ranks.has(p.id)) {
       ranks.set(p.id, rankCounter++);
     }

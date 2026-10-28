@@ -12,8 +12,7 @@ interface PhaseKanbanViewProps {
 const typeOf = (level: number) => {
   if (level === 0) return 'Phase Root';
   if (level === 1) return 'Track';
-  if (level === 2) return 'Task';
-  return 'Sub-task';
+  return 'Task';
 };
 
 export const PhaseKanbanView: React.FC<PhaseKanbanViewProps> = ({
@@ -35,11 +34,15 @@ export const PhaseKanbanView: React.FC<PhaseKanbanViewProps> = ({
   // Helper to get all descendant tasks/sub-tasks for a track
   const getTrackItems = (trackId: string): TemplateNodeDto[] => {
     const items: TemplateNodeDto[] = [];
+    const seen = new Set<string>([trackId]);
     const collect = (parentId: string) => {
       const children = nodes.filter((n) => n.parentId === parentId);
       for (const c of children) {
-        items.push(c);
-        collect(c.id);
+        if (!seen.has(c.id)) {
+          seen.add(c.id);
+          items.push(c);
+          collect(c.id);
+        }
       }
     };
     collect(trackId);

@@ -191,6 +191,7 @@ export const PhaseDetailDrawer: React.FC<PhaseDetailDrawerProps> = ({
               cycleNodeIds={cycleNodeIds}
               onSelectNode={onSelectNode}
               onAddChild={onAddChild}
+              onDeleteNode={onDeleteNode}
             />
           ) : (
             <PhaseKanbanView
@@ -203,7 +204,7 @@ export const PhaseDetailDrawer: React.FC<PhaseDetailDrawerProps> = ({
         </div>
 
         {/* Drawer Footer: Task Inspector Dock */}
-        <div className="border-t border-slate-200 bg-white p-4 shadow-lg">
+        <div className="border-t border-slate-200 bg-white p-4 pr-48 shadow-lg">
           <TaskInspector
             selectedNode={selectedNode}
             onUpdateNode={onUpdateNode}

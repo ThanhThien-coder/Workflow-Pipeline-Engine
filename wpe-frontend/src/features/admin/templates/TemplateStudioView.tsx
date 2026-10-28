@@ -4,7 +4,7 @@ import { StudioTopbar } from './components/StudioTopbar';
 import { PhaseCanvas } from './components/PhaseCanvas';
 import { PhaseDetailDrawer } from './components/PhaseDetailDrawer';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 interface TemplateStudioViewProps {
   templateId: string | null;
@@ -32,7 +32,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     removePhase,
     togglePhaseDep,
     updatePhasePosition,
+    autoLayoutPhases,
     connectPhases,
+    disconnectPhases,
     spawnChildPhase,
     addChildNode,
     updateNode,
@@ -95,13 +97,13 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     const phaseSet = new Set<string>();
     const nodeSet = new Set<string>();
 
-    if (validation && !validation.valid) {
+    if (validation && !validation.valid && Array.isArray(validation.violations)) {
       for (const v of validation.violations) {
-        if (v.scope === 'PHASE') {
+        if (v && v.scope === 'PHASE' && Array.isArray(v.nodeIds)) {
           for (const id of v.nodeIds) {
             phaseSet.add(id);
           }
-        } else if (v.scope === 'NODE') {
+        } else if (v && v.scope === 'NODE' && Array.isArray(v.nodeIds)) {
           for (const id of v.nodeIds) {
             nodeSet.add(id);
           }
@@ -114,11 +116,11 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
 
   // Current selected phase
   const selectedPhase = useMemo(() => {
-    if (!draft || !selection.phaseId) return null;
-    return draft.graphData.phases.find((p) => p.id === selection.phaseId) || null;
+    if (!draft || !draft.graphData || !Array.isArray(draft.graphData.phases) || !selection.phaseId) return null;
+    return draft.graphData.phases.find((p) => p && p.id === selection.phaseId) || null;
   }, [draft, selection.phaseId]);
 
-  if (status === 'loading' || !draft) {
+  if (status === 'loading' || (!draft && status !== 'error')) {
     return (
       <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-slate-50">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -129,7 +131,37 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     );
   }
 
-  const phaseToDeleteObj = draft.graphData.phases.find((p) => p.id === phaseToDelete);
+  if (status === 'error' || !draft) {
+    return (
+      <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-slate-50 p-6 text-center animate-fade font-sans">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mb-4 shadow-sm animate-pop">
+          <AlertCircle className="h-8 w-8" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Không tìm thấy Mẫu quy trình (Template)</h3>
+        <p className="mt-1.5 max-w-md text-sm text-slate-500 leading-relaxed">
+          {errorMessage || (templateId ? `Template ID "${templateId}" không tồn tại hoặc đã bị xóa.` : 'Không thể tải thông tin mẫu quy trình.')}
+        </p>
+        <div className="mt-6 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
+          >
+            Quay lại Danh sách
+          </button>
+          <button
+            type="button"
+            onClick={() => loadTemplate(null)}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 cursor-pointer"
+          >
+            Khởi tạo Mẫu Mới
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const phaseToDeleteObj = draft?.graphData?.phases?.find((p) => p && p.id === phaseToDelete) || null;
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col admin-grid-bg animate-fade">
@@ -140,38 +172,41 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
         validation={validation}
         onBack={handleBack}
         onUpdateMeta={updateMeta}
+        onAutoLayout={autoLayoutPhases}
         onValidate={handleValidate}
         onSave={handleSave}
       />
 
       {/* 2. Macro Phase Canvas */}
       <PhaseCanvas
-        phases={draft.graphData.phases}
-        phaseEdges={draft.graphData.phaseEdges}
-        nodes={draft.graphData.nodes}
-        cyclePhaseIds={cyclePhaseIds}
+        phases={draft.graphData?.phases || []}
+        phaseEdges={draft.graphData?.phaseEdges || []}
+        nodes={draft.graphData?.nodes || []}
+        cyclePhaseIds={cyclePhaseIds || new Set()}
         onOpenPhase={(id) => selectPhase(id)}
         onDeletePhase={(id) => setPhaseToDelete(id)}
         onAddPhase={addPhase}
+        onAutoLayout={autoLayoutPhases}
         onUpdatePhasePosition={updatePhasePosition}
         onConnectPhases={connectPhases}
+        onDisconnectPhases={disconnectPhases}
         onSpawnChildPhase={spawnChildPhase}
       />
 
       {/* 3. Phase Detail Drawer */}
       <PhaseDetailDrawer
         phase={selectedPhase}
-        allPhases={draft.graphData.phases}
-        phaseEdges={draft.graphData.phaseEdges}
-        nodes={draft.graphData.nodes}
+        allPhases={draft.graphData?.phases || []}
+        phaseEdges={draft.graphData?.phaseEdges || []}
+        nodes={draft.graphData?.nodes || []}
         selectedNodeId={selection.nodeId}
-        cycleNodeIds={cycleNodeIds}
+        cycleNodeIds={cycleNodeIds || new Set()}
         isOpen={selection.phaseId !== null}
         onClose={() => selectPhase(null)}
         onUpdatePhaseName={(name) => {
-          if (selectedPhase) {
+          if (selectedPhase && draft?.graphData?.nodes) {
             const root = draft.graphData.nodes.find(
-              (n) => n.phaseId === selectedPhase.id && n.level === 0
+              (n) => n && n.phaseId === selectedPhase.id && n.level === 0
             );
             if (root) {
               updateNode(root.id, { title: name });

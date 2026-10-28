@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/projects/{projectId}/artifacts")
+@RequestMapping({"/api/v1/projects/{projectId}/artifacts", "/api/projects/{projectId}/artifacts"})
 @RequiredArgsConstructor
 @Tag(name = "06. Artifacts Hub", description = "Kho tài nguyên liên kết và sản phẩm nghiệm thu ngoài của dự án")
 public class ArtifactController {

@@ -25,7 +25,7 @@ public class ProjectInvitationController {
     private final CurrentUserProvider currentUserProvider;
 
     @Operation(summary = "Tạo lời mời tham gia dự án mới (Chủ dự án gửi)")
-    @PostMapping("/api/v1/projects/{projectId}/invitations")
+    @PostMapping({"/api/v1/projects/{projectId}/invitations", "/api/projects/{projectId}/invitations"})
     public ResponseEntity<InvitationResponse> createInvitation(
             @PathVariable Long projectId,
             @Valid @RequestBody CreateInvitationRequest request
@@ -36,7 +36,7 @@ public class ProjectInvitationController {
     }
 
     @Operation(summary = "Lấy danh sách lời mời đang chờ phản hồi của dự án")
-    @GetMapping("/api/v1/projects/{projectId}/invitations")
+    @GetMapping({"/api/v1/projects/{projectId}/invitations", "/api/projects/{projectId}/invitations"})
     public ResponseEntity<List<InvitationResponse>> getPendingInvitations(
             @PathVariable Long projectId
     ) {
@@ -46,7 +46,7 @@ public class ProjectInvitationController {
     }
 
     @Operation(summary = "Chủ dự án thu hồi lời mời theo dự án và mã lời mời")
-    @DeleteMapping("/api/v1/projects/{projectId}/invitations/{invitationId}")
+    @DeleteMapping({"/api/v1/projects/{projectId}/invitations/{invitationId}", "/api/projects/{projectId}/invitations/{invitationId}"})
     public ResponseEntity<Void> revokeInvitationByProject(
             @PathVariable Long projectId,
             @PathVariable Long invitationId
@@ -57,7 +57,7 @@ public class ProjectInvitationController {
     }
 
     @Operation(summary = "Thu hồi lời mời tham gia dự án (DELETE)")
-    @DeleteMapping("/api/v1/invitations/{id}")
+    @DeleteMapping({"/api/v1/invitations/{id}", "/api/invitations/{id}"})
     public ResponseEntity<Void> revokeInvitation(
             @PathVariable Long id
     ) {
@@ -67,7 +67,7 @@ public class ProjectInvitationController {
     }
 
     @Operation(summary = "Thu hồi lời mời tham gia dự án (POST)")
-    @PostMapping("/api/v1/invitations/{id}/revoke")
+    @PostMapping({"/api/v1/invitations/{id}/revoke", "/api/invitations/{id}/revoke"})
     public ResponseEntity<Map<String, Object>> revokeInvitationPost(
             @PathVariable Long id
     ) {
@@ -81,7 +81,7 @@ public class ProjectInvitationController {
     }
 
     @Operation(summary = "Lấy chi tiết lời mời cho Popup Modal xác nhận ở Frontend")
-    @GetMapping("/api/v1/invitations/{id}")
+    @GetMapping({"/api/v1/invitations/{id}", "/api/invitations/{id}"})
     public ResponseEntity<InvitationDetailResponse> getInvitationDetail(
             @PathVariable Long id
     ) {
@@ -91,7 +91,7 @@ public class ProjectInvitationController {
     }
 
     @Operation(summary = "Người được mời bấm Chấp nhận gia nhập dự án")
-    @PostMapping("/api/v1/invitations/{id}/accept")
+    @PostMapping({"/api/v1/invitations/{id}/accept", "/api/invitations/{id}/accept"})
     public ResponseEntity<Map<String, Object>> acceptInvitation(
             @PathVariable Long id
     ) {
@@ -105,7 +105,7 @@ public class ProjectInvitationController {
     }
 
     @Operation(summary = "Người được mời bấm Từ chối lời mời")
-    @PostMapping("/api/v1/invitations/{id}/reject")
+    @PostMapping({"/api/v1/invitations/{id}/reject", "/api/invitations/{id}/reject"})
     public ResponseEntity<Map<String, Object>> rejectInvitation(
             @PathVariable Long id
     ) {

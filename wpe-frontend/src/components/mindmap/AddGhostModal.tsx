@@ -120,21 +120,21 @@ export function AddGhostModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="relative w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 z-10"
+            className="relative w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 z-10 text-slate-800 select-none"
             role="dialog"
             aria-modal="true"
           >
             {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200">
                   <GitBranch size={20} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  <h3 className="text-base font-bold text-slate-900">
                     Attach Ghost Prerequisite
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Link an external milestone from another phase that blocks a task in this phase.
                   </p>
                 </div>
@@ -142,7 +142,7 @@ export function AddGhostModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                 aria-label="Close"
               >
                 <X size={18} />
@@ -151,7 +151,7 @@ export function AddGhostModal({
 
             {/* Error banner if any */}
             {error && (
-              <div className="mt-4 flex items-center gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+              <div className="mt-4 flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700">
                 <AlertCircle size={14} className="shrink-0" />
                 <span>{error}</span>
               </div>
@@ -163,7 +163,7 @@ export function AddGhostModal({
               <div>
                 <label
                   htmlFor="sourcePhaseId"
-                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                  className="block text-xs font-semibold text-slate-700 mb-1"
                 >
                   Source Phase
                 </label>
@@ -171,15 +171,24 @@ export function AddGhostModal({
                   id="sourcePhaseId"
                   value={sourcePhaseId}
                   onChange={(e) => setSourcePhaseId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-3 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-2xs"
                 >
                   {availablePhases.map((phase) => (
-                    <option key={phase.id} value={phase.id}>
-                      {phase.name} ({phase.id.toUpperCase()})
+                    <option
+                      key={phase.id}
+                      value={phase.id}
+                      className="bg-white text-slate-900 py-1.5"
+                    >
+                      {phase.name} — {phase.sub || 'Phase'}
                     </option>
                   ))}
                   {availablePhases.length === 0 && (
-                    <option value="">No other phases available</option>
+                    <option
+                      value=""
+                      className="bg-white text-slate-500"
+                    >
+                      No other phases available
+                    </option>
                   )}
                 </select>
               </div>
@@ -188,7 +197,7 @@ export function AddGhostModal({
               <div>
                 <label
                   htmlFor="sourceTaskId"
-                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                  className="block text-xs font-semibold text-slate-700 mb-1"
                 >
                   Source Milestone / Task
                 </label>
@@ -197,15 +206,24 @@ export function AddGhostModal({
                   value={sourceTaskId}
                   onChange={(e) => setSourceTaskId(e.target.value)}
                   disabled={sourceTasks.length === 0}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-3 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all cursor-pointer"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all cursor-pointer shadow-2xs"
                 >
                   {sourceTasks.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title} [{t.status}]
+                    <option
+                      key={t.id}
+                      value={t.id}
+                      className="bg-white text-slate-900 py-1.5"
+                    >
+                      {t.title} [{t.code || t.id}] · {t.status}
                     </option>
                   ))}
                   {sourceTasks.length === 0 && (
-                    <option value="">No tasks found in selected phase</option>
+                    <option
+                      value=""
+                      className="bg-white text-slate-500"
+                    >
+                      No tasks found in selected phase
+                    </option>
                   )}
                 </select>
               </div>
@@ -214,7 +232,7 @@ export function AddGhostModal({
               <div>
                 <label
                   htmlFor="targetTaskId"
-                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                  className="block text-xs font-semibold text-slate-700 mb-1"
                 >
                   Target Task (Blocked by Prerequisite)
                 </label>
@@ -223,22 +241,31 @@ export function AddGhostModal({
                   value={targetTaskId}
                   onChange={(e) => setTargetTaskId(e.target.value)}
                   disabled={targetTasks.length === 0}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-3 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all cursor-pointer"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all cursor-pointer shadow-2xs"
                 >
                   {targetTasks.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title} [{t.code}]
+                    <option
+                      key={t.id}
+                      value={t.id}
+                      className="bg-white text-slate-900 py-1.5"
+                    >
+                      {t.title} [{t.code || t.id}] · {t.status}
                     </option>
                   ))}
                   {targetTasks.length === 0 && (
-                    <option value="">No tasks available in current phase</option>
+                    <option
+                      value=""
+                      className="bg-white text-slate-500"
+                    >
+                      No tasks available in current phase
+                    </option>
                   )}
                 </select>
               </div>
 
               {/* Prerequisite Preview Notice */}
-              <div className="rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/60 p-3 text-xs text-slate-600 dark:text-slate-300 flex items-start gap-2">
-                <Link2 size={15} className="text-indigo-600 dark:text-indigo-400 mt-0.5 shrink-0" />
+              <div className="rounded-xl bg-indigo-50/70 border border-indigo-100 p-3 text-xs text-slate-600 flex items-start gap-2">
+                <Link2 size={15} className="text-indigo-600 mt-0.5 shrink-0" />
                 <span>
                   The ghost node will be anchored strictly to the <strong>right</strong> of the target task.
                   If the source task is not completed, the target task remains locked.
@@ -246,11 +273,11 @@ export function AddGhostModal({
               </div>
 
               {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200"
                 >
                   Cancel
                 </button>

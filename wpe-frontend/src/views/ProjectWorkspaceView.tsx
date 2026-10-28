@@ -1,12 +1,6 @@
 import { type FC } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  ClipboardList,
-  LayoutDashboard,
-  Network,
-  Search,
-  Settings,
-} from 'lucide-react'
+import { Search } from 'lucide-react'
 import { WorkflowView } from '../components/views/WorkflowView'
 import { MyTasksView } from './MyTasksView'
 import SettingsView from './SettingsView'
@@ -14,17 +8,9 @@ import { OverviewView as OverviewScreen } from '../components/views/OverviewView
 import NotificationBell from '../components/common/NotificationBell'
 import { GlobalProfileMenu } from '../components/common/GlobalProfileMenu'
 import { CurvedCobaltSidebar } from '../components/layout/CurvedCobaltSidebar'
-import { FloatingTabSlider, type TabSliderItem } from '../components/layout/FloatingTabSlider'
 import { useWorkflowStore, type NavigationTab } from '../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../store/slices/devSlice'
 import { useRouter } from '../router/useRouter'
-
-const TOPBAR_TABS: TabSliderItem<NavigationTab>[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'workflow', label: 'Workflow', icon: Network },
-  { id: 'my-tasks', label: 'My Tasks', icon: ClipboardList },
-  { id: 'settings', label: 'Settings', icon: Settings },
-]
 
 interface ProjectWorkspaceViewProps {
   projectId: string
@@ -104,15 +90,6 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
             </label>
           </div>
 
-          {/* Center: Horizontal Floating Pill Tab Switcher */}
-          <div className="hidden sm:block">
-            <FloatingTabSlider
-              tabs={TOPBAR_TABS}
-              activeTab={currentTab}
-              onChange={handleTabClick}
-              layoutId="projectWorkspaceTopbarTab"
-            />
-          </div>
 
           {/* Right: Quick actions, notifications & profile */}
           <div className="flex items-center gap-3 text-slate-500">

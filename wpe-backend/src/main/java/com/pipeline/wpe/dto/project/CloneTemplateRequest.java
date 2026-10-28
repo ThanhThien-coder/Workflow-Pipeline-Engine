@@ -8,8 +8,8 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "Yêu cầu nhân bản quy trình từ mẫu có sẵn (DAG Clone Request)")
 public record CloneTemplateRequest(
     @NotNull(message = "ID mẫu quy trình không được để trống")
-    @Schema(description = "ID của mẫu quy trình hoặc dự án nguồn", example = "1")
-    Long templateId,
+    @Schema(description = "ID hoặc Slug của mẫu quy trình hoặc dự án nguồn", example = "1")
+    Object templateId,
 
     @NotBlank(message = "Tên dự án không được để trống")
     @Size(max = 100, message = "Tên dự án không được vượt quá 100 ký tự")
@@ -28,11 +28,25 @@ public record CloneTemplateRequest(
         }
     }
 
-    public CloneTemplateRequest(Long templateId, String projectName, String description) {
+    public CloneTemplateRequest(Object templateId, String projectName, String description) {
         this(templateId, projectName, description, "PRIVATE");
     }
 
-    public CloneTemplateRequest withTemplateId(Long newTemplateId) {
+    public Long getNumericTemplateId() {
+        if (templateId == null) return null;
+        if (templateId instanceof Number n) return n.longValue();
+        try {
+            return Long.parseLong(templateId.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    public String getTemplateIdentifier() {
+        return templateId != null ? templateId.toString() : null;
+    }
+
+    public CloneTemplateRequest withTemplateId(Object newTemplateId) {
         return new CloneTemplateRequest(newTemplateId, this.projectName, this.description, this.visibility);
     }
 }

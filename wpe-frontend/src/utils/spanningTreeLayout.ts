@@ -8,7 +8,7 @@ export const CARD_DIMENSIONS = {
   ROOT_WIDTH: 180,
   ROOT_HEIGHT: 60,
   GHOST_WIDTH: 240,
-  GHOST_HEIGHT: 110,
+  GHOST_HEIGHT: 126,
   GAP_Y: 16,         // Khoảng cách theo trục Y giữa 2 card lá kề nhau
   TRACK_SPACING: 48, // Khoảng cách bổ sung giữa 2 cụm track của Root
   LEVEL_STEP_X: 280, // Khoảng cách cột X theo từng cấp level (Ví dụ: 40, 320, 600, 880, 1160...)
@@ -99,6 +99,39 @@ export function computeVisible(nodes: GraphNodeMap, collapsed: Set<string>): Rec
 
 export function deleteNodeCascade(nodes: GraphNodeMap, id: string): GraphNodeMap {
   const next = { ...nodes }
+  if (!next[id] || next[id].kind === 'root') return nodes
+
+  // 1. Specialized handling for Ghost Nodes (external prerequisites)
+  // Removing a ghost node removes only the ghost node and unblocks the target task
+  if (next[id].kind === 'ghost') {
+    delete next[id]
+    Object.keys(next).forEach((nodeId) => {
+      const node = next[nodeId]
+      if (node.parentIds && node.parentIds.includes(id)) {
+        const nextParentIds = node.parentIds.filter((p) => p !== id)
+        const updated: GraphNode = {
+          ...node,
+          parentIds: nextParentIds,
+        }
+        if (updated.kind === 'branch' && updated.status === 'LOCKED') {
+          // If task was locked and no other unfinished ghost prerequisite guards it, unlock to TODO
+          const otherGhosts = Object.values(next).filter(
+            (g): g is Extract<GraphNodeMap[string], { kind: 'ghost' }> =>
+              g.kind === 'ghost' && (g.targetTaskId === nodeId || nextParentIds.includes(g.id))
+          )
+          const stillBlocked = otherGhosts.some((g) => g.status !== 'DONE')
+          if (!stillBlocked) {
+            updated.status = 'TODO'
+            updated.blocker = null
+          }
+        }
+        next[nodeId] = updated
+      }
+    })
+    return next
+  }
+
+  // 2. Cascade deletion for tree branches (Root nodes of any ID are strictly protected)
   const removed = new Set([id])
   let changed = true
   while (changed) {
@@ -109,7 +142,8 @@ export function deleteNodeCascade(nodes: GraphNodeMap, id: string): GraphNodeMap
       if (parentIds.length !== next[nodeId].parentIds.length) next[nodeId] = { ...next[nodeId], parentIds }
     })
     Object.keys(next).forEach((nodeId) => {
-      if (nodeId !== 'root' && !removed.has(nodeId) && next[nodeId].parentIds.length === 0) {
+      // Must check kind !== 'root' so custom root nodes (e.g. root_PH_...) are never removed!
+      if (next[nodeId].kind !== 'root' && !removed.has(nodeId) && next[nodeId].parentIds.length === 0) {
         removed.add(nodeId)
         changed = true
       }
@@ -367,7 +401,35 @@ export function calculatePhaseGraphLayout(
     return CARD_DIMENSIONS.TASK_HEIGHT
   }
 
-  // 3. Pass 1: Recursive Subtree Height Calculation
+  // 3. Pre-index Ghost Nodes by target task to allocate layout space and prevent collisions
+  const ghostNodes = nodeList.filter(
+    (n): n is GhostGraphNode => n.kind === 'ghost'
+  )
+
+  const ghostsByTarget: Record<string, GhostGraphNode[]> = {}
+
+  ghostNodes.forEach((ghost) => {
+    let targetTaskId = ghost.targetTaskId
+    if (!targetTaskId) {
+      targetTaskId = ghost.parentIds.find(
+        (p) => p !== 'root' && nodes[p]?.kind === 'branch'
+      )
+    }
+    if (!targetTaskId) {
+      targetTaskId = Object.values(nodes).find(
+        (n) => n.kind === 'branch' && n.parentIds.includes(ghost.id)
+      )?.id
+    }
+
+    if (targetTaskId && nodes[targetTaskId]) {
+      if (!ghostsByTarget[targetTaskId]) {
+        ghostsByTarget[targetTaskId] = []
+      }
+      ghostsByTarget[targetTaskId].push(ghost)
+    }
+  })
+
+  // 4. Pass 1: Recursive Subtree Height Calculation
   const subtreeHeightMemo = new Map<string, number>()
 
   const measureSubtreeHeight = (nodeId: string, visited = new Set<string>()): number => {
@@ -382,7 +444,15 @@ export function calculatePhaseGraphLayout(
     if (!node) return 0
 
     const visualH = getVisualHeight(node)
-    const leafHeight = visualH + CARD_DIMENSIONS.GAP_Y
+    const attachedGhosts = ghostsByTarget[nodeId] || []
+    const ghostClusterH =
+      attachedGhosts.length > 0
+        ? attachedGhosts.length * CARD_DIMENSIONS.GHOST_HEIGHT +
+          (attachedGhosts.length - 1) * 12 +
+          CARD_DIMENSIONS.GAP_Y
+        : 0
+
+    const leafHeight = Math.max(visualH + CARD_DIMENSIONS.GAP_Y, ghostClusterH)
 
     if (collapsed.has(nodeId)) {
       subtreeHeightMemo.set(nodeId, leafHeight)
@@ -405,7 +475,10 @@ export function calculatePhaseGraphLayout(
       sumChildren += (children.length - 1) * CARD_DIMENSIONS.TRACK_SPACING
     }
 
-    const result = Math.max(leafHeight, sumChildren)
+    // When node has BOTH children and attached ghost prerequisites,
+    // they share downstream space so total height required is sumChildren + ghostClusterH
+    const effectiveChildrenH = sumChildren + ghostClusterH
+    const result = Math.max(leafHeight, effectiveChildrenH)
     subtreeHeightMemo.set(nodeId, result)
     return result
   }
@@ -413,7 +486,7 @@ export function calculatePhaseGraphLayout(
   // Measure from root
   measureSubtreeHeight(rootNode.id)
 
-  // 4. Pass 2: Recursive Subtree Layout & Y-Accumulator
+  // 5. Pass 2: Recursive Subtree Layout & Y-Accumulator
   const layoutNodes: GraphLayoutNode[] = []
   const nodePosMap: Record<string, GraphLayoutNode> = {}
   const layoutEdges: GraphLayoutEdge[] = []
@@ -445,7 +518,16 @@ export function calculatePhaseGraphLayout(
       calculatedCenterY = topY + visualH / 2
     } else {
       // Parent node: layout all child subtrees recursively with accumulator
-      let childY = topY
+      const attachedGhosts = ghostsByTarget[nodeId] || []
+      const ghostClusterH =
+        attachedGhosts.length > 0
+          ? attachedGhosts.length * CARD_DIMENSIONS.GHOST_HEIGHT +
+            (attachedGhosts.length - 1) * 12 +
+            CARD_DIMENSIONS.GAP_Y
+          : 0
+
+      // If this parent has attached ghost nodes, children start AFTER the ghost cluster
+      let childY = topY + (attachedGhosts.length > 0 ? ghostClusterH : 0)
       const childCenterYs: number[] = []
 
       for (let i = 0; i < children.length; i++) {
@@ -508,7 +590,7 @@ export function calculatePhaseGraphLayout(
   // Execute recursive layout starting at root (Level 0: X = 40, Y = 60)
   layoutSubtree(rootNode.id, 0, CARD_DIMENSIONS.START_X, CARD_DIMENSIONS.START_Y)
 
-  // 5. Generate primary SVG Bézier edges for spanning tree (from parent right to child left)
+  // 6. Generate primary SVG Bézier edges for spanning tree (from parent right to child left)
   placedIds.forEach((childId) => {
     if (childId === rootNode.id) return
     const parentId = parentMap[childId]
@@ -535,38 +617,7 @@ export function calculatePhaseGraphLayout(
     })
   })
 
-  // 6. Anchor Ghost Nodes strictly to the RIGHT of their dependent target task
-  // Rule: Ghost nodes are external prerequisites anchored to the right of the task they guard.
-  // Floating or unanchored ghost nodes are discarded.
-  const ghostNodes = nodeList.filter(
-    (n): n is GhostGraphNode => n.kind === 'ghost'
-  )
-
-  const ghostsByTarget: Record<string, GhostGraphNode[]> = {}
-
-  ghostNodes.forEach((ghost) => {
-    let targetTaskId = ghost.targetTaskId
-    if (!targetTaskId) {
-      // Find candidate target from parentIds pointing to a branch task
-      targetTaskId = ghost.parentIds.find(
-        (p) => p !== 'root' && nodePosMap[p] && nodes[p]?.kind === 'branch'
-      )
-    }
-    if (!targetTaskId) {
-      // Find candidate target from any branch task that has this ghost in its parentIds
-      targetTaskId = Object.values(nodes).find(
-        (n) => n.kind === 'branch' && n.parentIds.includes(ghost.id)
-      )?.id
-    }
-
-    if (targetTaskId && nodePosMap[targetTaskId]) {
-      if (!ghostsByTarget[targetTaskId]) {
-        ghostsByTarget[targetTaskId] = []
-      }
-      ghostsByTarget[targetTaskId].push(ghost)
-    }
-  })
-
+  // 7. Anchor Ghost Nodes strictly to their dependent target task without overlapping children
   const GHOST_OFFSET_X = 60
   const GHOST_GAP_Y = 12
 
@@ -574,11 +625,28 @@ export function calculatePhaseGraphLayout(
     const targetPos = nodePosMap[targetTaskId]
     if (!targetPos) return
 
+    const targetChildren = collapsed.has(targetTaskId) ? [] : (childrenMap[targetTaskId] || [])
+    const hasChildren = targetChildren.length > 0
+
     const count = attachedGhosts.length
     const ghostH = CARD_DIMENSIONS.GHOST_HEIGHT
     const ghostW = CARD_DIMENSIONS.GHOST_WIDTH
     const totalH = count * ghostH + (count - 1) * GHOST_GAP_Y
-    const startY = targetPos.centerY - totalH / 2
+
+    // Determine startY for ghosts:
+    // If target has children: ghosts are placed above the first child (in the space reserved before childY)
+    // If target has no children: ghosts are vertically centered with target task
+    let startY: number
+    if (hasChildren && targetChildren.length > 0) {
+      const firstChildPos = nodePosMap[targetChildren[0].id]
+      if (firstChildPos) {
+        startY = firstChildPos.y - totalH - CARD_DIMENSIONS.GAP_Y
+      } else {
+        startY = targetPos.centerY - totalH / 2
+      }
+    } else {
+      startY = targetPos.centerY - totalH / 2
+    }
 
     attachedGhosts.forEach((ghost, idx) => {
       const ghostX = targetPos.right + GHOST_OFFSET_X
@@ -746,6 +814,8 @@ export function createNewBranchNode(
   const isAddingTrack = !source || source.kind === 'root'
 
   if (isAddingTrack) {
+    const rootNode = Object.values(nodes).find((n) => n.kind === 'root')
+    const rootId = rootNode ? rootNode.id : 'root'
     const existingTracks = Object.values(nodes).filter(
       (n): n is BranchGraphNode => n.kind === 'branch' && Boolean((n as BranchGraphNode).isTrack)
     )
@@ -761,8 +831,8 @@ export function createNewBranchNode(
       title,
       phaseId,
       trackId: id,
-      parentId: 'root',
-      parentIds: ['root'],
+      parentId: rootId,
+      parentIds: [rootId],
       status: 'TODO',
       description: '',
       isTrack: true,

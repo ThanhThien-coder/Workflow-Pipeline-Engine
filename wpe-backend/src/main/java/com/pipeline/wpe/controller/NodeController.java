@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping({"/api/v1", "/api"})
 @RequiredArgsConstructor
 @Tag(name = "05. My Tasks Kanban & FSM", description = "Máy trạng thái FSM Kanban, Thực thi công việc cá nhân và Cổng nghiệm thu")
 public class NodeController {

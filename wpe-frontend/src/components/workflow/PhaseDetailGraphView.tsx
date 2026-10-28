@@ -44,7 +44,7 @@ export function PhaseDetailGraphView({
               </span>
               <div className="w-24 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-indigo-500 transition-all duration-300"
+                  className={`h-full rounded-full transition-all duration-300 ${macroPhase.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-indigo-500'}`}
                   style={{ width: `${macroPhase.pct}%` }}
                 />
               </div>

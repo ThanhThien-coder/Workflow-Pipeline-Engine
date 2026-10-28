@@ -24,16 +24,16 @@ public class TemplateController {
 
     @PostMapping("/{id}/clone")
     @Operation(
-        summary = "Nhân bản quy trình từ Template ID",
+        summary = "Nhân bản quy trình từ Template ID hoặc Slug",
         description = "Khởi tạo dự án mới bằng cách sao chép sâu cấu trúc giai đoạn, tác vụ và cạnh DAG từ template"
     )
     public ResponseEntity<ProjectDetailResponse> cloneTemplateById(
-        @Parameter(description = "ID của mẫu quy trình hoặc dự án nguồn") @PathVariable Long id,
+        @Parameter(description = "ID hoặc Slug của mẫu quy trình hoặc dự án nguồn") @PathVariable String id,
         @Valid @RequestBody CloneTemplateRequest req
     ) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
         // Đảm bảo templateId trùng khớp với path variable
-        CloneTemplateRequest effectiveReq = (req.templateId() == null || !req.templateId().equals(id))
+        CloneTemplateRequest effectiveReq = (req.templateId() == null || !id.equals(req.getTemplateIdentifier()))
             ? new CloneTemplateRequest(id, req.projectName(), req.description(), req.visibility())
             : req;
 

@@ -1,5 +1,5 @@
 import { Link2, Merge, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { useResizable } from '../../hooks/useResizable'
@@ -30,6 +30,7 @@ export function MindmapDrawer() {
   const trees = useWorkflowStore((state) => state.trees)
   const updateTree = useWorkflowStore((state) => state.updateTree)
   const deleteNode = useWorkflowStore((state) => state.deleteNode)
+  const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
 
   const { w, dragging, onMouseDown } = useResizable(
     Math.round(window.innerWidth * 0.5)
@@ -50,6 +51,23 @@ export function MindmapDrawer() {
     y: number
     anchorId?: string
   } | null>(null)
+
+  // Reset all transient popovers, modals, and selections when switching phases
+  useEffect(() => {
+    setPopover(null)
+    setSelectedNodeId(null)
+    setSelectedTask(null)
+    setMergeSelection(new Set())
+    setIsGhostModalOpen(false)
+    setGhostAnchorTaskId(undefined)
+  }, [selectedPhaseId])
+
+  // Automatically ensure phase tree data is loaded if missing
+  useEffect(() => {
+    if (selectedPhaseId && !tree) {
+      void resetPhaseTree(selectedPhaseId)
+    }
+  }, [selectedPhaseId, tree, resetPhaseTree])
 
   // Hook managing phase-wide Kanban tasks, members, and status transitions
   const {
@@ -168,7 +186,7 @@ export function MindmapDrawer() {
           </h2>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
             <i
-              className="block h-full rounded-full bg-blue-400 transition-all duration-300"
+              className={`block h-full rounded-full transition-all duration-300 ${phase.status === 'COMPLETED' ? 'bg-emerald-400' : 'bg-blue-400'}`}
               style={{ width: `${phase.pct}%` }}
             />
           </div>
@@ -265,9 +283,10 @@ export function MindmapDrawer() {
       <div className="flex-1 overflow-hidden relative min-h-0">
         {viewMode === 'graph' ? (
           /* 1. GIỮ NGUYÊN SƠ ĐỒ NODE TASK HIỆN TẠI */
-          <div className="w-full h-full overflow-auto p-5">
-            {tree && (
+          <div className="w-full h-full overflow-hidden relative">
+            {tree ? (
               <MindmapTree
+                key={selectedPhaseId}
                 nodes={tree}
                 selectedId={selectedNodeId}
                 onSelect={(id) => setSelectedNodeId(id || null)}
@@ -294,6 +313,10 @@ export function MindmapDrawer() {
                 }}
                 phaseId={selectedPhaseId ?? undefined}
               />
+            ) : (
+              <div className="grid h-full place-items-center text-xs text-slate-400">
+                Loading phase tree…
+              </div>
             )}
           </div>
         ) : (
@@ -341,7 +364,24 @@ export function MindmapDrawer() {
           <NodePropertiesModal
             key="node-properties"
             node={tree[selectedNodeId] as BranchGraphNode}
+            members={members}
             onClose={() => setSelectedNodeId(null)}
+            onSave={(updated) => {
+              if (selectedPhaseId && selectedNodeId) {
+                updateTree(selectedPhaseId, (nodes) => {
+                  const current = nodes[selectedNodeId]
+                  if (!current || current.kind !== 'branch') return nodes
+                  return {
+                    ...nodes,
+                    [selectedNodeId]: {
+                      ...current,
+                      ...updated,
+                    },
+                  }
+                })
+              }
+              setSelectedNodeId(null)
+            }}
             onDelete={() => {
               if (selectedPhaseId) deleteNode(selectedPhaseId, selectedNodeId)
               setSelectedNodeId(null)
@@ -381,16 +421,40 @@ export function MindmapDrawer() {
 
       {/* Popovers for Ghosts in Graph View */}
       <AnimatePresence mode="wait">
-        {popover?.type === 'info' &&
-          popover.id &&
-          tree?.[popover.id]?.kind === 'ghost' && (
-            <Popover key="ghost-info" x={popover.x} y={popover.y} w={290} onClose={() => setPopover(null)}>
-              <GhostInfo node={tree[popover.id] as GhostGraphNode} />
+        {popover?.type === 'info' && popover.id && (() => {
+          const ghostId = popover.id
+          const ghostNode = ghostId && tree?.[ghostId]?.kind === 'ghost' ? (tree[ghostId] as GhostGraphNode) : null
+          return (
+            <Popover
+              key={`ghost-info-${selectedPhaseId}-${ghostId}`}
+              x={popover.x}
+              y={popover.y}
+              w={290}
+              onClose={() => setPopover(null)}
+            >
+              <GhostInfo
+                node={ghostNode}
+                onOpen={
+                  ghostNode?.refPhase
+                    ? () => {
+                        selectPhase(ghostNode.refPhase)
+                        setPopover(null)
+                      }
+                    : undefined
+                }
+              />
             </Popover>
-          )}
+          )
+        })()}
 
         {popover?.type === 'picker' && (
-          <Popover key="ghost-picker" x={popover.x} y={popover.y} w={310} onClose={() => setPopover(null)}>
+          <Popover
+            key={`ghost-picker-${selectedPhaseId}`}
+            x={popover.x}
+            y={popover.y}
+            w={310}
+            onClose={() => setPopover(null)}
+          >
             <GhostPicker
               trees={trees}
               currentPhase={selectedPhaseId ?? ''}
