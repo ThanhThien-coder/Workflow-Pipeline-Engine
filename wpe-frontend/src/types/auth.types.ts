@@ -21,6 +21,7 @@ export interface UserDto {
 
 export interface AuthResponseDto {
   accessToken: string
+  refreshToken?: string
   tokenType: 'Bearer'
   expiresAt: string
   user: UserDto

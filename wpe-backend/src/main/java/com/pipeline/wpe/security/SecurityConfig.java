@@ -9,6 +9,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -16,15 +17,20 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12);
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(
+        HttpSecurity http,
+        JwtAuthenticationFilter jwtAuthenticationFilter,
+        ApiAuthenticationEntryPoint authenticationEntryPoint
+    ) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> {}) // Uses WebCorsConfig
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(authenticationEntryPoint))
             .authorizeHttpRequests(auth -> auth
                 // Công khai Swagger UI & OpenAPI docs
                 .requestMatchers(
@@ -36,10 +42,14 @@ public class SecurityConfig {
                 // Công khai Auth API
                 .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
                 // Công khai Guest Link & Health check
-                .requestMatchers("/api/v1/guest/**", "/api/guest/**", "/actuator/**", "/error").permitAll()
-                // Mọi API khác tạm thời yêu cầu xác thực hoặc mở theo cấu hình
-                .anyRequest().permitAll() // Tạm permitAll trong giai đoạn dev skeleton để team test thoải mái
-            );
+                .requestMatchers(
+                    "/api/v1/guest/**", "/api/guest/**",
+                    "/api/v1/health/**", "/api/health/**",
+                    "/actuator/**", "/error"
+                ).permitAll()
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

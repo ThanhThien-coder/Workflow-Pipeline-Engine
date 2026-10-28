@@ -11,14 +11,40 @@ import type {
 } from '../../types/workspace.types'
 import type { ProjectInvitationDto, PublishPipelineResult } from '../../types/settings.types'
 import type { MacroPhase, PhaseTreeData, BranchGraphNode, GhostGraphNode, PhaseAccent, PhaseStatus } from '../../types/workflow.types'
+import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
 import type { CreatePhaseDto } from '../contracts/IWorkflowService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+const AUTH_API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL || API_BASE_URL.replace(/\/v1\/?$/, '')
+const TOKEN_KEY = 'wpe_auth_token'
+const REFRESH_TOKEN_KEY = 'wpe_auth_refresh_token'
+const USER_KEY = 'wpe_auth_user'
+const STORAGE_TYPE_KEY = 'wpe_auth_storage_type'
+let refreshInFlight: Promise<boolean> | null = null
+
+interface BackendAuthResponse {
+  token: string
+  refreshToken: string
+  user: {
+    id: string | number
+    username: string
+    email: string
+    name?: string | null
+    role?: 'ADMIN' | 'USER'
+    avatarUrl?: string | null
+  }
+}
+
+function readStoredValue(key: string): string | null {
+  try {
+    return localStorage.getItem(key) || sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
 
 function getAuthHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
-  const token = typeof window !== 'undefined'
-    ? (localStorage.getItem('wpe_auth_token') || sessionStorage.getItem('wpe_auth_token'))
-    : null
+  const token = typeof window !== 'undefined' ? readStoredValue(TOKEN_KEY) : null
   const headers: Record<string, string> = {
     ...extraHeaders,
   }
@@ -26,6 +52,110 @@ function getAuthHeaders(extraHeaders: Record<string, string> = {}): Record<strin
     headers['Authorization'] = `Bearer ${token}`
   }
   return headers
+}
+
+function withStoredAccessToken(init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers)
+  const token = readStoredValue(TOKEN_KEY)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  return { ...init, headers }
+}
+
+function mapBackendAuthResponse(response: BackendAuthResponse): AuthResponseDto {
+  const tokenParts = response.token.split('.')
+  let expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+  try {
+    let encodedPayload = tokenParts[1].replace(/-/g, '+').replace(/_/g, '/')
+    encodedPayload = encodedPayload.padEnd(Math.ceil(encodedPayload.length / 4) * 4, '=')
+    const payload = JSON.parse(atob(encodedPayload))
+    if (typeof payload.exp === 'number') expiresAt = new Date(payload.exp * 1000).toISOString()
+  } catch {
+    // Keep the configured 15-minute fallback for a malformed/unreadable payload.
+  }
+
+  return {
+    accessToken: response.token,
+    refreshToken: response.refreshToken,
+    tokenType: 'Bearer',
+    expiresAt,
+    user: {
+      id: String(response.user.id),
+      username: response.user.username,
+      email: response.user.email,
+      systemRole: response.user.role || 'USER',
+      avatarUrl: response.user.avatarUrl ?? null,
+    },
+  }
+}
+
+function storeRotatedSession(response: BackendAuthResponse): void {
+  const auth = mapBackendAuthResponse(response)
+  try {
+    const storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage
+    storage.setItem(TOKEN_KEY, auth.accessToken)
+    if (auth.refreshToken) storage.setItem(REFRESH_TOKEN_KEY, auth.refreshToken)
+    storage.setItem(USER_KEY, JSON.stringify(auth.user))
+  } catch {
+    // The current request can still be retried with the rotated token in memory only
+    // when storage is available; restricted storage contexts will sign in again.
+  }
+}
+
+function clearStoredSession(): void {
+  try {
+    for (const storage of [localStorage, sessionStorage]) {
+      storage.removeItem(TOKEN_KEY)
+      storage.removeItem(REFRESH_TOKEN_KEY)
+      storage.removeItem(USER_KEY)
+      storage.removeItem(STORAGE_TYPE_KEY)
+    }
+  } catch {
+    // Ignore storage errors in restricted contexts.
+  }
+}
+
+async function rotateRefreshToken(): Promise<boolean> {
+  const refreshToken = readStoredValue(REFRESH_TOKEN_KEY)
+  if (!refreshToken) {
+    clearStoredSession()
+    return false
+  }
+
+  try {
+    const response = await globalThis.fetch(`${AUTH_API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!response.ok) {
+      clearStoredSession()
+      return false
+    }
+    storeRotatedSession(await response.json() as BackendAuthResponse)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const sentToken = readStoredValue(TOKEN_KEY)
+  let response = await globalThis.fetch(input, withStoredAccessToken(init))
+  const requestUrl = String(input)
+  if (response.status !== 401 || requestUrl.includes('/auth/')) return response
+
+  // If another simultaneous request already rotated the token, reuse it instead of
+  // replaying the old refresh token and triggering the server's theft detection.
+  const currentToken = readStoredValue(TOKEN_KEY)
+  let refreshed = Boolean(currentToken && sentToken && currentToken !== sentToken)
+  if (!refreshed) {
+    if (!refreshInFlight) {
+      refreshInFlight = rotateRefreshToken().finally(() => { refreshInFlight = null })
+    }
+    refreshed = await refreshInFlight
+  }
+  if (refreshed) response = await globalThis.fetch(input, withStoredAccessToken(init))
+  return response
 }
 
 function getCurrentUserId(): string | null {
@@ -67,12 +197,84 @@ interface BackendTaskResponse {
 export class HttpWorkflowService extends MockWorkflowService {
   private taskVersionCache: Map<string, number> = new Map()
 
+  async login(credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
+    const response = await globalThis.fetch(`${AUTH_API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        username: credentials.identifier.trim(),
+        password: credentials.password,
+        rememberMe: credentials.rememberMe,
+      }),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => null)
+      throw new Error(error?.message || `Đăng nhập thất bại (HTTP ${response.status})`)
+    }
+    return mapBackendAuthResponse(await response.json() as BackendAuthResponse)
+  }
+
+  async register(command: RegisterUserCommand): Promise<AuthResponseDto> {
+    const emailLocalPart = command.email.split('@')[0]
+    const username = emailLocalPart
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '')
+      .slice(0, 50)
+    const response = await globalThis.fetch(`${AUTH_API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        username: username.length >= 3 ? username : `user${Date.now()}`,
+        email: command.email.trim(),
+        password: command.password,
+        fullName: command.fullName.trim(),
+      }),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => null)
+      throw new Error(error?.message || `Tạo tài khoản thất bại (HTTP ${response.status})`)
+    }
+    return mapBackendAuthResponse(await response.json() as BackendAuthResponse)
+  }
+
+  async getCurrentUser(): Promise<UserDto> {
+    const raw = readStoredValue(USER_KEY)
+    if (raw) {
+      try {
+        return JSON.parse(raw) as UserDto
+      } catch {
+        clearStoredSession()
+      }
+    }
+    throw new Error('Chưa có phiên đăng nhập.')
+  }
+
+  async logout(): Promise<void> {
+    const token = readStoredValue(TOKEN_KEY)
+    const refreshToken = readStoredValue(REFRESH_TOKEN_KEY)
+    if (!token || !refreshToken) return
+
+    const response = await globalThis.fetch(`${AUTH_API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => null)
+      throw new Error(error?.message || `Đăng xuất thất bại (HTTP ${response.status})`)
+    }
+  }
+
   /**
    * Gọi API thật GET /api/v1/projects/{projectId}/my-tasks
    */
   async getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/my-tasks?userId=${userId}`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${projectId}/my-tasks?userId=${userId}`, {
         headers: getAuthHeaders({ 'Accept': 'application/json' })
       })
 
@@ -100,7 +302,7 @@ export class HttpWorkflowService extends MockWorkflowService {
     try {
       const currentVersion = this.taskVersionCache.get(taskId) ?? 0
 
-      const res = await fetch(`${API_BASE_URL}/nodes/${taskId}/status`, {
+      const res = await apiFetch(`${API_BASE_URL}/nodes/${taskId}/status`, {
         method: 'PATCH',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -138,7 +340,7 @@ export class HttpWorkflowService extends MockWorkflowService {
     try {
       const currentVersion = this.taskVersionCache.get(dto.taskId) ?? 0
 
-      const res = await fetch(`${API_BASE_URL}/nodes/${dto.taskId}/submit`, {
+      const res = await apiFetch(`${API_BASE_URL}/nodes/${dto.taskId}/submit`, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -182,7 +384,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async getProjectArtifacts(projectId: string): Promise<ProjectArtifactItem[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/artifacts?inRepo=true`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${projectId}/artifacts?inRepo=true`, {
         headers: getAuthHeaders({ 'Accept': 'application/json' })
       })
 
@@ -216,7 +418,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async createArtifact(projectId: string, payload: CreateArtifactCommand): Promise<ProjectArtifactItem> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/artifacts`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${projectId}/artifacts`, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -264,7 +466,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async deleteArtifact(projectId: string, artifactId: string): Promise<void> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/artifacts/${artifactId}`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${projectId}/artifacts/${artifactId}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       })
@@ -329,7 +531,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async getMyProjects(): Promise<readonly ProjectSummaryDto[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects`, {
         headers: getAuthHeaders({ 'Accept': 'application/json' }),
       })
 
@@ -383,7 +585,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects`, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -444,7 +646,7 @@ export class HttpWorkflowService extends MockWorkflowService {
     visibility?: string
   }): Promise<ProjectDetailDto> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/clone-template`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/clone-template`, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -505,7 +707,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async updateProjectStatus(projectId: string, status: ProjectStatus | string): Promise<ProjectSummaryDto> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/status`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${projectId}/status`, {
         method: 'PATCH',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -553,7 +755,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async getInvitationDetail(invitationId: string): Promise<ProjectInvitationDto | null> {
     try {
-      const res = await fetch(`${API_BASE_URL}/invitations/${invitationId}`, {
+      const res = await apiFetch(`${API_BASE_URL}/invitations/${invitationId}`, {
         headers: getAuthHeaders({ 'Accept': 'application/json' }),
       })
 
@@ -592,7 +794,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async acceptInvitation(invitationId: string): Promise<{ success: boolean; projectId?: string }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/invitations/${invitationId}/accept`, {
+      const res = await apiFetch(`${API_BASE_URL}/invitations/${invitationId}/accept`, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -624,7 +826,7 @@ export class HttpWorkflowService extends MockWorkflowService {
    */
   async rejectInvitation(invitationId: string): Promise<{ success: boolean }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/invitations/${invitationId}/reject`, {
+      const res = await apiFetch(`${API_BASE_URL}/invitations/${invitationId}/reject`, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -682,7 +884,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async getMacroPhases(projectId?: string): Promise<MacroPhase[]> {
     const pid = projectId || '1'
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${pid}/graph`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${pid}/graph`, {
         headers: getAuthHeaders({ 'Accept': 'application/json' }),
       })
       if (!res.ok) {
@@ -717,7 +919,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async getPhaseEdges(projectId?: string): Promise<[string, string][]> {
     const pid = projectId || '1'
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${pid}/graph`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${pid}/graph`, {
         headers: getAuthHeaders({ 'Accept': 'application/json' }),
       })
       if (!res.ok) {
@@ -736,7 +938,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async getPhaseGraph(phaseId: string, projectId?: string): Promise<PhaseTreeData> {
     const pid = projectId || '1'
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${pid}/graph`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${pid}/graph`, {
         headers: getAuthHeaders({ 'Accept': 'application/json' }),
       })
       if (!res.ok) {
@@ -820,7 +1022,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase> {
     const pid = projectId || dto.projectId || '1'
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${pid}/phases`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${pid}/phases`, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
@@ -866,7 +1068,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void> {
     const pid = projectId || '1'
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API_BASE_URL}/projects/${pid}/phases/connect?sourcePhaseId=${sourcePhaseId}&targetPhaseId=${targetPhaseId}`,
         {
           method: 'POST',
@@ -886,7 +1088,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async disconnectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void> {
     const pid = projectId || '1'
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API_BASE_URL}/projects/${pid}/phases/disconnect?sourcePhaseId=${sourcePhaseId}&targetPhaseId=${targetPhaseId}`,
         {
           method: 'POST',
@@ -904,7 +1106,7 @@ export class HttpWorkflowService extends MockWorkflowService {
   async deletePhase(phaseId: string, projectId?: string): Promise<void> {
     const pid = projectId || '1'
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${pid}/phases/${phaseId}`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${pid}/phases/${phaseId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       })
@@ -922,7 +1124,7 @@ export class HttpWorkflowService extends MockWorkflowService {
 
   async publishPipeline(projectId: string): Promise<PublishPipelineResult> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${projectId}/publish`, {
+      const res = await apiFetch(`${API_BASE_URL}/projects/${projectId}/publish`, {
         method: 'POST',
         headers: getAuthHeaders({ 'Accept': 'application/json' }),
       })

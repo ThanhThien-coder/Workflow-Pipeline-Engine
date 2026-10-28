@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -41,7 +42,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.UNAUTHORIZED.value(),
-            "UNAUTHORIZED",
+            ex.getErrorCode(),
             ex.getMessage(),
             request.getRequestURI()
         );
@@ -102,7 +103,11 @@ public class GlobalExceptionHandler {
             .map(err -> {
                 String field = err instanceof FieldError fe ? fe.getField() : err.getObjectName();
                 Object rejected = err instanceof FieldError fe ? fe.getRejectedValue() : null;
-                return new ErrorResponse.ValidationErrorItem(field, rejected, err.getDefaultMessage());
+                return new ErrorResponse.ValidationErrorItem(
+                    field,
+                    isSensitiveField(field) ? "[REDACTED]" : rejected,
+                    err.getDefaultMessage()
+                );
             })
             .toList();
 
@@ -139,5 +144,10 @@ public class GlobalExceptionHandler {
             request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+    private boolean isSensitiveField(String field) {
+        String normalized = field.toLowerCase(Locale.ROOT);
+        return normalized.contains("password") || normalized.contains("token") || normalized.contains("secret");
     }
 }

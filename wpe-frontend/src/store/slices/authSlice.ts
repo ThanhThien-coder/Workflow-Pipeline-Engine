@@ -6,6 +6,7 @@ import type {
 import { workflowService } from '../../services/container'
 
 const TOKEN_KEY = 'wpe_auth_token'
+const REFRESH_TOKEN_KEY = 'wpe_auth_refresh_token'
 const USER_KEY = 'wpe_auth_user'
 const STORAGE_TYPE_KEY = 'wpe_auth_storage_type'
 
@@ -34,20 +35,23 @@ type AuthSetter = (
 function clearStorage(): void {
   try {
     localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     localStorage.removeItem(STORAGE_TYPE_KEY)
     sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY)
     sessionStorage.removeItem(USER_KEY)
   } catch {
     // Ignore storage errors in restricted contexts
   }
 }
 
-function saveAuthSession(token: string, user: UserDto, rememberMe: boolean): void {
+function saveAuthSession(token: string, user: UserDto, rememberMe: boolean, refreshToken?: string): void {
   clearStorage()
   try {
     const storage = rememberMe ? localStorage : sessionStorage
     storage.setItem(TOKEN_KEY, token)
+    if (refreshToken) storage.setItem(REFRESH_TOKEN_KEY, refreshToken)
     storage.setItem(USER_KEY, JSON.stringify(user))
     if (rememberMe) {
       localStorage.setItem(STORAGE_TYPE_KEY, 'local')
@@ -181,7 +185,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
 
       try {
         const response = await workflowService.login(credentials)
-        saveAuthSession(response.accessToken, response.user, credentials.rememberMe)
+        saveAuthSession(response.accessToken, response.user, credentials.rememberMe, response.refreshToken)
 
         set((state: any) => ({
           auth: {
@@ -210,7 +214,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
 
       try {
         const response = await workflowService.register(cmd)
-        saveAuthSession(response.accessToken, response.user, true)
+        saveAuthSession(response.accessToken, response.user, true, response.refreshToken)
 
         set((state: any) => ({
           auth: {
@@ -233,12 +237,12 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
     },
 
     logout: async () => {
-      clearStorage()
       try {
         await workflowService.logout()
       } catch {
         // Ignore logout errors
       }
+      clearStorage()
 
       set((state) => ({
         auth: {
