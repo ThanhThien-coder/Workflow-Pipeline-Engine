@@ -7,12 +7,14 @@ import type { IProfileService } from './contracts/IProfileService'
 import { MockProfileApi } from './mock/MockWorkflowService.profile'
 import type { IAdminService } from './admin/IAdminService'
 import { MockAdminService } from './admin/MockAdminService'
+import { HttpAdminService } from './admin/HttpAdminService'
 import type { ITemplateService } from './template/ITemplateService'
 import { MockTemplateService } from './template/MockTemplateService'
 import type { INotificationService } from './contracts/INotificationService'
 import { MockNotificationApi } from './mock/MockWorkflowService.notification'
 
 import { HttpTemplateService } from './template/HttpTemplateService'
+import { HttpProfileService } from './impl/HttpProfileService'
 
 export interface ServiceContainer {
   workflowService: IWorkflowService
@@ -23,13 +25,14 @@ export interface ServiceContainer {
   notificationService: INotificationService
 }
 
-const isMock = import.meta.env.VITE_USE_MOCK !== 'false'
+// Real backend is the default; mocks must be explicitly enabled for demos/tests.
+const isMock = import.meta.env.VITE_USE_MOCK === 'true'
 
 export const container: ServiceContainer = {
   workflowService: isMock ? new MockWorkflowService() : new HttpWorkflowService(),
   guestService: new MockGuestApi(),
-  profileService: new MockProfileApi(),
-  adminService: new MockAdminService(),
+  profileService: isMock ? new MockProfileApi() : new HttpProfileService(),
+  adminService: isMock ? new MockAdminService() : new HttpAdminService(),
   templateService: isMock ? new MockTemplateService() : new HttpTemplateService(),
   notificationService: new MockNotificationApi(),
 }

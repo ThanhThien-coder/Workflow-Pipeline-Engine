@@ -267,6 +267,9 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 
 ## Cụm 2: Hồ Sơ & Bảo Mật Cá Nhân (User Profile)
 
+
+**Implementation status:** Mock mode is enabled only with `VITE_USE_MOCK=true`; API mode is the default. `HttpProfileService` calls the existing profile, avatar, and password endpoints. Privacy updates, project visibility, account deactivation, and account deletion have no backend endpoints yet; these methods return explicit errors instead of mutating mock data.
+
 ### 2.1 Lấy & Cập nhật Profile (`GET/PUT /api/users/me/profile`)
 1. **Mục tiêu Nghiệp vụ**: Truy vấn và cập nhật hồ sơ cá nhân: Họ tên, Chức danh, Tiểu sử, Danh sách Kỹ năng và Liên kết ngoài.
 2. **Luồng Mã Nguồn**:
@@ -982,6 +985,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 ## Cụm 10: Quản Trị Hệ Thống & Template Studio (Admin Portal)
 
 ### 10.1 Quản lý người dùng, che email/IP, khóa/mở tài khoản (`GET/POST /api/admin/users/*`)
+**Tr?ng th?i tri?n khai:** Danh s?ch, suspend v? unban ?i qua `HttpAdminService` ? API mode, d?ng endpoint c?a `AdminUserController`. KPI/workspace/audit trong Admin Portal ch?a c? API backend v? v?n d?ng mock. Backend ?ang ? dev skeleton: `SecurityConfig` cho ph?p m?i request, ch?a ??ng k? JWT filter/RBAC; kh?ng xem endpoint qu?n tr? l? ?? ???c b?o v? ?? tri?n khai production.
 1. **Mục tiêu Nghiệp vụ**: Quản trị viên hệ thống (Super Admin) xem danh sách người dùng toàn sàn với cơ chế che dữ liệu nhạy cảm (Data Masking: `a***@domain.com`), tạm khóa tài khoản vi phạm và mở khóa.
 2. **Luồng Mã Nguồn**:
    - `src/features/admin/tabs/AdminUsersTab.tsx` -> `useAdminPortal` (`suspendUser`, `unbanUser`) -> `container.adminService.getUsers()`, `suspendUser()`, `unbanUser()` -> `IAdminService`.
