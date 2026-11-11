@@ -9,6 +9,8 @@ Mở khóa: X4
 Nhánh git: x2-cross-test
 Ước lượng: 1 ngày
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**. Trong sprint, **buổi kiểm chung** ([SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 7) thay cho nó.
+
 ## Vì sao cần task này
 Người viết code thường chỉ test đúng những gì mình nghĩ tới. Đổi người chạy thì lỗi lộ ra, và người chạy buộc phải hiểu mảng của người khác. Xong X2, mỗi người nắm thêm một mảng ở mức "dùng được và biết nó hỏng chỗ nào".
 

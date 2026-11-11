@@ -9,6 +9,11 @@ Mở khóa: X4
 Nhánh git: x3-ooad-he-thong
 Ước lượng: 1 ngày
 
+> ⚡ **Chế độ sprint:** làm ở chiều và tối ngày 2 ([SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6), **không cần chờ đủ A8–D8**: mảng nào chưa xong thì ghi "chưa có" trong mục lục.
+> - **Claude làm:** vẽ sơ đồ cấp hệ thống từ code thật, điền mục lục `docs/ooad/README.md`, đối chiếu sơ đồ state với enum trong code, xuất PNG.
+> - **Cả nhóm làm:** buổi kiểm nhất quán rút còn 30 phút, chỉ soát tên use case và tên lớp giữa 4 mảng. Chỗ lệch ghi vào `docs/ooad/kiem-nhat-quan.md`.
+> - **Không làm trong sprint:** vẽ tay bản đầu.
+
 ## Vì sao cần task này
 Sơ đồ theo mảng (A7–D8) đã đủ chi tiết. Báo cáo OOAD còn cần các sơ đồ **toàn hệ thống**, và cần cả bộ sơ đồ **nhất quán với nhau**: tên lớp, tên use case, trạng thái phải trùng khớp giữa các sơ đồ và với code.
 
