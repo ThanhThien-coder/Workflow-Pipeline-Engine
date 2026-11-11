@@ -1,6 +1,7 @@
 package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.NodeStatus;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
 import com.pipeline.wpe.entity.ArtifactEntity;
@@ -104,7 +105,7 @@ public class GuestGatewayService {
     @Transactional(readOnly = true)
     public GuestAccessResponse getGuestAccessState(Long projectId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        authorizationService.verifyProjectOwner(projectId, currentUserId);
 
         return guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId)
             .filter(link -> link.getExpiresAt().isAfter(Instant.now()))
@@ -212,6 +213,11 @@ public class GuestGatewayService {
 
         if (guestLink.getExpiresAt().isBefore(Instant.now())) {
             throw new ForbiddenException("REVOKED_GUEST", "Liên kết chia sẻ đã hết hạn.");
+        }
+
+        ProjectEntity project = authorizationService.getProjectOrThrow(guestLink.getProjectId());
+        if (project.getStatus() != ProjectStatus.ACTIVE) {
+            throw new ForbiddenException("REVOKED_GUEST", "Dự án hiện không mở cho khách xem (trạng thái " + project.getStatus() + ").");
         }
 
         return guestLink;

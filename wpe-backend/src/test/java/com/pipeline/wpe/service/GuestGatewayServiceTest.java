@@ -1,6 +1,7 @@
 package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.NodeStatus;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
 import com.pipeline.wpe.entity.ArtifactEntity;
@@ -113,7 +114,7 @@ class GuestGatewayServiceTest {
     @Test
     @DisplayName("7.2 Get Guest Overview - Token hợp lệ trả về tổng quan dự án")
     void testGetGuestOverview_Success() {
-        String token = "64charstoken01234567890123456789012345678901234567890123456789123456";
+        String token = "example-guest-token-overview";
         GuestLinkEntity link = GuestLinkEntity.builder()
             .projectId(projectId)
             .token(token)
@@ -125,6 +126,7 @@ class GuestGatewayServiceTest {
             .id(projectId)
             .name("Test Pipeline")
             .ownerId(ownerId)
+            .status(ProjectStatus.ACTIVE)
             .build();
 
         NodeEntity node1 = NodeEntity.builder().id(1L).projectId(projectId).status(NodeStatus.DONE).code("WPE-1").title("Task 1").build();
@@ -181,6 +183,124 @@ class GuestGatewayServiceTest {
         assertThatThrownBy(() -> guestGatewayService.getGuestOverview(token))
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("hết hạn");
+    }
+
+    @Test
+    @DisplayName("7.2 Get Guest Overview - Dự án PAUSED ném ForbiddenException REVOKED_GUEST")
+    void testGetGuestOverview_ProjectPaused() {
+        String token = "example-guest-token-paused";
+        GuestLinkEntity link = GuestLinkEntity.builder()
+            .projectId(projectId)
+            .token(token)
+            .isRevoked(false)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+            .build();
+
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Paused Project")
+            .status(ProjectStatus.PAUSED)
+            .build();
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+
+        assertThatThrownBy(() -> guestGatewayService.getGuestOverview(token))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("REVOKED_GUEST"))
+            .hasMessageContaining("PAUSED");
+    }
+
+    @Test
+    @DisplayName("7.2 Get Guest Overview - Dự án ARCHIVED ném ForbiddenException REVOKED_GUEST")
+    void testGetGuestOverview_ProjectArchived() {
+        String token = "example-guest-token-archived";
+        GuestLinkEntity link = GuestLinkEntity.builder()
+            .projectId(projectId)
+            .token(token)
+            .isRevoked(false)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+            .build();
+
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Archived Project")
+            .status(ProjectStatus.ARCHIVED)
+            .build();
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+
+        assertThatThrownBy(() -> guestGatewayService.getGuestOverview(token))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("REVOKED_GUEST"))
+            .hasMessageContaining("ARCHIVED");
+    }
+
+    @Test
+    @DisplayName("7.1 Generate Guest Token - Không phải Owner ném ForbiddenException ACCESS_DENIED")
+    void testGenerateGuestToken_AccessDenied() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền thực hiện."));
+
+        assertThatThrownBy(() -> guestGatewayService.generateOrRenewGuestToken(projectId, 30))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("ACCESS_DENIED"));
+
+        verify(guestLinkRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("7.1 Revoke Guest Token - Không phải Owner ném ForbiddenException ACCESS_DENIED")
+    void testRevokeGuestToken_AccessDenied() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền thực hiện."));
+
+        assertThatThrownBy(() -> guestGatewayService.revokeGuestToken(projectId))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("ACCESS_DENIED"));
+
+        verify(guestLinkRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("7.1 Get Guest Access State - Thành công xác thực đúng verifyProjectOwner")
+    void testGetGuestAccessState_Success() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(new ProjectEntity());
+
+        GuestLinkEntity activeLink = GuestLinkEntity.builder()
+            .projectId(projectId)
+            .token("active-token-123")
+            .isRevoked(false)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+            .build();
+        when(guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId)).thenReturn(Optional.of(activeLink));
+
+        GuestAccessResponse response = guestGatewayService.getGuestAccessState(projectId);
+
+        assertThat(response.enabled()).isTrue();
+        assertThat(response.token()).isEqualTo("active-token-123");
+        verify(authorizationService).verifyProjectOwner(projectId, ownerId);
+        verify(authorizationService, never()).verifyProjectMemberOrOwner(any(), any());
+    }
+
+    @Test
+    @DisplayName("7.1 Get Guest Access State - Không phải Owner ném ForbiddenException ACCESS_DENIED")
+    void testGetGuestAccessState_AccessDenied() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền thực hiện."));
+
+        assertThatThrownBy(() -> guestGatewayService.getGuestAccessState(projectId))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("ACCESS_DENIED"));
+
+        verify(authorizationService).verifyProjectOwner(projectId, ownerId);
+        verify(authorizationService, never()).verifyProjectMemberOrOwner(any(), any());
+        verify(guestLinkRepository, never()).save(any());
     }
 }
 
