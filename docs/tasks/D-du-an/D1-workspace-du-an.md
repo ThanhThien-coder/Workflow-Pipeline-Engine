@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: T0
 Cần trước bước frontend: A2
 Mở khóa: D2, D3
@@ -101,13 +101,34 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Đã làm gì (file nào, vì sao)
 
 ### Kết quả test (dán output thật, không chép tay)
+> Phần backend chờ kiểm. Bước frontend (Việc cần làm 6) chưa làm, chờ A2.
+
+Chạy `mvn -B test` ngày 11/11/2026 (sprint, Claude chạy):
+```
+[INFO] Tests run: 119, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+Test IDOR `TemplateCloneServiceTest#shouldNotCloneOtherUsersProject_whenIdMatchesProjectButNoTemplate` chạy với code cũ thì đỏ:
+```
+[ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0
+Expecting actual throwable to be an instance of: ...ResourceNotFoundException
+```
+Chạy thật trên backend local (header `X-Debug-User-Id`):
+- alex `?tab=mine` → có "Core Banking Pipeline" (nodeCount 4, activeNodes 2, doneNodes 1); sarah `?tab=mine` → `[]`; sarah `?tab=shared` → "Core Banking Pipeline".
+- `?tab=xyz` → 400.
+- alex tạo dự án mới → `DRAFT`. Clone `tpl-sdlc` → `DRAFT`, 7 node.
+- sarah gọi `POST /projects/clone-template` với `templateId` = id dự án riêng của alex → 404 `RESOURCE_NOT_FOUND` (trước khi sửa thì clone được).
+- PATCH dự án DRAFT → ACTIVE: 409 `USE_PUBLISH`; DRAFT → ARCHIVED: 409 `INVALID_PROJECT_STATUS`; ACTIVE → PAUSED → ACTIVE: 200; sarah (không phải owner) PATCH: 403.
 
 ### Điều chưa chắc / cần nhóm quyết
+- `ProjectSummaryResponse` được **thêm** 3 field `nodeCount`, `activeNodes`, `doneNodes` theo integration map; field cũ (`totalNodes`, `completedNodes`, `inProgressNodes`) giữ nguyên để FE không vỡ. Nhóm quyết khi nào bỏ field cũ.
+- Đặc tả ghi PATCH status "chỉ OWNER", code vẫn giữ quyền của ADMIN như trước. Cần A (A6) quyết có bỏ ADMIN không.
+- Đã xóa nhánh clone từ bảng `project` (Bước 4–6 cũ), vì sau khi chặn IDOR nhánh đó không còn đường vào. Clone giờ chỉ dùng `graph_data` của template.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
-- **Làm gì:**
-- **File chính đã sửa:**
+- **Làm gì:** (Claude giao Antigravity viết code, Claude kiểm) Dự án mới/clone về DRAFT; vá IDOR clone (chỉ đọc `pipeline_template`); `GET /projects?tab=&sort=` đếm node bằng 1 truy vấn GROUP BY; PATCH status kiểm bảng chuyển trạng thái (409 `USE_PUBLISH` / `INVALID_PROJECT_STATUS`).
+- **File chính đã sửa:** `ProjectService.java` (`getMyProjects`, `ALLOWED_TRANSITIONS`, `countNodesByProjectIds`), `TemplateCloneService.java` (Bước 1), `NodeRepository.java` (`countByProjectIdsGroupByStatus`), `ProjectSummaryResponse.java` (`withNodeStats`), `ProjectController.java`; test: `ProjectServiceTest`, `TemplateCloneServiceTest`, `ProjectControllerTest`.
 - **Vì sao làm vậy** (tự viết):
-- **Cần học lại:**
+- **Cần học lại:** IDOR (vì sao `projectRepository.findById` trong clone là lỗ hổng); truy vấn `GROUP BY` trả `List<Object[]>` và cách gom trong `countNodesByProjectIds`; bảng `ALLOWED_TRANSITIONS` (tự vẽ lại sơ đồ state dự án); 3 câu hỏi bảo vệ.
