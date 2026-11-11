@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: T0
 Cần trước bước frontend: A2
 Mở khóa: X1
@@ -92,13 +92,31 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Đã làm gì (file nào, vì sao)
 
 ### Kết quả test (dán output thật, không chép tay)
+> Phần backend chờ kiểm. Phần frontend (Việc cần làm 4) chưa làm, chờ A2. Kịch bản bước 5 mới chạy bằng API, chưa chạy trên giao diện.
+
+Chạy `mvn -B test` ngày 11/11/2026 (sprint, Claude chạy):
+```
+[INFO] Tests run: 116, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+Chạy thật trên backend local, dự án 1 (alex là OWNER, sarah là COLLABORATOR):
+- sarah xem link khách → 403; sarah tạo link → 403; alex tạo link → token 64 ký tự.
+- Khách xem overview → 200.
+- Khách gửi góp ý liên tiếp: lần 1–10 → 201, lần 11 → 429 `COOLDOWN_ACTIVE`, `retryAfterSeconds` = 3589.
+- Nội dung 2001 ký tự → 400.
+- sarah xem danh sách góp ý → 200 (10 góp ý); resolve góp ý 10 → `{"success":true,"feedbackId":10,"status":"RESOLVED"}`. Admin (không phải thành viên) xem góp ý → 403.
+- alex đổi dự án sang PAUSED → khách xem: 403 `REVOKED_GUEST` "Dự án hiện không mở cho khách xem (trạng thái PAUSED)". Đổi lại ACTIVE → 200.
+- alex thu hồi link → khách xem: 403 `REVOKED_GUEST` "Liên kết chia sẻ này đã bị Chủ dự án thu hồi."
 
 ### Điều chưa chắc / cần nhóm quyết
+- Giới hạn 10 góp ý/giờ đếm theo **dự án** (mỗi dự án chỉ có 1 link còn hiệu lực). Hệ quả: tạo link mới không reset giới hạn. Nếu nhóm muốn đếm đúng theo từng token thì cần thêm cột `guest_link_id` vào `project_feedback` (migration mới).
+- Lỗi 429 dùng lại `CooldownActiveException`, nên `message` vẫn là câu của AI ("AI Diagnosis cooldown đang kích hoạt..."); `error` và `retryAfterSeconds` đúng. Sửa câu này phải đụng file exception dùng chung, chưa làm.
+- Xem link khách nay chỉ OWNER (trước đây thành viên cũng xem được). Nếu FE đang gọi API này cho cả thành viên thì màn Overview của thành viên sẽ nhận 403.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
-- **Làm gì:**
-- **File chính đã sửa:**
+- **Làm gì:** (Claude giao Antigravity viết code, Claude kiểm) Token khách chỉ hợp lệ khi dự án ACTIVE; xem link khách chỉ OWNER; tối đa 10 góp ý/giờ (429 kèm `retryAfterSeconds`), nội dung tối đa 2000 ký tự; thêm test quyền cho mọi endpoint guest/feedback.
+- **File chính đã sửa:** `GuestGatewayService.java` (`validateAndGetActiveGuestLink`, `getGuestAccessState`), `FeedbackQueueService.java` (`submitGuestFeedback`), `ProjectFeedbackRepository.java` (2 method đếm); test: `GuestGatewayServiceTest`, `FeedbackQueueServiceTest`, `GuestGatewayControllerTest`, `FeedbackQueueControllerTest`.
 - **Vì sao làm vậy** (tự viết):
-- **Cần học lại:**
+- **Cần học lại:** 4 điều kiện token hợp lệ và thứ tự kiểm; cách tính `retryAfterSeconds` từ góp ý cũ nhất trong 1 giờ; rate limit theo token và theo IP khác nhau ở đâu; 3 câu hỏi bảo vệ.
