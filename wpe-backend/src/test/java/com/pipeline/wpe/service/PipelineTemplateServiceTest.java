@@ -1,11 +1,15 @@
 package com.pipeline.wpe.service;
 
+import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.request.template.CreateTemplateRequest;
 import com.pipeline.wpe.dto.response.template.DagValidationResponse;
 import com.pipeline.wpe.dto.response.template.TemplateDetailResponse;
 import com.pipeline.wpe.dto.response.template.TemplateSummaryResponse;
 import com.pipeline.wpe.entity.PipelineTemplateEntity;
+import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.CycleDetectedException;
+import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.PipelineTemplateRepository;
 import com.pipeline.wpe.repository.UserRepository;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -45,6 +50,7 @@ class PipelineTemplateServiceTest {
     private PipelineTemplateService templateService;
 
     private Map<String, Object> validGraphData;
+    private UserEntity adminUser;
 
     @BeforeEach
     void setUp() {
@@ -54,6 +60,11 @@ class PipelineTemplateServiceTest {
             "nodes", List.of(Map.of("id", "n1", "phaseId", "p1", "title", "Task 1")),
             "edges", List.of()
         );
+        adminUser = UserEntity.builder()
+            .id(1L)
+            .username("admin")
+            .systemRole(SystemRole.ADMIN)
+            .build();
     }
 
     @Test
@@ -84,6 +95,8 @@ class PipelineTemplateServiceTest {
     @Test
     @DisplayName("10.3.3 createTemplate: Tạo template thành công khi đồ thị hợp lệ")
     void testCreateTemplateSuccess() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+
         CreateTemplateRequest req = new CreateTemplateRequest("New Template", "Desc", "General", false, validGraphData);
         PipelineTemplateEntity saved = PipelineTemplateEntity.builder().id(99L).name("New Template").category("General").graphData(validGraphData).build();
 
@@ -98,6 +111,8 @@ class PipelineTemplateServiceTest {
     @Test
     @DisplayName("10.3.3 createTemplate: Ném CycleDetectedException khi đồ thị có chu trình lặp")
     void testCreateTemplateCycleDetected() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+
         Map<String, Object> cycleGraphData = Map.of(
             "phases", List.of(
                 Map.of("id", "p1", "name", "P1"),
@@ -122,5 +137,104 @@ class PipelineTemplateServiceTest {
         DagValidationResponse response = templateService.validateGraph(validGraphData);
         assertTrue(response.valid());
         assertTrue(response.violations().isEmpty());
+    }
+
+    @Test
+    @DisplayName("createTemplate: User thường gọi createTemplate -> ném ForbiddenException ACCESS_DENIED")
+    void testCreateTemplateForbiddenForRegularUser() {
+        UserEntity regularUser = UserEntity.builder().id(2L).username("user").systemRole(SystemRole.USER).build();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(regularUser));
+
+        CreateTemplateRequest req = new CreateTemplateRequest("New Template", "Desc", "General", false, validGraphData);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () -> templateService.createTemplate(req, 2L));
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
+        verify(templateRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateTemplate: User thường gọi updateTemplate -> ném ForbiddenException, không save")
+    void testUpdateTemplateForbiddenForRegularUser() {
+        UserEntity regularUser = UserEntity.builder().id(2L).username("user").systemRole(SystemRole.USER).build();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(regularUser));
+
+        CreateTemplateRequest req = new CreateTemplateRequest("Updated Template", "Desc", "General", false, validGraphData);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () -> templateService.updateTemplate(1L, req, 2L));
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
+        verify(templateRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("deleteTemplate: User thường gọi deleteTemplate -> ném ForbiddenException, không delete")
+    void testDeleteTemplateForbiddenForRegularUser() {
+        UserEntity regularUser = UserEntity.builder().id(2L).username("user").systemRole(SystemRole.USER).build();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(regularUser));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () -> templateService.deleteTemplate(1L, 2L));
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
+        verify(templateRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("createTemplate: currentUserId = null gọi createTemplate -> ném ForbiddenException")
+    void testCreateTemplateForbiddenWhenUserIdNull() {
+        CreateTemplateRequest req = new CreateTemplateRequest("New Template", "Desc", "General", false, validGraphData);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () -> templateService.createTemplate(req, null));
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
+        verify(templateRepository, never()).save(any());
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("deleteTemplate: Admin xóa template hệ thống isSystemStandard(true) -> ném ConflictException SYSTEM_TEMPLATE_LOCKED")
+    void testDeleteSystemTemplateThrowsConflict() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+
+        PipelineTemplateEntity systemTemplate = PipelineTemplateEntity.builder()
+            .id(1L)
+            .name("System Template")
+            .isSystemStandard(true)
+            .build();
+        when(templateRepository.findById(1L)).thenReturn(Optional.of(systemTemplate));
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> templateService.deleteTemplate(1L, 1L));
+        assertEquals("SYSTEM_TEMPLATE_LOCKED", ex.getErrorCode());
+        verify(templateRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("deleteTemplate: Admin xóa template thường isSystemStandard(false) -> gọi delete")
+    void testDeleteRegularTemplateSuccess() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+
+        PipelineTemplateEntity regularTemplate = PipelineTemplateEntity.builder()
+            .id(1L)
+            .name("Custom Template")
+            .isSystemStandard(false)
+            .build();
+        when(templateRepository.findById(1L)).thenReturn(Optional.of(regularTemplate));
+
+        templateService.deleteTemplate(1L, 1L);
+        verify(templateRepository).delete(regularTemplate);
+    }
+
+    @Test
+    @DisplayName("createTemplate: Admin tạo template -> createdBy của entity được lưu bằng đúng id admin")
+    void testCreateTemplateCreatedByMatchesAdminId() {
+        Long adminId = 99L;
+        UserEntity customAdmin = UserEntity.builder().id(adminId).username("admin99").systemRole(SystemRole.ADMIN).build();
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(customAdmin));
+
+        CreateTemplateRequest req = new CreateTemplateRequest("Admin Template", "Desc", "General", false, validGraphData);
+        PipelineTemplateEntity saved = PipelineTemplateEntity.builder().id(100L).name("Admin Template").createdBy(adminId).build();
+        when(templateRepository.save(any(PipelineTemplateEntity.class))).thenReturn(saved);
+
+        templateService.createTemplate(req, adminId);
+
+        ArgumentCaptor<PipelineTemplateEntity> captor = ArgumentCaptor.forClass(PipelineTemplateEntity.class);
+        verify(templateRepository).save(captor.capture());
+        assertEquals(adminId, captor.getValue().getCreatedBy());
     }
 }

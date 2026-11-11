@@ -63,7 +63,7 @@ public class PipelineTemplateController {
         @Valid @RequestBody CreateTemplateRequest request,
         @RequestParam(required = false) Long currentUserId
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(1L);
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
         TemplateDetailResponse response = templateService.createTemplate(request, callerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -78,7 +78,7 @@ public class PipelineTemplateController {
         @Valid @RequestBody CreateTemplateRequest request,
         @RequestParam(required = false) Long currentUserId
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(1L);
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
         TemplateDetailResponse response = templateService.updateTemplateBySlugOrId(id, request, callerId);
         return ResponseEntity.ok(response);
     }
@@ -92,7 +92,7 @@ public class PipelineTemplateController {
         @PathVariable String id,
         @RequestParam(required = false) Long currentUserId
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(1L);
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
         templateService.deleteTemplateBySlugOrId(id, callerId);
         return ResponseEntity.noContent().build();
     }
