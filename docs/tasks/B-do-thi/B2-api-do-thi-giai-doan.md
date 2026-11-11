@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: B1
 Cần trước bước frontend: không
 Mở khóa: không
@@ -58,11 +58,11 @@ Trả lời:
 5. 🤝 Cập nhật 2 file docs.
 
 ## Tiêu chí xong
-- [ ] V9 chạy được trên DB đã có V1–V6 (dán log Flyway).
-- [ ] `PUT /phases/{id}` với `uiMetadata` rồi `GET /graph` trả lại đúng tọa độ.
-- [ ] Ghi đồ thị của dự án ARCHIVED → 409.
-- [ ] Test pass, có case cho phase nhiều cha và nối tạo vòng.
-- [ ] Ghi chép có số câu SQL đếm được của `GET graph`.
+- [x] V9 chạy được trên DB đã có V1–V6 (dán log Flyway).
+- [x] `PUT /phases/{id}` với `uiMetadata` rồi `GET /graph` trả lại đúng tọa độ.
+- [x] Ghi đồ thị của dự án ARCHIVED → 409.
+- [x] Test pass, có case cho phase nhiều cha và nối tạo vòng.
+- [x] Ghi chép có số câu SQL đếm được của `GET graph`.
 
 ## Câu hỏi bảo vệ (người review hỏi, trả lời không nhìn code)
 1. Vì sao `phase_dependency` cần cả `UNIQUE` và `CHECK`?
@@ -91,10 +91,127 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Trả lời Bước 0
 
 ### Đã làm gì (file nào, vì sao)
+> Chế độ sprint, Claude ghi ngày 11/11/2026. Nhánh `b2-graph-phases` tạo từ `b1-kahn` vì PR #15 chưa merge.
+
+- `V9__work_phase_ui_metadata.sql`: thêm cột `work_phase.ui_metadata JSONB NOT NULL DEFAULT '{}'`.
+- `WorkPhaseEntity`: thêm trường `uiMetadata` (map JSONB, mặc định map rỗng).
+- `CreatePhaseRequest`, `UpdatePhaseRequest`, `PhaseResponse`: thêm `uiMetadata`.
+- `WorkflowGraphService`: `createPhase`, `updatePhase` lưu `uiMetadata` (PUT không gửi thì giữ vị trí cũ); `getGraph` trả lại. Thêm `ensureNotArchived` cho 5 hàm ghi Phase (`createPhase`, `updatePhase`, `deletePhase`, `connectPhases`, `disconnectPhases`) → 409 `PROJECT_ARCHIVED`.
+- `WorkflowGraphController`: chỉ sửa mô tả Swagger của `PUT /phases/{phaseId}`. Không đổi URL nào.
+- `WorkflowGraphServiceTest`: thêm 14 test (14 → 28): 5 test ARCHIVED, 5 test `uiMetadata`, 4 test case còn thiếu.
+- `database-schema.md`: cột `ui_metadata`, bảng `PHASE_DEPENDENCY` (mục 3.6.1 và ERD). `FRONTEND_BACKEND_INTEGRATION_MAP.md`: viết lại 4.1, 4.2 theo endpoint thật.
+
+**Bảng case của `WorkflowGraphServiceTest` (phần phase và đọc đồ thị):**
+
+| Case | Trước B2 | Sau B2 |
+| :--- | :--- | :--- |
+| `getGraph` trả đủ phases, nodes, dependencies | có | có |
+| `getGraph` tính tiến độ và trạng thái từng phase | có | có |
+| Phase nhiều cha (cột cũ + bảng nối) | có | có |
+| `connectPhases` thêm cha thứ 2 không ghi đè cha cũ | có | có |
+| `connectPhases` nối tạo vòng → `CycleDetectedException` | có | có |
+| `updatePhase` đặt `parentPhaseId` tạo vòng | thiếu | thêm |
+| Xóa phase còn node → node thành standalone | có | có |
+| `disconnectPhases` gỡ cả bảng nối và cột cũ | thiếu | thêm |
+| Không phải owner → `ForbiddenException` | thiếu | thêm |
+| Dự án ARCHIVED: 5 hàm ghi → `PROJECT_ARCHIVED` | thiếu | thêm (5 test) |
+| Dự án ARCHIVED vẫn đọc được `getGraph` | thiếu | thêm |
+| `createPhase` lưu và trả `uiMetadata`; không gửi → `{}` | thiếu | thêm (2 test) |
+| `updatePhase` ghi đè `uiMetadata`; không gửi → giữ cũ | thiếu | thêm (2 test) |
+| `getGraph` trả `uiMetadata` | thiếu | thêm |
 
 ### Kết quả test (dán output thật, không chép tay)
+> Claude chạy ngày 11/11/2026 trên máy của B (Maven 3.9, JDK 17, Postgres 15 trong Docker, backend cổng 8081).
+
+**1. Test tái hiện, chạy trước khi sửa (đỏ):**
+
+Lỗi "ARCHIVED vẫn sửa được": 5 test mới fail, code đi qua bước kiểm quyền rồi chạy tiếp.
+```text
+[ERROR] Tests run: 19, Failures: 5, Errors: 0, Skipped: 0
+[ERROR]   WorkflowGraphServiceTest.testConnectPhasesArchivedProject:361->assertProjectArchived:325 Unexpected exception type thrown, expected: <com.pipeline.wpe.exception.ConflictException> but was: <com.pipeline.wpe.exception.ResourceNotFoundException>
+[ERROR]   WorkflowGraphServiceTest.testCreatePhaseArchivedProject:334->assertProjectArchived:325 Unexpected exception type thrown, expected: <com.pipeline.wpe.exception.ConflictException> but was: <java.lang.NullPointerException>
+[ERROR]   WorkflowGraphServiceTest.testDeletePhaseArchivedProject:352->assertProjectArchived:325 Unexpected exception type thrown, expected: <com.pipeline.wpe.exception.ConflictException> but was: <com.pipeline.wpe.exception.ResourceNotFoundException>
+[ERROR]   WorkflowGraphServiceTest.testDisconnectPhasesArchivedProject:370->assertProjectArchived:325 Unexpected exception type thrown, expected: <com.pipeline.wpe.exception.ConflictException> but was: <com.pipeline.wpe.exception.ResourceNotFoundException>
+[ERROR]   WorkflowGraphServiceTest.testUpdatePhaseArchivedProject:343->assertProjectArchived:325 Unexpected exception type thrown, expected: <com.pipeline.wpe.exception.ConflictException> but was: <com.pipeline.wpe.exception.ResourceNotFoundException>
+```
+Lỗi "vị trí phase không được lưu": test không biên dịch được vì trường chưa tồn tại (đỏ ở mức biên dịch, không phải assertion). Cả lớp test báo lỗi:
+```text
+[ERROR] Tests run: 28, Failures: 0, Errors: 28, Skipped: 0
+The method getUiMetadata() is undefined for the type WorkPhaseEntity
+The method uiMetadata() is undefined for the type PhaseResponse
+The constructor CreatePhaseRequest(String, null, null, null, int, Map<String,Object>) is undefined
+```
+
+**2. Sau khi sửa, `mvn -B test` toàn bộ (xanh):**
+```text
+[INFO] Tests run: 31, Failures: 0, Errors: 0, Skipped: 0 -- in com.pipeline.wpe.service.engine.KahnDagServiceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 -- in com.pipeline.wpe.service.engine.PhaseProgressCalculatorTest
+[INFO] Tests run: 28, Failures: 0, Errors: 0, Skipped: 0 -- in com.pipeline.wpe.service.WorkflowGraphServiceTest
+[INFO] Tests run: 140, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+**3. Log Flyway V9 trên DB đã có V1–V6:**
+```text
+DbValidate : Successfully validated 7 migrations (execution time 00:00.067s)
+DbMigrate  : Current version of schema "public": 6
+DbMigrate  : Migrating schema "public" to version "9 - work phase ui metadata"
+DbMigrate  : Successfully applied 1 migration to schema "public", now at version v9 (execution time 00:00.033s)
+```
+Sau migration, 3 phase có sẵn nhận `ui_metadata = {}`.
+
+**4. `PUT /phases/{id}` rồi `GET /graph` (alex, `X-Debug-User-Id: 2`):**
+```text
+PUT /api/v1/projects/1/phases/2  body {"name":"AUTH GATEWAY","uiMetadata":{"x":280,"y":140,"w":250,"h":220}}
+HTTP 200  ... "uiMetadata":{"x":280,"h":220,"y":140,"w":250}}
+
+GET /api/v1/projects/1/graph  -> phase 2
+{"id":"2","name":"AUTH GATEWAY",...,"uiMetadata":{"h":220,"w":250,"x":280,"y":140}}
+
+SQL: select id,name,ui_metadata from work_phase where id=2
+2|AUTH GATEWAY|{"h": 220, "w": 250, "x": 280, "y": 140}
+
+PUT lần 2 không gửi uiMetadata (chỉ gửi name, sub) -> HTTP 200, uiMetadata vẫn {"h":220,"w":250,"x":280,"y":140}
+PUT bằng sarah (X-Debug-User-Id: 3) -> HTTP 403 ACCESS_DENIED
+```
+
+**5. Phase nhiều cha và nối tạo vòng qua API:**
+```text
+connect 1->2 HTTP 200
+connect 2->3 HTTP 200
+connect 1->3 HTTP 200          (phase 3 có 2 cha: 1 và 2)
+connect 3->1 HTTP 422  {"status":422,"error":"CYCLE_DETECTED","message":"Không thể nối Phase: tạo chu trình lặp giữa các Phase.","cycleNodes":["CORE ENGINE","FOUNDATION"]}
+GET graph: "phaseEdges":[["1","2"],["2","3"],["1","3"]]
+```
+
+**6. Ghi vào dự án ARCHIVED (tạm đổi dự án 2 sang ARCHIVED bằng SQL):**
+```text
+POST /api/v1/projects/2/phases
+{"status":409,"error":"PROJECT_ARCHIVED","message":"Dự án đã được lưu trữ, chỉ có thể xem. Không thể chỉnh sửa đồ thị.","path":"/api/v1/projects/2/phases"}
+createPhase HTTP 409
+updatePhase HTTP 409
+deletePhase HTTP 409
+connect HTTP 409
+disconnect HTTP 409
+GET graph (doc) HTTP 200
+so phase project 2 truoc/sau: 0 / 0
+```
+
+**7. Số câu SQL của `GET /graph` (bật `--spring.jpa.show-sql=true` trên dòng lệnh, không commit):**
+- Owner gọi: **5 câu** — `project` (kiểm quyền), `work_phase`, `node`, `node_dependency`, `phase_dependency`.
+- Thành viên gọi (sarah): **6 câu** — thêm 1 câu kiểm tra `project_member`.
+- Số câu cố định, không tăng theo số phase hay node → không bị N+1. Dự án 1 lúc đo có 3 phase, 4 node.
+
+**Dọn dẹp sau khi kiểm:** dự án 2 trả về `PLANNING`; gỡ 3 cạnh phase vừa nối; `ui_metadata` phase 2 trả về `{}`; đã tắt backend cổng 8081. Cột `ui_metadata` (V9) vẫn nằm trong DB local.
+
+**Bước cần trình duyệt:** không có.
 
 ### Điều chưa chắc / cần nhóm quyết
+1. **Frontend chưa dùng `uiMetadata`.** `HttpWorkflowService` chưa cài `updatePhasePosition` và tự tính `x` theo `orderIndex`. Backend đã lưu được, nhưng ở chế độ API thật kéo phase rồi F5 **vẫn mất vị trí** cho tới khi frontend gọi `PUT` kèm `uiMetadata` và đọc lại. File frontend nằm ngoài "Được ghi" của B2; phần này đã có trong đặc tả của **B5** (người B làm, sau hạn nộp, sau khi A2 tách file `HttpWorkflowService`).
+2. **Không tạo exception mới.** Đặc tả cho phép tạo exception và thêm handler vào `GlobalExceptionHandler`, nhưng 2 file đó không có trong "Được ghi". Dùng `ConflictException("PROJECT_ARCHIVED", ...)` có sẵn: handler hiện tại đã trả đúng 409 và mã `PROJECT_ARCHIVED`. B3, B4 dùng lại cùng cách này được.
+3. **Mới chặn ARCHIVED ở phần phase.** `createNode`, `createDependency`, `deleteDependency`, `updateNodeMetadata` thuộc B3; `publishPipeline` thuộc B4. Hiện các hàm đó vẫn ghi được vào dự án ARCHIVED.
+4. **Thứ tự migration.** DB nào đã chạy V9 trước khi V7 (A5), V8 (D2) được merge thì Flyway sẽ báo lỗi validate khi gặp V7, V8 ("detected resolved migration not applied"), vì `application.yml` không bật `out-of-order`. Cách xử lý local: `docker compose down -v && docker compose up -d` (đúng như bước chuẩn bị buổi kiểm chung). Nhóm cần biết trước.
+5. **`PUT` bắt buộc `name`.** Muốn chỉ lưu vị trí vẫn phải gửi kèm `name` (ràng buộc `@NotBlank` có từ trước, không đổi).
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa

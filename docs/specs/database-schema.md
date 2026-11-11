@@ -50,7 +50,11 @@ erDiagram
     PROJECT ||--o{ GUEST_LINK : "shares via"
     PROJECT ||--o{ PROJECT_FEEDBACK : "receives feedback"
 
-    WORK_PHASE ||--o{ WORK_PHASE : "sub-phases"
+    PROJECT ||--o{ PHASE_DEPENDENCY : "defines phase DAG"
+
+    WORK_PHASE ||--o{ WORK_PHASE : "sub-phases (legacy single parent)"
+    WORK_PHASE ||--o{ PHASE_DEPENDENCY : "parent phase"
+    WORK_PHASE ||--o{ PHASE_DEPENDENCY : "child phase"
     WORK_PHASE ||--o{ NODE : "groups"
 
     NODE ||--o{ NODE_DEPENDENCY : "parent source"
@@ -133,6 +137,15 @@ erDiagram
         varchar sub_title "nullable"
         varchar accent_color "emerald blue slate violet"
         int order_index "DEFAULT 0"
+        jsonb ui_metadata "x y w h on canvas, DEFAULT {}"
+        timestamp created_at
+    }
+
+    PHASE_DEPENDENCY {
+        bigint id PK
+        bigint project_id FK
+        bigint parent_phase_id FK
+        bigint child_phase_id FK
         timestamp created_at
     }
 
@@ -321,12 +334,33 @@ Phân chia các giai đoạn (Macro Phases) phục vụ hiển thị trực quan
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `bigint` | PK, Auto Increment | | Khóa chính giai đoạn. |
 | `project_id` | `bigint` | FK (PROJECT.id), NOT NULL | | Dự án chứa giai đoạn. |
-| `parent_phase_id` | `bigint` | FK (WORK_PHASE.id), NULL | `NULL` | Khóa ngoại tự tham chiếu phân cấp Sub-phase (`NULL` = Phase gốc). |
+| `parent_phase_id` | `bigint` | FK (WORK_PHASE.id), NULL | `NULL` | Cột cũ (V1), chỉ lưu được **một** Phase cha. Giữ lại để tương thích dữ liệu cũ và clone template. Từ V6, quan hệ cha–con giữa các Phase lưu ở bảng `PHASE_DEPENDENCY`; khi đọc, backend gộp cả hai nguồn. |
 | `name` | `varchar(100)` | NOT NULL | | Tên giai đoạn (Foundation, Auth, Core...). |
 | `sub_title` | `varchar(255)` | NULLABLE | | Tiêu đề phụ hiển thị thẻ Macro Phase Card. |
 | `accent_color` | `varchar(50)` | NULLABLE | | Màu sắc hiển thị: `'emerald'`, `'blue'`, `'slate'`, `'violet'`. |
 | `order_index` | `int` | NOT NULL | `0` | Thứ tự sắp xếp giai đoạn (thay thế cho chuỗi code cứng). |
+| `ui_metadata` | `jsonb` | NOT NULL | `'{}'` | Vị trí và kích thước thẻ Phase trên canvas, dạng `{ "x": 280, "y": 140, "w": 250, "h": 220 }` (thêm ở **V9**). `{}` = chưa kéo, frontend tự xếp theo `order_index`. |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm tạo giai đoạn. |
+
+---
+
+### 3.6.1 Bảng `PHASE_DEPENDENCY` (Cạnh Phụ thuộc giữa các Giai đoạn — V6)
+Bảng nối nhiều–nhiều tự tham chiếu trên `WORK_PHASE`: một Phase có thể có **nhiều** Phase tiền nhiệm. Mỗi dòng là một cạnh `parent_phase_id -> child_phase_id`.
+
+| Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mặc Định | Ý Nghĩa Nghiệp Vụ |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `bigint` | PK, Auto Increment | | Khóa chính cạnh. |
+| `project_id` | `bigint` | FK (PROJECT.id) ON DELETE CASCADE, NOT NULL | | Dự án chứa cạnh; lấy toàn bộ cạnh của dự án bằng một câu truy vấn. |
+| `parent_phase_id` | `bigint` | FK (WORK_PHASE.id) ON DELETE CASCADE, NOT NULL | | Phase tiền nhiệm (phải xong trước). |
+| `child_phase_id` | `bigint` | FK (WORK_PHASE.id) ON DELETE CASCADE, NOT NULL | | Phase phụ thuộc. |
+| `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm nối cạnh. |
+
+**Ràng buộc và chỉ mục:**
+- `uq_phase_dependency UNIQUE (parent_phase_id, child_phase_id)`: không lưu trùng một cạnh.
+- `chk_phase_dependency_not_self CHECK (parent_phase_id <> child_phase_id)`: Phase không phụ thuộc chính nó.
+- `idx_phase_dependency_project (project_id)`: phục vụ `GET /projects/{id}/graph`.
+- Xóa Phase thì các cạnh liên quan tự xóa theo `ON DELETE CASCADE`.
+- Chu trình dài hơn (A → B → C → A) không chặn được bằng ràng buộc DB; backend chặn bằng BFS trong `WorkflowGraphService.addPhaseEdge` và trả `422 CYCLE_DETECTED`.
 
 ---
 

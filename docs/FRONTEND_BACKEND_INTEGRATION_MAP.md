@@ -492,17 +492,21 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Method & URL**: `GET /api/projects/{id}/graph`
    - **Headers**: `Authorization: Bearer <jwt>`
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `WORK_PHASE`, `NODE`, `NODE_DEPENDENCY`.
+   - Bảng tác động (chỉ đọc): `PROJECT`, `WORK_PHASE`, `NODE`, `NODE_DEPENDENCY`, `PHASE_DEPENDENCY`.
+   - Quyền: owner hoặc thành viên của dự án. Dự án `ARCHIVED` vẫn đọc được.
    - Truy vấn danh sách `WORK_PHASE` sắp xếp theo `order_index`.
    - Truy vấn toàn bộ `NODE` và các liên kết phụ thuộc `NODE_DEPENDENCY` trong dự án.
+   - Truy vấn toàn bộ cạnh `PHASE_DEPENDENCY` của dự án; `parentPhaseIds` gộp từ bảng này và cột cũ `WORK_PHASE.parent_phase_id`.
+   - `status`, `progressPct`, `totalTasks`, `doneTasks` của mỗi Phase được tính từ các `NODE` thuộc Phase đó (`PhaseProgressCalculator`), không lưu trong DB.
+   - Số câu SQL cố định, không phụ thuộc số Phase/Node (không N+1): 5 câu khi người gọi là owner, 6 câu khi là thành viên (thêm 1 câu kiểm tra `PROJECT_MEMBER`).
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`
    - **Response Body**:
      ```json
      {
        "phases": [
-         { "id": "p1", "name": "FOUNDATION", "sub": "Core Infra", "accent": "emerald", "parentPhaseIds": [] },
-         { "id": "p2", "name": "AUTH", "sub": "Identity Gateway", "accent": "blue", "parentPhaseIds": ["p1"] }
+         { "id": "p1", "name": "FOUNDATION", "sub": "Core Infra", "accent": "emerald", "orderIndex": 0, "parentPhaseIds": [], "status": "COMPLETED", "progressPct": 100, "totalTasks": 1, "doneTasks": 1, "uiMetadata": { "x": 60, "y": 80, "w": 250, "h": 220 } },
+         { "id": "p2", "name": "AUTH", "sub": "Identity Gateway", "accent": "blue", "orderIndex": 1, "parentPhaseIds": ["p1"], "status": "TODO", "progressPct": 0, "totalTasks": 1, "doneTasks": 0, "uiMetadata": {} }
        ],
        "phaseEdges": [["p1", "p2"]],
        "nodes": [
@@ -518,19 +522,28 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 
 ---
 
-### 4.2 Thêm/Sửa/Xóa Phase & Lưu thứ tự hiển thị `order_index` (`POST/PUT/DELETE /api/projects/{id}/phases`)
-1. **Mục tiêu Nghiệp vụ**: Tạo mới giai đoạn (Macro Phase), cập nhật tên, màu sắc, thứ tự `order_index` hoặc xóa Phase.
+### 4.2 Thêm/Sửa/Xóa Phase, Nối/Gỡ cạnh Phase & Lưu vị trí trên canvas (`POST/PUT/DELETE /api/projects/{id}/phases`, `POST /api/projects/{id}/phases/connect`, `POST /api/projects/{id}/phases/disconnect`)
+1. **Mục tiêu Nghiệp vụ**: Tạo mới giai đoạn (Macro Phase), cập nhật tên, màu sắc, thứ tự `order_index`, vị trí thẻ trên canvas (`uiMetadata`), xóa Phase, nối hoặc gỡ quan hệ phụ thuộc giữa 2 Phase.
 2. **Luồng Mã Nguồn**:
-   - `src/components/workflow/CreatePhaseModal.tsx` / `MacroWorkflow.tsx` -> `useWorkflowStore` (`createPhase`, `spawnChildPhase`, `deletePhase`, `connectPhases`) -> `container.workflowService`.
+   - `src/components/workflow/CreatePhaseModal.tsx` / `MacroWorkflow.tsx` -> `useWorkflowStore` (`createPhase`, `spawnChildPhase`, `deletePhase`, `connectPhases`, `updatePhasePosition`) -> `container.workflowService`.
+   - Backend: `WorkflowGraphController` -> `WorkflowGraphService` (`createPhase`, `updatePhase`, `deletePhase`, `connectPhases`, `disconnectPhases`).
+   - **Chưa nối**: `HttpWorkflowService` chưa cài `updatePhasePosition` và đang tự tính `x` theo `orderIndex`. Backend đã lưu và trả `uiMetadata`; frontend cần gọi `PUT` kèm `uiMetadata` và đọc lại trường này thì vị trí mới giữ được sau F5.
 3. **Request DTO**:
-   - **POST**: `/api/projects/{id}/phases`, Body: `{ "name": "CORE ENGINE", "sub": "State Machine", "accent": "blue", "parentPhaseId": "p1", "orderIndex": 1 }`.
+   - **POST**: `/api/projects/{id}/phases`, Body: `{ "name": "CORE ENGINE", "sub": "State Machine", "accent": "blue", "parentPhaseId": 1, "orderIndex": 1, "uiMetadata": { "x": 280, "y": 140, "w": 250, "h": 220 } }`. Chỉ `name` bắt buộc.
+   - **PUT**: `/api/projects/{id}/phases/{phaseId}`, Body cùng dạng với POST. `name` bắt buộc; trường nào không gửi thì giữ giá trị cũ (không gửi `uiMetadata` thì vị trí không đổi). Gửi `parentPhaseId` là **thêm** một Phase cha, không ghi đè cha cũ.
    - **DELETE**: `/api/projects/{id}/phases/{phaseId}`.
+   - **POST connect**: `/api/projects/{id}/phases/connect?sourcePhaseId={cha}&targetPhaseId={con}` (tham số trên URL, không có body).
+   - **POST disconnect**: `/api/projects/{id}/phases/disconnect?sourcePhaseId={cha}&targetPhaseId={con}`.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `WORK_PHASE`, `NODE`.
-   - Khi tạo: Chèn vào `WORK_PHASE`.
-   - Khi xóa: Chuyển các Node thuộc Phase về dạng standalone hoặc xóa cascade theo cấu hình dự án.
+   - Bảng tác động: `WORK_PHASE`, `PHASE_DEPENDENCY`, `NODE`.
+   - Quyền: chỉ owner của dự án. Dự án `ARCHIVED` là chỉ đọc: cả 5 thao tác ghi trả `409 PROJECT_ARCHIVED`.
+   - Khi tạo: chèn vào `WORK_PHASE` (kèm `ui_metadata`, mặc định `{}`); có `parentPhaseId` thì chèn thêm một cạnh vào `PHASE_DEPENDENCY`. `orderIndex` không gửi thì lấy `MAX(order_index) + 1`.
+   - Khi xóa: chuyển các Node thuộc Phase về dạng standalone (`phase_id = NULL`), không xóa Node. Các cạnh `PHASE_DEPENDENCY` của Phase tự xóa theo `ON DELETE CASCADE`.
+   - Khi nối: thêm một cạnh vào `PHASE_DEPENDENCY` và giữ các Phase cha đã có. Cạnh đã tồn tại thì bỏ qua (idempotent). Nếu Phase con đã đi tới được Phase cha (nối sẽ khép vòng) thì trả `422 CYCLE_DETECTED`.
+   - Khi gỡ: xóa cạnh trong `PHASE_DEPENDENCY`; nếu cạnh còn nằm ở cột cũ `WORK_PHASE.parent_phase_id` thì đặt cột đó về `NULL`.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `201 Created` / `200 OK` / `204 No Content`.
+   - **Status Code**: POST tạo `201 Created` và PUT `200 OK` trả `PhaseResponse` (cùng dạng một phần tử `phases` ở mục 4.1, có `uiMetadata`); DELETE và disconnect `204 No Content`; connect `200 OK` không có body.
+   - **Mã lỗi**: `400` Phase không thuộc dự án hoặc tự nối chính nó; `403 ACCESS_DENIED` không phải owner; `404` không tìm thấy Phase; `409 PROJECT_ARCHIVED`; `422 CYCLE_DETECTED`.
    - **UI Mutation**: Cập nhật `macroPhases` và `workflowEdges` trong Zustand store, vẽ lại các đường nối Bézier curve.
 
 ---
