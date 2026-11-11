@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: B1, D1
 Cần trước bước frontend: không
 Mở khóa: D4
@@ -94,13 +94,37 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Đã làm gì (file nào, vì sao)
 
 ### Kết quả test (dán output thật, không chép tay)
+Sprint 12/11/2026, Claude chạy (Antigravity viết code, Claude kiểm).
+
+`mvn -B test` sau khi sửa:
+```
+[INFO] Tests run: 167, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+Test lỗ hổng chạy với `PipelineTemplateService` CŨ (trước khi sửa) → fail đúng chỗ:
+```
+[ERROR]   PipelineTemplateServiceTest.testCreateTemplateForbiddenForRegularUser ... expected: <ForbiddenException> but was: <NullPointerException>
+[ERROR]   PipelineTemplateServiceTest.testUpdateTemplateForbiddenForRegularUser ... but was: <ResourceNotFoundException>
+[ERROR]   PipelineTemplateServiceTest.testDeleteTemplateForbiddenForRegularUser ... but was: <ResourceNotFoundException>
+[ERROR]   PipelineTemplateServiceTest.testDeleteSystemTemplateThrowsConflict ... Expected ConflictException to be thrown, but nothing was thrown.
+[ERROR] Tests run: 19, Failures: 5, Errors: 3, Skipped: 0
+```
+Chạy thật trên backend local (header `X-Debug-User-Id`):
+- user thường (2) POST `/templates` → 403 `ACCESS_DENIED`; không đăng nhập → 403.
+- admin (1) POST → 201, `createdBy` = System Administrator.
+- user thường PUT / DELETE template → 403.
+- admin DELETE template hệ thống `tpl-sdlc` → 409 `SYSTEM_TEMPLATE_LOCKED`; admin DELETE template thường → 204.
+- user thường GET danh sách → 200 (4 template).
+- Khứ hồi: clone `tpl-sdlc` rồi đọc `/projects/{id}/graph` → 4 phase, 3 phaseEdges, 7 node, 3 dependency, khớp `graph_data` seed V5 (4 phase, 3 phaseEdges, 7 node, 3 cạnh). Test khứ hồi Mockito `shouldRoundTripTemplateGraph_countsMatchGraphData` cũng pass.
 
 ### Điều chưa chắc / cần nhóm quyết
+- Tham số `?currentUserId=` vẫn còn ở POST/PUT/DELETE theo đặc tả (bỏ ở X1). Nghĩa là gọi `?currentUserId=1` vẫn mạo danh được admin cho tới khi X1 làm.
+- Bước 5 (cập nhật integration map 10.3) chưa làm: endpoint không đổi, chỉ thêm quyền; nên ghi 403/409 vào map ở X1 hoặc sau.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
-- **Làm gì:**
-- **File chính đã sửa:**
+- **Làm gì:** Template: chỉ ADMIN tạo/sửa/xóa (kiểm trong service bằng `system_role`), bỏ `orElse(1L)`, không cho xóa template hệ thống (409 `SYSTEM_TEMPLATE_LOCKED`), thêm test khứ hồi template → clone.
+- **File chính đã sửa:** `PipelineTemplateService.java` (`requireAdmin`, `deleteTemplate`), `PipelineTemplateController.java`; test: `PipelineTemplateServiceTest`, `TemplateCloneServiceTest`.
 - **Vì sao làm vậy** (tự viết):
-- **Cần học lại:**
+- **Cần học lại:** Phân quyền cấp hệ thống (ADMIN) khác phân quyền cấp dự án (OWNER) ở đâu; vì sao kiểm quyền trong service chứ không ở controller; test khứ hồi đếm những gì.
