@@ -1,0 +1,123 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ (ProjectController.java, ProjectInvitationController.java, GuestGatewayController.java, FeedbackQueueController.java, AiDiagnosticController.java, TemplateController.java), docs/specs/system-overview.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md
+' Sơ đồ Use Case mảng D - Dự án, Template, Khách & AI (WPE)
+
+@startuml uc-du-an-noi-bo
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Người dùng" as User
+actor "Thành viên dự án" as Member
+actor "Chủ dự án" as Owner
+actor "Cộng sự" as Collab
+actor "Người xem" as Viewer
+actor "Người được mời" as Invitee
+
+Member --|> User
+Owner --|> Member
+Collab --|> Member
+Viewer --|> Member
+Invitee --|> User
+
+rectangle "WPE - Mảng Dự án" {
+  usecase "Tạo dự án" as UC_Create
+  usecase "Tạo dự án từ template" as UC_Clone
+  usecase "Xem danh sách dự án" as UC_List
+  usecase "Đổi trạng thái dự án" as UC_Status
+  usecase "Mời thành viên" as UC_Invite
+  usecase "Thu hồi lời mời" as UC_RevokeInvite
+  usecase "Phản hồi lời mời" as UC_RespondInvite
+  usecase "Chấp nhận lời mời" as UC_AcceptInvite
+  usecase "Từ chối lời mời" as UC_RejectInvite
+  usecase "Đổi vai trò thành viên" as UC_ChangeRole
+  usecase "Chuyển quyền sở hữu" as UC_TransferOwner
+  usecase "Xóa thành viên" as UC_RemoveMember
+}
+
+User --> UC_Create
+User --> UC_List
+
+Owner --> UC_Status
+Owner --> UC_Invite
+Owner --> UC_RevokeInvite
+Owner --> UC_ChangeRole
+Owner --> UC_RemoveMember
+
+Invitee --> UC_RespondInvite
+
+UC_Clone .> UC_Create : <<extend>> \n [người dùng chọn template]
+UC_TransferOwner .> UC_ChangeRole : <<extend>> \n [vai trò mới là OWNER]
+
+UC_AcceptInvite --|> UC_RespondInvite
+UC_RejectInvite --|> UC_RespondInvite
+
+@enduml
+
+@startuml uc-du-an-ben-ngoai
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Người dùng" as User
+actor "Quản trị viên" as Admin
+actor "Thành viên dự án" as Member
+actor "Cộng sự" as Collab
+actor "Chủ dự án" as Owner
+actor "Người xem" as Viewer
+actor "Khách / Giáo viên\n(truy cập bằng token)" as Guest
+
+Admin --|> User
+Member --|> User
+Owner --|> Member
+Collab --|> Member
+Viewer --|> Member
+
+rectangle "WPE - Mảng Dự án" {
+  usecase "Tạo link khách" as UC_CreateGuestLink
+  usecase "Thu hồi link khách" as UC_RevokeGuestLink
+  usecase "Xem tiến độ qua link" as UC_ViewGuestProgress
+  usecase "Gửi góp ý" as UC_SendFeedback
+  usecase "Xem góp ý" as UC_ViewFeedback
+  usecase "Đánh dấu đã xử lý góp ý" as UC_ResolveFeedback
+  usecase "Xem chẩn đoán AI" as UC_ViewAiDiag
+  usecase "Chạy chẩn đoán AI" as UC_RunAiDiag
+  usecase "Quản lý template" as UC_ManageTemplate
+  usecase "Kiểm tra chu trình" as UC_CheckCycle
+}
+
+Owner --> UC_CreateGuestLink
+Owner --> UC_RevokeGuestLink
+
+Guest --> UC_ViewGuestProgress
+Guest --> UC_SendFeedback
+Guest --> UC_ViewAiDiag
+
+note right of UC_ViewAiDiag
+  SSOT UC21: Khách ngoài được phép xem báo cáo AI.
+  Code hiện tại chưa có API AI cho khách
+  (chỉ thành viên/chủ dự án có API).
+end note
+
+Collab --> UC_ViewFeedback
+Owner --> UC_ViewFeedback
+
+Collab --> UC_ResolveFeedback
+Owner --> UC_ResolveFeedback
+
+note bottom of UC_ResolveFeedback
+  RBAC SSOT UC23: Chỉ Chủ dự án và Cộng sự
+  được xem và đánh dấu RESOLVED góp ý (Viewer không được).
+  Code hiện dùng verifyProjectMemberOrOwner nên
+  Người xem (Viewer) vẫn làm được (lệch SSOT).
+end note
+
+Member --> UC_ViewAiDiag
+Member --> UC_RunAiDiag
+
+Admin --> UC_ManageTemplate
+
+UC_ManageTemplate .> UC_CheckCycle : <<include>>
+
+@enduml
