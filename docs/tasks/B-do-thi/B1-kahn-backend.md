@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: T0
 Cần trước bước frontend: không
 Mở khóa: B2, B3, D3, D6
@@ -87,12 +87,47 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 > Viết bằng lời của bạn. Người review đọc phần này trước khi đọc code.
 
 ### Trả lời Bước 0
+Bỏ qua theo chế độ sprint.
 
 ### Đã làm gì (file nào, vì sao)
+> Làm ở chế độ sprint ngày 11/11/2026: Claude viết code và test, phần dưới do Claude ghi.
+
+**`BE/service/engine/KahnDagService.java`**
+- `ProjectKahnResult` thêm 2 trường ở cuối: `sortedOrder` (thứ tự topo, rỗng nếu có chu trình) và `blockedNodeCodes` (mọi node còn in-degree > 0). Chữ ký `validateProjectDag` và `validateTemplateGraph` giữ nguyên.
+- Thiếu sót 1: `cycleNodeCodes` giờ lấy tập node bị chặn rồi "bóc ngược" (hàm `peelNodesBehindCycle`), nên không còn chứa node chỉ đứng sau chu trình.
+- Thiếu sót 2: trả `sortedOrder`. Dùng hàng đợi ưu tiên theo id để thứ tự ổn định.
+- Thiếu sót 3: thêm `wouldCreateCycle(nodes, deps, parentId, childId)`, duyệt theo chiều rộng từ node con, gặp node cha thì trả `true`.
+- Thêm phòng thủ cho dữ liệu hỏng (ngoài đặc tả, B đã đồng ý giữ): cạnh có node cha hoặc node con không nằm trong danh sách node thì bị bỏ qua. Trước đây cạnh như vậy làm node con bị báo chu trình giả.
+
+**`BE-test/service/engine/KahnDagServiceTest.java`**: từ 6 lên 31 test. Đủ các case yêu cầu: rỗng; 1 node; chuỗi thẳng; kim cương; 2 thành phần rời; chu trình 3 node; chu trình kèm đuôi; 2 chu trình; cạnh trùng; dữ liệu seed WPE-001→004. Thêm: node giữa 2 chu trình (hạn chế đã biết), thứ tự ổn định, node không có code, 9 trường hợp `wouldCreateCycle` và 1 test đối chiếu `wouldCreateCycle` với `validateProjectDag` trên mọi cặp node.
+
+**`docs/specs/workflow-engine.md`**: thêm mục 4.3 mô tả bản backend.
 
 ### Kết quả test (dán output thật, không chép tay)
+**Trước khi sửa** (2 test tái hiện, chạy `mvn -B test -Dtest=KahnDagServiceTest`):
+```text
+[ERROR] Tests run: 8, Failures: 2, Errors: 0, Skipped: 0
+[ERROR]   KahnDagServiceTest.testCycleWithTailExcludesTailNodes:160 expected: <[A, B, C]> but was: <[A, B, C, D, E]>
+[ERROR]   KahnDagServiceTest.testEdgeWithUnknownParentIsIgnored:171 expected: <true> but was: <false>
+[INFO] BUILD FAILURE
+```
+Thiếu sót 2 và 3 (`sortedOrder`, `wouldCreateCycle`) là hàm và trường chưa tồn tại, nên không có test fail trước khi sửa.
+
+**Sau khi sửa:**
+```text
+[INFO] Tests run: 31, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.299 s -- in com.pipeline.wpe.service.engine.KahnDagServiceTest
+```
+**Toàn bộ test backend** (`mvn -B test`):
+```text
+[INFO] Tests run: 126, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+Task này không có bước Swagger, SQL hay trình duyệt.
 
 ### Điều chưa chắc / cần nhóm quyết
+1. **Bỏ qua cạnh có đầu mút lạ** không có trong "Đặc tả đã chốt". Đây là phòng thủ, **không gặp được khi dùng bình thường**: `createDependency` bắt hai node cùng dự án, xuất bản lấy toàn bộ node của dự án (mọi phase, nên cạnh ghost node sang phase khác không bị ảnh hưởng), và xóa node thì database tự xóa cạnh. Chỉ xảy ra khi dữ liệu bị sửa thẳng trong database hoặc code khác ghi sai, vì bảng `node_dependency` không ràng buộc hai node phải cùng dự án. Hệ quả khi gặp: node con của cạnh đó được coi là node gốc và được mở khóa khi xuất bản, dữ liệu hỏng không được báo ra. Nhóm xem có đồng ý không.
+2. **`validateTemplateGraph` chưa áp dụng "bóc ngược"**: template có chu trình kèm đuôi vẫn báo cả node đuôi. Đặc tả B1 không yêu cầu sửa; D3 cần thì báo B.
+3. **`WorkflowGraphService.publishPipeline` chưa dùng gì mới**: nó vẫn trả `cycleNodeCodes`, giờ đã là danh sách đúng. B4 kiểm lại.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
