@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -464,5 +465,195 @@ class TemplateCloneServiceTest {
         assertThat(savedDeps).hasSize(1);
         assertThat(savedDeps.get(0).getParentNodeId()).isEqualTo(2001L);
         assertThat(savedDeps.get(0).getChildNodeId()).isEqualTo(2002L);
+    }
+
+    @Test
+    @DisplayName("cloneTemplate: Kiểm thử khứ hồi đồ thị template (round-trip) khớp chính xác số lượng phase, node, cạnh DAG")
+    void shouldRoundTripTemplateGraph_countsMatchGraphData() {
+        // GIVEN: GraphData đúng chuẩn schemaVersion: 2 của FE và cấu trúc V5 seed (tpl-sdlc)
+        // - 3 phases: ph-1 -> ph-2 -> ph-3
+        // - 5 nodes:
+        //   * nd-1 (ph-1, parentId: null, level: 0) -> TODO (không cạnh vào)
+        //   * nd-2 (ph-1, parentId: "nd-1", level: 1) -> LOCKED (có cạnh vào từ nd-1)
+        //   * nd-3 (ph-2, parentId: null, level: 0) -> TODO (không cạnh vào)
+        //   * nd-4 (ph-2, parentId: "nd-3", level: 1) -> LOCKED (có cạnh vào từ nd-2 và nd-3)
+        //   * nd-5 (ph-3, parentId: null, level: 0) -> LOCKED (có cạnh vào từ nd-4)
+        // - 3 edges:
+        //   * e1 (nd-1 -> nd-2, TRÙNG với parentId của nd-2)
+        //   * e2 (nd-2 -> nd-4)
+        //   * e3 (nd-4 -> nd-5)
+        Map<String, Object> node1 = new HashMap<>();
+        node1.put("id", "nd-1");
+        node1.put("phaseId", "ph-1");
+        node1.put("parentId", null);
+        node1.put("title", "Node 1");
+        node1.put("joinPolicy", "ALL_COMPLETED");
+        node1.put("level", 0);
+
+        Map<String, Object> node2 = new HashMap<>();
+        node2.put("id", "nd-2");
+        node2.put("phaseId", "ph-1");
+        node2.put("parentId", "nd-1");
+        node2.put("title", "Node 2");
+        node2.put("joinPolicy", "ALL_COMPLETED");
+        node2.put("level", 1);
+
+        Map<String, Object> node3 = new HashMap<>();
+        node3.put("id", "nd-3");
+        node3.put("phaseId", "ph-2");
+        node3.put("parentId", null);
+        node3.put("title", "Node 3");
+        node3.put("joinPolicy", "ALL_COMPLETED");
+        node3.put("level", 0);
+
+        Map<String, Object> node4 = new HashMap<>();
+        node4.put("id", "nd-4");
+        node4.put("phaseId", "ph-2");
+        node4.put("parentId", "nd-3");
+        node4.put("title", "Node 4");
+        node4.put("joinPolicy", "ALL_COMPLETED");
+        node4.put("level", 1);
+
+        Map<String, Object> node5 = new HashMap<>();
+        node5.put("id", "nd-5");
+        node5.put("phaseId", "ph-3");
+        node5.put("parentId", null);
+        node5.put("title", "Node 5");
+        node5.put("joinPolicy", "ALL_COMPLETED");
+        node5.put("level", 0);
+
+        Map<String, Object> graphData = new HashMap<>();
+        graphData.put("schemaVersion", 2);
+        graphData.put("phases", List.of(
+            Map.of("id", "ph-1", "name", "Phase 1", "order", 0, "rootNodeId", "nd-1", "runsAfter", List.of()),
+            Map.of("id", "ph-2", "name", "Phase 2", "order", 1, "rootNodeId", "nd-3", "runsAfter", List.of("ph-1")),
+            Map.of("id", "ph-3", "name", "Phase 3", "order", 2, "rootNodeId", "nd-5", "runsAfter", List.of("ph-2"))
+        ));
+        graphData.put("phaseEdges", List.of(
+            Map.of("parentPhaseId", "ph-1", "childPhaseId", "ph-2"),
+            Map.of("parentPhaseId", "ph-2", "childPhaseId", "ph-3")
+        ));
+        graphData.put("nodes", List.of(node1, node2, node3, node4, node5));
+        graphData.put("edges", List.of(
+            Map.of("id", "e1", "parentId", "nd-1", "childId", "nd-2", "kind", "DEPENDENCY"),
+            Map.of("id", "e2", "parentId", "nd-2", "childId", "nd-4", "kind", "DEPENDENCY"),
+            Map.of("id", "e3", "parentId", "nd-4", "childId", "nd-5", "kind", "DEPENDENCY")
+        ));
+        graphData.put("metadata", Map.of("version", "1.0.0"));
+
+        Long tplId = 55L;
+        PipelineTemplateEntity templateEntity = PipelineTemplateEntity.builder()
+            .id(tplId)
+            .name("Round Trip Template")
+            .graphData(graphData)
+            .cloneCount(0)
+            .build();
+
+        when(pipelineTemplateRepository.findById(tplId)).thenReturn(Optional.of(templateEntity));
+
+        // Mock lưu project mới
+        when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> {
+            ProjectEntity p = invocation.getArgument(0);
+            return ProjectEntity.builder()
+                .id(700L)
+                .name(p.getName())
+                .description(p.getDescription())
+                .ownerId(p.getOwnerId())
+                .status(p.getStatus())
+                .build();
+        });
+
+        // Mock lưu phase trả ID tăng dần
+        long[] phaseSeq = {701L, 702L, 703L};
+        int[] pIdx = {0};
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(invocation -> {
+            WorkPhaseEntity p = invocation.getArgument(0);
+            if (p.getId() != null) return p;
+            return WorkPhaseEntity.builder()
+                .id(phaseSeq[pIdx[0]++])
+                .projectId(p.getProjectId())
+                .name(p.getName())
+                .orderIndex(p.getOrderIndex())
+                .build();
+        });
+
+        // Mock lưu node trả ID tăng dần
+        long[] nodeSeq = {801L, 802L, 803L, 804L, 805L};
+        int[] nIdx = {0};
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(invocation -> {
+            NodeEntity n = invocation.getArgument(0);
+            if (n.getId() != null) return n;
+            return NodeEntity.builder()
+                .id(nodeSeq[nIdx[0]++])
+                .projectId(n.getProjectId())
+                .phaseId(n.getPhaseId())
+                .code(n.getCode())
+                .title(n.getTitle())
+                .status(n.getStatus())
+                .joinPolicy(n.getJoinPolicy())
+                .build();
+        });
+
+        // WHEN: Gọi clone template
+        CloneTemplateRequest req = new CloneTemplateRequest(tplId, "Cloned Round-Trip Project", "Desc", "PRIVATE");
+        ProjectDetailResponse result = templateCloneService.cloneTemplate(req, currentUserId);
+
+        // THEN:
+        assertThat(result).isNotNull();
+
+        // 1. Số WorkPhaseEntity mới được tạo = 3
+        ArgumentCaptor<WorkPhaseEntity> phaseCaptor = ArgumentCaptor.forClass(WorkPhaseEntity.class);
+        verify(workPhaseRepository, times(3)).save(phaseCaptor.capture());
+        List<WorkPhaseEntity> savedPhases = phaseCaptor.getAllValues();
+        assertThat(savedPhases).hasSize(3);
+        assertThat(savedPhases).extracting(WorkPhaseEntity::getName)
+            .containsExactly("Phase 1", "Phase 2", "Phase 3");
+
+        // 2. Số NodeEntity được lưu = 5
+        ArgumentCaptor<NodeEntity> nodeCaptor = ArgumentCaptor.forClass(NodeEntity.class);
+        verify(nodeRepository, times(5)).save(nodeCaptor.capture());
+        List<NodeEntity> savedNodes = nodeCaptor.getAllValues();
+        assertThat(savedNodes).hasSize(5);
+
+        // 3. Số NodeDependencyEntity trong saveAll = số cặp (cha, con) KHÁC NHAU lấy từ edges ∪ parentId:
+        // Giải thích tính bằng tay:
+        // - Cạnh tường minh từ mảng edges gồm 3 cạnh:
+        //     (nd-1 -> nd-2), (nd-2 -> nd-4), (nd-4 -> nd-5)
+        // - Cạnh ngầm định từ quan hệ cây parentId của 2 node con:
+        //     (nd-1 -> nd-2) [từ node nd-2 có parentId = "nd-1"]
+        //     (nd-3 -> nd-4) [từ node nd-4 có parentId = "nd-3"]
+        // - Hợp (union) của 2 tập cạnh trên có đúng 4 cặp (cha, con) KHÁC NHAU:
+        //     1. nd-1 -> nd-2 (trùng lặp giữa edges và parentId, được khử trùng lặp qua Set seenEdges)
+        //     2. nd-2 -> nd-4 (từ edges)
+        //     3. nd-3 -> nd-4 (từ parentId)
+        //     4. nd-4 -> nd-5 (từ edges)
+        // -> Tổng số NodeDependencyEntity được lưu trong saveAll phải bằng đúng 4.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NodeDependencyEntity>> depsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(nodeDependencyRepository, times(1)).saveAll(depsCaptor.capture());
+        List<NodeDependencyEntity> savedDependencies = depsCaptor.getValue();
+        assertThat(savedDependencies).hasSize(4);
+        assertThat(savedDependencies).extracting(
+            d -> d.getParentNodeId() + "->" + d.getChildNodeId()
+        ).containsExactlyInAnyOrder(
+            "801->802",
+            "802->804",
+            "803->804",
+            "804->805"
+        );
+
+        // 4. Trạng thái FSM: Node không có cạnh vào -> TODO, có cạnh vào -> LOCKED
+        // nd-1: không có cạnh vào -> TODO
+        // nd-2: có cạnh vào từ nd-1 -> LOCKED
+        // nd-3: không có cạnh vào -> TODO
+        // nd-4: có cạnh vào từ nd-2 và nd-3 -> LOCKED
+        // nd-5: có cạnh vào từ nd-4 -> LOCKED
+        Map<String, NodeStatus> statusByTitle = savedNodes.stream()
+            .collect(Collectors.toMap(NodeEntity::getTitle, NodeEntity::getStatus));
+        assertThat(statusByTitle.get("Node 1")).isEqualTo(NodeStatus.TODO);
+        assertThat(statusByTitle.get("Node 2")).isEqualTo(NodeStatus.LOCKED);
+        assertThat(statusByTitle.get("Node 3")).isEqualTo(NodeStatus.TODO);
+        assertThat(statusByTitle.get("Node 4")).isEqualTo(NodeStatus.LOCKED);
+        assertThat(statusByTitle.get("Node 5")).isEqualTo(NodeStatus.LOCKED);
     }
 }
