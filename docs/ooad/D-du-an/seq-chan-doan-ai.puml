@@ -1,0 +1,78 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/AiDiagnosticController.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ai/AiDiagnosticService.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectAuthorizationService.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ai/AiServiceClient.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ai/AiServiceClientImpl.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/NodeRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectFeedbackRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/exception/GlobalExceptionHandler.java
+@startuml seq-chan-doan-ai
+autonumber
+skinparam shadowing false
+skinparam roundcorner 4
+
+actor "Thành viên/Chủ dự án" as User
+boundary ":AiDiagnosticController" as Ctl
+control ":AiDiagnosticService" as Svc
+control ":ProjectAuthorizationService" as AuthSvc
+entity ":ProjectRepository" as ProjectRepo
+entity ":ProjectMemberRepository" as MemberRepo
+entity ":NodeRepository" as NodeRepo
+entity ":ProjectFeedbackRepository" as FeedbackRepo
+participant ":AiServiceClient" as AiClient
+
+note over AiClient
+  Đang được D6 thay cài đặt AiServiceClient bằng HeuristicAiClient (CPM thật);
+  Gemini: dự kiến, chưa code.
+end note
+
+User -> Ctl : POST /api/v1/projects/{id}/ai-diagnostics
+activate Ctl
+Ctl -> Svc : triggerAiDiagnostics(id)
+activate Svc
+
+Svc -> AuthSvc : verifyProjectMemberOrOwner(projectId, currentUserId)
+activate AuthSvc
+AuthSvc -> ProjectRepo : findById(projectId)
+activate ProjectRepo
+ProjectRepo --> AuthSvc : Optional<ProjectEntity>
+deactivate ProjectRepo
+
+alt [không phải owner: !project.getOwnerId().equals(userId)]
+  AuthSvc -> MemberRepo : existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, userId)
+  activate MemberRepo
+  MemberRepo --> AuthSvc : boolean isMember
+  deactivate MemberRepo
+  alt [không phải thành viên: !isMember]
+    AuthSvc --> Svc : throw ForbiddenException("ACCESS_DENIED")
+    Svc --> Ctl : throw ForbiddenException("ACCESS_DENIED")
+    Ctl --> User : 403 ACCESS_DENIED
+  end
+end
+AuthSvc --> Svc : ProjectEntity project
+deactivate AuthSvc
+
+alt [chưa hết cooldown 180 giây: elapsedSeconds < cooldownSeconds]
+  Svc --> Ctl : throw CooldownActiveException(remainingSeconds)
+  Ctl --> User : 429 COOLDOWN_ACTIVE (remainingSeconds)
+else [đã hết cooldown hoặc phân tích lần đầu]
+  Svc -> NodeRepo : findByProjectId(projectId)
+  activate NodeRepo
+  NodeRepo --> Svc : List<NodeEntity> nodes
+  deactivate NodeRepo
+
+  Svc -> FeedbackRepo : findByProjectIdAndStatus(projectId, FeedbackStatus.OPEN)
+  activate FeedbackRepo
+  FeedbackRepo --> Svc : List<ProjectFeedbackEntity> openFeedbacks
+  deactivate FeedbackRepo
+
+  Svc -> AiClient : requestDiagnosis(project, nodes, openFeedbacks)
+  activate AiClient
+  AiClient --> Svc : Map<String, Object> newAnalysis
+  deactivate AiClient
+
+  Svc -> ProjectRepo : save(project)
+  activate ProjectRepo
+  ProjectRepo --> Svc : savedProject
+  deactivate ProjectRepo
+
+  Svc --> Ctl : Map<String, Object> newAnalysis
+  Ctl --> User : 200 OK (Map<String, Object> newAnalysis)
+end
+
+deactivate Svc
+deactivate Ctl
+@enduml

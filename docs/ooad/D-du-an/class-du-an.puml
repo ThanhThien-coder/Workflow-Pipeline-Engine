@@ -1,0 +1,310 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ (ProjectController.java, ProjectInvitationController.java, ProjectMemberController.java, PipelineTemplateController.java, GuestGatewayController.java, FeedbackQueueController.java, AiDiagnosticController.java), wpe-backend/src/main/java/com/pipeline/wpe/service/ (ProjectService.java, ProjectInvitationService.java, ProjectMemberService.java, ProjectAuthorizationService.java, PipelineTemplateService.java, TemplateCloneService.java, GuestGatewayService.java, FeedbackQueueService.java), wpe-backend/src/main/java/com/pipeline/wpe/service/ai/ (AiDiagnosticService.java, AiServiceClient.java, AiServiceClientImpl.java), wpe-backend/src/main/java/com/pipeline/wpe/entity/ (ProjectEntity.java, ProjectMemberEntity.java, ProjectInvitationEntity.java, GuestLinkEntity.java, ProjectFeedbackEntity.java, PipelineTemplateEntity.java, UserEntity.java), wpe-backend/src/main/java/com/pipeline/wpe/common/enums/ (ProjectStatus.java, ProjectRole.java, InvitationStatus.java, FeedbackStatus.java, ReviewerRole.java)
+
+@startuml class-du-an-dich-vu
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 4
+
+package "Controller Layer" {
+  class ProjectController {
+    + getMyProjects(tab : String, sort : String) : ResponseEntity<List<ProjectSummaryResponse>>
+    + getProjectDetail(id : Long) : ResponseEntity<ProjectDetailResponse>
+    + createProject(req : CreateProjectRequest) : ResponseEntity<ProjectDetailResponse>
+    + updateProjectStatus(id : Long, req : UpdateProjectStatusRequest) : ResponseEntity<ProjectSummaryResponse>
+    + cloneTemplate(req : CloneTemplateRequest) : ResponseEntity<ProjectDetailResponse>
+  }
+
+  class ProjectInvitationController {
+    + createInvitation(projectId : Long, request : CreateInvitationRequest) : ResponseEntity<InvitationResponse>
+    + getPendingInvitations(projectId : Long) : ResponseEntity<List<InvitationResponse>>
+    + revokeInvitationByProject(projectId : Long, invitationId : Long) : ResponseEntity<Void>
+    + revokeInvitation(id : Long) : ResponseEntity<Void>
+    + revokeInvitationPost(id : Long) : ResponseEntity<Map<String, Object>>
+    + getInvitationDetail(id : Long) : ResponseEntity<InvitationDetailResponse>
+    + acceptInvitation(id : Long) : ResponseEntity<Map<String, Object>>
+    + rejectInvitation(id : Long) : ResponseEntity<Map<String, Object>>
+  }
+
+  class ProjectMemberController {
+    + getMembers(projectId : Long) : ResponseEntity<List<ProjectMemberResponse>>
+    + updateMemberRole(projectId : Long, userId : Long, request : UpdateMemberRoleRequest) : ResponseEntity<ProjectMemberResponse>
+    + removeMember(projectId : Long, userId : Long) : ResponseEntity<RemoveMemberResponse>
+  }
+
+  class PipelineTemplateController {
+    + getTemplates(category : String, search : String, isSystemStandard : Boolean) : ResponseEntity<List<TemplateSummaryResponse>>
+    + getTemplateById(id : String) : ResponseEntity<TemplateDetailResponse>
+    + createTemplate(request : CreateTemplateRequest, currentUserId : Long) : ResponseEntity<TemplateDetailResponse>
+    + updateTemplate(id : String, request : CreateTemplateRequest, currentUserId : Long) : ResponseEntity<TemplateDetailResponse>
+    + deleteTemplate(id : String, currentUserId : Long) : ResponseEntity<Void>
+    + validateGraph(request : ValidateTemplateGraphRequest) : ResponseEntity<DagValidationResponse>
+  }
+
+  class GuestGatewayController {
+    + generateGuestToken(id : Long, request : GenerateGuestTokenRequest) : ResponseEntity<GuestAccessResponse>
+    + revokeGuestToken(id : Long) : ResponseEntity<GuestAccessResponse>
+    + getGuestTokenStatus(id : Long) : ResponseEntity<GuestAccessResponse>
+    + getGuestOverview(token : String) : ResponseEntity<GuestOverviewResponse>
+    + submitGuestFeedback(token : String, request : CreateGuestFeedbackRequest) : ResponseEntity<GuestFeedbackResponse>
+  }
+
+  class FeedbackQueueController {
+    + getProjectFeedbacks(id : Long) : ResponseEntity<List<ProjectFeedbackResponse>>
+    + resolveFeedback(id : Long, feedbackId : Long) : ResponseEntity<ResolveFeedbackResponse>
+  }
+
+  class AiDiagnosticController {
+    + getLatestAiAnalysis(id : Long) : ResponseEntity<Map<String, Object>>
+    + triggerAiDiagnostics(id : Long) : ResponseEntity<Map<String, Object>>
+  }
+}
+
+package "Service Layer" {
+  class ProjectService {
+    + getMyProjects(currentUserId : Long) : List<ProjectSummaryResponse>
+    + getMyProjects(currentUserId : Long, tab : String, sort : String) : List<ProjectSummaryResponse>
+    + getProjectDetail(projectId : Long, currentUserId : Long) : ProjectDetailResponse
+    + createProject(req : CreateProjectRequest, currentUserId : Long) : ProjectDetailResponse
+    + updateProjectStatus(projectId : Long, req : UpdateProjectStatusRequest, currentUserId : Long) : ProjectSummaryResponse
+  }
+
+  class ProjectInvitationService {
+    + sendInvitation(projectId : Long, request : CreateInvitationRequest, currentUserId : Long) : InvitationResponse
+    + createInvitation(projectId : Long, inviterUserId : Long, request : CreateInvitationRequest) : InvitationResponse
+    + getInvitationDetail(invitationId : Long, currentUserId : Long) : InvitationDetailResponse
+    + acceptInvitation(invitationId : Long, currentUserId : Long) : void
+    + rejectInvitation(invitationId : Long, currentUserId : Long) : void
+    + revokeInvitation(invitationId : Long, currentUserId : Long) : void
+    + revokeInvitation(projectId : Long, invitationId : Long, currentUserId : Long) : void
+    + getProjectPendingInvitations(projectId : Long, currentUserId : Long) : List<InvitationResponse>
+  }
+
+  class ProjectMemberService {
+    + getMembers(projectId : Long, currentUserId : Long) : List<ProjectMemberResponse>
+    + updateRole(projectId : Long, targetUserId : Long, newRole : ProjectRole, currentUserId : Long) : ProjectMemberResponse
+    + removeMember(projectId : Long, targetUserId : Long, currentUserId : Long) : RemoveMemberResponse
+  }
+
+  class ProjectAuthorizationService {
+    + getProjectOrThrow(projectId : Long) : ProjectEntity
+    + verifyProjectOwner(projectId : Long, userId : Long) : ProjectEntity
+    + verifyProjectMemberOrOwner(projectId : Long, userId : Long) : ProjectEntity
+  }
+
+  class PipelineTemplateService {
+    + getTemplates(category : String, search : String, isSystemStandard : Boolean) : List<TemplateSummaryResponse>
+    + getTemplateById(id : Long) : TemplateDetailResponse
+    + getTemplateByIdOrSlug(idOrSlug : String) : TemplateDetailResponse
+    + updateTemplateBySlugOrId(idOrSlug : String, request : CreateTemplateRequest, currentUserId : Long) : TemplateDetailResponse
+    + deleteTemplateBySlugOrId(idOrSlug : String, currentUserId : Long) : void
+    + findTemplateEntity(idOrSlug : String) : PipelineTemplateEntity
+    + createTemplate(request : CreateTemplateRequest, currentUserId : Long) : TemplateDetailResponse
+    + updateTemplate(id : Long, request : CreateTemplateRequest, currentUserId : Long) : TemplateDetailResponse
+    + deleteTemplate(id : Long, currentUserId : Long) : void
+    + validateGraph(graphData : Map<String, Object>) : DagValidationResponse
+  }
+
+  class TemplateCloneService {
+    + cloneTemplate(req : CloneTemplateRequest, currentUserId : Long) : ProjectDetailResponse
+  }
+
+  class GuestGatewayService {
+    + generateOrRenewGuestToken(projectId : Long, expiryDays : Integer) : GuestAccessResponse
+    + revokeGuestToken(projectId : Long) : GuestAccessResponse
+    + getGuestAccessState(projectId : Long) : GuestAccessResponse
+    + getGuestOverview(token : String) : GuestOverviewResponse
+    + validateAndGetActiveGuestLink(token : String) : GuestLinkEntity
+  }
+
+  class FeedbackQueueService {
+    + submitGuestFeedback(token : String, request : CreateGuestFeedbackRequest) : GuestFeedbackResponse
+    + getProjectFeedbacks(projectId : Long) : List<ProjectFeedbackResponse>
+    + resolveFeedback(projectId : Long, feedbackId : Long) : ResolveFeedbackResponse
+  }
+
+  class AiDiagnosticService {
+    + getLatestAnalysis(projectId : Long) : Map<String, Object>
+    + triggerAiDiagnostics(projectId : Long) : Map<String, Object>
+  }
+
+  interface AiServiceClient <<interface>> {
+    + requestDiagnosis(project : ProjectEntity, nodes : List<NodeEntity>, openFeedbacks : List<ProjectFeedbackEntity>) : Map<String, Object>
+  }
+
+  class AiServiceClientImpl {
+    + requestDiagnosis(project : ProjectEntity, nodes : List<NodeEntity>, openFeedbacks : List<ProjectFeedbackEntity>) : Map<String, Object>
+  }
+  note right of AiServiceClientImpl : D6 (đang làm) sẽ thay bằng HeuristicAiClient dùng CPM thật
+}
+
+ProjectController ..> ProjectService
+ProjectController ..> TemplateCloneService
+
+ProjectInvitationController ..> ProjectInvitationService
+
+ProjectMemberController ..> ProjectMemberService
+
+PipelineTemplateController ..> PipelineTemplateService
+
+GuestGatewayController ..> GuestGatewayService
+GuestGatewayController ..> FeedbackQueueService
+
+FeedbackQueueController ..> FeedbackQueueService
+
+AiDiagnosticController ..> AiDiagnosticService
+
+ProjectService ..> ProjectAuthorizationService
+ProjectService ..> TemplateCloneService
+
+ProjectInvitationService ..> ProjectAuthorizationService
+
+ProjectMemberService ..> ProjectAuthorizationService
+
+GuestGatewayService ..> ProjectAuthorizationService
+
+FeedbackQueueService ..> GuestGatewayService
+FeedbackQueueService ..> ProjectAuthorizationService
+
+AiDiagnosticService ..> ProjectAuthorizationService
+AiDiagnosticService ..> AiServiceClient
+
+AiServiceClientImpl ..|> AiServiceClient
+@enduml
+
+@startuml class-du-an-thuc-the
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 4
+
+package "Entities" {
+  class ProjectEntity {
+    - id : Long
+    - name : String
+    - description : String
+    - status : ProjectStatus
+    - latestAiAnalysis : Map<String, Object>
+    - createdAt : Instant
+    - updatedAt : Instant
+  }
+
+  class UserEntity {
+    - id : Long
+    - username : String
+    - email : String
+    - fullName : String
+    - passwordHash : String
+    - systemRole : SystemRole
+    - isLocked : Boolean
+    - tokenVersion : Integer
+    - createdAt : Instant
+  }
+
+  class ProjectMemberEntity {
+    - id : Long
+    - role : ProjectRole
+    - joinedAt : Instant
+    - removedAt : Instant
+  }
+
+  class ProjectInvitationEntity {
+    - id : Long
+    - role : ProjectRole
+    - status : InvitationStatus
+    - createdAt : Instant
+    - respondedAt : Instant
+    - expiresAt : Instant
+    - version : Long
+  }
+
+  class GuestLinkEntity {
+    - id : Long
+    - token : String
+    - isRevoked : Boolean
+    - expiresAt : Instant
+    - createdAt : Instant
+  }
+
+  class ProjectFeedbackEntity {
+    - id : Long
+    - nodeId : Long
+    - reviewerName : String
+    - reviewerRole : ReviewerRole
+    - content : String
+    - status : FeedbackStatus
+    - createdAt : Instant
+  }
+
+  class PipelineTemplateEntity {
+    - id : Long
+    - name : String
+    - slug : String
+    - description : String
+    - category : String
+    - isSystemStandard : Boolean
+    - graphData : Map<String, Object>
+    - cloneCount : Integer
+    - createdAt : Instant
+    - updatedAt : Instant
+  }
+}
+
+package "Enums" {
+  enum ProjectStatus <<enumeration>> {
+    DRAFT
+    PLANNING
+    ACTIVE
+    PAUSED
+    COMPLETED
+    INACTIVE
+    ARCHIVED
+  }
+
+  enum ProjectRole <<enumeration>> {
+    OWNER
+    COLLABORATOR
+    VIEWER
+  }
+
+  enum InvitationStatus <<enumeration>> {
+    PENDING
+    ACCEPTED
+    REJECTED
+    REVOKED
+    EXPIRED
+  }
+
+  enum FeedbackStatus <<enumeration>> {
+    OPEN
+    RESOLVED
+  }
+
+  enum ReviewerRole <<enumeration>> {
+    TEACHER
+    GUEST
+  }
+}
+
+' Association giữa các Entity (bội số 2 đầu, không vẽ trùng thuộc tính khóa ngoại)
+UserEntity "1" -- "*" ProjectEntity : sở hữu >
+ProjectEntity "1" -- "*" ProjectMemberEntity : gồm >
+UserEntity "1" -- "*" ProjectMemberEntity : tham gia >
+
+ProjectEntity "1" -- "*" ProjectInvitationEntity : có >
+UserEntity "1" -- "*" ProjectInvitationEntity : gửi (inviter) >
+UserEntity "1" -- "*" ProjectInvitationEntity : nhận (invitee) >
+
+ProjectEntity "1" -- "0..1" GuestLinkEntity : cấp link >
+ProjectEntity "1" -- "*" ProjectFeedbackEntity : nhận góp ý >
+
+UserEntity "1" -- "*" PipelineTemplateEntity : tạo >
+
+' Quan hệ Entity và Enum
+ProjectEntity --> ProjectStatus
+ProjectMemberEntity --> ProjectRole
+ProjectInvitationEntity --> ProjectRole
+ProjectInvitationEntity --> InvitationStatus
+ProjectFeedbackEntity --> FeedbackStatus
+ProjectFeedbackEntity --> ReviewerRole
+@enduml
