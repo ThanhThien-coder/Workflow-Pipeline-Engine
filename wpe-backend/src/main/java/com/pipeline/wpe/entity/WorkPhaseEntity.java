@@ -4,7 +4,12 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -37,6 +42,12 @@ public class WorkPhaseEntity {
     @Column(name = "order_index", nullable = false)
     @Builder.Default
     private Integer orderIndex = 0;
+
+    // Vị trí và kích thước thẻ Phase trên canvas: { "x": 280, "y": 140, "w": 250, "h": 220 } (V9)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "ui_metadata", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private Map<String, Object> uiMetadata = new HashMap<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

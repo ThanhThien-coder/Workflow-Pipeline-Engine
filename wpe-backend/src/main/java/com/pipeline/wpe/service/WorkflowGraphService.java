@@ -86,7 +86,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public PhaseResponse createPhase(Long projectId, CreatePhaseRequest request, Long currentUserId) {
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         if (request.parentPhaseId() != null) {
             WorkPhaseEntity parent = workPhaseRepository.findById(request.parentPhaseId())
@@ -110,6 +110,7 @@ public class WorkflowGraphService {
             .subTitle(request.sub() != null ? request.sub().trim() : null)
             .accentColor(request.accent() != null ? request.accent().trim() : "slate")
             .orderIndex(orderIndex)
+            .uiMetadata(request.uiMetadata() != null ? new HashMap<>(request.uiMetadata()) : new HashMap<>())
             .build();
 
         WorkPhaseEntity saved = workPhaseRepository.save(entity);
@@ -132,7 +133,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public PhaseResponse updatePhase(Long projectId, Long phaseId, UpdatePhaseRequest request, Long currentUserId) {
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         WorkPhaseEntity entity = workPhaseRepository.findById(phaseId)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase với ID: " + phaseId));
@@ -158,6 +159,8 @@ public class WorkflowGraphService {
         if (request.sub() != null) entity.setSubTitle(request.sub().trim());
         if (request.accent() != null) entity.setAccentColor(request.accent().trim());
         if (request.orderIndex() != null) entity.setOrderIndex(request.orderIndex());
+        // Không gửi uiMetadata (ví dụ chỉ đổi tên) thì giữ nguyên vị trí cũ
+        if (request.uiMetadata() != null) entity.setUiMetadata(new HashMap<>(request.uiMetadata()));
 
         WorkPhaseEntity saved = workPhaseRepository.save(entity);
         Set<Long> parentIds = loadPhaseParents(projectId, workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId))
@@ -170,7 +173,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void deletePhase(Long projectId, Long phaseId, Long currentUserId) {
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         WorkPhaseEntity entity = workPhaseRepository.findById(phaseId)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase với ID: " + phaseId));
@@ -202,7 +205,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void connectPhases(Long projectId, Long sourcePhaseId, Long targetPhaseId, Long currentUserId) {
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         if (sourcePhaseId.equals(targetPhaseId)) {
             throw new IllegalArgumentException("Phase không thể phụ thuộc vào chính nó.");
@@ -226,7 +229,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void disconnectPhases(Long projectId, Long sourcePhaseId, Long targetPhaseId, Long currentUserId) {
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         WorkPhaseEntity target = workPhaseRepository.findById(targetPhaseId)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase đích với ID: " + targetPhaseId));
@@ -422,6 +425,15 @@ public class WorkflowGraphService {
     }
 
     /**
+     * Dự án ARCHIVED là chỉ đọc (workflow-engine.md 5.1): mọi thao tác ghi trả 409 PROJECT_ARCHIVED.
+     */
+    private void ensureNotArchived(ProjectEntity project) {
+        if (project.getStatus() == com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "Dự án đã được lưu trữ, chỉ có thể xem. Không thể chỉnh sửa đồ thị.");
+        }
+    }
+
+    /**
      * Gom toàn bộ Phase cha của từng Phase: bảng phase_dependency (V6) + cột cũ parent_phase_id.
      */
     private Map<Long, Set<Long>> loadPhaseParents(Long projectId, List<WorkPhaseEntity> phases) {
@@ -486,7 +498,8 @@ public class WorkflowGraphService {
             progress.status(),
             progress.progressPct(),
             progress.totalTasks(),
-            progress.doneTasks()
+            progress.doneTasks(),
+            p.getUiMetadata() != null ? p.getUiMetadata() : Map.of()
         );
     }
 
