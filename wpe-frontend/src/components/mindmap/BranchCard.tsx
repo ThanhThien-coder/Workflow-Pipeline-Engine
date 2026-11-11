@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronRight, Lock, Plus, Trash2 } from 'lucide-react'
-import type { ChangeEvent, MouseEvent } from 'react'
+import { useEffect, useRef, type ChangeEvent, type MouseEvent } from 'react'
 import type { BranchGraphNode } from '../../types/workflow.types'
 import type { GraphNodeMap } from '../../types/workflow.types'
 import { W } from '../../utils/spanningTreeLayout'
@@ -13,8 +13,17 @@ const statusStyles = {
 } as const
 
 function EditableTitle({ title, editing, value, onChange, onCommit, onCancel, className }: { title: string; editing: boolean; value: string; onChange: (event: ChangeEvent<HTMLInputElement>) => void; onCommit: () => void; onCancel: () => void; className: string }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus({ preventScroll: true })
+      inputRef.current.select()
+    }
+  }, [editing])
+
   if (!editing) return <div className={`${className} pointer-events-none`}>{title || '—'}</div>
-  return <input autoFocus value={value} onChange={onChange} onKeyDown={(event) => { if (event.key === 'Enter') onCommit(); if (event.key === 'Escape') onCancel() }} onBlur={onCommit} placeholder="Task title…" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} className="w-full select-text cursor-text text-[12px] font-semibold text-slate-800 bg-white border-2 border-blue-400 rounded px-1.5 py-0.5 outline-none" />
+  return <input ref={inputRef} value={value} onChange={onChange} onKeyDown={(event) => { if (event.key === 'Enter') onCommit(); if (event.key === 'Escape') onCancel() }} onBlur={onCommit} placeholder="Task title…" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} className="w-full select-text cursor-text text-[12px] font-semibold text-slate-800 bg-white border-2 border-blue-400 rounded px-1.5 py-0.5 outline-none" />
 }
 
 export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merged, editing, editValue, onSelect, onToggleCollapse, onToggleMerge, onSpawnDown, onDelete, onUpdate, onEdit, onChange, onCommit, onCancel, onHover, isHovered, onAddChild, onAddTask, onAddSibling }: {
@@ -80,16 +89,32 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
       }}
       title={
         node.isTrack
-          ? 'Thêm công việc vào Track này'
-          : 'Thêm nhánh con phân rã (Add Child Task)'
+          ? 'Add task to this track (Thêm công việc vào Track)'
+          : 'Add child task (Thêm nhánh con phân rã)'
       }
       className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-6 h-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 shadow z-10 cursor-pointer"
     >
       <Plus size={13} />
     </button>
-    <div className="pointer-events-none flex items-center justify-between gap-2">
-      <span className={`select-none inline-flex items-center gap-1 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 border ${style.c} pointer-events-none`}>{node.status === 'LOCKED' && <Lock size={9} />}{style.lbl}</span>
-      {!node.isTrack && assignee && <span style={{ width: 18, height: 18 }} className="select-none rounded-full bg-gradient-to-br from-slate-300 to-slate-400 text-white text-[8px] font-bold grid place-items-center pointer-events-none">{assignee[0]}</span>}
+    <div className="pointer-events-none flex items-center justify-between gap-1.5">
+      <span className={`select-none inline-flex items-center gap-1 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 border ${style.c} pointer-events-none shrink-0`}>
+        {node.status === 'LOCKED' && <Lock size={9} />}
+        {style.lbl}
+      </span>
+      {!node.isTrack && (
+        assignee ? (
+          <div className="flex items-center gap-1 min-w-0" title={`Assignee: ${assignee}`}>
+            <span style={{ width: 17, height: 17 }} className="select-none shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-white text-[8px] font-bold grid place-items-center pointer-events-none shadow-xs">
+              {assignee[0].toUpperCase()}
+            </span>
+            <span className="text-[10px] text-slate-600 font-medium truncate max-w-[85px] pointer-events-none">
+              {assignee}
+            </span>
+          </div>
+        ) : (
+          <span className="text-[9px] text-slate-400 italic pointer-events-none">Unassigned</span>
+        )
+      )}
     </div>
     {count >= 2 && <button onClick={(event) => { event.stopPropagation(); onToggleMerge() }} className="select-none mt-1 inline-flex items-center gap-1 text-[8.5px] font-bold text-purple-600 bg-purple-50 border border-purple-200 rounded-full px-1.5 py-0.5"><span className="pointer-events-none">AND-Join · {count} prerequisites</span></button>}
     {node.parentIds.filter((parentId) => nodes[parentId]?.kind === 'ghost').map((parentId) => (
@@ -103,7 +128,22 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
         <span className="pointer-events-none truncate">[Waiting: {nodes[parentId]?.title || parentId}]</span>
       </span>
     ))}
-    <div onDoubleClick={(event) => { event.stopPropagation(); onEdit() }} className="mt-1.5"><EditableTitle title={node.title} editing={editing} value={editValue} onChange={onChange} onCommit={onCommit} onCancel={onCancel} className={node.isTrack ? 'text-[12px] font-semibold text-slate-800 leading-tight' : 'text-[12px] font-semibold text-slate-800 leading-snug'} /></div>
-    {typeof node.progress === 'number' && <div className="mt-1.5 pointer-events-none"><div className="h-1 rounded-full bg-slate-100 overflow-hidden pointer-events-none"><div className="h-full rounded-full bg-blue-400 pointer-events-none" style={{ width: `${node.progress}%` }} /></div><div className="text-[9px] text-slate-400 mt-0.5 pointer-events-none">{node.progress}%</div></div>}
+    <div onDoubleClick={(event) => { event.stopPropagation(); onEdit() }} className="mt-1.5">
+      <EditableTitle title={node.title} editing={editing} value={editValue} onChange={onChange} onCommit={onCommit} onCancel={onCancel} className={node.isTrack ? 'text-[12px] font-semibold text-slate-800 leading-tight' : 'text-[12px] font-semibold text-slate-800 leading-snug'} />
+    </div>
+    {node.due && (
+      <div className="mt-1 flex items-center gap-1 text-[9.5px] text-slate-500 font-mono pointer-events-none">
+        <span className="text-slate-400">📅 Due:</span>
+        <span>{node.due}</span>
+      </div>
+    )}
+    {typeof node.progress === 'number' && (
+      <div className="mt-1.5 pointer-events-none">
+        <div className="h-1 rounded-full bg-slate-100 overflow-hidden pointer-events-none">
+          <div className="h-full rounded-full bg-blue-400 pointer-events-none" style={{ width: `${node.progress}%` }} />
+        </div>
+        <div className="text-[9px] text-slate-400 mt-0.5 pointer-events-none">{node.progress}%</div>
+      </div>
+    )}
   </div>
 }

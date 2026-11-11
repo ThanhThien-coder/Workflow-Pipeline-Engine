@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Check, Clock, Trash2 } from 'lucide-react'
+import { Check, Clock, Trash2, GitBranch } from 'lucide-react'
 import type { GhostGraphNode } from '../../types/workflow.types'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 
@@ -50,19 +50,25 @@ export function GhostCard({
       data-status={node.kind}
       data-ghost="1"
       style={{ width: '100%', height: '100%' }}
-      className={`group relative select-none rounded-2xl border-2 border-dashed border-indigo-300/80 dark:border-indigo-500/60 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/30 dark:from-slate-900/90 dark:via-slate-900/80 dark:to-indigo-950/40 shadow-xs backdrop-blur-xs p-3.5 min-w-[210px] flex flex-col justify-between transition-all duration-150 box-border h-full cursor-pointer hover:border-indigo-400/90 ${
-        isHovered ? 'ring-2 ring-indigo-400 shadow-md' : ''
+      className={`group relative select-none rounded-2xl border-2 border-dashed border-indigo-400 bg-white shadow-sm hover:shadow-md min-w-[210px] flex flex-col justify-between transition-all duration-150 box-border h-full cursor-pointer overflow-hidden ${
+        isHovered ? 'ring-2 ring-indigo-500 shadow-indigo-100 border-indigo-600' : ''
       }`}
       onMouseEnter={() => onHover?.(node.id)}
       onMouseLeave={() => onHover?.(null)}
     >
-      {/* Top Row: Ghost Pill + Subtle Delete Button */}
-      <div className="flex items-center justify-between">
-        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wide uppercase bg-indigo-100/80 text-indigo-700 dark:bg-mp-purple-950/60 dark:text-mp-purple-300 border border-indigo-200/60 dark:border-indigo-800/60 truncate max-w-[170px]">
-          [GHOST - {sourcePhaseId}]
-        </span>
+      {/* Top Banner Header: Full-width colored gradient across top */}
+      <div className="w-full bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 px-3 py-1.5 flex items-center justify-between text-white shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0 pr-1">
+          <GitBranch size={12} className="text-white shrink-0" />
+          <span
+            className="text-[10px] font-mono font-bold tracking-wider uppercase truncate"
+            title={`[GHOST - ${sourcePhaseId}]`}
+          >
+            [GHOST - {sourcePhaseId}]
+          </span>
+        </div>
 
-        {/* Refined Delete Button */}
+        {/* Delete Prerequisite Button */}
         <button
           type="button"
           onClick={(event) => {
@@ -71,35 +77,41 @@ export function GhostCard({
             onDelete()
           }}
           title="Remove ghost prerequisite"
-          className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-mp-n-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all cursor-pointer"
+          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-white/80 hover:text-white hover:bg-white/20 transition-all cursor-pointer shrink-0"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* Middle: Source Task Title & Phase Origin */}
-      <div>
-        <h4 className="text-sm font-semibold text-mp-ink dark:text-slate-100 line-clamp-1 leading-tight">
-          {displayTitle}
-        </h4>
-        <p className="text-xs text-mp-n-500 dark:text-slate-400 font-medium mt-0.5">
-          From {phaseLabel}
-        </p>
-      </div>
+      {/* Card Body */}
+      <div className="p-2.5 px-3 flex flex-col justify-between flex-1 min-h-0 bg-white">
+        {/* Source Task Title & Phase Origin */}
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold text-mp-ink text-slate-900 line-clamp-1 leading-snug">
+            {displayTitle}
+          </h4>
+          <div className="text-[11px] font-medium text-indigo-600 mt-1 flex items-center gap-1 min-w-0">
+            <span className="text-slate-400 shrink-0">↳ Prerequisite from:</span>
+            <span className="font-bold underline decoration-indigo-300 truncate" title={phaseLabel}>
+              {phaseLabel}
+            </span>
+          </div>
+        </div>
 
-      {/* Bottom: Inline Status Pill */}
-      <div className="pt-2 border-t border-indigo-100/60 dark:border-indigo-900/40 flex items-center">
-        {isCompleted ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/70">
-            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Completed ✓</span>
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/70">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Waiting Prerequisite ⏳</span>
-          </span>
-        )}
+        {/* Bottom: Inline Status Pill */}
+        <div className="pt-1.5 border-t border-indigo-100 flex items-center">
+          {isCompleted ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Completed ✓</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Waiting Prerequisite ⏳</span>
+            </span>
+          )}
+        </div>
       </div>
     </motion.div>
   )

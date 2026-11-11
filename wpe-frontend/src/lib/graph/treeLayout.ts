@@ -37,7 +37,9 @@ export function calculateTreeLayoutWithBounds(nodes: TemplateNodeDto[]): TreeLay
 
   const roots: InternalTreeNode[] = [];
   for (const n of nodes) {
-    const item = nodeMap.get(n.id)!;
+    if (!n || !n.id) continue;
+    const item = nodeMap.get(n.id);
+    if (!item) continue;
     if (n.parentId && nodeMap.has(n.parentId)) {
       nodeMap.get(n.parentId)!.children.push(item);
     } else {
@@ -47,19 +49,23 @@ export function calculateTreeLayoutWithBounds(nodes: TemplateNodeDto[]): TreeLay
 
   // If no root found (e.g. malformed parent cycle), treat the first node as root
   if (roots.length === 0 && nodes.length > 0) {
-    roots.push(nodeMap.get(nodes[0].id)!);
+    const fallback = nodeMap.get(nodes[0].id);
+    if (fallback) roots.push(fallback);
   }
 
-  // 2. Step 1: Post-order height calculation
+  // 2. Step 1: Post-order height calculation with cycle protection
   const heightMap = new Map<InternalTreeNode, number>();
 
-  function computeHeight(item: InternalTreeNode): number {
+  function computeHeight(item: InternalTreeNode, visited = new Set<string>()): number {
+    if (visited.has(item.node.id)) return NODE_H;
+    visited.add(item.node.id);
+
     if (item.children.length === 0) {
       heightMap.set(item, NODE_H);
       return NODE_H;
     }
     const childrenSum = item.children.reduce(
-      (acc, c) => acc + computeHeight(c),
+      (acc, c) => acc + computeHeight(c, visited),
       0
     );
     const spacing = GAP_Y * (item.children.length - 1);
@@ -72,10 +78,13 @@ export function calculateTreeLayoutWithBounds(nodes: TemplateNodeDto[]): TreeLay
     computeHeight(r);
   }
 
-  // 3. Step 2: Pre-order position assignment
+  // 3. Step 2: Pre-order position assignment with cycle protection
   let maxDepth = 0;
 
-  function placeNode(item: InternalTreeNode, depth: number, top: number) {
+  function placeNode(item: InternalTreeNode, depth: number, top: number, visited = new Set<string>()) {
+    if (visited.has(item.node.id)) return;
+    visited.add(item.node.id);
+
     maxDepth = Math.max(maxDepth, depth);
     const x = depth * (NODE_W + GAP_X);
     let y: number;
@@ -88,13 +97,17 @@ export function calculateTreeLayoutWithBounds(nodes: TemplateNodeDto[]): TreeLay
     } else {
       let currentChildTop = top;
       for (const child of item.children) {
-        placeNode(child, depth + 1, currentChildTop);
+        placeNode(child, depth + 1, currentChildTop, visited);
         currentChildTop += (heightMap.get(child) || NODE_H) + GAP_Y;
       }
       // Inner node: center between first and last child
-      const firstChildPos = positions.get(item.children[0].node.id)!;
-      const lastChildPos = positions.get(item.children[item.children.length - 1].node.id)!;
-      y = (firstChildPos.y + lastChildPos.y) / 2;
+      const firstChildPos = positions.get(item.children[0]?.node.id);
+      const lastChildPos = positions.get(item.children[item.children.length - 1]?.node.id);
+      if (firstChildPos && lastChildPos) {
+        y = (firstChildPos.y + lastChildPos.y) / 2;
+      } else {
+        y = top + (itemHeight - NODE_H) / 2;
+      }
     }
 
     positions.set(item.node.id, { x, y, depth });

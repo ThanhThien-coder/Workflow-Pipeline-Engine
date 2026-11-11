@@ -10,7 +10,7 @@ public record CreateProjectRequest(
 
     String description,
 
-    Long templateId,
+    Object templateId,
 
     String visibility
 ) {
@@ -20,7 +20,25 @@ public record CreateProjectRequest(
         }
     }
 
-    public CreateProjectRequest(String name, String description, Long templateId) {
+    public CreateProjectRequest(String name, String description, Object templateId) {
         this(name, description, templateId, "PRIVATE");
+    }
+
+    public CreateProjectRequest(String name, String description) {
+        this(name, description, null, "PRIVATE");
+    }
+
+    public Long getNumericTemplateId() {
+        if (templateId == null) return null;
+        if (templateId instanceof Number n) return n.longValue();
+        try {
+            return Long.parseLong(templateId.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    public String getTemplateIdentifier() {
+        return templateId != null ? templateId.toString() : null;
     }
 }

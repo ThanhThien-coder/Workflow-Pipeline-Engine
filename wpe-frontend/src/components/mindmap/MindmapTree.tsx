@@ -154,7 +154,23 @@ export function MindmapTree({
     onUpdateNodes((current) => ({ ...current, [track.id]: track }))
     setEditingId(track.id)
     setEditValue(track.title)
-  }, [nodes, onUpdateNodes, phaseId])
+
+    // Smoothly pan canvas if newly created track is below the visible viewport
+    if (panZoom.viewportRef.current) {
+      const vh = panZoom.viewportRef.current.clientHeight
+      const existingTracksCount = Object.values(nodes).filter(
+        (n) => n.kind === 'branch' && (n as BranchGraphNode).isTrack
+      ).length
+      const estimatedY = 60 + existingTracksCount * 120
+      const currentBottom = (estimatedY + 64) * panZoom.scale + panZoom.pan.y
+      if (currentBottom > vh - 100) {
+        panZoom.setPan((current) => ({
+          ...current,
+          y: Math.min(current.y, vh - 120 - (estimatedY + 64) * panZoom.scale),
+        }))
+      }
+    }
+  }, [nodes, onUpdateNodes, phaseId, panZoom])
 
   const handleContainerMouseLeave = () => {
     panZoom.onMouseLeave()
@@ -164,7 +180,12 @@ export function MindmapTree({
   return (
     <div
       ref={panZoom.viewportRef}
-      className="relative h-full min-h-[320px] overflow-hidden select-none"
+      className="relative w-full h-full min-h-[320px] overflow-hidden select-none"
+      onScroll={(e) => {
+        // Enforce canvas viewport never scrolls natively; panning is handled via usePanZoom
+        e.currentTarget.scrollTop = 0
+        e.currentTarget.scrollLeft = 0
+      }}
       onMouseDown={panZoom.onMouseDown}
       onMouseMove={panZoom.onMouseMove}
       onMouseUp={panZoom.onMouseUp}
@@ -309,11 +330,11 @@ export function MindmapTree({
           <button
             type="button"
             onClick={() => {
-              if (window.confirm('Reset Phase Tree to clean initial state (Khôi phục trạng thái gốc)?')) {
+              if (window.confirm('Reset Phase Tree to clean initial state?')) {
                 void useWorkflowStore.getState().resetPhaseTree(phaseId)
               }
             }}
-            title="Reset Phase Tree (Khôi phục trạng thái gốc sạch sẽ)"
+            title="Reset Phase Tree (Khôi phục trạng thái gốc / Restore clean initial state)"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/95 hover:bg-rose-50 text-slate-600 hover:text-rose-600 text-xs font-semibold border border-slate-200 hover:border-rose-300 shadow-sm transition-all backdrop-blur-sm cursor-pointer"
           >
             <RotateCcw size={13} />

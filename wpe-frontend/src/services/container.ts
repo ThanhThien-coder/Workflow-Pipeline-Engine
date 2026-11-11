@@ -12,6 +12,8 @@ import { MockTemplateService } from './template/MockTemplateService'
 import type { INotificationService } from './contracts/INotificationService'
 import { MockNotificationApi } from './mock/MockWorkflowService.notification'
 
+import { HttpTemplateService } from './template/HttpTemplateService'
+
 export interface ServiceContainer {
   workflowService: IWorkflowService
   guestService: IGuestService
@@ -28,7 +30,7 @@ export const container: ServiceContainer = {
   guestService: new MockGuestApi(),
   profileService: new MockProfileApi(),
   adminService: new MockAdminService(),
-  templateService: new MockTemplateService(),
+  templateService: isMock ? new MockTemplateService() : new HttpTemplateService(),
   notificationService: new MockNotificationApi(),
 }
 

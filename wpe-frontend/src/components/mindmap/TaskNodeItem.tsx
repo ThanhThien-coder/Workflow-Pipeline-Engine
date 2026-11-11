@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react'
 import type { BranchGraphNode, GhostGraphNode, GraphNode, GraphNodeMap } from '../../types/workflow.types'
-import { resolveTrackIdForNode, type DeterministicNodePosition } from '../../utils/spanningTreeLayout'
+import { resolveTrackIdForNode, type DeterministicNodePosition, CARD_DIMENSIONS } from '../../utils/spanningTreeLayout'
 import { BranchCard } from './BranchCard'
 import { GhostCard } from './GhostCard'
 
@@ -97,7 +97,7 @@ export function TaskNodeItem({
         data-node-id={node.id}
         style={{
           ...nodeStyle,
-          height: `${pos.height || node.height || 110}px`,
+          height: `${pos.height || node.height || CARD_DIMENSIONS.GHOST_HEIGHT}px`,
         }}
         className="box-border"
         onClick={(event) =>

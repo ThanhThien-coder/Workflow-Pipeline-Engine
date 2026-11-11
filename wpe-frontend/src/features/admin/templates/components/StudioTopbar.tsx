@@ -12,6 +12,7 @@ import {
   Save,
   Loader2,
   X,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface StudioTopbarProps {
@@ -24,6 +25,7 @@ interface StudioTopbarProps {
       Pick<TemplateDetailDto, 'name' | 'description' | 'category' | 'isSystemStandard'>
     >
   ) => void;
+  onAutoLayout?: () => void;
   onValidate: () => void;
   onSave: () => void;
 }
@@ -34,6 +36,7 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
   validation,
   onBack,
   onUpdateMeta,
+  onAutoLayout,
   onValidate,
   onSave,
 }) => {
@@ -127,6 +130,19 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
             </span>
           </span>
         </label>
+
+        {/* Auto Layout (DAG) */}
+        {onAutoLayout && (
+          <button
+            type="button"
+            onClick={onAutoLayout}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
+            title="Auto-layout phases into a clean DAG (Sắp xếp tự động)"
+          >
+            <LayoutGrid className="h-4 w-4 text-slate-500" />
+            <span>Auto Layout</span>
+          </button>
+        )}
 
         {/* Validate DAG (Kahn) */}
         <button

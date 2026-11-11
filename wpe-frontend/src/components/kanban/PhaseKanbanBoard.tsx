@@ -93,9 +93,9 @@ export function PhaseKanbanBoard({
       {/* 1. Header Metrics / Summary Bar */}
       <div className="flex items-center justify-between pb-3 text-xs text-slate-500 border-b border-slate-100 mb-3 shrink-0">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-slate-800">Bảng Kanban Phase</span>
+          <span className="font-semibold text-slate-800">Phase Kanban Board</span>
           <span className="text-slate-300">·</span>
-          <span className="font-medium text-slate-600">{tasks.length} task toàn Phase</span>
+          <span className="font-medium text-slate-600">{tasks.length} total tasks</span>
         </div>
         <div className="flex items-center gap-3 text-[11px]">
           <span className="flex items-center gap-1.5 font-medium text-sky-700">

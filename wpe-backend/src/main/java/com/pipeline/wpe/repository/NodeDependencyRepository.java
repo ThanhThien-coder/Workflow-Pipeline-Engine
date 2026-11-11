@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface NodeDependencyRepository extends JpaRepository<NodeDependencyEntity, Long> {
@@ -12,5 +13,6 @@ public interface NodeDependencyRepository extends JpaRepository<NodeDependencyEn
     List<NodeDependencyEntity> findByParentNodeId(Long parentNodeId);
     List<NodeDependencyEntity> findByChildNodeId(Long childNodeId);
     boolean existsByParentNodeIdAndChildNodeId(Long parentNodeId, Long childNodeId);
+    Optional<NodeDependencyEntity> findByParentNodeIdAndChildNodeId(Long parentNodeId, Long childNodeId);
     void deleteByParentNodeIdAndChildNodeId(Long parentNodeId, Long childNodeId);
 }

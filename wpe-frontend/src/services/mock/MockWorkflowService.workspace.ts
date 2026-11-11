@@ -7,6 +7,8 @@ import type {
 } from '../../types/workspace.types'
 import type { ProjectStatus } from '../../types/settings.types'
 
+import { cloneTemplateToProject } from './mockProjectGraphStore'
+
 const INITIAL_PROJECTS: ProjectSummaryDto[] = [
   {
     id: 1,
@@ -144,8 +146,9 @@ export class MockWorkspaceApi {
     await new Promise((resolve) => setTimeout(resolve, 300))
 
     const isFromTemplate = Boolean(cmd.templateId)
+    const newId = Date.now()
     const newProject: ProjectSummaryDto = {
-      id: Date.now(),
+      id: newId,
       name: cmd.name.trim(),
       description: (cmd.desc || cmd.description || '').trim() || 'No description provided.',
       status: 'DRAFT',
@@ -157,6 +160,17 @@ export class MockWorkspaceApi {
       members: [{ id: 'u1', displayName: 'Alex Kim' }],
     }
 
+    if (cmd.templateId) {
+      const cloned = cloneTemplateToProject(newId, cmd.templateId, newProject.name)
+      if (cloned) {
+        let total = 0
+        Object.values(cloned.trees).forEach((t) => {
+          total += Math.max(0, Object.keys(t.nodes).length - 1)
+        })
+        newProject.nodeCount = total || cloned.phases.length * 3
+      }
+    }
+
     this.projects = [newProject, ...this.projects]
     saveStoredProjects(this.projects)
     return newProject
@@ -166,14 +180,25 @@ export class MockWorkspaceApi {
     await new Promise((resolve) => setTimeout(resolve, 300))
 
     const newId = Date.now()
+    const clonedGraph = cloneTemplateToProject(newId, cmd.templateId, cmd.projectName)
+
+    let totalNodes = 14
+    if (clonedGraph) {
+      let count = 0
+      Object.values(clonedGraph.trees).forEach((t) => {
+        count += Math.max(0, Object.keys(t.nodes).length - 1)
+      })
+      totalNodes = count || clonedGraph.phases.length * 3
+    }
+
     const newProject: ProjectSummaryDto = {
       id: newId,
       name: cmd.projectName.trim(),
       description: cmd.description?.trim() || 'Nhân bản từ mẫu quy trình chuẩn.',
       status: 'PLANNING',
       role: 'OWNER',
-      nodeCount: 14,
-      totalNodes: 14,
+      nodeCount: totalNodes,
+      totalNodes,
       completedNodes: 0,
       inProgressNodes: 0,
       criticalPathLength: 5,
@@ -195,8 +220,8 @@ export class MockWorkspaceApi {
       ownerId: 'u1',
       ownerName: 'Alex Kim',
       role: 'OWNER',
-      totalNodes: 14,
-      nodeCount: 14,
+      totalNodes,
+      nodeCount: totalNodes,
       completedNodes: 0,
       inProgressNodes: 0,
       progressPercentage: 0,
@@ -204,10 +229,19 @@ export class MockWorkspaceApi {
       createdAt: newProject.createdAt,
       updatedAt: newProject.updatedAt,
       latestAiAnalysis: null,
-      phases: [
-        { id: '1', name: 'Foundation', orderIndex: 0, nodeCount: 4 },
-        { id: '2', name: 'Core Engine', orderIndex: 1, nodeCount: 10 },
-      ],
+      phases: clonedGraph
+        ? clonedGraph.phases.map((p, idx) => ({
+            id: p.id,
+            name: p.sub || p.name,
+            orderIndex: idx,
+            nodeCount: clonedGraph.trees[p.id]
+              ? Object.keys(clonedGraph.trees[p.id].nodes).length - 1
+              : 0,
+          }))
+        : [
+            { id: '1', name: 'Foundation', orderIndex: 0, nodeCount: 4 },
+            { id: '2', name: 'Core Engine', orderIndex: 1, nodeCount: 10 },
+          ],
       members: newProject.members,
     }
 

@@ -9,6 +9,7 @@ import type {
   CreateTemplateRequestDto,
   UpdateTemplateRequestDto,
 } from '../types/template.types';
+import { calculatePhaseLayout } from '../lib/graph/phaseLayout';
 
 function generateUid(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -24,6 +25,100 @@ export interface UseTemplateStudioState {
     nodeId: string | null;
   };
   validation: DagValidationResult | null;
+}
+
+function computeSmartPhasePosition(
+  existingPhases: PhaseDto[],
+  sourcePhaseId?: string | null
+): { x: number; y: number } {
+  const STEP_X = 360; // Chiều rộng thẻ 260px + khoảng cách 100px
+  const STEP_Y = 160; // Chiều cao thẻ 128px + khoảng cách 32px
+
+  if (!existingPhases || existingPhases.length === 0) {
+    return { x: 60, y: 80 };
+  }
+
+  // 1. Nếu có phase tiền đề (sourcePhaseId):
+  if (sourcePhaseId) {
+    const parent = existingPhases.find((p) => p.id === sourcePhaseId);
+    if (parent) {
+      const parentPos = parent.uiMetadata?.position || { x: 60, y: 80 };
+      const rawPx = Number.isFinite(parentPos.x) ? parentPos.x : 60;
+      const rawPy = Number.isFinite(parentPos.y) ? parentPos.y : 80;
+      const targetX = rawPx + STEP_X;
+      let targetY = rawPy;
+
+      // Tìm tất cả phase đang nằm cùng cột X (sai số +- 160px)
+      const phasesInColumn = existingPhases.filter((p) => {
+        const px = p.uiMetadata?.position?.x;
+        return Number.isFinite(px) && Math.abs(px! - targetX) < 160;
+      });
+
+      if (phasesInColumn.length > 0) {
+        const validYs = phasesInColumn
+          .map((p) => p.uiMetadata?.position?.y)
+          .filter((y): y is number => Number.isFinite(y));
+        const maxY = validYs.length > 0 ? Math.max(...validYs) : 80;
+        targetY = maxY + STEP_Y;
+      }
+
+      return { x: targetX, y: targetY };
+    }
+  }
+
+  // 2. Nếu tạo độc lập (nút "+ Add New Phase"):
+  const lastPhase = existingPhases[existingPhases.length - 1];
+  const lastPos = lastPhase?.uiMetadata?.position || { x: 60, y: 80 };
+  const rawLastX = Number.isFinite(lastPos.x) ? lastPos.x : 60;
+  const rawLastY = Number.isFinite(lastPos.y) ? lastPos.y : 80;
+  const targetX = rawLastX + STEP_X;
+  let targetY = rawLastY;
+
+  const phasesInColumn = existingPhases.filter((p) => {
+    const px = p.uiMetadata?.position?.x;
+    return Number.isFinite(px) && Math.abs(px! - targetX) < 160;
+  });
+
+  if (phasesInColumn.length > 0) {
+    const validYs = phasesInColumn
+      .map((p) => p.uiMetadata?.position?.y)
+      .filter((y): y is number => Number.isFinite(y));
+    const maxY = validYs.length > 0 ? Math.max(...validYs) : 80;
+    targetY = maxY + STEP_Y;
+  }
+
+  // Bảo đảm không bao giờ trùng tọa độ (x, y) với bất kỳ thẻ nào (có guard chống infinite loop)
+  let loopGuard = 0;
+  while (
+    loopGuard < 50 &&
+    existingPhases.some((p) => {
+      const px = p.uiMetadata?.position?.x;
+      const py = p.uiMetadata?.position?.y;
+      return (
+        Number.isFinite(px) &&
+        Number.isFinite(py) &&
+        Math.abs(px! - targetX) < 40 &&
+        Math.abs(py! - targetY) < 40
+      );
+    })
+  ) {
+    targetY += STEP_Y;
+    loopGuard++;
+  }
+
+  return { x: targetX, y: targetY };
+}
+
+function syncPhaseRunsAfter(phases: PhaseDto[], edges: PhaseEdgeDto[]): PhaseDto[] {
+  return phases.map((p) => {
+    const parents = edges
+      .filter((e) => e.childPhaseId === p.id)
+      .map((e) => e.parentPhaseId);
+    return {
+      ...p,
+      runsAfter: parents,
+    };
+  });
 }
 
 export function useTemplateStudio(initialTemplateId?: string | null) {
@@ -52,7 +147,8 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       name: 'Foundation',
       order: 0,
       rootNodeId,
-      uiMetadata: { position: { x: 40, y: 60 } },
+      uiMetadata: { position: { x: 60, y: 80 } },
+      runsAfter: [],
     };
 
     const initialNodes: TemplateNodeDto[] = [
@@ -123,7 +219,15 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       try {
         if (id) {
           const data = await container.templateService.getTemplateById(id);
-          setDraft(data);
+          // Đồng bộ runsAfter cho tất cả các phase
+          const syncedPhases = syncPhaseRunsAfter(data.graphData.phases, data.graphData.phaseEdges);
+          setDraft({
+            ...data,
+            graphData: {
+              ...data.graphData,
+              phases: syncedPhases,
+            },
+          });
           setIsDirty(false);
           setValidation(null);
           setSelection({ phaseId: null, nodeId: null });
@@ -188,18 +292,20 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       const trackNodeId = generateUid('nd');
       const taskNodeId = generateUid('nd');
 
-      const name = semanticName || 'New Phase';
+      const name = typeof semanticName === 'string' && semanticName.trim()
+        ? semanticName.trim()
+        : `Phase ${phases.length + 1}`;
 
       const lastPhase = phases[phases.length - 1];
-      const lastX = lastPhase?.uiMetadata?.position?.x ?? (phases.length - 1) * 370;
-      const lastY = lastPhase?.uiMetadata?.position?.y ?? 60;
+      const nextPos = computeSmartPhasePosition(phases, lastPhase ? lastPhase.id : null);
 
       const newPhase: PhaseDto = {
         id: phaseId,
         name,
         order: phases.length,
         rootNodeId,
-        uiMetadata: { position: { x: lastX + 370, y: lastY } },
+        uiMetadata: { position: nextPos },
+        runsAfter: lastPhase ? [lastPhase.id] : [],
       };
 
       if (lastPhase) {
@@ -228,7 +334,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
           phaseId,
           parentId: rootNodeId,
           trackId: trackNodeId,
-          title: 'New Track',
+          title: 'Track A',
           description: '',
           level: 1,
           joinPolicy: 'ALL_COMPLETED',
@@ -239,7 +345,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
           phaseId,
           parentId: trackNodeId,
           trackId: trackNodeId,
-          title: 'New Task',
+          title: 'First Task',
           description: '',
           level: 2,
           joinPolicy: 'ALL_COMPLETED',
@@ -247,13 +353,15 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
         }
       );
 
+      const syncedPhases = syncPhaseRunsAfter(phases, phaseEdges);
+
       return {
         ...curr,
-        phaseCount: phases.length,
+        phaseCount: syncedPhases.length,
         nodeCount: nodes.length,
         graphData: {
           ...curr.graphData,
-          phases,
+          phases: syncedPhases,
           phaseEdges,
           nodes,
         },
@@ -293,9 +401,11 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
         }
       }
 
-      const phases = curr.graphData.phases
+      const filteredPhases = curr.graphData.phases
         .filter((p) => p.id !== phaseId)
         .map((p, idx) => ({ ...p, order: idx }));
+
+      const phases = syncPhaseRunsAfter(filteredPhases, phaseEdges);
 
       const nodes = curr.graphData.nodes.filter((n) => n.phaseId !== phaseId);
       const remainingNodeIds = new Set(nodes.map((n) => n.id));
@@ -329,10 +439,12 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       for (const parent of parents) {
         edges.push({ parentPhaseId: parent, childPhaseId: phaseId });
       }
+      const phases = syncPhaseRunsAfter(curr.graphData.phases, edges);
       return {
         ...curr,
         graphData: {
           ...curr.graphData,
+          phases,
           phaseEdges: edges,
         },
       };
@@ -355,10 +467,13 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
         updatedEdges.push({ parentPhaseId: sourcePhaseId, childPhaseId: targetPhaseId });
       }
 
+      const phases = syncPhaseRunsAfter(curr.graphData.phases, updatedEdges);
+
       return {
         ...curr,
         graphData: {
           ...curr.graphData,
+          phases,
           phaseEdges: updatedEdges,
         },
       };
@@ -370,14 +485,17 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
   const updatePhasePosition = useCallback(
     (phaseId: string, position: { x: number; y: number }) => {
       setDraft((curr) => {
-        if (!curr) return null;
-        const phases = curr.graphData.phases.map((p) => {
-          if (p.id === phaseId) {
+        if (!curr || !curr.graphData) return curr;
+        const validX = position && Number.isFinite(position.x) ? Math.max(0, position.x) : 60;
+        const validY = position && Number.isFinite(position.y) ? Math.max(0, position.y) : 80;
+        const currentPhases = curr.graphData.phases || [];
+        const phases = currentPhases.map((p) => {
+          if (p && p.id === phaseId) {
             return {
               ...p,
               uiMetadata: {
                 ...p.uiMetadata,
-                position: { ...position },
+                position: { x: validX, y: validY },
               },
             };
           }
@@ -396,6 +514,37 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
     []
   );
 
+  const autoLayoutPhases = useCallback(() => {
+    setDraft((curr) => {
+      if (!curr || !curr.graphData) return curr;
+      const currentPhases = curr.graphData.phases || [];
+      const currentEdges = curr.graphData.phaseEdges || [];
+      const layout = calculatePhaseLayout(currentPhases, currentEdges);
+      const phases = currentPhases.map((p) => {
+        if (!p || !p.id) return p;
+        const pos = layout.positions.get(p.id);
+        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+          return {
+            ...p,
+            uiMetadata: {
+              ...p.uiMetadata,
+              position: { x: pos.x, y: pos.y },
+            },
+          };
+        }
+        return p;
+      });
+      return {
+        ...curr,
+        graphData: {
+          ...curr.graphData,
+          phases,
+        },
+      };
+    });
+    setIsDirty(true);
+  }, []);
+
   const connectPhases = useCallback((sourceId: string, targetId: string) => {
     setDraft((curr) => {
       if (!curr) return null;
@@ -409,10 +558,32 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
         ...curr.graphData.phaseEdges,
         { parentPhaseId: sourceId, childPhaseId: targetId },
       ];
+      const phases = syncPhaseRunsAfter(curr.graphData.phases, phaseEdges);
       return {
         ...curr,
         graphData: {
           ...curr.graphData,
+          phases,
+          phaseEdges,
+        },
+      };
+    });
+    setIsDirty(true);
+    setValidation(null);
+  }, []);
+
+  const disconnectPhases = useCallback((sourceId: string, targetId: string) => {
+    setDraft((curr) => {
+      if (!curr) return null;
+      const phaseEdges = curr.graphData.phaseEdges.filter(
+        (e) => !(e.parentPhaseId === sourceId && e.childPhaseId === targetId)
+      );
+      const phases = syncPhaseRunsAfter(curr.graphData.phases, phaseEdges);
+      return {
+        ...curr,
+        graphData: {
+          ...curr.graphData,
+          phases,
           phaseEdges,
         },
       };
@@ -428,23 +599,24 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       const phaseEdges = [...curr.graphData.phaseEdges];
       const nodes = [...curr.graphData.nodes];
 
-      const parentPhase = phases.find((p) => p.id === sourceId);
-      const parentX = parentPhase?.uiMetadata?.position?.x ?? 40;
-      const parentY = parentPhase?.uiMetadata?.position?.y ?? 60;
-
       const phaseId = generateUid('ph');
       const rootNodeId = generateUid('nd');
       const trackNodeId = generateUid('nd');
       const taskNodeId = generateUid('nd');
 
-      const name = semanticName || 'New Phase';
+      const name = typeof semanticName === 'string' && semanticName.trim()
+        ? semanticName.trim()
+        : `Phase ${phases.length + 1}`;
+
+      const nextPos = computeSmartPhasePosition(phases, sourceId);
 
       const newPhase: PhaseDto = {
         id: phaseId,
         name,
         order: phases.length,
         rootNodeId,
-        uiMetadata: { position: { x: parentX + 370, y: parentY } },
+        uiMetadata: { position: nextPos },
+        runsAfter: [sourceId],
       };
 
       phaseEdges.push({
@@ -482,7 +654,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
           phaseId,
           parentId: trackNodeId,
           trackId: trackNodeId,
-          title: 'New Task',
+          title: 'First Task',
           description: '',
           level: 2,
           joinPolicy: 'ALL_COMPLETED',
@@ -490,13 +662,15 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
         }
       );
 
+      const syncedPhases = syncPhaseRunsAfter(phases, phaseEdges);
+
       return {
         ...curr,
-        phaseCount: phases.length,
+        phaseCount: syncedPhases.length,
         nodeCount: nodes.length,
         graphData: {
           ...curr.graphData,
-          phases,
+          phases: syncedPhases,
           phaseEdges,
           nodes,
         },
@@ -515,7 +689,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
 
       const level = parent.level + 1;
       const trackId = level === 1 ? newId : parent.trackId;
-      const typeLabel = level === 1 ? 'Track' : level === 2 ? 'Task' : 'Sub-task';
+      const typeLabel = level === 1 ? 'Track' : 'Task';
 
       const newNode: TemplateNodeDto = {
         id: newId,
@@ -644,6 +818,10 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
   }, []);
 
   const save = useCallback(async (): Promise<TemplateDetailDto> => {
+    if (status === 'saving' && draftRef.current) {
+      return draftRef.current;
+    }
+
     const currentDraft = draftRef.current;
     if (!currentDraft) {
       throw new Error('No draft to save');
@@ -685,7 +863,10 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
           requestDto as UpdateTemplateRequestDto
         );
       } else {
-        saved = await container.templateService.createTemplate(requestDto);
+        saved = await container.templateService.createTemplate({
+          ...requestDto,
+          id: currentDraft.id,
+        } as any);
       }
 
       setDraft(saved);
@@ -720,7 +901,9 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
     setPhaseDeps,
     togglePhaseDep,
     updatePhasePosition,
+    autoLayoutPhases,
     connectPhases,
+    disconnectPhases,
     spawnChildPhase,
     addChildNode,
     updateNode,

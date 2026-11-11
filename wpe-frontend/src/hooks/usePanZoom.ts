@@ -46,6 +46,7 @@ export function usePanZoom() {
     contentRef,
     scale,
     pan,
+    setPan,
     transform: { transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: '0 0' as const },
     onMouseDown,
     onMouseMove,

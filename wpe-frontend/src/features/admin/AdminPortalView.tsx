@@ -13,6 +13,8 @@ import { WorkspacesTab } from './tabs/WorkspacesTab';
 import { AuditLogsTab } from './tabs/AuditLogsTab';
 import { TemplateCatalogView } from './templates/TemplateCatalogView';
 import { TemplateStudioView } from './templates/TemplateStudioView';
+import { ErrorBoundary } from '../../components/common/ErrorBoundary';
+import { AlertCircle } from 'lucide-react';
 
 export const AdminPortalView: FC = () => {
   const {
@@ -69,6 +71,22 @@ export const AdminPortalView: FC = () => {
         setIsStudioOpen(true);
         setEditingTemplateId(match[1]);
       }
+    } else if (pathname === '/admin/users') {
+      setCurrentTab('users');
+      setIsStudioOpen(false);
+      setEditingTemplateId(null);
+    } else if (pathname === '/admin/workspaces') {
+      setCurrentTab('workspaces');
+      setIsStudioOpen(false);
+      setEditingTemplateId(null);
+    } else if (pathname === '/admin/audit') {
+      setCurrentTab('audit');
+      setIsStudioOpen(false);
+      setEditingTemplateId(null);
+    } else if (pathname === '/admin' || pathname === '/admin/') {
+      setCurrentTab('overview');
+      setIsStudioOpen(false);
+      setEditingTemplateId(null);
     }
   }, [pathname, setCurrentTab]);
 
@@ -95,6 +113,10 @@ export const AdminPortalView: FC = () => {
     setCurrentTab(tab);
     if (tab === 'templates') {
       navigate('/admin/templates');
+    } else if (tab === 'overview') {
+      navigate('/admin');
+    } else {
+      navigate(`/admin/${tab}`);
     }
   };
 
@@ -150,50 +172,52 @@ export const AdminPortalView: FC = () => {
               }}
               style={{ willChange: 'transform, opacity' }}
             >
-              {currentTab === 'overview' && (
-                <AnalyticsTab
-                  kpis={kpis}
-                  trends={trends}
-                  trendRange={trendRange}
-                  onRangeChange={handleTrendRangeChange}
-                  roleDistribution={roleDistribution}
-                />
-              )}
+              <ErrorBoundary>
+                {currentTab === 'overview' && (
+                  <AnalyticsTab
+                    kpis={kpis}
+                    trends={trends}
+                    trendRange={trendRange}
+                    onRangeChange={handleTrendRangeChange}
+                    roleDistribution={roleDistribution}
+                  />
+                )}
 
-              {currentTab === 'users' && (
-                <UserManagementTab
-                  users={filteredUsers}
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  statusFilter={statusFilter}
-                  onStatusFilterChange={setStatusFilter}
-                  onOpenBanModal={openBanModal}
-                  onUnban={handleUnbanUser}
-                />
-              )}
+                {currentTab === 'users' && (
+                  <UserManagementTab
+                    users={filteredUsers}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    statusFilter={statusFilter}
+                    onStatusFilterChange={setStatusFilter}
+                    onOpenBanModal={openBanModal}
+                    onUnban={handleUnbanUser}
+                  />
+                )}
 
-              {currentTab === 'workspaces' && (
-                <WorkspacesTab
-                  workspaces={workspaces}
-                  onRefresh={handleRefreshWorkspaces}
-                  onInspectPipeline={handleInspectPipeline}
-                  onArchive={handleArchiveWorkspace}
-                />
-              )}
+                {currentTab === 'workspaces' && (
+                  <WorkspacesTab
+                    workspaces={workspaces}
+                    onRefresh={handleRefreshWorkspaces}
+                    onInspectPipeline={handleInspectPipeline}
+                    onArchive={handleArchiveWorkspace}
+                  />
+                )}
 
-              {currentTab === 'templates' && (
-                <TemplateCatalogView
-                  onOpenStudio={handleOpenStudio}
-                  onToast={(msg, tone) => showToast(msg, tone || 'blue')}
-                />
-              )}
+                {currentTab === 'templates' && (
+                  <TemplateCatalogView
+                    onOpenStudio={handleOpenStudio}
+                    onToast={(msg, tone) => showToast(msg, tone || 'blue')}
+                  />
+                )}
 
-              {currentTab === 'audit' && (
-                <AuditLogsTab
-                  auditLogs={auditLogs}
-                  onExportAudit={handleExportAudit}
-                />
-              )}
+                {currentTab === 'audit' && (
+                  <AuditLogsTab
+                    auditLogs={auditLogs}
+                    onExportAudit={handleExportAudit}
+                  />
+                )}
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </div>
@@ -208,11 +232,42 @@ export const AdminPortalView: FC = () => {
 
       {/* Visual Template Studio Modal Overlay */}
       {isStudioOpen && (
-        <TemplateStudioView
-          templateId={editingTemplateId}
-          onClose={handleCloseStudio}
-          onToast={(msg, tone) => showToast(msg, tone || 'blue')}
-        />
+        <ErrorBoundary
+          fallback={(error, reset) => (
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-50 p-6 text-center font-sans">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mb-4 shadow-sm">
+                <AlertCircle className="h-7 w-7" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Không thể mở Template Studio</h3>
+              <p className="mt-2 max-w-md text-sm text-slate-500">
+                Đã xảy ra sự cố khi tải giao diện Studio.
+                {error?.message ? ` (${error.message})` : ''}
+              </p>
+              <div className="mt-5 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer"
+                >
+                  Thử lại
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseStudio}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 cursor-pointer"
+                >
+                  Quay lại Danh sách Template
+                </button>
+              </div>
+            </div>
+          )}
+        >
+          <TemplateStudioView
+            templateId={editingTemplateId}
+            onClose={handleCloseStudio}
+            onToast={(msg, tone) => showToast(msg, tone || 'blue')}
+          />
+        </ErrorBoundary>
       )}
 
       {/* 3. Ban / Suspend Confirmation Modal */}
