@@ -15,7 +15,7 @@ Sơ đồ thiết kế trả lời câu hỏi "hệ thống làm việc đó **b
 > Hạn OOAD tới trước khi code xong: vẽ theo đặc tả trong B2–B4, đánh dấu "dự kiến" ở phần chưa code. Code xong thì cập nhật lại.
 
 ## Sản phẩm (lưu ở `docs/ooad/B-do-thi/`)
-1. `seq-noi-phu-thuoc.puml` — sequence "Nối phụ thuộc", từ component Mindmap → store → `graph.ts` → `WorkflowGraphController` → `WorkflowGraphService` → `KahnDagService` → repository. Có `alt [tạo vòng] → 422` và `[trùng cạnh] → 409`.
+1. `seq-noi-phu-thuoc.puml` — sequence "Nối phụ thuộc", từ component Mindmap → store → `graph.ts` → `WorkflowGraphController` → `WorkflowGraphService` → `KahnDagService` → repository. Có `alt` 3 nhánh: `[cạnh đã có]` → trả lại cạnh cũ, **không** báo lỗi (lũy đẳng, B3); `[tạo vòng]` → 422 kèm `cycleNodes`; `[hợp lệ]` → lưu cạnh.
 2. `seq-xuat-ban.puml` — sequence "Xuất bản dự án". Có `loop` Kahn, `alt [có chu trình] → 422 / [hợp lệ] → ACTIVE`, `loop` mở khóa node gốc, và message bất đồng bộ tới `SseEmitterService` sau khi commit.
 3. `comm-xuat-ban.puml` — sơ đồ communication chuyển từ sơ đồ 2.
 4. `class-do-thi.puml` — class diagram thiết kế: controller, service của mảng đồ thị, `KahnDagService` cùng record `ProjectKahnResult`, `PhaseProgressCalculator`, các entity `WorkPhaseEntity`, `PhaseDependencyEntity` (V6), `NodeEntity`, `NodeDependencyEntity`, các repository, DTO, enum `JoinPolicy`. Có visibility, kiểu, bội số, và ký hiệu đúng cho lớp tiện ích tĩnh (`PhaseProgressCalculator`).

@@ -18,7 +18,7 @@ Sơ đồ phân tích trả lời câu hỏi "hệ thống làm gì, cho ai", ch
    - Use case gợi ý: Tạo giai đoạn, Sửa giai đoạn, Xóa giai đoạn, Nối giai đoạn, Thêm công việc, Sửa công việc, Nối phụ thuộc, Lưu bố cục canvas, Xuất bản dự án, Kiểm tra chu trình, Xem đồ thị, Xem danh sách node gây vòng lặp.
    - Gợi ý quan hệ: "Nối phụ thuộc" và "Xuất bản dự án" cùng `<<include>>` "Kiểm tra chu trình"; "Xem danh sách node gây vòng lặp" `<<extend>>` "Xuất bản dự án" với điều kiện `[phát hiện chu trình]`.
    - Bắt buộc có ít nhất 1 `<<include>>`, 1 `<<extend>>` (ghi điều kiện), 1 tổng quát hóa giữa actor. Giải thích lựa chọn trong ghi chép.
-2. `dac-ta-uc.md` — đặc tả 3 use case: **Nối phụ thuộc giữa 2 công việc**, **Xuất bản dự án**, **Xóa giai đoạn**. Luồng ngoại lệ khớp mã lỗi đã chốt ở B2–B4 (`CYCLE_DETECTED`, `EDGE_EXISTS`, `NODE_IN_USE`, `INVALID_PROJECT_STATUS`, `PROJECT_ARCHIVED`).
+2. `dac-ta-uc.md` — đặc tả 3 use case: **Nối phụ thuộc giữa 2 công việc**, **Xuất bản dự án**, **Xóa giai đoạn**. Luồng ngoại lệ khớp mã lỗi đã chốt ở B2–B4 (`CYCLE_DETECTED`, `NODE_IN_USE`, `INVALID_PROJECT_STATUS`, `PROJECT_ARCHIVED`). Lưu ý: nối lại một cạnh **đã có** không phải ngoại lệ. Hệ thống trả lại cạnh cũ và không báo lỗi (lũy đẳng, xem B3), nên ghi nó ở luồng thay thế.
 3. `activity-xuat-ban.puml` — activity "Xuất bản dự án" với 2 làn Chủ dự án | Hệ thống. Thể hiện vòng lặp của Kahn (lấy node in-degree 0 khỏi hàng đợi…) và rẽ nhánh `[đã duyệt đủ N node]` / `[còn node]`.
 4. `bce-do-thi.puml` — sơ đồ lớp phân tích BCE:
    - boundary: màn hình đồ thị Macro, màn hình Mindmap, hộp thoại chu trình;
