@@ -11,6 +11,11 @@ Nhánh git: b3-nodes-deps
 
 > **Cập nhật 11/11/2026 (sau khi pull):** `createNode`, `createDependency`, `deleteDependency`, `updateNodeMetadata` đã có trong `BE/service/WorkflowGraphService.java`. Task này sửa các lỗ hổng tìm thấy khi đọc code và thêm phần còn thiếu.
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** nối WPE-004 → WPE-001 → 422 đủ 4 mã; Viewer gọi API ghi → 403; `PATCH metadata` 2 lần rồi kiểm `version` bằng SQL.
+> - **Dời về buổi kiểm chung (mục 7):** nối tạo vòng trên giao diện → báo lỗi (bảng 7.2 dòng 5).
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 Đọc code thấy 4 lỗ hổng (đều **cần viết test tái hiện trước khi sửa**):
 1. **Vòng dài lọt qua**: `createDependency` chỉ chặn vòng 2 node (`existsByParentNodeIdAndChildNodeId(childId, parentId)`). Nối A→B, B→C rồi C→A vẫn lưu được. Đồ thị có vòng sẽ chỉ bị phát hiện lúc xuất bản.

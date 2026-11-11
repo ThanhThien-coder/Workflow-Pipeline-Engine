@@ -9,6 +9,11 @@ Mở khóa: X3
 Nhánh git: d8-ooad-thiet-ke
 Ước lượng: 1–1,5 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** render các file `.puml` ra PNG.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** vẽ tay bản đầu trên giấy. Claude vẽ từ code thật; vòng hiểu là người làm giải thích lại 1 sơ đồ sequence (task số 7 thì 1 sơ đồ activity).
+
 ## Vì sao cần task này
 Sơ đồ thiết kế trả lời câu hỏi "hệ thống làm việc đó **bằng những lớp nào, gọi nhau ra sao**". Mảng của D có 2 actor tương tác qua một lời mời, có khách không đăng nhập, và có interface `AiServiceClient` với nhiều cài đặt. Đây là các ví dụ đẹp để giải thích OOP khi bảo vệ.
 

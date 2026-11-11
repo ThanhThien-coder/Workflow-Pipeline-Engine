@@ -11,6 +11,11 @@ Nhánh git: d3-templates
 
 > **Cập nhật 11/11/2026 (sau khi pull):** CRUD template đã có: `BE/controller/PipelineTemplateController.java`, `BE/service/PipelineTemplateService.java`, kiểm chu trình bằng `KahnDagService.validateTemplateGraph`, migration **V5** (thêm cột `slug` và seed các template mẫu), test `PipelineTemplateServiceTest`. Task này: đọc hiểu, vá phân quyền, kiểm clone khứ hồi.
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** user thường gọi POST → 403; admin → 201; xóa template hệ thống → 409.
+> - **Dời về buổi kiểm chung (mục 7):** user thường thử tạo template trên giao diện → bị từ chối (bảng 7.2 dòng 9).
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 Đọc code thấy:
 1. **Ai cũng sửa, xóa được template**: `createTemplate`, `updateTemplate`, `deleteTemplate` không kiểm `system_role = ADMIN` (UC5 trong `system-overview.md` chỉ cho Admin).

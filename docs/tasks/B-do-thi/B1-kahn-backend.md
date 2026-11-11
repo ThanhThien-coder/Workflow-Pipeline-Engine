@@ -11,6 +11,11 @@ Nhánh git: b1-kahn
 
 > **Cập nhật 11/11/2026 (sau khi pull):** code Kahn đã có ở `BE/service/engine/KahnDagService.java` cùng test `BE-test/service/engine/KahnDagServiceTest.java` (do Dev B viết, xem `docs/archive/dev_b/DEV_B_IMPLEMENTATION_GUIDE.md`). Task này **không viết lại**: đọc hiểu, tự kiểm chứng bằng tay, bổ sung test, và sửa 3 thiếu sót bên dưới.
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** chạy `KahnDagServiceTest` và toàn bộ test.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** chạy tay Kahn trên giấy; `sortedOrder` vẫn làm vì là đặc tả đã chốt.
+
 ## Vì sao cần task này
 `KahnDagService` được dùng cho xuất bản (B4), kiểm template (D3), và sẽ dùng cho tính đường găng (D6). Đọc code thấy 3 thiếu sót:
 1. `validateProjectDag` gom **mọi** node còn in-degree > 0 vào `cycleNodeCodes`. Như vậy node đứng **sau** chu trình (không nằm trên vòng) cũng bị báo là lỗi.

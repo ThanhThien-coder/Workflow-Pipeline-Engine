@@ -9,6 +9,11 @@ Mở khóa: C8
 Nhánh git: c7-ooad-phan-tich
 Ước lượng: 1 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** render các file `.puml` ra PNG.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** vẽ tay bản đầu trên giấy. Claude vẽ từ code thật; vòng hiểu là người làm giải thích lại 1 sơ đồ sequence (task số 7 thì 1 sơ đồ activity).
+
 ## Vì sao cần task này
 Sơ đồ phân tích trả lời câu hỏi "hệ thống làm gì, cho ai", chưa bàn tới code. Mảng của C có luồng nghiệp vụ đậm nhất (nộp bài, duyệt, từ chối, tự mở khóa), nên sơ đồ của C thường là phần giảng viên hỏi nhiều nhất.
 

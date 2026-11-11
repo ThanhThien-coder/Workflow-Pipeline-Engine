@@ -11,6 +11,11 @@ Nhánh git: b2-graph-phases
 
 > **Cập nhật 11/11/2026 (sau khi pull):** đã có `BE/controller/WorkflowGraphController.java`, `BE/service/WorkflowGraphService.java`, `BE/service/engine/PhaseProgressCalculator.java`, bảng `phase_dependency` (migration **V6** do Dev B viết) và test `WorkflowGraphServiceTest`, `PhaseProgressCalculatorTest`. Task này: đọc hiểu, kiểm thử, rồi làm 2 phần còn thiếu.
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** khởi động app để lấy log Flyway V9; `PUT /phases/{id}` rồi `GET /graph`; ghi vào dự án ARCHIVED → 409; đếm số câu SQL của `GET graph`.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 Phần đọc đồ thị và quản lý phase đã chạy. Đọc code thấy còn thiếu:
 1. **Vị trí phase trên canvas không được lưu**: `work_phase` không có cột tọa độ; `CreatePhaseRequest`, `UpdatePhaseRequest`, `PhaseResponse` không có trường vị trí. Kéo phase rồi F5 là mất. (FE đã có `updatePhasePosition` nhưng backend chưa có chỗ lưu.)

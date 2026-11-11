@@ -9,6 +9,8 @@ Mở khóa: X1
 Nhánh git: c6-kanban-ui
 Ước lượng: 1,5–2 ngày
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 Kanban đã gọi API thật một phần (`getMyTasks`, `updateTaskStatus`, `submitTaskArtifact`), nhưng:
 - `version` đang giữ trong `taskVersionCache` riêng, dễ lệch với dữ liệu thật.

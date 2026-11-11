@@ -9,6 +9,11 @@ Mở khóa: A4, A5, A6, B5, C3, C4, C6, D4 (và bước frontend của D1, D5)
 Nhánh git: a2-api-client
 Ước lượng: 1–1,5 ngày — **nên xong trong 2 ngày đầu**, vì 8 task khác cần nó
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** `npm run typecheck && npm test`, các lệnh `grep` trong tiêu chí xong.
+> - **Dời về buổi kiểm chung (mục 7):** tắt backend, mở giao diện ở chế độ API thật → phải báo lỗi (bảng 7.2 dòng 1).
+> - **Không làm trong sprint:** bước 5 (tách file `HttpWorkflowService`), ảnh chụp màn hình.
+
 ## Vì sao cần task này
 - `FE/services/impl/HttpWorkflowService.ts` (957 dòng sau lần pull 11/11/2026, khoảng 48 chỗ `super.…`/fallback, gồm cả phần đồ thị và xuất bản mới thêm) **kế thừa** `MockWorkflowService`, và khi backend lỗi thì tự chuyển sang dữ liệu giả. Vì vậy khi test với backend thật, lỗi bị che mất.
 - Base URL không thống nhất: `.env.example` ghi `http://localhost:8080/api`, code mặc định `/api/v1`. Sau lần pull 11/11/2026 backend đã nhận cả `/api` lẫn `/api/v1` nên không còn gọi hỏng, nhưng vẫn cần chốt một chuẩn (`/api/v1`).

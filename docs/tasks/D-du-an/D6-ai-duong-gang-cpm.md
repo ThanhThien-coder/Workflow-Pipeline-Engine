@@ -9,6 +9,8 @@ Mở khóa: X1
 Nhánh git: d6-ai-cpm
 Ước lượng: 1,5–2 ngày
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 `BE/service/ai/AiServiceClientImpl.java` hiện chỉ là heuristic đơn giản: `criticalPath` liệt kê mọi node, và mọi node IN_PROGRESS đều bị coi là điểm nghẽn. Đặc tả `docs/specs/ai-diagnostics.md` yêu cầu tính CPM (forward pass theo `estimated_hours`) và phát hiện node ngâm (quá 2,5 × `estimated_hours`). Endpoint AI cũng chưa chắc đã kiểm quyền thành viên.
 
