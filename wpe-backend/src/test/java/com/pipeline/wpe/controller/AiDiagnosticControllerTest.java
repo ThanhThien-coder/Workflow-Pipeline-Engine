@@ -1,6 +1,7 @@
 package com.pipeline.wpe.controller;
 
 import com.pipeline.wpe.exception.CooldownActiveException;
+import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.service.ai.AiDiagnosticService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,7 +58,6 @@ class AiDiagnosticControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.analyzedAt").exists());
     }
-//hihi
     @Test
     @DisplayName("POST /api/v1/projects/{id}/ai-diagnostics - Cooldown còn hiệu lực trả về 429 COOLDOWN_ACTIVE")
     void testTriggerAiDiagnostics_CooldownActive() throws Exception {
@@ -68,6 +68,18 @@ class AiDiagnosticControllerTest {
             .andExpect(status().isTooManyRequests())
             .andExpect(jsonPath("$.error").value("COOLDOWN_ACTIVE"))
             .andExpect(jsonPath("$.retryAfterSeconds").value(145));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/projects/{id}/ai-diagnostics - Người dùng không có quyền truy cập ném ForbiddenException trả về 403 ACCESS_DENIED")
+    void testTriggerAiDiagnostics_Forbidden() throws Exception {
+        when(aiDiagnosticService.triggerAiDiagnostics(1L))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền truy cập dự án này"));
+
+        mockMvc.perform(post("/api/v1/projects/1/ai-diagnostics"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("ACCESS_DENIED"))
+            .andExpect(jsonPath("$.message").value("Bạn không có quyền truy cập dự án này"));
     }
 }
 
