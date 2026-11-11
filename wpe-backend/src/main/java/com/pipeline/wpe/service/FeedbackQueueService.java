@@ -10,6 +10,7 @@ import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectFeedbackEntity;
+import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectFeedbackRepository;
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class FeedbackQueueService {
+
+    static final int MAX_FEEDBACK_PER_HOUR = 10;
+    static final int MAX_CONTENT_LENGTH = 2000;
 
     private final ProjectFeedbackRepository feedbackRepository;
     private final NodeRepository nodeRepository;
@@ -47,6 +52,26 @@ public class FeedbackQueueService {
     public GuestFeedbackResponse submitGuestFeedback(String token, CreateGuestFeedbackRequest request) {
         GuestLinkEntity guestLink = guestGatewayService.validateAndGetActiveGuestLink(token);
         Long projectId = guestLink.getProjectId();
+
+        if (request.content() != null && request.content().trim().length() > MAX_CONTENT_LENGTH) {
+            throw new IllegalArgumentException("Nội dung góp ý tối đa 2000 ký tự.");
+        }
+
+        Instant since = Instant.now().minus(Duration.ofHours(1));
+        long recent = feedbackRepository.countByProjectIdAndCreatedAtAfter(projectId, since);
+        if (recent >= MAX_FEEDBACK_PER_HOUR) {
+            long retryAfter = feedbackRepository.findFirstByProjectIdAndCreatedAtAfterOrderByCreatedAtAsc(projectId, since)
+                .map(oldest -> {
+                    if (oldest.getCreatedAt() == null) {
+                        return 3600L;
+                    }
+                    long seconds = Duration.between(Instant.now(), oldest.getCreatedAt().plus(Duration.ofHours(1))).toSeconds();
+                    return Math.max(1L, seconds);
+                })
+                .orElse(3600L);
+            throw new CooldownActiveException(retryAfter);
+        }
+
         ProjectEntity project = authorizationService.getProjectOrThrow(projectId);
 
         Long validNodeId = null;
