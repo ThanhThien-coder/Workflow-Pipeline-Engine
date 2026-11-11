@@ -3,11 +3,13 @@
 Người làm: D
 Người review: A
 Trạng thái: chưa làm
-Cần có trước: B1, D1
+Cần có trước: D1
 Cần trước bước frontend: không
 Mở khóa: D4
 Nhánh git: d3-templates
 Ước lượng: 1 ngày
+
+> **Không cần chờ B1:** D3 chỉ dùng `KahnDagService.validateTemplateGraph` (đã có). Hàm này chạy bằng `validateSimpleDag` riêng, còn B1 chỉ sửa `validateProjectDag` và phải giữ nguyên chữ ký `validateTemplateGraph`.
 
 > **Cập nhật 11/11/2026 (sau khi pull):** CRUD template đã có: `BE/controller/PipelineTemplateController.java`, `BE/service/PipelineTemplateService.java`, kiểm chu trình bằng `KahnDagService.validateTemplateGraph`, migration **V5** (thêm cột `slug` và seed các template mẫu), test `PipelineTemplateServiceTest`. Task này: đọc hiểu, vá phân quyền, kiểm clone khứ hồi.
 

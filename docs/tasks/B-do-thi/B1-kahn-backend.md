@@ -5,9 +5,9 @@ Người review: C
 Trạng thái: chưa làm
 Cần có trước: T0
 Cần trước bước frontend: không
-Mở khóa: B2, B3, D3, D6
+Mở khóa: B2, B3, D6
 Nhánh git: b1-kahn
-Ước lượng: 0,5–1 ngày — **nên xong trong 2 ngày đầu**, vì D3 và D6 cần nó
+Ước lượng: 0,5–1 ngày — **nên xong trong 2 ngày đầu**, vì B3 và D6 cần nó (D3 không phải chờ: chỉ dùng `validateTemplateGraph`, hàm này giữ nguyên)
 
 > **Cập nhật 11/11/2026 (sau khi pull):** code Kahn đã có ở `BE/service/engine/KahnDagService.java` cùng test `BE-test/service/engine/KahnDagServiceTest.java` (do Dev B viết, xem `docs/archive/dev_b/DEV_B_IMPLEMENTATION_GUIDE.md`). Task này **không viết lại**: đọc hiểu, tự kiểm chứng bằng tay, bổ sung test, và sửa 3 thiếu sót bên dưới.
 

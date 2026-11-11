@@ -49,13 +49,15 @@ Dòng `Đã học lại: chưa` sẽ được đổi thành `rồi` ở giai đo
 ## 5. Kế hoạch 2 ngày theo người
 Mỗi người khoảng 7–8 giờ làm mỗi ngày, Claude làm phần lớn code.
 
+**Merge theo từng task, không dồn tới tối.** Xong task nào thì mở PR ngay. Người review cố định kiểm theo mục 4 (khoảng 10 phút), đạt thì đổi `Trạng thái: xong` rồi merge. Task nào cần task đó thì pull `main` xong mới bắt đầu (README mục 7). Ví dụ: A1 merge rồi mới làm A3; B3 merge rồi mới làm B4; C1 merge rồi mới làm C2; D1 merge rồi mới làm D3, D2. Người review nhớ chừa vài lần 10 phút trong ngày. Dòng "Tối" trong bảng chỉ để gom PR còn sót.
+
 ### Ngày 1
 | Giờ | A | B | C | D |
 | :--- | :--- | :--- | :--- | :--- |
 | Sáng sớm (1,5 giờ) | T0 rút gọn: bước 2–5 (chạy được hệ thống). T1 rút gọn: đọc cẩm nang OOAD mục 3 (30 phút) | T0, T1 rút gọn | T0, T1 rút gọn | T0, T1 rút gọn |
 | Sáng | **A1** (mvnw và CI) → **A2** (bỏ fallback ngầm và apiClient; **chưa** cần tách file) | **B1** (KahnDagService) → **B3** (vá 4 lỗ hổng) | **C1** (gửi sự kiện sau commit, ARCHIVED, test) | **D1** (IDOR clone, DRAFT; phần backend) |
 | Chiều | **A3** (đăng nhập, JWT) | **B4** (vá xuất bản) | **C2** (SSE nhiều tab, sự kiện lời mời) | **D3** (phân quyền template) → **D2** (thành viên, lời mời, V8) |
-| Tối | merge A1, A2 | merge B1, B3 | merge C1 | merge D1, D3 |
+| Tối | review + merge PR còn mở (A3) | review + merge PR còn mở (B4) | review + merge PR còn mở (C2) | review + merge PR còn mở (D3, D2 nếu xong) |
 
 ### Ngày 2
 | Giờ | A | B | C | D |
@@ -71,7 +73,7 @@ Mỗi người khoảng 7–8 giờ làm mỗi ngày, Claude làm phần lớn c
 
 **Để lại sau hạn nộp:** A5, A6, B5, B6, C3, C5, C6, D4, D5, D6, X1, X2; bài luyện chung của T1; phần tách file `HttpWorkflowService` của A2; phần frontend của C4 và D1.
 
-**Vì sao không bị chờ nhau:** ngày 1 mỗi người chỉ sửa backend của mảng mình. A2 là người duy nhất sửa `HttpWorkflowService.ts` trong sprint, vì các task frontend khác đã dời lại sau. Các task OOAD chỉ thêm file mới trong `docs/ooad/<mảng>/`.
+**Vì sao không bị chờ nhau:** ngày 1 mỗi người chỉ sửa backend của mảng mình, và không task nào trong ngày 1 cần task của người khác (D3 chỉ cần D1, không cần B1). A2 là người duy nhất sửa `HttpWorkflowService.ts` trong sprint, vì các task frontend khác đã dời lại sau. Các task OOAD chỉ thêm file mới trong `docs/ooad/<mảng>/`.
 
 ## 6. Chạy thử toàn hệ thống trước khi nộp (tối ngày 2)
 Một người thao tác, cả nhóm xem. Ghi kết quả vào `docs/tasks/ghi-chep/sprint-chay-thu.md`:

@@ -8,7 +8,7 @@ Làm theo thứ tự (T0, T1 nằm ở [../chung/](../chung/README.md)):
 
 | Thứ tự | Task | Cần có trước | Ghi chú |
 | :--- | :--- | :--- | :--- |
-| 1 | [B1 — Kahn backend dùng chung](B1-kahn-backend.md) | T0 | **Ưu tiên số 1**: D3, D6 đang chờ |
+| 1 | [B1 — Kahn backend dùng chung](B1-kahn-backend.md) | T0 | **Ưu tiên số 1**: B3 và D6 đang chờ |
 | 2 | [B2 — API đồ thị và giai đoạn](B2-api-do-thi-giai-doan.md) | B1 | Migration V9 (chỉ thêm `work_phase.ui_metadata`) |
 | 3 | [B7 — OOAD phân tích](B7-ooad-phan-tich.md) | T1 | |
 | 4 | [B3 — API node, phụ thuộc, tọa độ](B3-api-node-phu-thuoc.md) | B1 | |

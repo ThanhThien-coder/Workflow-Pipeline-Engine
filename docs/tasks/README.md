@@ -80,7 +80,7 @@ Người review cố định: **A do B review, B do C review, C do D review, D d
 | [C8](C-thuc-thi/C8-ooad-thiet-ke.md) | OOAD thiết kế mảng C | C | C7, C2 | 1–1,5 |
 | [D1](D-du-an/D1-workspace-du-an.md) | Workspace, tạo dự án, trạng thái dự án | D | T0 (bước FE cần A2) | 1–1,5 |
 | [D2](D-du-an/D2-thanh-vien-loi-moi.md) | Thành viên, lời mời, chuyển quyền sở hữu | D | D1 | 1,5–2 |
-| [D3](D-du-an/D3-template-backend.md) | Template backend: phân quyền ADMIN, kiểm clone | D | B1, D1 | 1 |
+| [D3](D-du-an/D3-template-backend.md) | Template backend: phân quyền ADMIN, kiểm clone | D | D1 | 1 |
 | [D4](D-du-an/D4-template-giao-dien.md) | Template Studio: lỗi rõ ràng, test, chạy thật | D | A2, D3 | 1 |
 | [D5](D-du-an/D5-cong-khach-gop-y.md) | Cổng khách, góp ý: bảo mật và giao diện | D | T0 (bước FE cần A2) | 1–1,5 |
 | [D6](D-du-an/D6-ai-duong-gang-cpm.md) | AI: đường găng CPM, Gemini tùy chọn | D | B1 | 1,5–2 |
@@ -155,7 +155,7 @@ flowchart LR
   A2 -.-> D1 & D5
   A3 --> A4 & A5 & A6 & A8
   A7 --> A8
-  B1 --> B2 & B3 & D3 & D6
+  B1 --> B2 & B3 & D6
   B2 --> B5
   B3 --> B4 & B5
   B4 --> B6 & B8
@@ -176,7 +176,7 @@ flowchart LR
 
 **Hai task phải xong sớm nhất**, vì nhiều task của người khác cần chúng:
 - **A2** (nền HTTP frontend) — 8 task cần: A4, A5, A6, B5, C3, C4, C6, D4, cộng bước FE của D1, D5.
-- **B1** (Kahn dùng chung) — D3 và D6 cần.
+- **B1** (Kahn dùng chung) — D6 cần, cộng B2, B3 của chính B. (D3 không phải chờ B1: D3 chỉ dùng `validateTemplateGraph`, B1 giữ nguyên hàm này.)
 Cả hai nên xong trong **2 ngày đầu**. Trong lúc chờ, ai cũng có việc backend của mảng mình để làm, nên không ai phải ngồi không.
 
 ## 5. Thứ tự đề xuất

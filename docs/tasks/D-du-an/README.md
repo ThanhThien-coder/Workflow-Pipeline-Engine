@@ -12,7 +12,7 @@ Làm theo thứ tự (T0, T1 nằm ở [../chung/](../chung/README.md)):
 | 2 | [D5 — Cổng khách và góp ý](D5-cong-khach-gop-y.md) | T0 | Làm phần backend trước; bước frontend chờ A2 |
 | 3 | [D7 — OOAD phân tích](D7-ooad-phan-tich.md) | T1 | |
 | 4 | [D2 — Thành viên và lời mời](D2-thanh-vien-loi-moi.md) | D1 | Migration V8 |
-| 5 | [D3 — Template backend](D3-template-backend.md) | B1, D1 | |
+| 5 | [D3 — Template backend](D3-template-backend.md) | D1 | Không cần chờ B1 (xem đầu file D3) |
 | 6 | [D6 — AI đường găng CPM](D6-ai-duong-gang-cpm.md) | B1 | |
 | 7 | Bước frontend còn lại của D1, D5 | A2 | |
 | 8 | [D4 — Template giao diện](D4-template-giao-dien.md) | A2, D3 | |
