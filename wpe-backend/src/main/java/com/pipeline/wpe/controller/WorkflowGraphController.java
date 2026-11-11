@@ -118,7 +118,7 @@ public class WorkflowGraphController {
     @PostMapping("/projects/{id}/nodes")
     @Operation(
         summary = "4.3 Tạo Node công việc mới",
-        description = "Thành viên/Owner tạo nút công việc mới. Nếu thiếu mã code, hệ thống tự động sinh mã WPE-xxx. Khởi tạo trạng thái TODO (nếu standalone) hoặc LOCKED (nếu trong phase)."
+        description = "Chỉ Owner tạo nút công việc mới. Nếu thiếu mã code, hệ thống tự động sinh mã WPE-xxx. Khởi tạo trạng thái TODO (nếu standalone) hoặc LOCKED (nếu trong phase)."
     )
     public ResponseEntity<GraphNodeResponse> createNode(
         @PathVariable Long id,
@@ -133,7 +133,7 @@ public class WorkflowGraphController {
     @PostMapping("/projects/{id}/dependencies")
     @Operation(
         summary = "4.3 Nối cạnh phụ thuộc giữa 2 Node",
-        description = "Thiết lập quan hệ parentNodeId -> childNodeId. Tự động kiểm tra chống tự nối và chống chu trình 2 chiều tức thì."
+        description = "Chỉ Owner. Thiết lập quan hệ parentNodeId -> childNodeId. Chặn tự nối (400) và chu trình dài bất kỳ (422 CYCLE_DETECTED, cycleNodes là mã các node trên vòng). Node con đã bắt đầu làm trả 409 NODE_IN_USE. Sau khi nối, trạng thái node con được tính lại theo joinPolicy."
     )
     public ResponseEntity<DependencyResponse> createDependency(
         @PathVariable Long id,
@@ -148,7 +148,7 @@ public class WorkflowGraphController {
     @DeleteMapping("/projects/{id}/dependencies")
     @Operation(
         summary = "4.3 Gỡ cạnh phụ thuộc giữa 2 Node",
-        description = "Gỡ bỏ dây nối phụ thuộc giữa parentNodeId và childNodeId."
+        description = "Chỉ Owner. Gỡ bỏ dây nối phụ thuộc giữa parentNodeId và childNodeId. Node con LOCKED đủ điều kiện sau khi gỡ sẽ tự chuyển TODO và người phụ trách nhận sự kiện TASK_UNLOCKED."
     )
     public ResponseEntity<Void> deleteDependency(
         @PathVariable Long id,
@@ -158,6 +158,34 @@ public class WorkflowGraphController {
     ) {
         Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
         workflowGraphService.deleteDependency(id, parentNodeId, childNodeId, callerId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/nodes/{id}")
+    @Operation(
+        summary = "4.3 Sửa thông tin Node",
+        description = "Chỉ Owner. Sửa title, description, phaseId, joinPolicy, assignedUserId, dueDate, estimatedHours; trường không gửi thì giữ nguyên. Không sửa status. Bắt buộc gửi version: sai trả 409 OPTIMISTIC_LOCK_CONFLICT. Người phụ trách không phải thành viên trả 400 (message bắt đầu bằng ASSIGNEE_NOT_MEMBER)."
+    )
+    public ResponseEntity<GraphNodeResponse> updateNode(
+        @PathVariable Long id,
+        @Valid @RequestBody UpdateNodeRequest request,
+        @RequestParam(required = false) Long currentUserId
+    ) {
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        return ResponseEntity.ok(workflowGraphService.updateNode(id, request, callerId));
+    }
+
+    @DeleteMapping("/nodes/{id}")
+    @Operation(
+        summary = "4.3 Xóa Node",
+        description = "Chỉ Owner. Chỉ xóa được node đang LOCKED hoặc TODO; ngược lại trả 409 NODE_IN_USE. Các cạnh của node bị xóa theo, node con được tính lại trạng thái."
+    )
+    public ResponseEntity<Void> deleteNode(
+        @PathVariable Long id,
+        @RequestParam(required = false) Long currentUserId
+    ) {
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        workflowGraphService.deleteNode(id, callerId);
         return ResponseEntity.noContent().build();
     }
 

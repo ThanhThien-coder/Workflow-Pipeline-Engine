@@ -548,10 +548,11 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 
 ---
 
-### 4.3 Thêm Node & Nối cạnh quan hệ `NODE_DEPENDENCY` (`POST /api/projects/{id}/nodes`, `POST /api/projects/{id}/dependencies`)
-1. **Mục tiêu Nghiệp vụ**: Khởi tạo nút công việc (`NODE`) mới, thiết lập mã Code, chính sách hội tụ (`join_policy`: `ALL_COMPLETED` hoặc `ANY_COMPLETED`), và nối mũi tên phụ thuộc.
+### 4.3 Thêm/Sửa/Xóa Node & Nối/Gỡ cạnh `NODE_DEPENDENCY` (`POST /api/projects/{id}/nodes`, `PUT/DELETE /api/nodes/{id}`, `POST/DELETE /api/projects/{id}/dependencies`)
+1. **Mục tiêu Nghiệp vụ**: Khởi tạo nút công việc (`NODE`) mới, thiết lập mã Code, chính sách hội tụ (`join_policy`: `ALL_COMPLETED` hoặc `ANY_COMPLETED`), sửa hoặc xóa node, nối và gỡ mũi tên phụ thuộc.
 2. **Luồng Mã Nguồn**:
    - `src/components/mindmap/AddNodeToolbar.tsx` -> `useWorkflowStore.updateTree` -> `container.workflowService`.
+   - Backend: `WorkflowGraphController` -> `WorkflowGraphService` (`createNode`, `updateNode`, `deleteNode`, `createDependency`, `deleteDependency`).
 3. **Request DTO**:
    - Tạo Node: `POST /api/projects/{id}/nodes`, Body:
      ```json
@@ -564,13 +565,24 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
        "dueDate": "2026-10-25T17:00:00Z"
      }
      ```
-   - Nối cạnh: `POST /api/projects/{id}/dependencies`, Body: `{ "parentNodeId": "n1", "childNodeId": "n3" }`.
+   - Sửa Node: `PUT /api/nodes/{id}`, Body: `{ "title": "OAuth2 Integration", "description": "...", "phaseId": 2, "joinPolicy": "ANY_COMPLETED", "assignedUserId": 3, "dueDate": "2026-10-25T17:00:00Z", "estimatedHours": 8, "version": 0 }`. `title` và `version` bắt buộc; trường khác không gửi thì giữ nguyên. Không có `status`: trạng thái chỉ đổi qua State Machine (Cụm 5).
+   - Xóa Node: `DELETE /api/nodes/{id}`.
+   - Nối cạnh: `POST /api/projects/{id}/dependencies`, Body: `{ "parentNodeId": 1, "childNodeId": 3 }`.
+   - Gỡ cạnh: `DELETE /api/projects/{id}/dependencies?parentNodeId={cha}&childNodeId={con}`.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `NODE`, `NODE_DEPENDENCY`.
-   - Node mới được gán `status = 'LOCKED'` (nếu có parent nodes) hoặc `'TODO'` (nếu là root node). Khởi tạo `version = 0`.
-   - Kiểm tra `parent_node_id != child_node_id` và Unique pair trên `NODE_DEPENDENCY`.
+   - Quyền: mọi thao tác ghi chỉ dành cho **owner** của dự án (UC10). Thành viên và Viewer chỉ đọc được đồ thị. Dự án `ARCHIVED` trả `409 PROJECT_ARCHIVED`.
+   - Tạo Node: `status = 'LOCKED'` nếu nằm trong Phase, `'TODO'` nếu standalone. Khởi tạo `version = 0`. Thiếu `code` thì tự sinh `WPE-xxx`; trùng mã trả `409 DUPLICATE_NODE_CODE`.
+   - Sửa Node: `version` gửi lên khác `version` trên máy chủ trả `409 OPTIMISTIC_LOCK_CONFLICT`. `assignedUserId` phải là owner hoặc thành viên đang hoạt động của dự án. Dời `dueDate` sang tương lai thì `is_overdue = false`. Đổi `joinPolicy` thì trạng thái node được tính lại (chỉ khi node có cha).
+   - Xóa Node: chỉ khi node `LOCKED` hoặc `TODO`, ngược lại `409 NODE_IN_USE`. Các cạnh của node bị xóa theo; các node con được tính lại trạng thái.
+   - Nối cạnh, theo thứ tự: chặn tự nối (`400`); cạnh đã có thì trả về luôn (lũy đẳng, vẫn `201`); chặn chu trình dài bất kỳ bằng `KahnDagService.wouldCreateCycle` (`422 CYCLE_DETECTED`, `cycleNodes` là mã các node trên vòng); node con đang `IN_PROGRESS` trở lên thì `409 NODE_IN_USE`; lưu cạnh.
+   - Tính lại trạng thái node con sau khi nối hoặc gỡ cạnh, theo `joinPolicy` (`ALL_COMPLETED`: mọi cha `DONE`; `ANY_COMPLETED`: ít nhất một cha `DONE`; không còn cha thì coi như thỏa):
+     - con `TODO` mà điều kiện không còn thỏa -> `LOCKED`;
+     - con `LOCKED` mà điều kiện thỏa -> `TODO`, gửi SSE `TASK_UNLOCKED` cho người phụ trách;
+     - con `IN_PROGRESS` trở lên: giữ nguyên.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `201 Created`.
+   - **Status Code**: tạo Node, nối cạnh `201 Created`; sửa Node `200 OK` (trả node kèm `version` mới); xóa Node, gỡ cạnh `204 No Content`.
+   - **Mã lỗi**: `400 BAD_REQUEST` (tự nối, Phase hoặc node không thuộc dự án, thiếu `version`; người phụ trách không phải thành viên thì `message` bắt đầu bằng `ASSIGNEE_NOT_MEMBER:`); `403 ACCESS_DENIED`; `404`; `409 PROJECT_ARCHIVED` / `NODE_IN_USE` / `DUPLICATE_NODE_CODE` / `OPTIMISTIC_LOCK_CONFLICT`; `422 CYCLE_DETECTED`.
    - **UI Mutation**: Nạp Node mới vào nhánh cây `trees[phaseId]`.
 
 ---
@@ -585,17 +597,21 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Body JSON**:
      ```json
      {
-       "position": { "x": 280, "y": 140 },
-       "width": 220,
-       "height": 90,
-       "color": "emerald"
+       "metadata": {
+         "position": { "x": 280, "y": 140 },
+         "width": 220,
+         "height": 90,
+         "color": "emerald"
+       }
      }
      ```
+   - Tọa độ nằm trong khóa `metadata` (bắt buộc). URL `PATCH /api/projects/{projectId}/nodes/{id}/metadata` cũng được chấp nhận.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `NODE`.
-   - Cập nhật trường JSONB: `UPDATE NODE SET ui_metadata = :metadata WHERE id = :id`.
+   - Quyền: chỉ owner của dự án. Dự án `ARCHIVED` trả `409 PROJECT_ARCHIVED`.
+   - Cập nhật trường JSONB bằng câu `UPDATE` trực tiếp: `UPDATE NODE SET ui_metadata = :metadata WHERE id = :id` (`NodeRepository.updateUiMetadata`). Không đi qua `save()` nên **không làm tăng `version`**: kéo thả node không gây `409` cho người đang thao tác task trên Kanban. `updated_at` cũng không đổi.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `200 OK`.
+   - **Status Code**: `200 OK`, trả node với `uiMetadata` mới và `version` giữ nguyên.
    - **UI Mutation**: Giữ nguyên vị trí thả của thẻ Node trên giao diện.
 
 ---
