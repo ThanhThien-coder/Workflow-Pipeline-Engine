@@ -66,7 +66,7 @@ Người review cố định: **A do B review, B do C review, C do D review, D d
 | [B2](B-do-thi/B2-api-do-thi-giai-doan.md) | API đồ thị và phase: lưu vị trí, chặn ARCHIVED | B | B1 | 1 |
 | [B3](B-do-thi/B3-api-node-phu-thuoc.md) | API node và phụ thuộc: vá 4 lỗ hổng | B | B1 | 1,5 |
 | [B4](B-do-thi/B4-xuat-ban-du-an.md) | Xuất bản dự án: vá `publishPipeline` | B | B3 | 0,5–1 |
-| [B5](B-do-thi/B5-canvas-goi-api-that.md) | Canvas gọi API thật | B | A2, B3 | 2 |
+| [B5](B-do-thi/B5-canvas-goi-api-that.md) | Canvas gọi API thật | B | A2, B2, B3 | 2 |
 | [B6](B-do-thi/B6-xuat-ban-giao-dien.md) | Xuất bản trên giao diện, đồng bộ Kahn FE/BE | B | B4, B5 | 1 |
 | [B7](B-do-thi/B7-ooad-phan-tich.md) | OOAD phân tích mảng B | B | T1 | 1 |
 | [B8](B-do-thi/B8-ooad-thiet-ke.md) | OOAD thiết kế mảng B | B | B7, B4 | 1–1,5 |
@@ -156,7 +156,7 @@ flowchart LR
   A3 --> A4 & A5 & A6 & A8
   A7 --> A8
   B1 --> B2 & B3 & D3 & D6
-
+  B2 --> B5
   B3 --> B4 & B5
   B4 --> B6 & B8
   B5 --> B6

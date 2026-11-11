@@ -5,7 +5,7 @@ Người review: C
 Trạng thái: chưa làm
 Cần có trước: B1
 Cần trước bước frontend: không
-Mở khóa: không
+Mở khóa: B5
 Nhánh git: b2-graph-phases
 Ước lượng: 1 ngày
 

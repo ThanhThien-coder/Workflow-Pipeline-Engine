@@ -3,7 +3,7 @@
 Người làm: B
 Người review: C
 Trạng thái: chưa làm
-Cần có trước: A2, B3
+Cần có trước: A2, B2, B3
 Cần trước bước frontend: không
 Mở khóa: B6
 Nhánh git: b5-graph-ui
