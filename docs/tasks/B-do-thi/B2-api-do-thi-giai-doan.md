@@ -91,7 +91,7 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Trả lời Bước 0
 
 ### Đã làm gì (file nào, vì sao)
-> Chế độ sprint, Claude ghi ngày 11/11/2026. Nhánh `b2-graph-phases` tạo từ `b1-kahn` vì PR #15 chưa merge.
+> Chế độ sprint, Claude ghi ngày 11/11/2026. Nhánh `b2-graph-phases` ban đầu tạo từ `b1-kahn`; sau khi PR #15 merge đã rebase lên `main` (a56f69b).
 
 - `V9__work_phase_ui_metadata.sql`: thêm cột `work_phase.ui_metadata JSONB NOT NULL DEFAULT '{}'`.
 - `WorkPhaseEntity`: thêm trường `uiMetadata` (map JSONB, mặc định map rỗng).
