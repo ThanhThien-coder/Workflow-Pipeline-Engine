@@ -35,9 +35,12 @@ public class ProjectController {
         summary = "Lấy danh sách dự án của tôi",
         description = "Truy vấn toàn bộ dự án người dùng sở hữu (OWNER) hoặc tham gia làm thành viên (COLLABORATOR, VIEWER)"
     )
-    public ResponseEntity<List<ProjectSummaryResponse>> getMyProjects() {
+    public ResponseEntity<List<ProjectSummaryResponse>> getMyProjects(
+        @RequestParam(name = "tab", defaultValue = "all") String tab,
+        @RequestParam(name = "sort", defaultValue = "ts") String sort
+    ) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        List<ProjectSummaryResponse> projects = projectService.getMyProjects(currentUserId);
+        List<ProjectSummaryResponse> projects = projectService.getMyProjects(currentUserId, tab, sort);
         return ResponseEntity.ok(projects);
     }
 

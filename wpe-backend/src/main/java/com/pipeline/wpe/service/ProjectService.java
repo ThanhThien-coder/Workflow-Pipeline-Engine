@@ -11,6 +11,7 @@ import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.entity.UserEntity;
 import com.pipeline.wpe.entity.WorkPhaseEntity;
 import com.pipeline.wpe.exception.AccessDeniedException;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,13 +37,53 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final TemplateCloneService templateCloneService;
 
+    private static final Map<ProjectStatus, Set<ProjectStatus>> ALLOWED_TRANSITIONS = Map.of(
+        ProjectStatus.ACTIVE, Set.of(ProjectStatus.PAUSED, ProjectStatus.ARCHIVED, ProjectStatus.COMPLETED),
+        ProjectStatus.PAUSED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED),
+        ProjectStatus.INACTIVE, Set.of(ProjectStatus.ARCHIVED),
+        ProjectStatus.ARCHIVED, Set.of(ProjectStatus.ACTIVE)
+    );
+
     public List<ProjectSummaryResponse> getMyProjects(Long currentUserId) {
-        List<ProjectEntity> projects = projectRepository.findAllAccessibleProjects(currentUserId);
-        if (projects.isEmpty()) {
+        return getMyProjects(currentUserId, "all", "ts");
+    }
+
+    public List<ProjectSummaryResponse> getMyProjects(Long currentUserId, String tab, String sort) {
+        String normalizedTab = (tab == null || tab.isBlank()) ? "all" : tab.trim().toLowerCase();
+        if (!Set.of("all", "mine", "shared", "archived").contains(normalizedTab)) {
+            throw new IllegalArgumentException("Tham số tab không hợp lệ: " + tab);
+        }
+
+        String normalizedSort = (sort == null || sort.isBlank()) ? "ts" : sort.trim().toLowerCase();
+        if (!Set.of("ts", "done", "nodes").contains(normalizedSort)) {
+            throw new IllegalArgumentException("Tham số sort không hợp lệ: " + sort);
+        }
+
+        List<ProjectEntity> accessibleProjects = projectRepository.findAllAccessibleProjects(currentUserId);
+        if (accessibleProjects.isEmpty()) {
             return List.of();
         }
 
-        List<Long> ownerIds = projects.stream().map(ProjectEntity::getOwnerId).distinct().toList();
+        List<ProjectEntity> filtered = accessibleProjects.stream().filter(p -> {
+            boolean isOwner = p.getOwnerId() != null && p.getOwnerId().equals(currentUserId);
+            boolean isArchived = p.getStatus() == ProjectStatus.ARCHIVED;
+            return switch (normalizedTab) {
+                case "all" -> !isArchived;
+                case "mine" -> isOwner && !isArchived;
+                case "shared" -> !isOwner && !isArchived;
+                case "archived" -> isArchived;
+                default -> false;
+            };
+        }).toList();
+
+        if (filtered.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> projectIds = filtered.stream().map(ProjectEntity::getId).toList();
+        Map<Long, NodeStats> statsMap = countNodesByProjectIds(projectIds);
+
+        List<Long> ownerIds = filtered.stream().map(ProjectEntity::getOwnerId).distinct().toList();
         Map<Long, String> ownerNames = userRepository.findAllById(ownerIds).stream()
             .collect(Collectors.toMap(
                 UserEntity::getId,
@@ -51,14 +91,44 @@ public class ProjectService {
                 (a, b) -> a
             ));
 
-        return projects.stream().map(project -> {
+        List<ProjectSummaryResponse> result = new ArrayList<>(filtered.stream().map(project -> {
             String ownerName = ownerNames.getOrDefault(project.getOwnerId(), "User #" + project.getOwnerId());
-            int totalNodes = (int) nodeRepository.countByProjectId(project.getId());
-            int completedNodes = (int) nodeRepository.countByProjectIdAndStatus(project.getId(), NodeStatus.DONE);
-            int inProgressNodes = (int) nodeRepository.countByProjectIdAndStatus(project.getId(), NodeStatus.IN_PROGRESS);
+            NodeStats stats = statsMap.getOrDefault(project.getId(), NodeStats.EMPTY);
+            return ProjectSummaryResponse.withNodeStats(
+                project,
+                ownerName,
+                stats.nodeCount(),
+                stats.activeNodes(),
+                stats.doneNodes(),
+                stats.inProgressNodes()
+            );
+        }).toList());
 
-            return ProjectSummaryResponse.fromEntity(project, ownerName, totalNodes, completedNodes, inProgressNodes);
-        }).toList();
+        Comparator<ProjectSummaryResponse> comparator = switch (normalizedSort) {
+            case "done" -> (p1, p2) -> {
+                int c = Integer.compare(p2.doneNodes(), p1.doneNodes());
+                return (c != 0) ? c : Long.compare(p2.id(), p1.id());
+            };
+            case "nodes" -> (p1, p2) -> {
+                int c = Integer.compare(p2.nodeCount(), p1.nodeCount());
+                return (c != 0) ? c : Long.compare(p2.id(), p1.id());
+            };
+            case "ts" -> (p1, p2) -> {
+                Instant t1 = p1.updatedAt();
+                Instant t2 = p2.updatedAt();
+                if (t1 == null && t2 == null) {
+                    return Long.compare(p2.id(), p1.id());
+                }
+                if (t1 == null) return 1;
+                if (t2 == null) return -1;
+                int c = t2.compareTo(t1);
+                return (c != 0) ? c : Long.compare(p2.id(), p1.id());
+            };
+            default -> throw new IllegalArgumentException("Tham số sort không hợp lệ: " + sort);
+        };
+
+        result.sort(comparator);
+        return result;
     }
 
     public ProjectDetailResponse getProjectDetail(Long projectId, Long currentUserId) {
@@ -125,7 +195,7 @@ public class ProjectService {
             .name(req.name().trim())
             .description(req.description())
             .ownerId(currentUserId)
-            .status(ProjectStatus.PLANNING)
+            .status(ProjectStatus.DRAFT)
             .build();
 
         ProjectEntity savedProject = projectRepository.save(newProject);
@@ -167,21 +237,78 @@ public class ProjectService {
 
         ProjectStatus newStatus;
         try {
+            if (req.status() == null) {
+                throw new IllegalArgumentException();
+            }
             newStatus = ProjectStatus.valueOf(req.status().trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Trạng thái dự án không hợp lệ: " + req.status());
+        }
+
+        ProjectStatus currentStatus = project.getStatus();
+        if ((currentStatus == ProjectStatus.DRAFT || currentStatus == ProjectStatus.PLANNING)
+                && newStatus == ProjectStatus.ACTIVE) {
+            throw new ConflictException("USE_PUBLISH", "Dự án nháp chỉ chuyển sang ACTIVE bằng thao tác xuất bản (publish).");
+        }
+
+        Set<ProjectStatus> allowed = ALLOWED_TRANSITIONS.get(currentStatus);
+        if (allowed == null || !allowed.contains(newStatus)) {
+            throw new ConflictException("INVALID_PROJECT_STATUS",
+                "Không thể chuyển dự án từ " + currentStatus + " sang " + newStatus);
         }
 
         project.setStatus(newStatus);
         project.setUpdatedAt(Instant.now());
         ProjectEntity saved = projectRepository.save(project);
 
+        Map<Long, NodeStats> statsMap = countNodesByProjectIds(List.of(projectId));
+        NodeStats stats = statsMap.getOrDefault(projectId, NodeStats.EMPTY);
         String ownerName = getOwnerDisplayName(saved.getOwnerId());
-        int totalNodes = (int) nodeRepository.countByProjectId(projectId);
-        int completedNodes = (int) nodeRepository.countByProjectIdAndStatus(projectId, NodeStatus.DONE);
-        int inProgressNodes = (int) nodeRepository.countByProjectIdAndStatus(projectId, NodeStatus.IN_PROGRESS);
 
-        return ProjectSummaryResponse.fromEntity(saved, ownerName, totalNodes, completedNodes, inProgressNodes);
+        return ProjectSummaryResponse.withNodeStats(
+            saved,
+            ownerName,
+            stats.nodeCount(),
+            stats.activeNodes(),
+            stats.doneNodes(),
+            stats.inProgressNodes()
+        );
+    }
+
+    private record NodeStats(int nodeCount, int activeNodes, int doneNodes, int inProgressNodes) {
+        static final NodeStats EMPTY = new NodeStats(0, 0, 0, 0);
+    }
+
+    private Map<Long, NodeStats> countNodesByProjectIds(Collection<Long> projectIds) {
+        if (projectIds == null || projectIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> rows = nodeRepository.countByProjectIdsGroupByStatus(projectIds);
+        Map<Long, int[]> countMap = new HashMap<>();
+        for (Object[] row : rows) {
+            Long pId = (Long) row[0];
+            NodeStatus status = (NodeStatus) row[1];
+            int count = ((Number) row[2]).intValue();
+
+            int[] counts = countMap.computeIfAbsent(pId, k -> new int[4]);
+            counts[0] += count; // nodeCount = tổng
+            if (status == NodeStatus.TODO || status == NodeStatus.IN_PROGRESS || status == NodeStatus.REVIEW) {
+                counts[1] += count; // activeNodes
+            }
+            if (status == NodeStatus.DONE) {
+                counts[2] += count; // doneNodes
+            }
+            if (status == NodeStatus.IN_PROGRESS) {
+                counts[3] += count; // inProgressNodes
+            }
+        }
+
+        Map<Long, NodeStats> result = new HashMap<>();
+        for (Map.Entry<Long, int[]> entry : countMap.entrySet()) {
+            int[] c = entry.getValue();
+            result.put(entry.getKey(), new NodeStats(c[0], c[1], c[2], c[3]));
+        }
+        return result;
     }
 
     private String getOwnerDisplayName(Long ownerId) {

@@ -16,7 +16,10 @@ public record ProjectSummaryResponse(
     int inProgressNodes,
     double progressPercentage,
     Instant createdAt,
-    Instant updatedAt
+    Instant updatedAt,
+    int nodeCount,
+    int activeNodes,
+    int doneNodes
 ) {
     public static ProjectSummaryResponse fromEntity(
         ProjectEntity project,
@@ -41,7 +44,10 @@ public record ProjectSummaryResponse(
             inProgressNodes,
             progressPercentage,
             project.getCreatedAt(),
-            project.getUpdatedAt()
+            project.getUpdatedAt(),
+            totalNodes,
+            inProgressNodes,
+            completedNodes
         );
     }
 
@@ -59,5 +65,40 @@ public record ProjectSummaryResponse(
             ? Math.round(((double) completedNodes / totalNodes) * 10000.0) / 100.0
             : 0.0;
         return fromEntity(project, ownerName, totalNodes, completedNodes, inProgressNodes, progress);
+    }
+
+    public static ProjectSummaryResponse withNodeStats(
+        ProjectEntity project,
+        String ownerName,
+        int nodeCount,
+        int activeNodes,
+        int doneNodes,
+        int inProgressNodes
+    ) {
+        if (project == null) {
+            return null;
+        }
+        int totalNodes = nodeCount;
+        int completedNodes = doneNodes;
+        double progress = totalNodes > 0
+            ? Math.round(((double) completedNodes / totalNodes) * 10000.0) / 100.0
+            : 0.0;
+        return new ProjectSummaryResponse(
+            project.getId(),
+            project.getName(),
+            project.getDescription(),
+            project.getStatus() != null ? project.getStatus().name() : null,
+            project.getOwnerId(),
+            ownerName,
+            totalNodes,
+            completedNodes,
+            inProgressNodes,
+            progress,
+            project.getCreatedAt(),
+            project.getUpdatedAt(),
+            nodeCount,
+            activeNodes,
+            doneNodes
+        );
     }
 }

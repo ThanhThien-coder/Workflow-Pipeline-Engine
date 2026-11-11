@@ -3,8 +3,11 @@ package com.pipeline.wpe.repository;
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.entity.NodeEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,4 +27,7 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
     long countByProjectId(Long projectId);
 
     List<NodeEntity> findByStatusAndDueDateBeforeAndIsOverdueFalse(NodeStatus status, java.time.Instant now);
+
+    @Query("SELECT n.projectId, n.status, COUNT(n) FROM NodeEntity n WHERE n.projectId IN :projectIds GROUP BY n.projectId, n.status")
+    List<Object[]> countByProjectIdsGroupByStatus(@Param("projectIds") Collection<Long> projectIds);
 }
