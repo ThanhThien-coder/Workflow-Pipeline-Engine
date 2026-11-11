@@ -275,6 +275,36 @@ export function validateKahnDag(nodes: { id: string }[], edges: { parentId: stri
 }
 ```
 
+> Mã giả trên là bản gốc, giữ để đối chiếu. Bản backend (`KahnDagService`) khác ở các điểm ghi trong mục 4.3.
+
+### 4.3 Cài đặt Backend: `KahnDagService` (cập nhật 11/11/2026, task B1)
+
+File: `wpe-backend/src/main/java/com/pipeline/wpe/service/engine/KahnDagService.java`.
+
+**`validateProjectDag(nodes, dependencies)` trả về `ProjectKahnResult`:**
+
+| Trường | Ý nghĩa |
+| :--- | :--- |
+| `isValid` | `true` nếu đồ thị không có chu trình |
+| `visitedCount`, `totalNodes` | Số node duyệt được và tổng số node |
+| `rootNodeIds` | Các node không có cha (in-degree 0 lúc đầu). Xuất bản dự án mở khóa các node này |
+| `sortedOrder` | Thứ tự topo theo id node. **Rỗng nếu có chu trình** |
+| `blockedNodeCodes` | Mã mọi node không duyệt được: node trên chu trình **và** node đứng sau chu trình |
+| `cycleNodeCodes` | Mã các node nằm trên chu trình. Đây là danh sách trả cho người dùng trong lỗi 422 (`cycleNodes`) |
+
+**Khác với mã giả ở mục 4.2:**
+
+1. **Thứ tự ổn định.** Nhiều node cùng in-degree 0 thì node có id nhỏ hơn được lấy trước (dùng hàng đợi ưu tiên). Cùng một đồ thị luôn cho cùng một `sortedOrder`, không phụ thuộc thứ tự dữ liệu đưa vào.
+2. **`cycleNodeCodes` không gồm node đứng sau chu trình.** Sau khi chạy Kahn, tập node còn in-degree > 0 (`blockedNodeCodes`) được "bóc ngược": lặp lại việc bỏ các node không còn cạnh đi ra tới node khác trong tập. Phần còn lại là `cycleNodeCodes`. Ví dụ `A→B→C→A, C→D, D→E`: `blockedNodeCodes = [A, B, C, D, E]`, `cycleNodeCodes = [A, B, C]`.
+3. **Bỏ qua cạnh có đầu mút lạ.** Cạnh mà node cha hoặc node con không nằm trong danh sách `nodes` thì không được tính. Nếu tính, node con sẽ không bao giờ về in-degree 0 và bị báo chu trình giả.
+4. Cạnh trùng (cùng cha, cùng con, xuất hiện nhiều lần) không làm sai kết quả.
+
+**Hạn chế đã biết:** node nằm trên đường nối giữa 2 chu trình (ví dụ `A⇄B, B→X, X→C, C⇄D`: node `X`) vẫn bị đưa vào `cycleNodeCodes`, dù nó không nằm trên chu trình nào. Muốn tách chính xác cần thuật toán tìm thành phần liên thông mạnh (Tarjan), chưa làm.
+
+**`wouldCreateCycle(nodes, dependencies, parentId, childId)`:** trả `true` nếu thêm cạnh `parentId → childId` vào đồ thị hiện có sẽ tạo chu trình, kể cả khi `parentId` bằng `childId`. Cách làm: thêm cạnh cha → con tạo vòng khi và chỉ khi đã có đường đi từ con tới cha, nên chỉ cần duyệt theo chiều rộng từ node con, gặp node cha thì trả `true`. Độ phức tạp O(V + E). Hàm này dùng để chặn vòng ngay lúc nối cạnh (mục 4.1, điểm 1), kể cả vòng dài như `A→B→C→A`.
+
+**Chưa đổi:** `validateTemplateGraph` (kiểm template 2 tầng) vẫn báo mọi node còn in-degree > 0, chưa áp dụng "bóc ngược".
+
 ---
 
 ## 5. Vòng đời Dự án & Kiểm soát Xung đột Đồng thời
