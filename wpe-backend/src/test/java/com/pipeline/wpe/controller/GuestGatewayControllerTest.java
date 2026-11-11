@@ -8,6 +8,7 @@ import com.pipeline.wpe.dto.request.guest.GenerateGuestTokenRequest;
 import com.pipeline.wpe.dto.response.feedback.GuestFeedbackResponse;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
+import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.service.FeedbackQueueService;
 import com.pipeline.wpe.service.GuestGatewayService;
@@ -128,6 +129,36 @@ class GuestGatewayControllerTest {
                 .content(objectMapper.writeValueAsString(invalid)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/guest/{token}/feedback - Bị giới hạn tần suất trả về 429 COOLDOWN_ACTIVE")
+    void testSubmitGuestFeedback_CooldownActive() throws Exception {
+        CreateGuestFeedbackRequest request = new CreateGuestFeedbackRequest(
+            "Khách", ReviewerRole.GUEST, "Góp ý spam", null
+        );
+        when(feedbackQueueService.submitGuestFeedback(eq("token123"), any()))
+            .thenThrow(new CooldownActiveException(120));
+
+        mockMvc.perform(post("/api/v1/guest/token123/feedback")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.error").value("COOLDOWN_ACTIVE"))
+            .andExpect(jsonPath("$.retryAfterSeconds").value(120));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/projects/{id}/guest-token - Không phải Owner trả về 403 ACCESS_DENIED")
+    void testGenerateGuestToken_AccessDenied() throws Exception {
+        when(guestGatewayService.generateOrRenewGuestToken(eq(1L), any()))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền thực hiện."));
+
+        mockMvc.perform(post("/api/v1/projects/1/guest-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new GenerateGuestTokenRequest(30))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
     }
 }
 

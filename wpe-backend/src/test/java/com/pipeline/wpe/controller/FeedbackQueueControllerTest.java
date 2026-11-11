@@ -5,6 +5,7 @@ import com.pipeline.wpe.common.enums.FeedbackStatus;
 import com.pipeline.wpe.common.enums.ReviewerRole;
 import com.pipeline.wpe.dto.response.feedback.ProjectFeedbackResponse;
 import com.pipeline.wpe.dto.response.feedback.ResolveFeedbackResponse;
+import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.service.FeedbackQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,28 @@ class FeedbackQueueControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.feedbackId").value(5))
             .andExpect(jsonPath("$.status").value("RESOLVED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/{id}/feedbacks - Không có quyền trả về 403 ACCESS_DENIED")
+    void testGetProjectFeedbacks_AccessDenied() throws Exception {
+        when(feedbackQueueService.getProjectFeedbacks(1L))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+
+        mockMvc.perform(get("/api/v1/projects/1/feedbacks"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/projects/{id}/feedbacks/{id}/resolve - Không có quyền trả về 403 ACCESS_DENIED")
+    void testResolveFeedback_AccessDenied() throws Exception {
+        when(feedbackQueueService.resolveFeedback(1L, 5L))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+
+        mockMvc.perform(patch("/api/v1/projects/1/feedbacks/5/resolve"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
     }
 }
 
