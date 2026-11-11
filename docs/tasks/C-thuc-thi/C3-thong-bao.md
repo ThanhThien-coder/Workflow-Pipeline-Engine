@@ -82,3 +82,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

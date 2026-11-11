@@ -1,5 +1,7 @@
 # Thư mục của C — Chạy task và realtime
 
+> ⚡ **Chế độ sprint 2 ngày** ([../SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md)): T0, T1 rút gọn → C1 → C2 (ngày 1); C4 (backend) → C7 → C8, component (ngày 2). Bảng dưới là thứ tự đầy đủ, dùng khi làm theo chế độ thường.
+
 Người review của C: **D**. C review cho: **B**. Kế hoạch chung: [../README.md](../README.md).
 
 Làm theo thứ tự (T0, T1 nằm ở [../chung/](../chung/README.md)):

@@ -1,4 +1,4 @@
-# D3 — Template Studio backend: CRUD template, kiểm chu trình, clone (Cụm 10.3)
+# D3 — Template backend: kiểm thử, phân quyền ADMIN, kiểm clone khứ hồi (Cụm 10.3)
 
 Người làm: D
 Người review: A
@@ -7,53 +7,58 @@ Cần có trước: B1, D1
 Cần trước bước frontend: không
 Mở khóa: D4
 Nhánh git: d3-templates
-Ước lượng: 1,5 ngày
+Ước lượng: 1 ngày
+
+> **Cập nhật 11/11/2026 (sau khi pull):** CRUD template đã có: `BE/controller/PipelineTemplateController.java`, `BE/service/PipelineTemplateService.java`, kiểm chu trình bằng `KahnDagService.validateTemplateGraph`, migration **V5** (thêm cột `slug` và seed các template mẫu), test `PipelineTemplateServiceTest`. Task này: đọc hiểu, vá phân quyền, kiểm clone khứ hồi.
 
 ## Vì sao cần task này
-`BE/controller/TemplateController.java` mới có `POST /{id}/clone`, chưa có thêm/sửa/xóa/xem template. Định dạng `graph_data` cũng chưa thống nhất: `TemplateCloneService` đang đọc lẫn nhiều kiểu khóa (`source/target`, `parentId/childId`, `subTitle`).
+Đọc code thấy:
+1. **Ai cũng sửa, xóa được template**: `createTemplate`, `updateTemplate`, `deleteTemplate` không kiểm `system_role = ADMIN` (UC5 trong `system-overview.md` chỉ cho Admin).
+2. Controller có `?currentUserId=` và `orElse(1L)`. Không đăng nhập vẫn tạo được template, và template bị ghi là do admin (user 1) tạo.
+3. Template hệ thống (`is_system_standard = true`) cũng bị sửa, xóa như template thường.
+4. Chưa có test chứng minh: tạo template → clone → dự án mới có đúng số phase, node, cạnh như template.
 
 ## Kiến thức phải nắm
-Lưu đồ thị trong JSONB, version hóa schema dữ liệu (`schemaVersion`), kiểm chu trình 2 tầng (phase và node), phân quyền cấp hệ thống (ADMIN).
+Lưu đồ thị trong JSONB, slug, phân quyền cấp hệ thống (ADMIN), kiểm chu trình 2 tầng (phase và node), test khứ hồi (round-trip).
 
 ## Bước 0 — Tự đọc, không dùng AI
-Đọc: integration map 10.3; trong `FE/types/template.types.ts` đọc `GraphDataPayload`, `TemplateSummaryDto`, `TemplateDetailDto`, `DagValidationResult`; `FE/services/template/ITemplateService.ts`, `FE/services/template/mockTemplateData.ts`; `BE/entity/PipelineTemplateEntity.java`; phần đọc graphData trong `BE/service/TemplateCloneService.java`; `BE-test/service/TemplateCloneServiceTest.java`.
+Đọc: integration map 10.3; `V5__seed_templates_and_add_slug.sql` (phần đầu); `PipelineTemplateController.java`, `PipelineTemplateService.java`, `validateTemplateGraph` trong `BE/service/engine/KahnDagService.java`; phần đọc graphData trong `BE/service/TemplateCloneService.java`; `GraphDataPayload` trong `FE/types/template.types.ts`.
 Trả lời:
-1. `graphData` có 2 tầng. Tầng nào cần kiểm chu trình: `phaseEdges`, `edges`, hay cả hai?
-2. Template hệ thống (`is_system_standard`) thì ai được sửa, ai được xóa?
-3. Clone xong, node nào LOCKED, node nào TODO?
+1. Chỉ dòng code của lỗ hổng 1 và 2.
+2. `validateTemplateGraph` kiểm chu trình ở tầng nào: `phaseEdges`, `edges`, hay cả hai?
+3. Template được tìm theo id hoặc slug. Vì sao cần slug?
 
 ## Được đọc
 > Viết tắt: `BE/` = `wpe-backend/src/main/java/com/pipeline/wpe/`, `BE-test/` = `wpe-backend/src/test/java/com/pipeline/wpe/`, `FE/` = `wpe-frontend/src/`.
 - `wpe-backend/src/**`, `FE/**`, `docs/**`
 
 ## Được ghi
-- `BE/controller/TemplateController.java`, `BE/service/template/**` (mới), `BE/service/TemplateCloneService.java` (phần đọc graphData)
+- `BE/controller/PipelineTemplateController.java`, `BE/service/PipelineTemplateService.java`
+- `BE/service/TemplateCloneService.java` (chỉ phần đọc graphData, nếu test khứ hồi lộ lỗi)
 - `BE/repository/PipelineTemplateRepository.java` (chỉ thêm method)
-- `BE/dto/request/template/**`, `BE/dto/response/template/**` (mới)
-- `BE-test/service/template/**` (mới), `BE-test/service/TemplateCloneServiceTest.java`
+- `BE-test/service/PipelineTemplateServiceTest.java`, `BE-test/service/TemplateCloneServiceTest.java`
 - `docs/FRONTEND_BACKEND_INTEGRATION_MAP.md` (10.3), `docs/tasks/D-du-an/D3-template-backend.md`
 
 ## Đặc tả đã chốt
-- Định dạng `graph_data` = `GraphDataPayload` (`schemaVersion: 2`) trong `FE/types/template.types.ts`, vì Template Studio trên FE là nơi tạo ra nó. `TemplateCloneService` phải đọc đúng định dạng này. Nếu DB đang có dữ liệu kiểu cũ thì vẫn giữ khả năng đọc, có test.
-- `GET /api/v1/templates?category=&query=` → `TemplateSummaryDto[]`. Mọi user đăng nhập đều xem được, để chọn template khi tạo dự án.
-- `GET /api/v1/templates/{id}` → `TemplateDetailDto`.
-- `POST /api/v1/templates`, `PUT /api/v1/templates/{id}`, `DELETE /api/v1/templates/{id}`: chỉ user có `system_role = ADMIN`. Kiểm **trong service** bằng `system_role` của user hiện tại (đọc qua `UserRepository`). Cách này chạy được cả với header debug lẫn JWT, nên không phải chờ A3.
-- Trước khi lưu, chạy `DagValidator` (B1) cho cả `phaseEdges` (tầng phase) và `edges` (tầng node). Có chu trình → 422 `CYCLE_DETECTED`, `cycleNodes` là id hoặc tiêu đề node.
-- `POST /api/v1/templates/validate`, body là graphData → `DagValidationResult`. Chỉ kiểm, không lưu.
-- Clone: `clone_count += 1`. Node không có cạnh vào → TODO, có cạnh vào → LOCKED (giữ logic hiện có). Dự án mới ở trạng thái DRAFT (D1).
+- Giữ nguyên các endpoint đang có (FE `HttpTemplateService` đã gọi): `GET/POST /templates`, `GET/PUT/DELETE /templates/{id}`, `POST /templates/validate`.
+- `POST`, `PUT`, `DELETE`: chỉ user có `system_role = ADMIN`, kiểm **trong service** bằng `UserRepository` theo user hiện tại (chạy được cả với header debug lẫn JWT, không phải chờ A3). Không phải admin → 403 `ACCESS_DENIED`.
+- Bỏ `orElse(1L)`: dùng `requireCurrentUserId()`. Tham số `?currentUserId=` bỏ ở X1 (cùng đợt với các controller khác).
+- Template hệ thống (`is_system_standard = true`): chỉ admin sửa được, và **không cho xóa** → 409 `SYSTEM_TEMPLATE_LOCKED`.
+- `GET` danh sách và chi tiết: mọi user đăng nhập đều xem được (để chọn template khi tạo dự án).
+- Định dạng `graph_data` chuẩn là `GraphDataPayload` (`schemaVersion: 2`) của FE. `TemplateCloneService` phải đọc đúng định dạng này.
 
 ## Việc cần làm
 1. 🧠 Bước 0.
-2. 🧠 Viết bảng test case trước.
-3. 🤝 CRUD, validate, kèm test.
-4. 🧠 Test "khứ hồi": tạo template từ JSON mẫu trong `mockTemplateData.ts` → clone → đếm phase, node, dependency của dự án mới bằng repository và so với template.
-5. 🤝 Cập nhật integration map 10.3.
+2. 🧠 Viết test **đỏ** cho lỗ hổng 1 và 3 trước khi sửa.
+3. 🤝 Sửa phân quyền, bỏ `orElse(1L)`, khóa template hệ thống; cho test xanh.
+4. 🧠 Viết test khứ hồi: lấy một template seed trong V5 → clone → đếm phase, node, dependency của dự án mới bằng repository, so với graphData của template.
+5. 🤝 Cập nhật integration map 10.3 theo endpoint thật.
 
 ## Tiêu chí xong
-- [ ] Test pass.
-- [ ] Template có chu trình → 422. User thường gọi POST → 403.
-- [ ] Test khứ hồi: số phase, node, cạnh của dự án clone khớp với template.
-- [ ] Đã cập nhật integration map.
+- [ ] Test lỗ hổng: fail trước khi sửa (ghi lại), pass sau khi sửa.
+- [ ] Swagger: user thường (`X-Debug-User-Id: 2`) gọi POST → 403; admin (`1`) → 201; xóa template hệ thống → 409.
+- [ ] Test khứ hồi pass.
+- [ ] Toàn bộ test pass.
 
 ## Câu hỏi bảo vệ (người review hỏi, trả lời không nhìn code)
 1. Lưu template bằng JSONB khác lưu thành các bảng chuẩn hóa ở đâu? Vì sao chọn JSONB?
@@ -62,8 +67,8 @@ Trả lời:
 
 ## Cấm
 - Sửa file ngoài mục "Được ghi". File dùng chung thì báo nhóm trước (README mục 6).
-- Đọc, in, commit `.env*`, khóa, mật khẩu thật, API key. Dùng `git add -f`.
-- Sửa `DagValidator` (của B). Cần thêm gì thì nhờ B.
+- Sửa `KahnDagService` (của B). Cần thêm gì thì nhờ B.
+- Sửa V5 (đã merge).
 - Tự ghi trạng thái `xong`. Chỉ người review ghi sau khi kiểm.
 
 ## Dành cho Claude (đọc trước khi làm)
@@ -86,3 +91,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

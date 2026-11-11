@@ -15,10 +15,10 @@ Sơ đồ thiết kế trả lời câu hỏi "hệ thống làm việc đó **b
 > Hạn OOAD tới trước khi code xong: vẽ theo đặc tả trong B2–B4, đánh dấu "dự kiến" ở phần chưa code. Code xong thì cập nhật lại.
 
 ## Sản phẩm (lưu ở `docs/ooad/B-do-thi/`)
-1. `seq-noi-phu-thuoc.puml` — sequence "Nối phụ thuộc", từ component Mindmap → store → `graph.ts` → controller → service → `DagValidator` → repository. Có `alt [tạo vòng] → 422` và `[trùng cạnh] → 409`.
+1. `seq-noi-phu-thuoc.puml` — sequence "Nối phụ thuộc", từ component Mindmap → store → `graph.ts` → `WorkflowGraphController` → `WorkflowGraphService` → `KahnDagService` → repository. Có `alt [tạo vòng] → 422` và `[trùng cạnh] → 409`.
 2. `seq-xuat-ban.puml` — sequence "Xuất bản dự án". Có `loop` Kahn, `alt [có chu trình] → 422 / [hợp lệ] → ACTIVE`, `loop` mở khóa node gốc, và message bất đồng bộ tới `SseEmitterService` sau khi commit.
 3. `comm-xuat-ban.puml` — sơ đồ communication chuyển từ sơ đồ 2.
-4. `class-do-thi.puml` — class diagram thiết kế: controller, service của mảng đồ thị, `DagValidator` cùng `Edge` và `DagValidationResult` (record), các entity `WorkPhaseEntity`, `PhaseDependencyEntity`, `NodeEntity`, `NodeDependencyEntity`, các repository, DTO, enum `JoinPolicy`. Có visibility, kiểu, bội số, và ký hiệu đúng cho generic `<T>`.
+4. `class-do-thi.puml` — class diagram thiết kế: controller, service của mảng đồ thị, `KahnDagService` cùng record `ProjectKahnResult`, `PhaseProgressCalculator`, các entity `WorkPhaseEntity`, `PhaseDependencyEntity` (V6), `NodeEntity`, `NodeDependencyEntity`, các repository, DTO, enum `JoinPolicy`. Có visibility, kiểu, bội số, và ký hiệu đúng cho lớp tiện ích tĩnh (`PhaseProgressCalculator`).
 5. `state-du-an.puml` — vòng đời dự án: DRAFT/PLANNING → ACTIVE `[Kahn hợp lệ] / mở khóa node gốc`; ACTIVE ⇄ PAUSED; ACTIVE → COMPLETED; → ARCHIVED; ARCHIVED → ACTIVE (khôi phục); INACTIVE (theo đặc tả). Chuyển trạng thái nào **chưa có code** thì ghi note "chưa cài".
 6. `object-seed.puml` — sơ đồ đối tượng cho dữ liệu seed (WPE-001…004 và 3 phase), vẽ 2 ảnh chụp: in-degree trước khi chạy Kahn và sau bước đầu tiên.
 7. `nhat-quan.md` — ma trận nhất quán: message → phương thức → `file:dòng`.
@@ -26,7 +26,7 @@ Sơ đồ thiết kế trả lời câu hỏi "hệ thống làm việc đó **b
 ## Bước 0 — Tự đọc, không dùng AI
 Đọc: cẩm nang mục 3.4, 3.5, 3.6, 3.7, 3.11 và mục 4; code B1–B4 đã merge; ghi chép B1–B4 của chính bạn.
 Trả lời:
-1. Trong sequence, vì sao lời gọi tới `DagValidator.validate` là lời gọi tĩnh? Vẽ lifeline cho lớp tiện ích tĩnh thế nào?
+1. Trong sequence, `KahnDagService` là bean Spring còn `PhaseProgressCalculator.compute` là hàm tĩnh: vẽ lifeline cho hai loại này khác nhau thế nào?
 2. Sơ đồ đối tượng khác class diagram ở đâu? Vì sao nó giúp giải thích Kahn?
 3. Trạng thái INACTIVE (không hoạt động 30 ngày) do ai kích hoạt? Có cần một actor "Bộ hẹn giờ" không?
 
@@ -76,3 +76,11 @@ Người dán file này đang **học vẽ sơ đồ thiết kế OOAD** khớp 
 ### Ma trận nhất quán: các chỗ lệch đã tìm thấy và cách xử lý
 
 ### Lỗi Claude hoặc người review chỉ ra và cách mình sửa
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

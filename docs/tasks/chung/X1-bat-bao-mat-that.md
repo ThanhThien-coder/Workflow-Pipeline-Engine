@@ -14,6 +14,7 @@ Trong lúc phát triển, backend chạy "mở": `anyRequest().permitAll()`, có
 - `NodeController` nhận `?currentUserId=`, và rơi về `orElse(2L)` khi không có user.
 - `RealtimeController` nhận `?userId=`: ai cũng nghe được luồng sự kiện của người khác.
 - `ArtifactController` có `orElse(1L)` / `orElse(null)`.
+- Hai controller mới (pull 11/11/2026) cũng vậy: `WorkflowGraphController` (11 chỗ `?currentUserId=`, `orElse(2L)`) của B, `PipelineTemplateController` (3 chỗ, `orElse(1L)`) của D.
 
 Khi mọi mảng đã nối FE với đăng nhập thật, phải đóng hết các cửa này.
 
@@ -33,7 +34,7 @@ Trả lời (mỗi người trả lời cho mảng mình):
 ## Được ghi
 - (A) `BE/security/**`, `wpe-backend/src/main/resources/application.yml`, `wpe-backend/src/main/resources/application-dev.yml` (mới), `BE-test/security/**`
 - (C) `BE/controller/NodeController.java`, `BE/controller/RealtimeController.java`, `BE/controller/ArtifactController.java`, `FE/services/impl/http/realtime.ts`, test liên quan
-- (B, D) controller của mảng mình, chỉ khi rà ra lỗi ở bước 4
+- (B) `BE/controller/WorkflowGraphController.java`; (D) `BE/controller/PipelineTemplateController.java`; và controller khác của mảng mình nếu rà ra lỗi ở bước 4
 - `docs/TEAM_DEVELOPMENT_GUIDE.md` (cách chạy với profile dev), `docs/tasks/chung/X1-bat-bao-mat-that.md`
 
 ## Đặc tả đã chốt
@@ -55,7 +56,7 @@ Trả lời (mỗi người trả lời cho mảng mình):
 1. (A) 🧠 Lập bảng **toàn bộ endpoint** từ code thật (method, path, công khai / thành viên / owner / admin). Tìm bằng `grep -rn "@\(Get\|Post\|Put\|Patch\|Delete\|Request\)Mapping" wpe-backend/src/main/java`. Bảng này cũng là đầu vào cho X2.
 2. (A) 🤝 Sửa `SecurityConfig`, thêm EntryPoint và AccessDeniedHandler, profile dev, nhận token qua query cho SSE, kèm test.
 3. (C) 🤝 Sửa `NodeController`, `RealtimeController`, `ArtifactController` và `realtime.ts`, kèm test.
-4. (B, D) 🧠 Tự rà controller của mảng mình: endpoint nào cũng lấy user từ `requireCurrentUserId()` và kiểm quyền đúng như bảng ở bước 1. Thiếu thì sửa.
+4. (B, D) 🤝 Bỏ `?currentUserId=` và `orElse(...)` trong `WorkflowGraphController` (B) và `PipelineTemplateController` (D). 🧠 Tự rà các controller khác của mảng mình: endpoint nào cũng lấy user từ `requireCurrentUserId()` và kiểm quyền đúng như bảng ở bước 1. Thiếu thì sửa.
 5. (Cả nhóm) Chạy toàn bộ app ở profile mặc định (không phải dev), không dùng header debug.
 
 ## Tiêu chí xong
@@ -92,3 +93,11 @@ Người dán file này là **một trong các người làm** của task chung.
 ### Kết quả test (dán output thật)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

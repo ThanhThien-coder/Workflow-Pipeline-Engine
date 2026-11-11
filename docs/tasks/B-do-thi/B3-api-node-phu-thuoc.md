@@ -1,78 +1,83 @@
-# B3 — API node, phụ thuộc và lưu tọa độ canvas (Cụm 4.3, 4.4)
+# B3 — API node và phụ thuộc: vá 4 lỗ hổng trong code đã có (Cụm 4.3, 4.4)
 
 Người làm: B
 Người review: C
 Trạng thái: chưa làm
-Cần có trước: B2
+Cần có trước: B1
 Cần trước bước frontend: không
 Mở khóa: B4, B5
 Nhánh git: b3-nodes-deps
 Ước lượng: 1,5 ngày
 
+> **Cập nhật 11/11/2026 (sau khi pull):** `createNode`, `createDependency`, `deleteDependency`, `updateNodeMetadata` đã có trong `BE/service/WorkflowGraphService.java`. Task này sửa các lỗ hổng tìm thấy khi đọc code và thêm phần còn thiếu.
+
 ## Vì sao cần task này
-Chưa có API thêm, sửa, xóa node, chưa có API nối và gỡ phụ thuộc, chưa có API lưu tọa độ. Có một bẫy cần biết: `NodeEntity` có `@Version`, nên mỗi lần `save()` (kể cả chỉ kéo thả đổi tọa độ) đều tăng `version`. Khi đó người khác đang thao tác Kanban sẽ bị 409 oan.
+Đọc code thấy 4 lỗ hổng (đều **cần viết test tái hiện trước khi sửa**):
+1. **Vòng dài lọt qua**: `createDependency` chỉ chặn vòng 2 node (`existsByParentNodeIdAndChildNodeId(childId, parentId)`). Nối A→B, B→C rồi C→A vẫn lưu được. Đồ thị có vòng sẽ chỉ bị phát hiện lúc xuất bản.
+2. **Sai quyền**: `createNode`, `createDependency`, `deleteDependency`, `updateNodeMetadata` dùng `verifyProjectMemberOrOwner`, nên cả **Viewer** cũng sửa được đồ thị. Theo UC10 trong `system-overview.md`, chỉ OWNER được thiết kế đồ thị.
+3. **Kéo thả làm hỏng Kanban**: `updateNodeMetadata` gọi `nodeRepository.save(node)`, mà `NodeEntity` có `@Version`, nên mỗi lần kéo thả là `version` tăng. Người đang thao tác task trên Kanban sẽ bị 409 oan.
+4. **Trạng thái node không được tính lại**: thêm cha chưa DONE cho một node đang TODO thì node đó vẫn TODO; xóa cạnh làm node mất hết cha thì node vẫn LOCKED.
+
+Ngoài ra chưa có API sửa và xóa node.
 
 ## Kiến thức phải nắm
-Unique constraint và bắt `DataIntegrityViolationException`; optimistic locking khi sửa node; câu `UPDATE` trực tiếp (JPQL hoặc native) không đi qua `@Version`; validate input bằng `@Valid`; sinh mã node.
+Chặn chu trình trước khi lưu, phân quyền theo vai trò, câu `UPDATE` trực tiếp không qua `@Version` (JPQL hoặc native query), join policy AND/OR.
 
 ## Bước 0 — Tự đọc, không dùng AI
-Đọc: integration map 4.3, 4.4; `docs/specs/workflow-engine.md` mục 3 (join policy, node độc lập) và 5.2; `BE/entity/NodeEntity.java`, `BE/entity/NodeDependencyEntity.java`; hàm `unlockDownstreamTasks` trong `BE/service/engine/StateMachineService.java` (chỉ đọc, file của C); `FE/components/mindmap/AddNodeToolbar.tsx`, `FE/components/mindmap/NodePropertiesModal.tsx`.
+Đọc: integration map 4.3, 4.4; `docs/specs/workflow-engine.md` mục 3 và 5.2; UC10 trong `docs/specs/system-overview.md`; các hàm node/dependency/metadata trong `WorkflowGraphService.java`; `NodeEntity.java`; hàm `unlockDownstreamTasks` trong `BE/service/engine/StateMachineService.java` (chỉ đọc, file của C).
 Trả lời:
-1. Một node đang `TODO`, giờ được thêm một cha chưa DONE. Theo bạn nó phải thành gì? Xóa cạnh khiến node mất hết cha thì sao? So với đặc tả bên dưới.
+1. Chỉ dòng code của từng lỗ hổng 1–4.
 2. Vì sao kiểm chu trình ngay lúc lưu cạnh, không đợi tới lúc xuất bản?
-3. `code` là unique trong dự án (`uq_project_node_code`). Sinh mã thế nào để 2 người thêm node cùng lúc không bị trùng?
+3. Một node TODO được thêm một cha chưa DONE: với `ALL_COMPLETED` thì thành gì, với `ANY_COMPLETED` mà đã có một cha DONE thì sao?
 
 ## Được đọc
 > Viết tắt: `BE/` = `wpe-backend/src/main/java/com/pipeline/wpe/`, `BE-test/` = `wpe-backend/src/test/java/com/pipeline/wpe/`, `FE/` = `wpe-frontend/src/`.
 - `wpe-backend/src/**`, `FE/**`, `docs/**`
 
 ## Được ghi
-- `BE/controller/GraphController.java`, `BE/service/graph/**`, `BE/dto/request/graph/**`, `BE/dto/response/graph/**`
+- `BE/service/WorkflowGraphService.java` (phần node, dependency, metadata), `BE/controller/WorkflowGraphController.java`
+- `BE/dto/request/graph/**` (thêm `UpdateNodeRequest`), `BE/dto/response/graph/**`
 - `BE/repository/NodeRepository.java`, `BE/repository/NodeDependencyRepository.java` (chỉ thêm method)
-- `BE-test/**/graph/**`
+- `BE-test/service/WorkflowGraphServiceTest.java`
 - `docs/FRONTEND_BACKEND_INTEGRATION_MAP.md` (4.3–4.4), `docs/tasks/B-do-thi/B3-api-node-phu-thuoc.md`
 
 ## Đặc tả đã chốt
-- `POST /api/v1/projects/{id}/nodes`, body `{ phaseId?, code?, title, description?, joinPolicy?, assignedUserId?, dueDate?, estimatedHours?, uiMetadata? }` → 201.
-  - `code` để trống thì tự sinh `WPE-` + (số lớn nhất hiện có + 1), đủ 3 chữ số, ví dụ `WPE-005`. Đụng unique → 409 `NODE_CODE_TAKEN`.
-  - Node mới chưa có cha → `TODO`.
-- `PUT /api/v1/nodes/{id}`, body `{ title?, description?, phaseId?, joinPolicy?, assignedUserId?, dueDate?, estimatedHours?, version }` → 200.
-  - Sai `version` → 409 `OPTIMISTIC_LOCK_CONFLICT`.
-  - `assignedUserId` phải là thành viên đang hoạt động, nếu không → 400 `ASSIGNEE_NOT_MEMBER`.
-  - Dời `dueDate` sang tương lai → `isOverdue = false` (liên quan C5).
-  - **Không** cho sửa `status` ở đây; trạng thái do máy trạng thái của C quản lý.
-- `DELETE /api/v1/nodes/{id}` → 204, chỉ khi node đang LOCKED hoặc TODO. Node đang `IN_PROGRESS`, `REVIEW`, `DONE` → 409 `NODE_IN_USE`. Cạnh liên quan tự xóa theo cascade.
-- `POST /api/v1/projects/{id}/dependencies`, body `{ parentNodeId, childNodeId }` → 201.
-  - 2 node khác dự án → 400. Trùng → 409 `EDGE_EXISTS`. Tạo vòng → 422 `CYCLE_DETECTED`, `cycleNodes` là mã node.
-  - Con đang `IN_PROGRESS` trở lên → 409 `NODE_IN_USE` (không thêm cha cho việc đang làm).
-  - Thêm xong thì tính lại con theo `joinPolicy`: con đang `TODO` mà điều kiện hội tụ không còn thỏa → `LOCKED`.
-- `DELETE /api/v1/projects/{id}/dependencies?parentNodeId=&childNodeId=` → 204. Xóa xong, nếu con đang `LOCKED` mà không còn cha hoặc điều kiện hội tụ đã thỏa → `TODO`, và gửi `TASK_UNLOCKED` qua `SseEmitterService.sendToUser` (gọi hàm có sẵn, không sửa file của C).
-- `PATCH /api/v1/nodes/{id}/metadata`, body `{ position: { x, y }, width?, height?, color? }` → 200, ghi đè `ui_metadata` bằng **câu UPDATE trực tiếp, không làm tăng `version`**. Tọa độ không phải dữ liệu nghiệp vụ.
-- Mọi thao tác ghi chỉ OWNER được làm. Dự án `ARCHIVED` → 409 `PROJECT_ARCHIVED`.
+- **Giữ nguyên** hành vi đang có mà FE dựa vào: `createDependency` lũy đẳng (cạnh đã có thì trả về luôn, không báo lỗi); mã node trùng → 409 `DUPLICATE_NODE_CODE`.
+- Lỗ hổng 1: trước khi lưu cạnh, gọi `KahnDagService.wouldCreateCycle(...)` (B1). Tạo vòng → 422 `CYCLE_DETECTED`, `cycleNodes` là mã các node trên vòng.
+- Lỗ hổng 2: mọi thao tác **ghi** (tạo/sửa/xóa node, nối/gỡ cạnh, lưu tọa độ) dùng `verifyProjectOwner`. Đọc đồ thị vẫn cho thành viên.
+- Lỗ hổng 3: lưu `ui_metadata` bằng câu `UPDATE` trực tiếp, **không** làm tăng `version`.
+- Lỗ hổng 4: sau khi thêm hoặc gỡ cạnh, tính lại trạng thái node con theo `joinPolicy`:
+  - con đang TODO mà điều kiện hội tụ không còn thỏa → `LOCKED`;
+  - con đang LOCKED mà không còn cha hoặc điều kiện đã thỏa → `TODO`, gửi `TASK_UNLOCKED` qua `SseEmitterService.sendToUser` (gọi hàm có sẵn, không sửa file của C);
+  - con đang IN_PROGRESS trở lên → không cho thêm cha, 409 `NODE_IN_USE`.
+- Thêm `PUT /api/v1/nodes/{id}` (sửa title, description, phaseId, joinPolicy, assignedUserId, dueDate, estimatedHours; bắt buộc gửi `version`, sai → 409; người phụ trách phải là thành viên → nếu không 400 `ASSIGNEE_NOT_MEMBER`; dời `dueDate` sang tương lai → `isOverdue = false`). **Không** cho sửa `status` ở đây.
+- Thêm `DELETE /api/v1/nodes/{id}`: chỉ khi node LOCKED hoặc TODO, ngược lại 409 `NODE_IN_USE`.
+- Dự án ARCHIVED → 409 `PROJECT_ARCHIVED` (exception này B2 cũng dùng: task nào làm trước thì tạo, task sau dùng lại).
 
 ## Việc cần làm
 1. 🧠 Bước 0.
-2. 🧠 Viết trước ít nhất 14 test case dạng bảng.
-3. 🤝 Code và test cho các endpoint node, dependency, metadata.
-4. 🧠 Tự viết hàm "tính lại trạng thái con sau khi đổi cạnh". Đọc logic join trong `unlockDownstreamTasks` để làm cho giống, nhưng không sửa file đó.
-5. 🧠 Viết test chứng minh `PATCH metadata` không làm đổi `version`.
-6. Cập nhật integration map 4.3–4.4 (thêm `PUT/DELETE node`, `DELETE dependency`).
+2. 🧠 Viết 4 test **đỏ** tái hiện 4 lỗ hổng (chạy thấy fail) trước khi sửa.
+3. 🧠 Tự viết hàm "tính lại trạng thái con sau khi đổi cạnh". Đọc logic join trong `unlockDownstreamTasks` để làm cho giống, nhưng không sửa file đó.
+4. 🤝 Sửa 4 lỗ hổng cho test xanh; thêm PUT/DELETE node và test.
+5. 🧠 Thử bằng Swagger: nối WPE-004 → WPE-001 (tạo vòng 1→2→3→4→1) → phải 422.
+6. Cập nhật integration map 4.3–4.4.
 
 ## Tiêu chí xong
-- [ ] Test pass theo bảng ở bước 2.
-- [ ] Swagger: thêm cạnh WPE-004 → WPE-001 (tạo vòng 1→2→3→4→1) → 422, `cycleNodes` có đủ 4 mã.
+- [ ] 4 test tái hiện lỗ hổng: fail trước khi sửa (ghi lại), pass sau khi sửa.
+- [ ] Swagger: vòng 4 node → 422, `cycleNodes` có đủ 4 mã.
+- [ ] Viewer (vai trò VIEWER) gọi API ghi → 403.
 - [ ] Gọi `PATCH metadata` 2 lần: `version` không đổi (kiểm bằng SQL).
-- [ ] Đã cập nhật integration map.
+- [ ] Toàn bộ test pass.
 
 ## Câu hỏi bảo vệ (người review hỏi, trả lời không nhìn code)
-1. Vì sao tọa độ không được làm tăng `version`? Kéo thả trong lúc người khác duyệt task thì chuyện gì xảy ra nếu có tăng?
-2. Xóa cạnh có thể làm node tự mở khóa. Việc này có trùng trách nhiệm với C không? Ai gửi SSE?
-3. Sinh mã node có race condition không? Xử lý thế nào (unique constraint và thử lại)?
+1. Vì sao tọa độ không được làm tăng `version`? Có tăng thì chuyện gì xảy ra với người đang duyệt task?
+2. Kiểm vòng 2 node khác kiểm bằng Kahn ở đâu? Vẽ ví dụ lọt qua.
+3. Xóa cạnh có thể làm node tự mở khóa. Ai gửi SSE, vì sao không sửa file của C?
 
 ## Cấm
 - Sửa file ngoài mục "Được ghi". File dùng chung thì báo nhóm trước (README mục 6).
-- Đọc, in, commit `.env*`, khóa, mật khẩu thật, API key. Dùng `git add -f`.
-- Sửa `StateMachineService.java` (của C).
+- Sửa `StateMachineService.java`, `SseEmitterService.java` (của C).
+- Đổi URL các endpoint đang có.
 - Tự ghi trạng thái `xong`. Chỉ người review ghi sau khi kiểm.
 
 ## Dành cho Claude (đọc trước khi làm)
@@ -95,3 +100,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

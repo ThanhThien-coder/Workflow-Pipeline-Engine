@@ -9,8 +9,12 @@ Mở khóa: X1
 Nhánh git: d4-templates-ui
 Ước lượng: 1–1,5 ngày
 
+> **Cập nhật 11/11/2026 (sau khi pull):** đã có `FE/services/template/HttpTemplateService.ts`, và `container.ts` đã chọn nó khi tắt mock. Task này **không viết lại** service, mà sửa phần còn thiếu bên dưới.
+
 ## Vì sao cần task này
-`templateService` trong `FE/services/container.ts` đang luôn dùng `MockTemplateService`. Màn Template Studio, Catalog và hộp thoại tạo dự án đều đọc template giả.
+- `HttpTemplateService` tự dựng `fetch` và header riêng, lỗi chỉ ném `Error` chung chung. Vì vậy Studio không biết lỗi là 422 (node nào bị vòng) hay 403 (không phải admin).
+- Chưa có test cho `HttpTemplateService`.
+- Chưa kiểm luồng thật: admin tạo template → user tạo dự án từ template đó.
 
 ## Kiến thức phải nắm
 Dependency Inversion (đổi Mock sang Http mà không sửa component), xử lý lỗi nghiệp vụ trên form, sự kiện tùy biến trên trình duyệt (`wpe_template_updated`).
@@ -27,18 +31,15 @@ Trả lời:
 - `FE/**`, `docs/**`
 
 ## Được ghi
-- `FE/services/impl/HttpTemplateService.ts` (mới), `FE/services/container.ts` (chỉ dòng `templateService`)
+- `FE/services/template/HttpTemplateService.ts`, `FE/services/container.ts` (chỉ dòng `templateService`)
 - `FE/features/admin/templates/**`, `FE/hooks/useTemplateStudio.ts`
 - `FE/components/workspace/CreatePipelineModal.tsx` (chỉ phần chọn template)
 - `FE/types/template.types.ts`, test FE
 - `docs/tasks/D-du-an/D4-template-giao-dien.md`
 
 ## Đặc tả đã chốt
-- `HttpTemplateService` (mới) implements `ITemplateService`:
-  - `getTemplates`, `getTemplateById`, `createTemplate`, `updateTemplate`, `deleteTemplate` gọi API của D3;
-  - `getAllTemplates` = gọi danh sách không lọc;
-  - `validateGraph` gọi `POST /templates/validate`.
-- Nối vào `container.ts` theo `isMockMode` (A2).
+- `HttpTemplateService` (đã có) chuyển sang gọi qua `apiRequest` của A2, để lỗi thành `ApiError` có `status`, `code`, `cycleNodes`. Giữ nguyên URL và hành vi đang có.
+- `container.ts` dùng `isMockMode` của A2 (A2 đã sửa chung, D4 chỉ kiểm lại).
 - `CreatePipelineModal` lấy danh sách template thật.
 - Lỗi 422 → Studio tô đỏ các node trong `cycleNodes`. Lỗi 403 → toast "Chỉ quản trị viên được chỉnh sửa template".
 
@@ -83,3 +84,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

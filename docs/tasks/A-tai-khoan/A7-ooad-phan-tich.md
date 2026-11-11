@@ -79,3 +79,11 @@ Người dán file này đang **học vẽ sơ đồ OOAD** cho mảng của h�
 ### Tự chấm theo checklist (điểm từng sơ đồ)
 
 ### Lỗi Claude hoặc người review chỉ ra và cách mình sửa
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

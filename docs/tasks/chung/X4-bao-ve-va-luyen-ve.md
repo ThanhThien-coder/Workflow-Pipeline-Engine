@@ -59,3 +59,11 @@ Người dán file này đang chuẩn bị bảo vệ.
 ### Điểm luyện vẽ (người × loại sơ đồ)
 
 ### Câu vấn đáp còn yếu và kế hoạch ôn
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

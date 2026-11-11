@@ -576,7 +576,7 @@ n2 --> n3 : phụ thuộc
 
 ### 3.12 ERD (sơ đồ cơ sở dữ liệu)
 
-ERD hiện có trong `docs/specs/database-schema.md` (Mermaid). X3 cập nhật sau các migration V5, V6, V7.
+ERD hiện có trong `docs/specs/database-schema.md` (Mermaid). X3 cập nhật sau các migration mới (V5 trở đi).
 
 **Ký hiệu chân chim (crow's foot):** `||` đúng một, `o|` không hoặc một, `|{` một hoặc nhiều, `o{` không hoặc nhiều. Ghi rõ PK và FK. Quan hệ nhiều-nhiều phải đi qua bảng trung gian.
 

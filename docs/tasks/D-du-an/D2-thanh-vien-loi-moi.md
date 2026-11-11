@@ -31,7 +31,7 @@ Trả lời:
 - `wpe-backend/src/**`, `FE/**`, `docs/**`
 
 ## Được ghi
-- `wpe-backend/src/main/resources/db/migration/V6__fix_invitation_unique.sql` (số V6 đã cấp cho D)
+- `wpe-backend/src/main/resources/db/migration/V8__fix_invitation_unique.sql` (số V8 đã cấp cho D; V5, V6 đã được dùng)
 - `BE/service/ProjectInvitationService.java`, `BE/controller/ProjectInvitationController.java`, `BE/entity/ProjectInvitationEntity.java`
 - `BE/controller/ProjectMemberController.java` (mới), `BE/service/ProjectMemberService.java` (mới)
 - `BE/service/ProjectAuthorizationService.java`
@@ -49,7 +49,7 @@ Trả lời:
 - `DELETE /api/v1/projects/{id}/members/{userId}` (chỉ OWNER): đặt `removed_at = now()`, gỡ người này khỏi mọi node mình đang phụ trách trong dự án, trả `{ unassignedTaskCount }`. Không xóa được owner → 400 `CANNOT_REMOVE_OWNER`.
 - `GET /api/v1/projects/{id}/members` (thành viên): danh sách khớp kiểu `ProjectMemberDetail` (`FE/types/settings.types.ts`).
 - Lời mời: chỉ OWNER được gửi (bỏ quyền của COLLABORATOR và ADMIN cho đúng SSOT). Nhóm muốn khác thì phải sửa SSOT trước.
-- V6:
+- V8:
   - `ALTER TABLE project_invitation DROP CONSTRAINT uq_pending_project_invitation;`
   - `CREATE UNIQUE INDEX uq_pending_invitation ON project_invitation (project_id, invitee_id) WHERE status = 'PENDING';`
   - Bỏ `@UniqueConstraint` tương ứng trong `ProjectInvitationEntity`.
@@ -59,7 +59,7 @@ Trả lời:
 ## Việc cần làm
 1. 🧠 Bước 0.
 2. 🧠 Tái hiện 2 lỗi đầu bằng Swagger trên DB Docker (từ chối 2 lần; mời lại người đã bị xóa). Ghi response và log thật **trước khi sửa**.
-3. 🤝 V6, phần code và test.
+3. 🤝 V8, phần code và test.
 4. 🧠 Tự viết logic chuyển quyền sở hữu (1 transaction) kèm test.
 5. 🤝 Phần FE.
 6. 🧠 Chạy lại các kịch bản ở bước 2 sau khi sửa.
@@ -79,7 +79,7 @@ Trả lời:
 ## Cấm
 - Sửa file ngoài mục "Được ghi". File dùng chung thì báo nhóm trước (README mục 6).
 - Đọc, in, commit `.env*`, khóa, mật khẩu thật, API key. Dùng `git add -f`.
-- Sửa V4 (phải sửa bằng V6).
+- Sửa V4 (phải sửa bằng V8).
 - Tự ghi trạng thái `xong`. Chỉ người review ghi sau khi kiểm.
 
 ## Dành cho Claude (đọc trước khi làm)
@@ -102,3 +102,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

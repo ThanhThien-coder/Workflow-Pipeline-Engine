@@ -47,3 +47,11 @@ Người dán file này đang viết hoặc chạy kịch bản kiểm thử ch�
 ### Ai chạy kịch bản nào, ngày chạy
 
 ### Tổng hợp lỗi tìm được (số issue, mức độ, đã sửa chưa)
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

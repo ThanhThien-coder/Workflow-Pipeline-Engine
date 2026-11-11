@@ -10,8 +10,8 @@ Nhánh git: a2-api-client
 Ước lượng: 1–1,5 ngày — **nên xong trong 2 ngày đầu**, vì 8 task khác cần nó
 
 ## Vì sao cần task này
-- `FE/services/impl/HttpWorkflowService.ts` (676 dòng) **kế thừa** `MockWorkflowService`, và khi backend lỗi thì tự chuyển sang dữ liệu giả. Vì vậy khi test với backend thật, lỗi bị che mất.
-- Base URL lệch: `.env.example` ghi `http://localhost:8080/api`, trong khi `NodeController` và `ArtifactController` chỉ có `/api/v1`. Gọi sai đường dẫn mà app vẫn "chạy" nhờ fallback.
+- `FE/services/impl/HttpWorkflowService.ts` (957 dòng sau lần pull 11/11/2026, khoảng 48 chỗ `super.…`/fallback, gồm cả phần đồ thị và xuất bản mới thêm) **kế thừa** `MockWorkflowService`, và khi backend lỗi thì tự chuyển sang dữ liệu giả. Vì vậy khi test với backend thật, lỗi bị che mất.
+- Base URL không thống nhất: `.env.example` ghi `http://localhost:8080/api`, code mặc định `/api/v1`. Sau lần pull 11/11/2026 backend đã nhận cả `/api` lẫn `/api/v1` nên không còn gọi hỏng, nhưng vẫn cần chốt một chuẩn (`/api/v1`).
 - `VITE_USE_MOCK` đang được hiểu theo 3 cách: `FE/services/container.ts` dùng `!== 'false'`, `FE/App.tsx` dùng `=== 'true'`, `FE/components/dev/DevToolbar.tsx` dùng `!== 'true'`.
 - Test `FE/components/workspace/__tests__/WorkflowArtifacts.test.tsx` đang lỗi. Log cho thấy test chạy qua `HttpWorkflowService` ("Failed to parse URL from /api/v1/…"), nên nghi là test bị ảnh hưởng bởi file env trên máy. Test phải luôn chạy chế độ mock.
 - Cả 4 người sẽ phải sửa file này, nên phải tách theo mảng **trước khi** ai bắt đầu.
@@ -51,7 +51,7 @@ Trả lời:
    - Lỗi HTTP thì ném `ApiError` (`FE/services/http/ApiError.ts`) gồm `status`, `code` (trường `error` của body), `message`, `validationErrors?`, `retryAfterSeconds?`, `cycleNodes?`. Lỗi mạng thì `status = 0`, `code = 'NETWORK_ERROR'`.
    - Có `setUnauthorizedHandler(fn)` để A4 gắn phần tự refresh token.
 3. **Không còn fallback ngầm.** Phương thức đã có endpoint thật mà lỗi thì ném `ApiError`. Phương thức chưa có backend thì gọi mock **một cách tường minh**, và tên nó nằm trong hằng `METHODS_STILL_MOCKED`, comment ghi mã task sẽ làm (ví dụ `getMacroPhases // B5`).
-4. Tách theo mảng vào `FE/services/impl/http/`: `tasks.ts`, `artifacts.ts`, `realtime.ts` (của C); `workspace.ts`, `invitations.ts` (của D); `graph.ts` (của B, chỉ để khung); `auth.ts` (của A, chỉ để khung). `HttpWorkflowService` chuyển sang `implements IWorkflowService` và giữ một `private readonly mock = new MockWorkflowService()` cho các phương thức chưa có backend (composition thay cho kế thừa). Endpoint đang gọi thật giữ nguyên URL và body.
+4. Tách theo mảng vào `FE/services/impl/http/`: `tasks.ts`, `artifacts.ts`, `realtime.ts` (của C); `workspace.ts`, `invitations.ts` (của D); `graph.ts` (của B: chuyển nguyên các hàm đồ thị và `publishPipeline` đang có vào đây, giữ hành vi, chỉ bỏ fallback); `auth.ts` (của A, chỉ để khung). `HttpWorkflowService` chuyển sang `implements IWorkflowService` và giữ một `private readonly mock = new MockWorkflowService()` cho các phương thức chưa có backend (composition thay cho kế thừa). Endpoint đang gọi thật giữ nguyên URL và body.
 5. Test luôn chạy mock: đặt `test.env.VITE_USE_MOCK = 'true'` trong `vite.config.ts`, để test không phụ thuộc `.env.local` của từng máy. Không đọc nội dung `.env.local`.
 6. Test cho `apiClient`: gửi Bearer, gửi `X-Debug-User-Id`, đọc lỗi 409/422/429, xử lý 204, lỗi mạng (mock `fetch` bằng `vi.fn`).
 
@@ -103,3 +103,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

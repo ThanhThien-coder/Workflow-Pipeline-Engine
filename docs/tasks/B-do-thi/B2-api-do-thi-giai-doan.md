@@ -1,80 +1,73 @@
-# B2 — API đồ thị: đọc toàn bộ đồ thị và quản lý giai đoạn (Cụm 4.1, 4.2)
+# B2 — API đồ thị và giai đoạn: kiểm thử, lưu vị trí phase, chặn dự án lưu trữ (Cụm 4.1, 4.2)
 
 Người làm: B
 Người review: C
 Trạng thái: chưa làm
 Cần có trước: B1
 Cần trước bước frontend: không
-Mở khóa: B3
+Mở khóa: không
 Nhánh git: b2-graph-phases
-Ước lượng: 1,5 ngày
+Ước lượng: 1 ngày
+
+> **Cập nhật 11/11/2026 (sau khi pull):** đã có `BE/controller/WorkflowGraphController.java`, `BE/service/WorkflowGraphService.java`, `BE/service/engine/PhaseProgressCalculator.java`, bảng `phase_dependency` (migration **V6** do Dev B viết) và test `WorkflowGraphServiceTest`, `PhaseProgressCalculatorTest`. Task này: đọc hiểu, kiểm thử, rồi làm 2 phần còn thiếu.
 
 ## Vì sao cần task này
-- Canvas Macro/Mindmap trên FE đang chạy bằng mock. Backend chưa có API đồ thị nào.
-- DB chỉ có `work_phase.parent_phase_id`, tức mỗi phase có tối đa 1 cha. Trong khi FE cho một phase nhiều cha (`parentPhaseIds`; mock có phase `p3` với 2 cha `p2a`, `p2b`) và cần lưu tọa độ x, y, w, h của phase.
+Phần đọc đồ thị và quản lý phase đã chạy. Đọc code thấy còn thiếu:
+1. **Vị trí phase trên canvas không được lưu**: `work_phase` không có cột tọa độ; `CreatePhaseRequest`, `UpdatePhaseRequest`, `PhaseResponse` không có trường vị trí. Kéo phase rồi F5 là mất. (FE đã có `updatePhasePosition` nhưng backend chưa có chỗ lưu.)
+2. **Dự án `ARCHIVED` vẫn sửa được đồ thị** (theo `workflow-engine.md` 5.1, ARCHIVED là chỉ đọc).
 
 ## Kiến thức phải nắm
-Quan hệ nhiều-nhiều tự tham chiếu, migration Flyway có chuyển dữ liệu cũ, JSONB, DTO record lồng nhau, lỗi N+1 query.
+Quan hệ nhiều-nhiều tự tham chiếu (`phase_dependency`), migration Flyway thêm cột JSONB, DTO record, BFS kiểm tới được (dùng trong `addPhaseEdge`), lỗi N+1 query.
 
 ## Bước 0 — Tự đọc, không dùng AI
-Đọc: integration map 4.1, 4.2; các bảng WORK_PHASE, NODE, NODE_DEPENDENCY trong `docs/specs/database-schema.md`; `BE/entity/WorkPhaseEntity.java`, `NodeEntity.java`, `NodeDependencyEntity.java` cùng các repository tương ứng; `MacroPhase` trong `FE/types/workflow.types.ts`; các hàm `getMacroPhases`, `getPhaseEdges`, `connectPhases`, `deletePhase` trong `FE/services/MockWorkflowService.ts`.
+Đọc: integration map 4.1, 4.2; `docs/archive/dev_b/DEV_B_IMPLEMENTATION_GUIDE.md` mục 3–4.2; `V6__create_phase_dependency.sql`; trong `WorkflowGraphService.java` các hàm `getGraph`, `createPhase`, `updatePhase`, `deletePhase`, `connectPhases`, `disconnectPhases`, `addPhaseEdge`; `PhaseProgressCalculator.java`.
 Trả lời:
-1. Vì sao một cột `parent_phase_id` không biểu diễn được phase có 2 cha? Bảng mới giải quyết thế nào?
-2. Xóa một phase thì node của phase đó ra sao (FK `ON DELETE SET NULL` trong V1)? Node "độc lập" (`phase_id` NULL, `workflow-engine.md` mục 3.3) nghĩa là gì?
-3. Viết câu SQL lấy toàn bộ đồ thị một dự án trong tối đa 4 truy vấn (không N+1).
+1. `addPhaseEdge` chặn vòng giữa các phase bằng cách nào? Vì sao cách đó đúng mà không cần chạy Kahn cả đồ thị?
+2. Vì sao vẫn giữ cột `work_phase.parent_phase_id` sau khi có bảng `phase_dependency`? `disconnectPhases` xử lý cột cũ thế nào?
+3. `getGraph` chạy bao nhiêu câu SQL? Có bị N+1 không? (bật `spring.jpa.show-sql` trên máy bạn để đếm, không commit)
 
 ## Được đọc
 > Viết tắt: `BE/` = `wpe-backend/src/main/java/com/pipeline/wpe/`, `BE-test/` = `wpe-backend/src/test/java/com/pipeline/wpe/`, `FE/` = `wpe-frontend/src/`.
 - `wpe-backend/src/**`, `FE/**`, `docs/**`
 
 ## Được ghi
-- `wpe-backend/src/main/resources/db/migration/V7__phase_dependency_and_ui_metadata.sql` (số V7 đã cấp cho B)
-- `BE/entity/PhaseDependencyEntity.java` (mới), `BE/entity/WorkPhaseEntity.java`
-- `BE/repository/PhaseDependencyRepository.java` (mới); `WorkPhaseRepository.java`, `NodeRepository.java`, `NodeDependencyRepository.java` (chỉ thêm method)
-- `BE/controller/GraphController.java` (mới), `BE/service/graph/**` (mới), `BE/dto/request/graph/**`, `BE/dto/response/graph/**` (mới)
-- `BE-test/**/graph/**` (test mới)
-- `docs/specs/database-schema.md` (WORK_PHASE và bảng mới), `docs/FRONTEND_BACKEND_INTEGRATION_MAP.md` (4.1–4.2), `docs/tasks/B-do-thi/B2-api-do-thi-giai-doan.md`
+- `wpe-backend/src/main/resources/db/migration/V9__work_phase_ui_metadata.sql` (số V9 đã cấp cho B)
+- `BE/entity/WorkPhaseEntity.java`
+- `BE/service/WorkflowGraphService.java` (phần phase và đọc đồ thị), `BE/controller/WorkflowGraphController.java`
+- `BE/dto/request/graph/CreatePhaseRequest.java`, `UpdatePhaseRequest.java`, `BE/dto/response/graph/PhaseResponse.java`
+- `BE-test/service/WorkflowGraphServiceTest.java`
+- `docs/specs/database-schema.md` (WORK_PHASE, PHASE_DEPENDENCY), `docs/FRONTEND_BACKEND_INTEGRATION_MAP.md` (4.1–4.2), `docs/tasks/B-do-thi/B2-api-do-thi-giai-doan.md`
 
 ## Đặc tả đã chốt
-- V7:
-  - Tạo bảng `phase_dependency (id BIGSERIAL PRIMARY KEY, project_id BIGINT NOT NULL REFERENCES project(id) ON DELETE CASCADE, parent_phase_id BIGINT NOT NULL REFERENCES work_phase(id) ON DELETE CASCADE, child_phase_id BIGINT NOT NULL REFERENCES work_phase(id) ON DELETE CASCADE, CONSTRAINT uq_phase_dependency UNIQUE (parent_phase_id, child_phase_id), CONSTRAINT chk_diff_phases CHECK (parent_phase_id <> child_phase_id))`.
-  - Chuyển dữ liệu cũ: `INSERT INTO phase_dependency (project_id, parent_phase_id, child_phase_id) SELECT project_id, parent_phase_id, id FROM work_phase WHERE parent_phase_id IS NOT NULL;`
-  - `ALTER TABLE work_phase ADD COLUMN ui_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;`
-  - **Giữ** cột `parent_phase_id` (không xóa để khỏi vỡ code khác), nhưng code mới không dùng. Ghi chú điều này trong `database-schema.md`.
-- `GET /api/v1/projects/{id}/graph` (thành viên, dùng `verifyProjectMemberOrOwner`) trả về:
-  `{ phases: [{ id, name, sub, accent, orderIndex, parentPhaseIds, uiMetadata, status, pct }], phaseEdges: [[parentId, childId]], nodes: [{ id, phaseId, code, title, status, joinPolicy, assignedUserId, dueDate, version, uiMetadata }], dependencies: [{ parentNodeId, childNodeId }] }`. Mọi id dạng chuỗi.
-  - `pct` = số node DONE / tổng số node của phase, làm tròn ra phần trăm.
-  - `status` của phase: không có node → `TODO`; mọi node DONE → `COMPLETED`; mọi node LOCKED → `LOCKED`; có ít nhất 1 node IN_PROGRESS, REVIEW hoặc DONE → `IN_PROGRESS`; còn lại → `TODO`.
-- `POST /api/v1/projects/{id}/phases`, body `{ name, sub?, accent?, parentPhaseId?, orderIndex?, uiMetadata? }` → 201. Có `parentPhaseId` thì tạo luôn cạnh phase.
-- `PUT /api/v1/projects/{id}/phases/{phaseId}`, body `{ name?, sub?, accent?, orderIndex?, uiMetadata? }` → 200.
-- `DELETE /api/v1/projects/{id}/phases/{phaseId}` → 204. Node của phase đó chuyển thành độc lập (`phase_id = NULL`); cạnh phase tự xóa theo cascade.
-- `POST /api/v1/projects/{id}/phase-edges`, body `{ parentPhaseId, childPhaseId }` → 201. Trùng → 409 `EDGE_EXISTS`. Tạo vòng giữa các phase (kiểm bằng `DagValidator.wouldCreateCycle`) → 422 `CYCLE_DETECTED`, `cycleNodes` là tên phase.
-- `DELETE /api/v1/projects/{id}/phase-edges?parentPhaseId=&childPhaseId=` → 204.
-- Mọi thao tác ghi chỉ OWNER được làm (`verifyProjectOwner`, UC10). Dự án `ARCHIVED` → 409 `PROJECT_ARCHIVED`.
-- Lỗi chu trình dùng `CycleDetectedException(message, cycleNodes)` có sẵn. Cần sửa handler cũ thì báo A.
+- Giữ nguyên các endpoint đang có (FE đã gọi): `GET /projects/{id}/graph`, `POST/PUT/DELETE /projects/{id}/phases`, `POST /projects/{id}/phases/connect`, `POST /projects/{id}/phases/disconnect`.
+- V9: `ALTER TABLE work_phase ADD COLUMN ui_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;`
+- `CreatePhaseRequest`, `UpdatePhaseRequest` thêm `Map<String, Object> uiMetadata` (tùy chọn). `PhaseResponse` thêm `uiMetadata`. Dạng dữ liệu: `{ "x": 280, "y": 140, "w": 250, "h": 220 }`.
+- Mọi thao tác **ghi** trên dự án `ARCHIVED` → 409 `PROJECT_ARCHIVED` (nếu B3 chưa tạo exception này thì tạo mới, handler thêm ở cuối `GlobalExceptionHandler`).
+- Cập nhật `database-schema.md`: bảng `phase_dependency` (V6) và cột mới (V9). Cập nhật integration map 4.1–4.2 theo endpoint thật (`phases/connect`, `phases/disconnect`).
 
 ## Việc cần làm
-1. 🧠 Bước 0. 🧠 Tự viết V7, Claude review.
-2. 🧠 Viết trước ít nhất 10 test case dạng bảng: đọc đồ thị seed; phase nhiều cha; tạo, sửa, xóa phase; xóa phase còn node; cạnh trùng; cạnh tạo vòng; không phải owner; dự án ARCHIVED…
-3. 🤝 Entity, repository, service, controller, DTO và test.
-4. 🧠 Đếm số câu SQL khi gọi `GET graph`: bật `spring.jpa.show-sql` trên máy bạn (không commit) và ghi số đếm được.
-5. Cập nhật `database-schema.md` và integration map 4.1–4.2 (thêm `phase-edges`, `PUT phase`).
+1. 🧠 Bước 0.
+2. 🧠 Đọc `WorkflowGraphServiceTest`, lập bảng case đã có và case còn thiếu (phase nhiều cha, nối tạo vòng, xóa phase còn node, không phải owner, dự án ARCHIVED…).
+3. 🧠 Tự viết V9. Claude review.
+4. 🤝 Lưu `uiMetadata` cho phase, chặn ARCHIVED, bổ sung test.
+5. 🤝 Cập nhật 2 file docs.
 
 ## Tiêu chí xong
-- [ ] V7 chạy được trên DB có sẵn (dán log Flyway).
-- [ ] `GET /api/v1/projects/1/graph` trả 3 phase, 4 node, 3 dependency của seed. `phaseEdges` của seed rỗng, vì seed không có `parent_phase_id`. Đối chiếu bằng SQL trong DBeaver.
-- [ ] Test BE pass theo bảng ở bước 2. `GET graph` dùng tối đa 5 câu SQL (ghi số thật).
-- [ ] Đã cập nhật integration map và `database-schema.md`.
+- [ ] V9 chạy được trên DB đã có V1–V6 (dán log Flyway).
+- [ ] `PUT /phases/{id}` với `uiMetadata` rồi `GET /graph` trả lại đúng tọa độ.
+- [ ] Ghi đồ thị của dự án ARCHIVED → 409.
+- [ ] Test pass, có case cho phase nhiều cha và nối tạo vòng.
+- [ ] Ghi chép có số câu SQL đếm được của `GET graph`.
 
 ## Câu hỏi bảo vệ (người review hỏi, trả lời không nhìn code)
-1. Vì sao giữ cột `parent_phase_id` thay vì xóa?
-2. Áp quy tắc tính status phase: phase có node LOCKED và node TODO thì ra gì, vì sao?
-3. N+1 query là gì? Bạn tránh nó thế nào trong `GET graph`?
+1. Vì sao `phase_dependency` cần cả `UNIQUE` và `CHECK`?
+2. Rule tính trạng thái phase trong `PhaseProgressCalculator`: phase có node LOCKED và TODO thì ra gì?
+3. N+1 query là gì? `getGraph` có mắc không?
 
 ## Cấm
 - Sửa file ngoài mục "Được ghi". File dùng chung thì báo nhóm trước (README mục 6).
-- Đọc, in, commit `.env*`, khóa, mật khẩu thật, API key. Dùng `git add -f`.
-- Sửa migration đã có (V1–V4, và migration người khác đã merge).
+- Sửa V1–V6.
+- Đổi URL các endpoint đang có.
 - Tự ghi trạng thái `xong`. Chỉ người review ghi sau khi kiểm.
 
 ## Dành cho Claude (đọc trước khi làm)
@@ -97,3 +90,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

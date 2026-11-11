@@ -9,16 +9,18 @@ Mở khóa: X1
 Nhánh git: b6-publish-ui
 Ước lượng: 1 ngày
 
+> **Cập nhật 11/11/2026 (sau khi pull):** `publishPipeline` trong `HttpWorkflowService.ts` đã gọi `POST /projects/{id}/publish`, nhưng vẫn rơi về mock khi lỗi. Test Kahn backend hiện là `KahnDagServiceTest`.
+
 ## Vì sao cần task này
-`publishPipeline` trên FE vẫn chạy mock (lỗi chu trình đang giả lập bằng `setMockCycleError`). FE có bản Kahn riêng ở `FE/lib/graph/kahn.ts`. Hai bản Kahn phải cho cùng kết quả, nếu không người dùng sẽ thấy FE báo hợp lệ mà BE lại báo lỗi.
+`publishPipeline` trên FE còn fallback ngầm, nên lỗi 422/409 từ backend có thể bị nuốt mất. FE có bản Kahn riêng ở `FE/lib/graph/kahn.ts`. Hai bản Kahn phải cho cùng kết quả, nếu không người dùng sẽ thấy FE báo hợp lệ mà BE lại báo lỗi.
 
 ## Kiến thức phải nắm
 Dùng chung một bộ dữ liệu test (fixture) cho 2 ngôn ngữ, nguyên tắc "không tin client" (luôn kiểm lại ở BE), hiển thị lỗi nghiệp vụ.
 
 ## Bước 0 — Tự đọc, không dùng AI
-Đọc: `FE/lib/graph/kahn.ts` và test của nó; test `DagValidatorTest` (B1); `FE/components/settings/GeneralSettingsSection.tsx`, `FE/components/settings/KahnCycleModal.tsx`; phần `publishPipeline` trong `FE/store/slices/settingsSlice.ts`.
+Đọc: `FE/lib/graph/kahn.ts` và test của nó; test `KahnDagServiceTest` (B1); `FE/components/settings/GeneralSettingsSection.tsx`, `FE/components/settings/KahnCycleModal.tsx`; phần `publishPipeline` trong `FE/store/slices/settingsSlice.ts`.
 Trả lời:
-1. Chạy cùng một đồ thị qua `kahn.ts` và `DagValidator`, kết quả có thể khác nhau ở đâu? (gợi ý: định nghĩa `cycleNodeIds` ở B1)
+1. Chạy cùng một đồ thị qua `kahn.ts` và `KahnDagService`, kết quả có thể khác nhau ở đâu? (gợi ý: định nghĩa `cycleNodeCodes` ở B1)
 2. FE đã kiểm chu trình rồi, vì sao BE vẫn phải kiểm?
 3. Đặt fixture ở đâu để cả test Java và test TypeScript cùng đọc được?
 
@@ -82,3 +84,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

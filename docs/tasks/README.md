@@ -13,6 +13,13 @@
 | [chung/](chung/README.md) | cả nhóm | T0, T1 (đầu kỳ, mỗi người tự làm) và X1–X4 (cuối kỳ, làm chung) |
 | [ghi-chep/](ghi-chep/README.md) | từng người | Ghi chép T0, T1 và biên bản |
 
+> ⚡ **Cần xong trong 1–2 ngày? Làm theo [SPRINT_2_NGAY.md](SPRINT_2_NGAY.md)**: chọn task quan trọng nhất, Claude làm nhanh, mỗi task ghi nhật ký 4 dòng; học kỹ lại sau khi nộp.
+
+> **Cập nhật 11/11/2026 sau khi pull code mới (Dev B):** đã có sẵn API đồ thị, phase, node, phụ thuộc, xuất bản (`WorkflowGraphController/Service`), `KahnDagService`, CRUD template (`PipelineTemplateController/Service`), `HttpTemplateService` trên FE, và migration **V5, V6**. Vì vậy:
+> - B1–B6, D3, D4 đổi từ "viết mới" sang **"đọc hiểu, kiểm thử, vá lỗ hổng"** (các lỗ hổng cụ thể ghi trong từng file, và ở mục 10).
+> - Số migration cấp lại: A5 → **V7**, D2 → **V8**, B2 → **V9** (mục 6.2).
+> - `docs/MIDTERM_PROGRESS_REPORT.md` ghi **hạn nộp đồ án 15/11/2026**. Nếu đúng vậy, xem mục 5.1 (bản rút gọn).
+
 ## 1. Mục tiêu
 1. Hệ thống chạy thật từ đầu đến cuối: đăng nhập thật, dữ liệu thật, không còn chỗ nào lặng lẽ rơi về dữ liệu giả, bảo mật bật thật.
 2. Mỗi người làm **trọn một mảng** (backend + frontend + test + sơ đồ OOAD), nên ít phải sửa chung file và ít phải chờ nhau.
@@ -55,10 +62,10 @@ Người review cố định: **A do B review, B do C review, C do D review, D d
 | [A6](A-tai-khoan/A6-quan-tri-admin.md) | Admin: người dùng, workspace | A | A2, A3 | 1,5 |
 | [A7](A-tai-khoan/A7-ooad-phan-tich.md) | OOAD phân tích mảng A | A | T1 | 1 |
 | [A8](A-tai-khoan/A8-ooad-thiet-ke.md) | OOAD thiết kế mảng A | A | A7, A3 | 1–1,5 |
-| [B1](B-do-thi/B1-kahn-backend.md) | Bộ kiểm tra DAG (Kahn) dùng chung | B | T0 | 0,5–1 |
-| [B2](B-do-thi/B2-api-do-thi-giai-doan.md) | API đồ thị và giai đoạn | B | B1 | 1,5 |
-| [B3](B-do-thi/B3-api-node-phu-thuoc.md) | API node, phụ thuộc, tọa độ | B | B2 | 1,5 |
-| [B4](B-do-thi/B4-xuat-ban-du-an.md) | Xuất bản dự án (Kahn, DRAFT → ACTIVE) | B | B3 | 1 |
+| [B1](B-do-thi/B1-kahn-backend.md) | Kahn: kiểm thử, hoàn thiện `KahnDagService` | B | T0 | 0,5–1 |
+| [B2](B-do-thi/B2-api-do-thi-giai-doan.md) | API đồ thị và phase: lưu vị trí, chặn ARCHIVED | B | B1 | 1 |
+| [B3](B-do-thi/B3-api-node-phu-thuoc.md) | API node và phụ thuộc: vá 4 lỗ hổng | B | B1 | 1,5 |
+| [B4](B-do-thi/B4-xuat-ban-du-an.md) | Xuất bản dự án: vá `publishPipeline` | B | B3 | 0,5–1 |
 | [B5](B-do-thi/B5-canvas-goi-api-that.md) | Canvas gọi API thật | B | A2, B3 | 2 |
 | [B6](B-do-thi/B6-xuat-ban-giao-dien.md) | Xuất bản trên giao diện, đồng bộ Kahn FE/BE | B | B4, B5 | 1 |
 | [B7](B-do-thi/B7-ooad-phan-tich.md) | OOAD phân tích mảng B | B | T1 | 1 |
@@ -73,8 +80,8 @@ Người review cố định: **A do B review, B do C review, C do D review, D d
 | [C8](C-thuc-thi/C8-ooad-thiet-ke.md) | OOAD thiết kế mảng C | C | C7, C2 | 1–1,5 |
 | [D1](D-du-an/D1-workspace-du-an.md) | Workspace, tạo dự án, trạng thái dự án | D | T0 (bước FE cần A2) | 1–1,5 |
 | [D2](D-du-an/D2-thanh-vien-loi-moi.md) | Thành viên, lời mời, chuyển quyền sở hữu | D | D1 | 1,5–2 |
-| [D3](D-du-an/D3-template-backend.md) | Template backend: CRUD, kiểm chu trình | D | B1, D1 | 1,5 |
-| [D4](D-du-an/D4-template-giao-dien.md) | Template Studio gọi API thật | D | A2, D3 | 1–1,5 |
+| [D3](D-du-an/D3-template-backend.md) | Template backend: phân quyền ADMIN, kiểm clone | D | B1, D1 | 1 |
+| [D4](D-du-an/D4-template-giao-dien.md) | Template Studio: lỗi rõ ràng, test, chạy thật | D | A2, D3 | 1 |
 | [D5](D-du-an/D5-cong-khach-gop-y.md) | Cổng khách, góp ý: bảo mật và giao diện | D | T0 (bước FE cần A2) | 1–1,5 |
 | [D6](D-du-an/D6-ai-duong-gang-cpm.md) | AI: đường găng CPM, Gemini tùy chọn | D | B1 | 1,5–2 |
 | [D7](D-du-an/D7-ooad-phan-tich.md) | OOAD phân tích mảng D | D | T1 | 1 |
@@ -148,8 +155,8 @@ flowchart LR
   A2 -.-> D1 & D5
   A3 --> A4 & A5 & A6 & A8
   A7 --> A8
-  B1 --> B2 & D3 & D6
-  B2 --> B3
+  B1 --> B2 & B3 & D3 & D6
+
   B3 --> B4 & B5
   B4 --> B6 & B8
   B5 --> B6
@@ -188,6 +195,14 @@ Lịch gợi ý cho 4 tuần (thời gian ít hơn thì giữ nguyên thứ tự
 - **Tuần 3:** các task frontend, nối API thật.
 - **Tuần 4:** OOAD thiết kế (A8–D8), rồi X1, X2, X3, X4.
 
+### 5.1 Bản rút gọn nếu chỉ còn vài ngày
+Ưu tiên theo thứ tự, làm song song theo người:
+1. **Mọi người, ngày 1:** T0 rút gọn (chỉ bước 2–7: chạy được hệ thống và thực hành Swagger), T1 (luyện vẽ chung).
+2. **OOAD trước** (vì là phần nộp và chấm): A7, B7, C7, D7 → A8, B8, C8, D8 → X3. Sơ đồ thiết kế vẽ theo code hiện có, đánh dấu "dự kiến" chỗ chưa code.
+3. **Vá lỗi nặng nhất của mảng mình**, mỗi người 1–2 task: A2 (bỏ fallback ngầm) và A3 (đăng nhập thật); B3 (vòng dài lọt qua, Viewer sửa được đồ thị); C1 (gửi sự kiện trước commit); D1 (IDOR clone) và D3 (phân quyền template).
+4. **X4** (thuyết trình chéo, luyện vẽ, vấn đáp) trước buổi bảo vệ.
+Các task còn lại để sau hạn nộp nếu nhóm còn làm tiếp.
+
 **Hạn OOAD tới sớm hơn code:** làm A7–D7 ngay tuần 1, rồi A8–D8 dựa trên code hiện có cộng đặc tả, đánh dấu "dự kiến" ở phần chưa code. Code xong thì cập nhật sơ đồ cho khớp.
 
 ## 6. Luật chung để không đụng nhau
@@ -202,7 +217,8 @@ Lịch gợi ý cho 4 tuần (thời gian ít hơn thì giữ nguyên thứ tự
 | `db/migration/**` | theo số đã cấp (6.2) | Không sửa file đã merge, kể cả của chính mình |
 | `StateMachineService`, `SseEmitterService`, `WorkflowEventPublisher`, `WorkflowEventConsumer`, `RabbitMQConfig`, `NodeMapper` | C | Được **gọi** hàm public. Cần đổi gì thì nhờ C |
 | `ProjectAuthorizationService`, `ProjectService`, `ProjectInvitationService`, `TemplateCloneService` | D | Được gọi. Cần thêm hàm thì nhờ D |
-| `BE/service/engine/dag/**` (`DagValidator`) | B | Được gọi. Cần thêm gì thì nhờ B |
+| `BE/service/engine/KahnDagService.java`, `PhaseProgressCalculator.java`, `BE/service/WorkflowGraphService.java`, `BE/controller/WorkflowGraphController.java` | B | Được gọi. Cần thêm gì thì nhờ B |
+| `BE/service/PipelineTemplateService.java`, `BE/controller/PipelineTemplateController.java` | D | Được gọi. Cần thêm gì thì nhờ D |
 | `BE/repository/*.java` | mảng sở hữu entity | Ai cũng được **thêm** method mới. Sửa hay xóa method cũ: hỏi chủ |
 | `FE/services/http/**`, `FE/services/env.ts`, `wpe-frontend/vite.config.ts`, `FE/App.tsx` | A | C chỉ sửa chỗ mở/đóng SSE trong `App.tsx` (C6) |
 | `FE/services/container.ts` | A (cấu trúc) | Mỗi người chỉ đổi đúng dòng service của mảng mình |
@@ -217,12 +233,14 @@ Lịch gợi ý cho 4 tuần (thời gian ít hơn thì giữ nguyên thứ tự
 ### 6.2 Số migration Flyway đã cấp
 | Số | Đã cấp cho | Nội dung |
 | :--- | :--- | :--- |
-| V5 | A (task A5) | Cột hồ sơ người dùng |
-| V6 | D (task D2) | Sửa unique của lời mời |
-| V7 | B (task B2) | Bảng `phase_dependency`, `work_phase.ui_metadata` |
-| V8 trở đi | xin trong nhóm chat, rồi ghi thêm dòng vào bảng này bằng 1 commit nhỏ **trước** khi tạo file | |
+| V5 | **đã dùng** (Dev B, đã merge) | Seed template mẫu, cột `slug` của `pipeline_template` |
+| V6 | **đã dùng** (Dev B, đã merge) | Bảng `phase_dependency` |
+| V7 | A (task A5) | Cột hồ sơ người dùng |
+| V8 | D (task D2) | Sửa unique của lời mời |
+| V9 | B (task B2) | Cột `work_phase.ui_metadata` |
+| V10 trở đi | xin trong nhóm chat, rồi ghi thêm dòng vào bảng này bằng 1 commit nhỏ **trước** khi tạo file | |
 
-A1 bật `spring.flyway.out-of-order: true` cho giai đoạn dev, nên merge lệch thứ tự (ví dụ V7 vào trước V6) vẫn chạy được. Gặp lỗi Flyway lạ trên máy mình thì có thể làm lại DB bằng `docker compose down -v && docker compose up -d` (**xóa sạch dữ liệu local**).
+A1 bật `spring.flyway.out-of-order: true` cho giai đoạn dev, nên merge lệch thứ tự (ví dụ V9 vào trước V8) vẫn chạy được. Gặp lỗi Flyway lạ trên máy mình thì có thể làm lại DB bằng `docker compose down -v && docker compose up -d` (**xóa sạch dữ liệu local**).
 
 ### 6.3 Chế độ dev và địa chỉ API
 - Mọi endpoint mới đặt dưới `/api/v1/...`. Frontend dùng base `http://localhost:8080/api/v1` (A2).
@@ -230,7 +248,7 @@ A1 bật `spring.flyway.out-of-order: true` cho giai đoạn dev, nên merge l�
 - API admin (A6) và mọi chỗ dùng `@PreAuthorize` cần **JWT thật** ngay từ đầu.
 
 ### 6.4 Hàm dùng chung: không được đổi chữ ký
-`SseEmitterService.sendToUser(Long, String, Object)` · các hàm `WorkflowEventPublisher.publish*` · `ProjectAuthorizationService.verifyProjectOwner` và `verifyProjectMemberOrOwner` · `CurrentUserProvider.requireCurrentUserId()` · `DagValidator.validate` và `wouldCreateCycle`.
+`SseEmitterService.sendToUser(Long, String, Object)` · các hàm `WorkflowEventPublisher.publish*` · `ProjectAuthorizationService.verifyProjectOwner` và `verifyProjectMemberOrOwner` · `CurrentUserProvider.requireCurrentUserId()` · `KahnDagService.validateProjectDag` và `validateTemplateGraph`.
 
 ### 6.5 Nhánh, PR, review
 - Mỗi task 1 nhánh (tên ghi trong file task), 1 PR nhỏ. Rebase lên `main` trước khi mở PR. CI (từ A1) phải xanh.
@@ -268,8 +286,8 @@ A1 bật `spring.flyway.out-of-order: true` cho giai đoạn dev, nên merge l�
 | :--- | :--- | :--- |
 | Mỗi dự án chỉ có 1 chủ = `project.owner_id`. Đổi role thành OWNER nghĩa là chuyển quyền sở hữu | Mọi chỗ đang kiểm `project.getOwnerId()` vẫn đúng, không phải sửa mảng của người khác | D2 |
 | Dự án mới ở trạng thái `DRAFT`. Xuất bản nhận cả `DRAFT` và `PLANNING`. DRAFT → ACTIVE chỉ qua xuất bản | Khớp SSOT, vẫn tương thích dữ liệu cũ | D1, B4 |
-| Cạnh giữa các phase: bảng mới `phase_dependency` (nhiều-nhiều), cùng `work_phase.ui_metadata` | FE cho phase nhiều cha, DB cũ chỉ có 1 cha | B2 |
-| Kahn ở backend là hàm thuần dùng chung; `cycleNodes` lấy theo cách "bóc ngược" | Báo đúng node nằm trên chu trình, không báo nhầm node đứng sau chu trình | B1 |
+| Cạnh giữa các phase: bảng `phase_dependency` (nhiều-nhiều) — **đã làm ở V6**; còn thêm `work_phase.ui_metadata` để lưu vị trí phase | FE cho phase nhiều cha, DB cũ chỉ có 1 cha | B2 |
+| Kahn ở backend dùng chung là `KahnDagService` (đã có); `cycleNodes` đổi sang cách "bóc ngược", thêm `sortedOrder` và `wouldCreateCycle` | Báo đúng node nằm trên chu trình, không báo nhầm node đứng sau chu trình | B1 |
 | Lưu tọa độ và đánh dấu trễ hạn **không** làm tăng `version` | Không gây 409 oan cho người đang thao tác Kanban | B3, C5 |
 | Gửi sự kiện RabbitMQ và SSE **sau commit** | Consumer luôn đọc được dữ liệu đã lưu | C1, B4 |
 | `graph_data` của template = `GraphDataPayload` (schemaVersion 2) của FE | Template Studio là nơi tạo ra dữ liệu này | D3 |
@@ -293,12 +311,16 @@ Những mục ghi "cần xác nhận" là suy ra từ việc đọc code, chưa 
 | Thiếu `mvnw`, máy chưa có Maven, chưa có CI | A1 |
 | Unique `(project_id, invitee_id, status)` làm lỗi khi từ chối lời mời lần 2 (cần xác nhận) | D2 |
 | Thành viên đã bị xóa mềm chấp nhận lời mời mới có thể bị chèn trùng (cần xác nhận) | D2 |
-| Clone template ưu tiên dự án có cùng id và không kiểm quyền (IDOR) | D1, D3 |
+| Clone: đã ưu tiên template, nhưng không có template trùng id thì vẫn clone **dự án** đó mà không kiểm quyền (IDOR) | D1 |
+| CRUD template không kiểm ADMIN, có `orElse(1L)`; template hệ thống xóa được | D3 |
 | `TaskCompletedEvent` được gửi trước khi commit, task con có thể không mở khóa (cần xác nhận) | C1 |
 | SSE chỉ 1 emitter mỗi user; đóng tab cũ có thể gỡ nhầm emitter tab mới; không có heartbeat; gửi thẳng entity | C2 |
 | Sự kiện lời mời đi vào hàng đợi notification sai kiểu, 2 hàm handle không có `@RabbitListener` (cần xác nhận) | C2 |
 | Nộp bài luôn đặt `isPublicForGuest = true`; chưa kiểm URL artifact | C4 |
-| Backend chưa có Kahn; DB chưa có cạnh phase nhiều-nhiều; chưa có API đồ thị | B1, B2, B3, B4 |
+| Đồ thị (code mới): nối node chỉ chặn vòng 2 node; Viewer sửa được đồ thị; lưu tọa độ làm tăng `version`; không tính lại trạng thái node khi đổi cạnh; chưa có PUT/DELETE node | B1, B3 |
+| Xuất bản (code mới): dự án ARCHIVED vẫn xuất bản được; không gửi SSE cho task vừa mở khóa | B4 |
+| Vị trí phase trên canvas không được lưu; dự án ARCHIVED vẫn sửa được đồ thị | B2 |
+| `WorkflowGraphController`, `PipelineTemplateController` (code mới) cũng có `?currentUserId=` và `orElse(...)` | X1 |
 | DB chưa có cột hồ sơ và ảnh đại diện | A5 |
 | AI: `criticalPath` chỉ liệt kê mọi node, chưa phải CPM | D6 |
 | Sơ đồ use case cũ trong archive vẽ bằng flowchart, có use case trái SSOT ("Claim Task", "phản hồi giải trình feedback") | D7, X3 |

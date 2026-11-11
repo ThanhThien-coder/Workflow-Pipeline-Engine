@@ -34,7 +34,7 @@ Trả lời:
 - `docs/specs/ai-diagnostics.md`, `docs/tasks/D-du-an/D6-ai-duong-gang-cpm.md`
 
 ## Đặc tả đã chốt
-- Tách lớp `CpmCalculator` thành hàm thuần, dùng `DagValidator.validate(...).sortedOrder()`:
+- Tách lớp `CpmCalculator` thành hàm thuần, dùng `KahnDagService.validateProjectDag(...).sortedOrder()` (trường `sortedOrder` do B1 thêm):
   - forward pass và backward pass; `slack = LS − ES`; node có slack 0 nằm trên đường găng.
   - Đồ thị có chu trình thì không tính CPM, trả cảnh báo.
 - Phát hiện node ngâm: node `IN_PROGRESS` có `now − started_at > 2,5 × estimated_hours`. Viết thành hàm thuần nhận tham số `Instant now`. **Không tạo bean `Clock` mới** (C5 tạo `ClockConfig`). Service truyền thời điểm hiện tại vào.
@@ -68,7 +68,7 @@ Trả lời:
 ## Cấm
 - Sửa file ngoài mục "Được ghi". File dùng chung thì báo nhóm trước (README mục 6).
 - Đọc, in, commit `.env*`, khóa, mật khẩu thật, API key. Dùng `git add -f`.
-- Tạo bean `Clock` thứ hai. Sửa `DagValidator` (của B).
+- Tạo bean `Clock` thứ hai. Sửa `KahnDagService` (của B).
 - Tự ghi trạng thái `xong`. Chỉ người review ghi sau khi kiểm.
 
 ## Dành cho Claude (đọc trước khi làm)
@@ -91,3 +91,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

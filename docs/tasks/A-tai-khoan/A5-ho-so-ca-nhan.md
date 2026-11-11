@@ -27,7 +27,7 @@ Trả lời:
 - `wpe-backend/src/**`, `FE/**`, `docs/**`
 
 ## Được ghi
-- `wpe-backend/src/main/resources/db/migration/V5__add_user_profile_columns.sql` (số V5 đã cấp cho A)
+- `wpe-backend/src/main/resources/db/migration/V7__add_user_profile_columns.sql` (số V7 đã cấp cho A; V5, V6 đã được dùng)
 - `BE/entity/UserEntity.java` (thêm trường)
 - `BE/controller/UserProfileController.java` (mới), `BE/service/profile/**` (mới), `BE/dto/request/profile/**`, `BE/dto/response/profile/**`
 - `BE/config/StaticResourceConfig.java` (mới, phục vụ `/uploads/**`)
@@ -38,7 +38,7 @@ Trả lời:
 - `docs/specs/database-schema.md` (bảng USERS), `docs/tasks/A-tai-khoan/A5-ho-so-ca-nhan.md`
 
 ## Đặc tả đã chốt
-- V5: `ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500), ADD COLUMN title VARCHAR(150), ADD COLUMN bio TEXT, ADD COLUMN skills JSONB NOT NULL DEFAULT '[]'::jsonb, ADD COLUMN links JSONB NOT NULL DEFAULT '{}'::jsonb;`
+- V7: `ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500), ADD COLUMN title VARCHAR(150), ADD COLUMN bio TEXT, ADD COLUMN skills JSONB NOT NULL DEFAULT '[]'::jsonb, ADD COLUMN links JSONB NOT NULL DEFAULT '{}'::jsonb;`
 - Endpoint dưới `/api/v1/users/me/`: `GET profile`, `PUT profile`, `POST password`, `POST avatar` (multipart, field tên `file`), `DELETE avatar`.
 - Response đúng kiểu `ProfileDto` của FE (`FE/types/profile.types.ts`). Trường nào FE có mà DB không có thì trả giá trị mặc định hợp lý và ghi vào ghi chép.
 - Lỗi: đổi email bị trùng → 409 `EMAIL_TAKEN`; mật khẩu hiện tại sai → 400 `WRONG_PASSWORD`; mật khẩu mới dưới 8 ký tự → 400 `VALIDATION_FAILED`.
@@ -52,7 +52,7 @@ Trả lời:
 
 ## Việc cần làm
 1. 🧠 Bước 0.
-2. 🧠 Tự viết file migration V5. Claude chỉ review.
+2. 🧠 Tự viết file migration V7. Claude chỉ review.
 3. 🤝 Entity, service, controller và test (hồ sơ, mật khẩu, ảnh).
 4. 🧠 Tự viết hàm kiểm magic bytes kèm test: PNG `89 50 4E 47`, JPEG `FF D8 FF`, WebP là `RIFF` ở byte 0–3 và `WEBP` ở byte 8–11.
 5. 🤝 `HttpProfileService`, nối `container.ts`, xử lý lỗi trên `ProfileView`.
@@ -61,7 +61,7 @@ Trả lời:
 
 ## Tiêu chí xong
 - [ ] `./mvnw test` và `npm test` pass. Có test BE cho: cập nhật hồ sơ, trùng email, sai mật khẩu cũ, đổi mật khẩu làm thu hồi phiên, file sai định dạng (file `.txt` đổi đuôi thành `.png`), ảnh trên 2MB.
-- [ ] App khởi động trên DB đã chạy V1–V4 thì chạy được V5 (dán log Flyway).
+- [ ] App khởi động trên DB đã chạy V1–V6 thì chạy được V7 (dán log Flyway).
 - [ ] Đổi mật khẩu xong, dùng access token cũ gọi API → 401.
 - [ ] Commit không chứa file ảnh nào.
 
@@ -96,3 +96,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

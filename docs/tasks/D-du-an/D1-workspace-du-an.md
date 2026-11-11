@@ -13,7 +13,7 @@ Nhánh git: d1-workspace
 Đọc code thấy các vấn đề sau:
 - Dự án mới đang được tạo với trạng thái `PLANNING`. SSOT mục 3.2 ghi `DRAFT`, và vòng đời trong `workflow-engine.md` mục 5.1 không có `PLANNING`.
 - `GET /projects` chưa hỗ trợ tham số `tab` và `sort`. Các số `nodeCount`, `activeNodes`, `doneNodes` cũng cần kiểm lại.
-- **Lỗ hổng:** `TemplateCloneService.cloneTemplate` tìm `projectRepository.findById(templateId)` **trước** `pipelineTemplateRepository`, và không kiểm quyền. Nếu id template trùng id một dự án thì sẽ clone nhầm dự án đó, và bất kỳ ai cũng clone được toàn bộ đồ thị dự án của người khác.
+- **Lỗ hổng (đã vá một nửa, cập nhật 11/11/2026):** `TemplateCloneService.cloneTemplate` nay tìm template trước (theo id rồi theo slug). Nhưng nếu **không** có template trùng id, code vẫn rơi sang `projectRepository.findById(numericId)` và clone dự án đó **mà không kiểm quyền**. Ai cũng clone được toàn bộ đồ thị dự án của người khác chỉ bằng cách đoán id. `POST /projects` có `templateId` nay cũng đi qua hàm clone này.
 - `PATCH /projects/{id}/status` cho đổi sang trạng thái nào cũng được.
 
 ## Kiến thức phải nắm
@@ -103,3 +103,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

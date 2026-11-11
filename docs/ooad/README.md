@@ -32,7 +32,7 @@ Mỗi người tự vẽ **đủ các loại sơ đồ chính** cho mảng của
 | Component | | | | | C |
 | Deployment | | | | | A |
 | Package | | | | | A |
-| ERD | | | | | B (cập nhật sau V5–V7) |
+| ERD | | | | | B (cập nhật sau các migration mới) |
 | BFD (nếu GV yêu cầu) | | | | | D |
 
 Component, deployment, package, ERD chỉ có 1 bản cho cả hệ thống. Ba người còn lại luyện các loại này ở phần "luyện vẽ không nhìn" của X4.

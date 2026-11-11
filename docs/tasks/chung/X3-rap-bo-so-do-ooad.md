@@ -14,7 +14,7 @@ Sơ đồ theo mảng (A7–D8) đã đủ chi tiết. Báo cáo OOAD còn cần
 
 ## Phân công sơ đồ cấp hệ thống (ai đã làm hạ tầng hay nghiệp vụ liên quan thì vẽ)
 - **A**: Deployment diagram (trình duyệt, JVM, Docker gồm PostgreSQL và RabbitMQ, Gemini; giao thức và cổng) và Package diagram backend (controller, service, repository, entity, dto, config, security).
-- **B**: Class diagram miền (domain model — mọi entity và quan hệ, không có controller/service), ERD cập nhật sau V5–V7 (`docs/specs/database-schema.md`), Object diagram dữ liệu seed.
+- **B**: Class diagram miền (domain model — mọi entity và quan hệ, không có controller/service), ERD cập nhật sau các migration mới (V5 trở đi) (`docs/specs/database-schema.md`), Object diagram dữ liệu seed.
 - **C**: Component diagram (các khối FE, REST, các khối BE, RabbitMQ, SSE, PostgreSQL; interface cung cấp và yêu cầu).
 - **D**: Use case tổng quát (đủ 6 actor, đủ 23 UC trong ma trận RBAC), và BFD nếu GV yêu cầu (cập nhật từ `docs/archive/docs_for_db_bfd/bfd.md`, không sửa file archive).
 
@@ -54,3 +54,11 @@ Người dán file này đang ráp bộ sơ đồ OOAD.
 ### Mỗi người đã vẽ gì
 
 ### Các chỗ lệch tìm được trong buổi kiểm nhất quán (tóm tắt)
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

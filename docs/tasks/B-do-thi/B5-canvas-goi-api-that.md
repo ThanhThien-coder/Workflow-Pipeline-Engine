@@ -9,8 +9,12 @@ Mở khóa: B6
 Nhánh git: b5-graph-ui
 Ước lượng: 2 ngày
 
+> **Cập nhật 11/11/2026 (sau khi pull):** `HttpWorkflowService.ts` đã gọi API thật cho `getMacroPhases`, `getPhaseEdges`, `getPhaseGraph`, `createPhase`, `connectPhases`, `disconnectPhases`, `deletePhase`, nhưng **vẫn rơi về mock khi lỗi** (`return super.…`), và phần chuyển dữ liệu nằm lẫn trong từng hàm. Sau khi A2 tách file, task này dọn lại phần đồ thị.
+
 ## Vì sao cần task này
-Các phương thức `getMacroPhases`, `getPhaseEdges`, `getPhaseGraph`, `createPhase`, `connectPhases`, `deletePhase`, `addRootTask`, `attachGhostNode`, `resetPhaseTree` vẫn đang chạy mock. Khó nhất là FE dùng mô hình node Root/Branch/Ghost (`GraphNodeMap`), khác mô hình phẳng của backend (phases, nodes, dependencies).
+- Lời gọi đồ thị đang có fallback ngầm: backend lỗi thì canvas hiện dữ liệu giả mà không ai biết.
+- Phần đổi dữ liệu từ mô hình phẳng của backend (phases, nodes, dependencies) sang mô hình Root/Branch/Ghost (`GraphNodeMap`) của FE đang viết lặp lại trong 3 hàm, chưa có test.
+- `addRootTask`, `attachGhostNode`, `updatePhasePosition` vẫn chạy mock; vị trí phase sẽ lưu được sau B2.
 
 ## Kiến thức phải nắm
 Mẫu Mapper/Adapter, chuẩn hóa dữ liệu (normalize), optimistic UI và cách chờ server, debounce khi kéo thả.
@@ -37,8 +41,10 @@ Trả lời:
 - `docs/tasks/B-do-thi/B5-canvas-goi-api-that.md`
 
 ## Đặc tả đã chốt
-- Backend trả mô hình phẳng (B2). FE chuyển đổi trong `FE/mappers/graphMapper.ts` với 3 hàm: `toMacroPhases(graph)`, `toPhaseEdges(graph)`, `toPhaseTree(graph, phaseId)`. Ghost = dependency có `parent.phaseId !== child.phaseId`, gắn vào node con.
-- Lưu tọa độ node: gọi `PATCH /nodes/{id}/metadata` khi thả chuột, debounce 300ms. Phase lưu tọa độ qua `PUT /phases/{id}` với `uiMetadata`.
+- Backend trả mô hình phẳng (B2). Gom phần chuyển đổi đang nằm trong `HttpWorkflowService` về `FE/mappers/graphMapper.ts` với 3 hàm: `toMacroPhases(graph)`, `toPhaseEdges(graph)`, `toPhaseTree(graph, phaseId)`. Ghost = dependency có `parent.phaseId !== child.phaseId`, gắn vào node con. Hành vi hiển thị phải giữ nguyên như hiện tại.
+- Bỏ mọi `return super.…` trong phần đồ thị: lỗi thì ném `ApiError` (A2).
+- `addRootTask` gọi `POST /projects/{id}/nodes`; `attachGhostNode` gọi `POST /projects/{id}/dependencies`.
+- Lưu tọa độ node: gọi `PATCH /nodes/{id}/metadata` khi thả chuột, debounce 300ms. Phase lưu tọa độ qua `PUT /phases/{id}` với `uiMetadata` (`updatePhasePosition`, cần B2).
 - Lời gọi API đặt trong `FE/services/impl/http/graph.ts` (khung do A2 tạo). Phương thức nào đã gọi thật thì xóa khỏi `METHODS_STILL_MOCKED`.
 - Nối tạo vòng (422) → mở `KahnCycleModal` với danh sách mã. 403 và 409 → toast theo `ApiError.code`.
 - `resetPhaseTree` chưa có trong SSOT → giữ mock, ghi lý do.
@@ -85,3 +91,11 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Kết quả test (dán output thật, không chép tay)
 
 ### Điều chưa chắc / cần nhóm quyết
+
+## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
+Đã học lại: chưa
+
+- **Làm gì:**
+- **File chính đã sửa:**
+- **Vì sao làm vậy** (tự viết):
+- **Cần học lại:**

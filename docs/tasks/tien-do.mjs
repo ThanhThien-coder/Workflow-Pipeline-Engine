@@ -69,6 +69,8 @@ for (const name of taskFiles) {
     hard: idsIn(f['Cần có trước']),
     soft: idsIn(f['Cần trước bước frontend']),
     unlocks: idsIn(f['Mở khóa']),
+    relearned: (field(lines, 'Đã học lại') || '').toLowerCase().startsWith('rồi'),
+    hasSprintLog: field(lines, 'Đã học lại') !== undefined,
   });
 }
 
@@ -195,9 +197,14 @@ for (const p of only ? [only] : PEOPLE) {
   const waiting = [];
   const active = [];
   let done = 0;
+  const notRelearned = [];
   for (const t of mine) {
     const s = st(t);
-    if (s === 'xong') { done += 1; continue; }
+    if (s === 'xong') {
+      done += 1;
+      if (t.hasSprintLog && !t.relearned) notRelearned.push(t.id);
+      continue;
+    }
     if (['đang làm', 'kẹt', 'chờ kiểm'].includes(s)) { active.push(`${t.id} (${s})`); continue; }
     const owners = PER_PERSON.has(t.id) ? [p] : t.owners;
     const missing = t.hard.filter((d) => !depDone(d, owners));
@@ -212,6 +219,7 @@ for (const p of only ? [only] : PEOPLE) {
   console.log(`  Đang làm / chờ kiểm / kẹt : ${active.join(', ') || '—'}`);
   console.log(`  Có thể bắt đầu ngay       : ${canStart.join(', ') || '—'}`);
   console.log(`  Đang chờ                  : ${waiting.join(', ') || '—'}`);
+  console.log(`  Xong nhưng chưa học lại   : ${notRelearned.join(', ') || '—'}`);
 }
 
 // ---- Lỗi và cảnh báo ----
