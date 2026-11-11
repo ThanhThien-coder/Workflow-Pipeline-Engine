@@ -161,7 +161,7 @@ class ProjectInvitationServiceTest {
                 .build();
 
         when(projectInvitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
-        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(Optional.empty());
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, inviteeId)).thenReturn(Optional.empty());
         when(notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(inviteeId)).thenReturn(List.of(unreadNotif));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(ProjectEntity.builder().id(projectId).name("Core Banking Pipeline").build()));
         when(userRepository.findById(inviteeId)).thenReturn(Optional.of(UserEntity.builder().id(inviteeId).username("sarah.chen").build()));
@@ -320,5 +320,113 @@ class ProjectInvitationServiceTest {
                 .hasMessageContaining("đã có một lời mời đang chờ phản hồi.");
 
         verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
+    }
+
+    @Test
+    @DisplayName("sendInvitation: Chặn COLLABORATOR gửi lời mời (chỉ OWNER mới được gửi)")
+    void shouldThrowForbidden_whenCollaboratorSendsInvitation() {
+        ProjectEntity project = ProjectEntity.builder()
+                .id(projectId)
+                .ownerId(inviterId)
+                .build();
+
+        CreateInvitationRequest req = new CreateInvitationRequest("sarah.chen@pipeline.engine", ProjectRole.COLLABORATOR);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, otherUserId))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("Chỉ chủ dự án (OWNER) mới được gửi lời mời.");
+
+        verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
+    }
+
+    @Test
+    @DisplayName("sendInvitation: Chặn ADMIN không phải owner gửi lời mời")
+    void shouldThrowForbidden_whenAdminNotOwnerSendsInvitation() {
+        ProjectEntity project = ProjectEntity.builder()
+                .id(projectId)
+                .ownerId(inviterId)
+                .build();
+
+        CreateInvitationRequest req = new CreateInvitationRequest("sarah.chen@pipeline.engine", ProjectRole.COLLABORATOR);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, otherUserId))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("Chỉ chủ dự án (OWNER) mới được gửi lời mời.");
+
+        verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
+    }
+
+    @Test
+    @DisplayName("sendInvitation: Chặn gửi lời mời với vai trò OWNER")
+    void shouldThrowIllegalArgument_whenInvitingWithRoleOwner() {
+        ProjectEntity project = ProjectEntity.builder()
+                .id(projectId)
+                .ownerId(inviterId)
+                .build();
+
+        CreateInvitationRequest req = new CreateInvitationRequest("sarah.chen@pipeline.engine", ProjectRole.OWNER);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, inviterId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Không thể mời với vai trò OWNER. Dùng chức năng chuyển quyền sở hữu.");
+
+        verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
+    }
+
+    @Test
+    @DisplayName("acceptInvitation: Khi thành viên đã bị xóa mềm chấp nhận lời mời mới, cập nhật chính bản ghi cũ")
+    void shouldReactivateExistingMember_whenSoftDeletedMemberAcceptsInvitation() {
+        ProjectInvitationEntity invitation = ProjectInvitationEntity.builder()
+                .id(invitationId)
+                .projectId(projectId)
+                .inviterId(inviterId)
+                .inviteeId(inviteeId)
+                .role(ProjectRole.COLLABORATOR)
+                .status(InvitationStatus.PENDING)
+                .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+                .build();
+
+        NotificationEntity unreadNotif = NotificationEntity.builder()
+                .id(101L)
+                .userId(inviteeId)
+                .linkUrl("/workspace?action=open-invite-modal&invitationId=" + invitationId)
+                .isRead(false)
+                .build();
+
+        ProjectMemberEntity deletedMember = ProjectMemberEntity.builder()
+                .id(200L)
+                .projectId(projectId)
+                .userId(inviteeId)
+                .role(ProjectRole.VIEWER)
+                .joinedAt(Instant.now().minus(30, ChronoUnit.DAYS))
+                .removedAt(Instant.now().minus(5, ChronoUnit.DAYS))
+                .build();
+
+        when(projectInvitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, inviteeId)).thenReturn(Optional.of(deletedMember));
+        when(notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(inviteeId)).thenReturn(List.of(unreadNotif));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(ProjectEntity.builder().id(projectId).name("Core Banking Pipeline").build()));
+        when(userRepository.findById(inviteeId)).thenReturn(Optional.of(UserEntity.builder().id(inviteeId).username("sarah.chen").build()));
+
+        projectInvitationService.acceptInvitation(invitationId, inviteeId);
+
+        assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
+
+        ArgumentCaptor<ProjectMemberEntity> memberCaptor = ArgumentCaptor.forClass(ProjectMemberEntity.class);
+        verify(projectMemberRepository, times(1)).save(memberCaptor.capture());
+        ProjectMemberEntity saved = memberCaptor.getValue();
+
+        assertThat(saved.getId()).isEqualTo(200L);
+        assertThat(saved.getRemovedAt()).isNull();
+        assertThat(saved.getRole()).isEqualTo(ProjectRole.COLLABORATOR);
+        assertThat(saved.getJoinedAt()).isNotNull();
+
+        verify(workflowEventPublisher, times(1)).publishInvitationAccepted(any(InvitationAcceptedEvent.class));
     }
 }
