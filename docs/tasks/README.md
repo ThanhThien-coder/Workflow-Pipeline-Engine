@@ -282,7 +282,7 @@ A1 bật `spring.flyway.out-of-order: true` cho giai đoạn dev, nên merge l�
 | Mỗi dự án chỉ có 1 chủ = `project.owner_id`. Đổi role thành OWNER nghĩa là chuyển quyền sở hữu | Mọi chỗ đang kiểm `project.getOwnerId()` vẫn đúng, không phải sửa mảng của người khác | D2 |
 | Dự án mới ở trạng thái `DRAFT`. Xuất bản nhận cả `DRAFT` và `PLANNING`. DRAFT → ACTIVE chỉ qua xuất bản | Khớp SSOT, vẫn tương thích dữ liệu cũ | D1, B4 |
 | Cạnh giữa các phase: bảng `phase_dependency` (nhiều-nhiều) — **đã làm ở V6**; còn thêm `work_phase.ui_metadata` để lưu vị trí phase | FE cho phase nhiều cha, DB cũ chỉ có 1 cha | B2 |
-| Kahn ở backend dùng chung là `KahnDagService` (đã có); `cycleNodes` đổi sang cách "bóc ngược", thêm `sortedOrder` và `wouldCreateCycle` | Báo đúng node nằm trên chu trình, không báo nhầm node đứng sau chu trình | B1 |
+| Kahn ở backend dùng chung là `KahnDagService` (đã có); `cycleNodes` đổi sang cách "bóc ngược", thêm `sortedOrder` và `findCycleIfAdded` (trả mã các node trên vòng, rỗng nếu không tạo vòng) | Báo đúng node nằm trên chu trình, không báo nhầm node đứng sau chu trình; B3 có đủ `cycleNodes` để trả 422 | B1, B3 |
 | Lưu tọa độ và đánh dấu trễ hạn **không** làm tăng `version` | Không gây 409 oan cho người đang thao tác Kanban | B3, C5 |
 | Gửi sự kiện RabbitMQ và SSE **sau commit** | Consumer luôn đọc được dữ liệu đã lưu | C1, B4 |
 | `graph_data` của template = `GraphDataPayload` (schemaVersion 2) của FE | Template Studio là nơi tạo ra dữ liệu này | D3 |

@@ -43,7 +43,7 @@ Trả lời:
 
 ## Đặc tả đã chốt
 - **Giữ nguyên** hành vi đang có mà FE dựa vào: `createDependency` lũy đẳng (cạnh đã có thì trả về luôn, không báo lỗi); mã node trùng → 409 `DUPLICATE_NODE_CODE`.
-- Lỗ hổng 1: trước khi lưu cạnh, gọi `KahnDagService.wouldCreateCycle(...)` (B1). Tạo vòng → 422 `CYCLE_DETECTED`, `cycleNodes` là mã các node trên vòng.
+- Lỗ hổng 1: trước khi lưu cạnh, gọi `KahnDagService.findCycleIfAdded(...)` (B1). Kết quả khác rỗng → 422 `CYCLE_DETECTED`, `cycleNodes` = đúng danh sách hàm trả về.
 - Lỗ hổng 2: mọi thao tác **ghi** (tạo/sửa/xóa node, nối/gỡ cạnh, lưu tọa độ) dùng `verifyProjectOwner`. Đọc đồ thị vẫn cho thành viên.
 - Lỗ hổng 3: lưu `ui_metadata` bằng câu `UPDATE` trực tiếp, **không** làm tăng `version`.
 - Lỗ hổng 4: sau khi thêm hoặc gỡ cạnh, tính lại trạng thái node con theo `joinPolicy`:

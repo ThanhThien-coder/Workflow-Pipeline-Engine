@@ -41,21 +41,24 @@ Trả lời:
 - Thêm vào `ProjectKahnResult`: `List<Long> sortedOrder` (thứ tự topo, rỗng nếu có chu trình) và `List<String> blockedNodeCodes` (mọi node còn in-degree > 0).
 - `cycleNodeCodes` đổi cách tính: lấy tập bị chặn rồi "bóc ngược", lặp lại việc bỏ các node không còn cạnh đi ra tới node khác trong tập. Phần còn lại là node nằm trên chu trình (hoặc nằm giữa 2 chu trình — hạn chế đã biết, ghi vào docs).
 - Thứ tự ổn định: nhiều node cùng in-degree 0 thì lấy theo thứ tự id tăng dần (để test không ngẫu nhiên).
-- Thêm `boolean wouldCreateCycle(List<NodeEntity> nodes, List<NodeDependencyEntity> deps, Long parentId, Long childId)` — trả `true` nếu thêm cạnh parent→child tạo vòng (kể cả parent = child).
+- Thêm `List<String> findCycleIfAdded(List<NodeEntity> nodes, List<NodeDependencyEntity> deps, Long parentId, Long childId)`: trả **mã các node nằm trên vòng** sẽ tạo ra nếu thêm cạnh parent→child, hoặc danh sách rỗng nếu không tạo vòng.
+  - Thêm parent→child tạo vòng khi và chỉ khi từ child đã đi tới được parent. Vòng đó là đường child → … → parent. Tìm đường bằng BFS (đường ngắn nhất), duyệt hàng xóm theo id tăng dần để kết quả ổn định.
+  - parent = child → trả `[mã node đó]`.
+  - B3 dùng thẳng kết quả này làm `cycleNodes` trong lỗi 422 (B3 cần đủ mã node trên vòng, nên hàm phải trả danh sách chứ không chỉ `true`/`false`).
 - 422 trả cho người dùng giữ format cũ (`cycleNodes`), không đổi `ErrorResponse`.
 
 ## Việc cần làm
 1. 🧠 Bước 0 (chạy tay trên giấy).
 2. 🧠 Đọc test hiện có, lập bảng: case nào đã có, case nào thiếu. Tối thiểu phải đủ: rỗng; 1 node; chuỗi thẳng; kim cương; 2 thành phần rời; chu trình 3 node; chu trình kèm đuôi; 2 chu trình; cạnh trùng; dữ liệu seed WPE-001→004.
-3. 🧠 **Tự viết** phần "bóc ngược" và `wouldCreateCycle`. Claude chỉ review sau khi bạn viết xong và test đã chạy.
+3. 🧠 **Tự viết** phần "bóc ngược" và `findCycleIfAdded`. Claude chỉ review sau khi bạn viết xong và test đã chạy.
 4. 🤝 Thêm `sortedOrder`, `blockedNodeCodes`, bổ sung test còn thiếu.
 5. Cập nhật `workflow-engine.md` mục 4.
 
 ## Tiêu chí xong
 - [ ] `KahnDagServiceTest` pass, đủ các case ở bước 2 (chạy bằng IntelliJ hoặc `./mvnw test -Dtest=KahnDagServiceTest` sau khi A1 xong).
 - [ ] Case "chu trình kèm đuôi": `cycleNodeCodes` không chứa node đuôi, `blockedNodeCodes` có.
-- [ ] Có test cho `wouldCreateCycle` với vòng 3 node.
-- [ ] Code "bóc ngược" và `wouldCreateCycle` do B tự viết; người review yêu cầu giải thích từng dòng.
+- [ ] Có test cho `findCycleIfAdded`: vòng 3 node (trả đủ 3 mã), cạnh không tạo vòng (trả rỗng), parent = child, và vòng 4 node trên dữ liệu seed WPE-001→004 khi thêm WPE-004→WPE-001.
+- [ ] Code "bóc ngược" và `findCycleIfAdded` do B tự viết; người review yêu cầu giải thích từng dòng.
 
 ## Câu hỏi bảo vệ (người review hỏi, trả lời không nhìn code)
 1. Độ phức tạp thời gian và bộ nhớ của `validateProjectDag`?
