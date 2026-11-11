@@ -9,6 +9,10 @@ Mở khóa: A1, A2, B1, C1, D1, D5
 Nhánh git: t0-<chữ của bạn> (chỉ commit file ghi chép)
 Ước lượng: 0,5–1 ngày
 
+> ⚡ **Chế độ sprint:** chỉ làm **bước 2–5** (máy mình chạy được Docker, backend, frontend). Nhờ Claude chạy lệnh giúp được. Xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6.
+> - **Làm:** tạo `ghi-chep/T0-<chữ>.md`, ghi kết quả cài đặt, rồi đặt `Trạng thái: xong` để mở khóa task sau.
+> - **Không làm trong sprint:** Bước 0, bước 6–11 (thực hành Swagger, 11 chặng, sơ đồ khối, 10 câu hỏi), PR riêng và câu hỏi bảo vệ. Làm ở giai đoạn Học lại.
+
 ## Vì sao cần task này
 Trước khi sửa mảng của mình, ai cũng phải chạy được toàn bộ hệ thống và hiểu một yêu cầu đi qua những tầng nào. Làm xong T0 thì khi đọc code mảng khác bạn biết nó nằm ở đâu trong bức tranh chung.
 

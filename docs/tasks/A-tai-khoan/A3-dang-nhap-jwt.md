@@ -9,6 +9,11 @@ Mở khóa: A4, A5, A6, A8
 Nhánh git: a3-auth-jwt
 Ước lượng: 2–2,5 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** kịch bản Swagger ở "Tiêu chí xong" (đăng nhập đúng, sai mật khẩu…), dán response thật.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** vẽ nháp sơ đồ tuần tự trên giấy (làm ở A8).
+
 ## Vì sao cần task này
 Backend chưa có `AuthController`. `BE/security/SecurityConfig.java` đang để `anyRequest().permitAll()`. `jwt.secret` nằm thẳng trong `application.yml`. Task này là nền cho A4–A6 và cho việc bật bảo mật thật ở X1.
 

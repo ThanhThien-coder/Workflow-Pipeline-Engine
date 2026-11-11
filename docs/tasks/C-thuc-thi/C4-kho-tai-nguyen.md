@@ -9,6 +9,11 @@ Mở khóa: X1
 Nhánh git: c4-artifacts
 Ước lượng: 1 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** thêm và xóa link bằng sarah và bằng một Viewer qua API; gửi URL `javascript:alert(1)` → 400; `GET /api/v1/guest/{token}/overview` chỉ thấy artifact công khai.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** phần frontend.
+
 ## Vì sao cần task này
 Đọc code thấy các vấn đề sau:
 - `BE/controller/ArtifactController.java` có chỗ `getCurrentUserId().orElse(1L)`: không đăng nhập vẫn tạo được artifact, và artifact bị ghi là của admin (user 1).

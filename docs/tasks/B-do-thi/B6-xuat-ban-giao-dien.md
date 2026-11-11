@@ -11,6 +11,8 @@ Nhánh git: b6-publish-ui
 
 > **Cập nhật 11/11/2026 (sau khi pull):** `publishPipeline` trong `HttpWorkflowService.ts` đã gọi `POST /projects/{id}/publish`, nhưng vẫn rơi về mock khi lỗi. Test Kahn backend hiện là `KahnDagServiceTest`.
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 `publishPipeline` trên FE còn fallback ngầm, nên lỗi 422/409 từ backend có thể bị nuốt mất. FE có bản Kahn riêng ở `FE/lib/graph/kahn.ts`. Hai bản Kahn phải cho cùng kết quả, nếu không người dùng sẽ thấy FE báo hợp lệ mà BE lại báo lỗi.
 

@@ -11,6 +11,8 @@ Nhánh git: d4-templates-ui
 
 > **Cập nhật 11/11/2026 (sau khi pull):** đã có `FE/services/template/HttpTemplateService.ts`, và `container.ts` đã chọn nó khi tắt mock. Task này **không viết lại** service, mà sửa phần còn thiếu bên dưới.
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 - `HttpTemplateService` tự dựng `fetch` và header riêng, lỗi chỉ ném `Error` chung chung. Vì vậy Studio không biết lỗi là 422 (node nào bị vòng) hay 403 (không phải admin).
 - Chưa có test cho `HttpTemplateService`.

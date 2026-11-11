@@ -9,6 +9,11 @@ Mở khóa: C2, C4, C5
 Nhánh git: c1-fsm
 Ước lượng: 1,5–2 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** thực nghiệm "gửi trước commit" trước và sau khi sửa (`Thread.sleep` tạm, **không commit**); kịch bản Swagger của T0.
+> - **Dời về buổi kiểm chung (mục 7):** alex duyệt task của sarah trên giao diện → WPE-004 tự mở khóa (bảng 7.2 dòng 6).
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 `BE/service/engine/StateMachineService.java` là trái tim của hệ thống. Đã có 15 test, nhưng đọc code thấy còn 3 điểm nghi ngờ:
 - `updateStatus` gọi `publishTaskCompleted` **bên trong** transaction, trước khi commit. Consumer có thể đọc dữ liệu cũ (task cha chưa DONE) và không mở khóa task con. **Cần chứng minh bằng thực nghiệm.**

@@ -9,6 +9,8 @@ Mở khóa: X1
 Nhánh git: c3-notifications
 Ước lượng: 1,5 ngày
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 Backend đã lưu thông báo vào bảng `notification`, nhưng chưa có API để đọc. Chuông thông báo trên FE dùng `MockNotificationApi`.
 

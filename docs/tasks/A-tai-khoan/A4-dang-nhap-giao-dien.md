@@ -9,6 +9,11 @@ Mở khóa: X1
 Nhánh git: a4-auth-ui
 Ước lượng: 1–1,5 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** `npm run typecheck && npm test`.
+> - **Dời về buổi kiểm chung (mục 7):** đăng nhập alex trên giao diện; token hết hạn tự refresh; đăng xuất rồi F5; đăng nhập sarah (bảng 7.2 dòng 2–4).
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 FE đang đăng nhập bằng mock (`FE/services/mock/MockWorkflowService.auth.ts`). Cần nối `AuthView` → `authSlice` → API thật, lưu token, tự refresh khi gặp 401 và đăng xuất sạch.
 

@@ -9,6 +9,11 @@ Mở khóa: D2, D3
 Nhánh git: d1-workspace
 Ước lượng: 1–1,5 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** `GET /projects?tab=mine` và `tab=shared` với alex, sarah; `PATCH` dự án DRAFT sang ACTIVE → 409.
+> - **Dời về buổi kiểm chung (mục 7):** tạo dự án mới từ template → trạng thái DRAFT (bảng 7.2 dòng 7).
+> - **Không làm trong sprint:** bước 6 (phần frontend).
+
 ## Vì sao cần task này
 Đọc code thấy các vấn đề sau:
 - Dự án mới đang được tạo với trạng thái `PLANNING`. SSOT mục 3.2 ghi `DRAFT`, và vòng đời trong `workflow-engine.md` mục 5.1 không có `PLANNING`.

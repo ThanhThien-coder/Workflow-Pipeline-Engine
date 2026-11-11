@@ -11,6 +11,11 @@ Nhánh git: b4-publish
 
 > **Cập nhật 11/11/2026 (sau khi pull):** `POST /projects/{id}/publish` đã có (`WorkflowGraphService.publishPipeline`): chạy Kahn, chuyển ACTIVE, mở khóa node gốc. Task này vá các chỗ chưa đúng đặc tả.
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** tạo chu trình bằng SQL rồi xuất bản → 422; dự án DRAFT → 200 và đối chiếu `unlockedTaskCount` bằng SQL; dự án ARCHIVED → 409.
+> - **Dời về buổi kiểm chung (mục 7):** mở 2 tab, người phụ trách node gốc nhận `TASK_UNLOCKED` (bảng 7.2 dòng 8).
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 Đọc code thấy:
 1. Chỉ chặn khi dự án **đã** ACTIVE. Dự án `ARCHIVED`, `PAUSED`, `COMPLETED`… vẫn "xuất bản" được, và bị chuyển thẳng sang ACTIVE.

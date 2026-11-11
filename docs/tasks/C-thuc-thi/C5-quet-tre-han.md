@@ -9,6 +9,8 @@ Mở khóa: X1
 Nhánh git: c5-overdue
 Ước lượng: 0,5–1 ngày
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 `BE/service/engine/TaskOverdueScanner.java` chạy mỗi 15 phút (`@Scheduled(fixedRate = 15 * 60 * 1000, …)`). Cần kiểm 4 điều: đánh dấu `is_overdue` có đúng không; có gửi thông báo lặp lại mỗi 15 phút không; cờ có được gỡ khi gia hạn không (B3 lo phần gỡ khi sửa `dueDate`); và job có test được không, vì nó phụ thuộc thời gian thực.
 

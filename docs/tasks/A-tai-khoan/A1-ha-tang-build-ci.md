@@ -9,6 +9,11 @@ Mở khóa: A3
 Nhánh git: a1-build-ci
 Ước lượng: 0,5–1 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** chạy `./mvnw test`, dán dòng `Tests run:` thật.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 - Chưa chạy được test backend bằng dòng lệnh: có `wpe-backend/.mvn/wrapper/maven-wrapper.properties` (chưa commit) nhưng thiếu `mvnw` và `mvnw.cmd`. Máy của nhóm cũng chưa cài Maven.
 - 4 người code song song mà không có CI thì PR làm hỏng code người khác sẽ không ai biết.

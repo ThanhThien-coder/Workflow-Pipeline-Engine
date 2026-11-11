@@ -9,6 +9,11 @@ Mở khóa: C3, C6, C8
 Nhánh git: c2-realtime
 Ước lượng: 1,5–2 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** gửi lời mời bằng API, xem message và log consumer; đếm bảng `notification` bằng SQL.
+> - **Dời về buổi kiểm chung (mục 7):** mở 2 tab cùng user sarah, tab thứ 3 alex duyệt task (bảng 7.2 dòng 6).
+> - **Không làm trong sprint:** không có.
+
 ## Vì sao cần task này
 Đọc code thấy các vấn đề sau:
 - `BE/service/event/SseEmitterService.java` giữ mỗi user **1 emitter** (`Map<Long, SseEmitter>`). Mở 2 tab thì tab đầu mất realtime. Khi tab cũ đóng, `onCompletion` gọi `remove(userId)` và có thể gỡ nhầm emitter của tab mới.
