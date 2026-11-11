@@ -17,6 +17,7 @@ Nhánh git: b5-graph-ui
 - Lời gọi đồ thị đang có fallback ngầm: backend lỗi thì canvas hiện dữ liệu giả mà không ai biết.
 - Phần đổi dữ liệu từ mô hình phẳng của backend (phases, nodes, dependencies) sang mô hình Root/Branch/Ghost (`GraphNodeMap`) của FE đang viết lặp lại trong 3 hàm, chưa có test.
 - `addRootTask`, `attachGhostNode`, `updatePhasePosition` vẫn chạy mock; vị trí phase sẽ lưu được sau B2.
+- **Canvas chưa khóa theo vai trò (thêm ngày 12/11/2026, sau B3).** Từ B3, backend chỉ cho **owner** sửa đồ thị; Collaborator và Viewer gọi API ghi sẽ nhận 403. Nhưng `FE/components/workflow/**`, `FE/components/mindmap/**` không kiểm tra vai trò ở đâu cả: người không phải owner vẫn kéo thả, thêm node, nối cạnh được, thao tác xong mới nhận lỗi. Backend chặn là lớp bảo vệ thật; task này thêm lớp giao diện để người dùng không bấm được ngay từ đầu.
 
 ## Kiến thức phải nắm
 Mẫu Mapper/Adapter, chuẩn hóa dữ liệu (normalize), optimistic UI và cách chờ server, debounce khi kéo thả.
@@ -50,18 +51,29 @@ Trả lời:
 - Lời gọi API đặt trong `FE/services/impl/http/graph.ts` (khung do A2 tạo). Phương thức nào đã gọi thật thì xóa khỏi `METHODS_STILL_MOCKED`.
 - Nối tạo vòng (422) → mở `KahnCycleModal` với danh sách mã. 403 và 409 → toast theo `ApiError.code`.
 - `resetPhaseTree` chưa có trong SSOT → giữ mock, ghi lý do.
+- **Khóa canvas theo vai trò** (thêm ngày 12/11/2026):
+  - Vai trò lấy từ store: `useWorkflowStore((s) => s.settings.settings?.myRole)` (chỉ đọc, không sửa `settingsSlice`). Quy ước giống `GeneralSettingsSection`: `isOwner = myRole === 'OWNER'`.
+  - Không phải owner thì canvas ở chế độ **chỉ xem**: không kéo được phase và node; ẩn hoặc vô hiệu hóa (`disabled`) các nút tạo, sửa, xóa phase và node, nối và gỡ cạnh; không mở được thao tác kéo để nối (`usePhaseConnectDrag`). Nút bị vô hiệu hóa có `title` "Chỉ chủ dự án được sửa đồ thị".
+  - Vẫn cho xem: pan, zoom, chọn phase, mở chi tiết node.
+  - Không phải owner thì **không gọi** API ghi nào của đồ thị (kể cả `PATCH metadata`, `PUT /phases/{id}`).
+  - Vẫn giữ xử lý 403 → toast ở dòng trên, phòng khi vai trò đổi giữa phiên hoặc store chưa kịp cập nhật.
+  - Dự án `ARCHIVED`: owner cũng ở chế độ chỉ xem (backend trả 409 `PROJECT_ARCHIVED` từ B2, B3).
+  - Phải kiểm `myRole` đã được nạp khi vào thẳng màn canvas (không qua Settings). Nếu chưa nạp thì ghi vào "Điều chưa chắc" và báo nhóm, vì nạp settings nằm ngoài "Được ghi" của task này.
 
 ## Việc cần làm
 1. 🧠 Bước 0.
 2. 🧠 **Tự viết** `graphMapper` và test (đây là phần cốt lõi). Claude chỉ review.
 3. 🤝 Viết `graph.ts`, nối các component.
 4. 🧠 Chạy thật trên dữ liệu seed: tạo phase, nối 2 phase, thêm node, nối node thành vòng.
-5. 🤝 Thêm test component nếu có thay đổi lớn.
+5. 🤝 Khóa canvas theo vai trò (đặc tả ở trên), có test component cho vai trò VIEWER và OWNER.
+6. 🤝 Thêm test component nếu có thay đổi lớn.
 
 ## Tiêu chí xong
 - [ ] `npm run typecheck && npm test` pass.
 - [ ] `graphMapper` có ít nhất 8 test: phase nhiều cha, ghost khác phase, node độc lập, đồ thị rỗng…
 - [ ] Chạy thật: tạo phase, nối 2 phase, thêm node, nối node thành vòng thì hiện modal chu trình. F5 vẫn giữ vị trí đã kéo thả.
+- [ ] Chạy thật với sarah (COLLABORATOR) và một tài khoản VIEWER trên dự án mẫu: không kéo được phase, node; các nút sửa đồ thị bị ẩn hoặc vô hiệu hóa; tab Network không có request ghi đồ thị nào. Đăng nhập alex (owner) thì thao tác bình thường.
+- [ ] Có test component: vai trò VIEWER thì nút thêm node, thêm phase bị vô hiệu hóa; OWNER thì bấm được.
 
 ## Câu hỏi bảo vệ (người review hỏi, trả lời không nhìn code)
 1. Mapper ở đây là mẫu thiết kế gì? Vì sao không để component tự đổi dữ liệu?
