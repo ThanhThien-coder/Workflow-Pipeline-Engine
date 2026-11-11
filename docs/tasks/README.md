@@ -18,7 +18,7 @@
 > **Cập nhật 11/11/2026 sau khi pull code mới (Dev B):** đã có sẵn API đồ thị, phase, node, phụ thuộc, xuất bản (`WorkflowGraphController/Service`), `KahnDagService`, CRUD template (`PipelineTemplateController/Service`), `HttpTemplateService` trên FE, và migration **V5, V6**. Vì vậy:
 > - B1–B6, D3, D4 đổi từ "viết mới" sang **"đọc hiểu, kiểm thử, vá lỗ hổng"** (các lỗ hổng cụ thể ghi trong từng file, và ở mục 10).
 > - Số migration cấp lại: A5 → **V7**, D2 → **V8**, B2 → **V9** (mục 6.2).
-> - `docs/MIDTERM_PROGRESS_REPORT.md` ghi **hạn nộp đồ án 15/11/2026**. Nếu đúng vậy, xem mục 5.1 (bản rút gọn).
+> - `docs/MIDTERM_PROGRESS_REPORT.md` ghi **hạn nộp đồ án 15/11/2026**. Nếu đúng vậy, làm theo [SPRINT_2_NGAY.md](SPRINT_2_NGAY.md).
 
 ## 1. Mục tiêu
 1. Hệ thống chạy thật từ đầu đến cuối: đăng nhập thật, dữ liệu thật, không còn chỗ nào lặng lẽ rơi về dữ liệu giả, bảo mật bật thật.
@@ -195,13 +195,8 @@ Lịch gợi ý cho 4 tuần (thời gian ít hơn thì giữ nguyên thứ tự
 - **Tuần 3:** các task frontend, nối API thật.
 - **Tuần 4:** OOAD thiết kế (A8–D8), rồi X1, X2, X3, X4.
 
-### 5.1 Bản rút gọn nếu chỉ còn vài ngày
-Ưu tiên theo thứ tự, làm song song theo người:
-1. **Mọi người, ngày 1:** T0 rút gọn (chỉ bước 2–7: chạy được hệ thống và thực hành Swagger), T1 (luyện vẽ chung).
-2. **OOAD trước** (vì là phần nộp và chấm): A7, B7, C7, D7 → A8, B8, C8, D8 → X3. Sơ đồ thiết kế vẽ theo code hiện có, đánh dấu "dự kiến" chỗ chưa code.
-3. **Vá lỗi nặng nhất của mảng mình**, mỗi người 1–2 task: A2 (bỏ fallback ngầm) và A3 (đăng nhập thật); B3 (vòng dài lọt qua, Viewer sửa được đồ thị); C1 (gửi sự kiện trước commit); D1 (IDOR clone) và D3 (phân quyền template).
-4. **X4** (thuyết trình chéo, luyện vẽ, vấn đáp) trước buổi bảo vệ.
-Các task còn lại để sau hạn nộp nếu nhóm còn làm tiếp.
+### 5.1 Nếu chỉ còn vài ngày
+Làm theo **[SPRINT_2_NGAY.md](SPRINT_2_NGAY.md)**. Đó là bản rút gọn **duy nhất**: chọn task nào, làm vào ngày nào, T0 và T1 rút gọn tới đâu, task nào để lại sau hạn nộp. Mục này cố ý không chép lại danh sách, để không có hai bản ghi khác nhau.
 
 **Hạn OOAD tới sớm hơn code:** làm A7–D7 ngay tuần 1, rồi A8–D8 dựa trên code hiện có cộng đặc tả, đánh dấu "dự kiến" ở phần chưa code. Code xong thì cập nhật sơ đồ cho khớp.
 
