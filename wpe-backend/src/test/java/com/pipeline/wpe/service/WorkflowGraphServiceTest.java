@@ -5,6 +5,7 @@ import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.dto.request.graph.CreateDependencyRequest;
 import com.pipeline.wpe.dto.request.graph.CreateNodeRequest;
 import com.pipeline.wpe.dto.request.graph.CreatePhaseRequest;
+import com.pipeline.wpe.dto.request.graph.UpdatePhaseRequest;
 import com.pipeline.wpe.dto.response.graph.PublishPipelineResponse;
 import com.pipeline.wpe.dto.response.graph.WorkflowGraphResponse;
 import com.pipeline.wpe.entity.NodeDependencyEntity;
@@ -13,6 +14,7 @@ import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.WorkPhaseEntity;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.CycleDetectedException;
+import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.PhaseDependencyRepository;
@@ -31,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -75,6 +78,8 @@ class WorkflowGraphServiceTest {
             .name("Core Banking Pipeline")
             .status(com.pipeline.wpe.common.enums.ProjectStatus.DRAFT)
             .build();
+        // Các hàm ghi Phase đọc trạng thái dự án từ kết quả verifyProjectOwner để chặn ARCHIVED
+        lenient().when(authorizationService.verifyProjectOwner(1L, 2L)).thenReturn(sampleProject);
     }
 
     @Test
@@ -194,7 +199,7 @@ class WorkflowGraphServiceTest {
         when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(a, b));
         when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var response = workflowGraphService.createPhase(1L, new CreatePhaseRequest("C", null, null, null, null), 2L);
+        var response = workflowGraphService.createPhase(1L, new CreatePhaseRequest("C", null, null, null, null, null), 2L);
 
         assertEquals(6, response.orderIndex());
     }
@@ -223,7 +228,7 @@ class WorkflowGraphServiceTest {
     @Test
     @DisplayName("4.2 createPhase: Tạo Phase mới thành công")
     void testCreatePhase() {
-        CreatePhaseRequest req = new CreatePhaseRequest("Phase 4", "Sub 4", "emerald", null, 1);
+        CreatePhaseRequest req = new CreatePhaseRequest("Phase 4", "Sub 4", "emerald", null, 1, null);
         WorkPhaseEntity savedPhase = WorkPhaseEntity.builder().id(4L).projectId(1L).name("Phase 4").subTitle("Sub 4").accentColor("emerald").orderIndex(1).build();
 
         when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenReturn(savedPhase);
@@ -311,5 +316,181 @@ class WorkflowGraphServiceTest {
 
         assertThrows(CycleDetectedException.class, () -> workflowGraphService.publishPipeline(1L, 2L));
         verify(projectRepository, never()).save(sampleProject);
+    }
+
+    // ===================== B2: chặn ghi trên dự án ARCHIVED =====================
+
+    private void archiveSampleProject() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED);
+        when(authorizationService.verifyProjectOwner(1L, 2L)).thenReturn(sampleProject);
+    }
+
+    private void assertProjectArchived(org.junit.jupiter.api.function.Executable call) {
+        ConflictException ex = assertThrows(ConflictException.class, call);
+        assertEquals("PROJECT_ARCHIVED", ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("B2 createPhase: dự án ARCHIVED ném ConflictException PROJECT_ARCHIVED (HTTP 409), không lưu")
+    void testCreatePhaseArchivedProject() {
+        archiveSampleProject();
+
+        assertProjectArchived(() -> workflowGraphService.createPhase(1L, new CreatePhaseRequest("C", null, null, null, null, null), 2L));
+        verify(workPhaseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B2 updatePhase: dự án ARCHIVED ném PROJECT_ARCHIVED, không lưu")
+    void testUpdatePhaseArchivedProject() {
+        archiveSampleProject();
+
+        assertProjectArchived(() -> workflowGraphService.updatePhase(1L, 10L, new UpdatePhaseRequest("Doi ten", null, null, null, null, null), 2L));
+        verify(workPhaseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B2 deletePhase: dự án ARCHIVED ném PROJECT_ARCHIVED, không xóa")
+    void testDeletePhaseArchivedProject() {
+        archiveSampleProject();
+
+        assertProjectArchived(() -> workflowGraphService.deletePhase(1L, 10L, 2L));
+        verify(workPhaseRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("B2 connectPhases: dự án ARCHIVED ném PROJECT_ARCHIVED, không thêm cạnh")
+    void testConnectPhasesArchivedProject() {
+        archiveSampleProject();
+
+        assertProjectArchived(() -> workflowGraphService.connectPhases(1L, 5L, 4L, 2L));
+        verify(phaseDependencyRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B2 disconnectPhases: dự án ARCHIVED ném PROJECT_ARCHIVED, không gỡ cạnh")
+    void testDisconnectPhasesArchivedProject() {
+        archiveSampleProject();
+
+        assertProjectArchived(() -> workflowGraphService.disconnectPhases(1L, 5L, 4L, 2L));
+        verify(phaseDependencyRepository, never()).deleteByParentPhaseIdAndChildPhaseId(any(), any());
+    }
+
+    // ===================== B2: lưu vị trí Phase (ui_metadata, V9) =====================
+
+    @Test
+    @DisplayName("B2 createPhase: uiMetadata gửi lên được lưu vào entity và trả lại trong response")
+    void testCreatePhaseSavesUiMetadata() {
+        Map<String, Object> pos = Map.of("x", 280, "y", 140, "w", 250, "h", 220);
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = workflowGraphService.createPhase(1L, new CreatePhaseRequest("C", null, null, null, 0, pos), 2L);
+
+        verify(workPhaseRepository).save(argThat(p -> pos.equals(p.getUiMetadata())));
+        assertEquals(pos, response.uiMetadata());
+    }
+
+    @Test
+    @DisplayName("B2 createPhase: không gửi uiMetadata thì lưu map rỗng (cột NOT NULL), không lưu null")
+    void testCreatePhaseWithoutUiMetadataDefaultsToEmptyMap() {
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = workflowGraphService.createPhase(1L, new CreatePhaseRequest("C", null, null, null, 0, null), 2L);
+
+        assertEquals(Map.of(), response.uiMetadata());
+    }
+
+    @Test
+    @DisplayName("B2 updatePhase: uiMetadata mới ghi đè vị trí cũ và trả lại trong response")
+    void testUpdatePhaseSavesUiMetadata() {
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("P").orderIndex(0)
+            .uiMetadata(Map.of("x", 1, "y", 2)).build();
+        Map<String, Object> pos = Map.of("x", 280, "y", 140, "w", 250, "h", 220);
+        when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = workflowGraphService.updatePhase(1L, 10L, new UpdatePhaseRequest("P", null, null, null, null, pos), 2L);
+
+        assertEquals(pos, phase.getUiMetadata());
+        assertEquals(pos, response.uiMetadata());
+    }
+
+    @Test
+    @DisplayName("B2 updatePhase: không gửi uiMetadata (chỉ đổi tên) thì giữ nguyên vị trí cũ")
+    void testUpdatePhaseWithoutUiMetadataKeepsOldPosition() {
+        Map<String, Object> old = Map.of("x", 1, "y", 2);
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("P").orderIndex(0).uiMetadata(old).build();
+        when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = workflowGraphService.updatePhase(1L, 10L, new UpdatePhaseRequest("Ten moi", null, null, null, null, null), 2L);
+
+        assertEquals("Ten moi", response.name());
+        assertEquals(old, response.uiMetadata());
+    }
+
+    @Test
+    @DisplayName("B2 getGraph: mỗi Phase trả lại uiMetadata đã lưu")
+    void testGetGraphReturnsPhaseUiMetadata() {
+        Map<String, Object> pos = Map.of("x", 280, "y", 140, "w", 250, "h", 220);
+        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).uiMetadata(pos).build();
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(p1));
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        assertEquals(pos, workflowGraphService.getGraph(1L, 2L).phases().get(0).uiMetadata());
+    }
+
+    // ===================== B2: các case còn thiếu =====================
+
+    @Test
+    @DisplayName("B2 getGraph: dự án ARCHIVED vẫn đọc được (chỉ chặn ghi)")
+    void testGetGraphArchivedProjectStillReadable() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED);
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(1L)).thenReturn(List.of());
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        assertNotNull(workflowGraphService.getGraph(1L, 2L));
+    }
+
+    @Test
+    @DisplayName("B2 createPhase: không phải owner ném ForbiddenException (HTTP 403), không lưu")
+    void testCreatePhaseNotOwner() {
+        when(authorizationService.verifyProjectOwner(1L, 3L))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền."));
+
+        assertThrows(ForbiddenException.class,
+            () -> workflowGraphService.createPhase(1L, new CreatePhaseRequest("C", null, null, null, null, null), 3L));
+        verify(workPhaseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B2 updatePhase: đặt parentPhaseId tạo vòng (P1 -> P2, rồi P2 làm cha của P1) ném CycleDetectedException")
+    void testUpdatePhaseParentCreatesCycle() {
+        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(1L).projectId(1L).name("P1").orderIndex(0).build();
+        WorkPhaseEntity p2 = WorkPhaseEntity.builder().id(2L).projectId(1L).name("P2").orderIndex(1).build();
+        when(workPhaseRepository.findById(1L)).thenReturn(Optional.of(p1));
+        when(workPhaseRepository.findById(2L)).thenReturn(Optional.of(p2));
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(p1, p2));
+        when(phaseDependencyRepository.findByProjectId(1L)).thenReturn(List.of(
+            PhaseDependencyEntity.builder().projectId(1L).parentPhaseId(1L).childPhaseId(2L).build()
+        ));
+
+        assertThrows(CycleDetectedException.class,
+            () -> workflowGraphService.updatePhase(1L, 1L, new UpdatePhaseRequest("P1", null, null, 2L, null, null), 2L));
+        verify(phaseDependencyRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B2 disconnectPhases: gỡ cả cạnh trong bảng nối lẫn cột cũ parent_phase_id")
+    void testDisconnectPhasesClearsLegacyColumn() {
+        WorkPhaseEntity p4 = WorkPhaseEntity.builder().id(4L).projectId(1L).name("P4").parentPhaseId(1L).orderIndex(2).build();
+        when(workPhaseRepository.findById(4L)).thenReturn(Optional.of(p4));
+
+        workflowGraphService.disconnectPhases(1L, 1L, 4L, 2L);
+
+        verify(phaseDependencyRepository).deleteByParentPhaseIdAndChildPhaseId(1L, 4L);
+        assertNull(p4.getParentPhaseId());
+        verify(workPhaseRepository).save(p4);
     }
 }

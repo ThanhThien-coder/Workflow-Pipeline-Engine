@@ -55,7 +55,7 @@ public class WorkflowGraphController {
     @PutMapping("/projects/{id}/phases/{phaseId}")
     @Operation(
         summary = "4.2 Cập nhật Macro Phase",
-        description = "Chủ dự án cập nhật thông tin tên, tiêu đề phụ, màu sắc và thứ tự hiển thị orderIndex."
+        description = "Chủ dự án cập nhật thông tin tên, tiêu đề phụ, màu sắc và thứ tự hiển thị orderIndex và vị trí trên canvas uiMetadata {x, y, w, h}. Dự án ARCHIVED trả 409 PROJECT_ARCHIVED."
     )
     public ResponseEntity<PhaseResponse> updatePhase(
         @PathVariable Long id,
