@@ -61,35 +61,35 @@ class TemplateCloneServiceTest {
     private final Long templateId = 1L;
 
     @Test
-    @DisplayName("cloneTemplate: Sao chép sâu DAG thành công từ Project nguồn (2 phases, 3 nodes A->B->C, 2 deps)")
+    @DisplayName("cloneTemplate: Sao chép sâu DAG thành công từ PipelineTemplate (2 phases, 3 nodes A->B->C, 2 deps)")
     void shouldCloneTemplateSuccessfully_withDeepCopyDAGAndFSMReset() {
-        // GIVEN: Dự án nguồn với 2 phases, 3 nodes (A -> B -> C), 2 dependencies
-        ProjectEntity sourceProject = ProjectEntity.builder()
+        // GIVEN: Mẫu với 2 phases, 3 nodes (A -> B -> C), 2 dependencies
+        Map<String, Object> graphData = new HashMap<>();
+        graphData.put("phases", List.of(
+            Map.of("id", "10", "name", "Foundation", "orderIndex", 0),
+            Map.of("id", "20", "name", "Execution", "orderIndex", 1)
+        ));
+        graphData.put("nodes", List.of(
+            Map.of("id", "101", "phaseId", "10", "code", "TASK-A", "title", "Design DB"),
+            Map.of("id", "102", "phaseId", "20", "code", "TASK-B", "title", "Build API"),
+            Map.of("id", "103", "phaseId", "20", "code", "TASK-C", "title", "Deploy")
+        ));
+        graphData.put("edges", List.of(
+            Map.of("source", "101", "target", "102"),
+            Map.of("source", "102", "target", "103")
+        ));
+
+        PipelineTemplateEntity templateEntity = PipelineTemplateEntity.builder()
             .id(templateId)
             .name("Master Workflow Template")
             .description("Standard banking architecture")
-            .ownerId(1L)
-            .status(ProjectStatus.ACTIVE)
+            .graphData(graphData)
+            .cloneCount(0)
             .build();
 
-        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(10L).projectId(templateId).name("Foundation").orderIndex(0).build();
-        WorkPhaseEntity p2 = WorkPhaseEntity.builder().id(20L).projectId(templateId).name("Execution").orderIndex(1).build();
+        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.of(templateEntity));
 
-        NodeEntity nodeA = NodeEntity.builder()
-            .id(101L).projectId(templateId).phaseId(10L).code("TASK-A").title("Design DB").status(NodeStatus.DONE).build();
-        NodeEntity nodeB = NodeEntity.builder()
-            .id(102L).projectId(templateId).phaseId(20L).code("TASK-B").title("Build API").status(NodeStatus.IN_PROGRESS).build();
-        NodeEntity nodeC = NodeEntity.builder()
-            .id(103L).projectId(templateId).phaseId(20L).code("TASK-C").title("Deploy").status(NodeStatus.LOCKED).build();
-
-        // Dependencies: A -> B, B -> C
-        NodeDependencyEntity dep1 = NodeDependencyEntity.builder().id(1L).projectId(templateId).parentNodeId(101L).childNodeId(102L).build();
-        NodeDependencyEntity dep2 = NodeDependencyEntity.builder().id(2L).projectId(templateId).parentNodeId(102L).childNodeId(103L).build();
-
-        when(projectRepository.findById(templateId)).thenReturn(Optional.of(sourceProject));
-        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.empty());
-
-        // Mock lưu dự án mới (ID: 500L)
+        // Mock lưu dự án mới (ID: 500L, status: DRAFT)
         when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> {
             ProjectEntity p = invocation.getArgument(0);
             return ProjectEntity.builder()
@@ -103,16 +103,12 @@ class TemplateCloneServiceTest {
                 .build();
         });
 
-        // Mock đọc phases và nodes nguồn
-        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(templateId)).thenReturn(List.of(p1, p2));
-        when(nodeRepository.findByProjectId(templateId)).thenReturn(List.of(nodeA, nodeB, nodeC));
-        when(nodeDependencyRepository.findByProjectId(templateId)).thenReturn(List.of(dep1, dep2));
-
         // Mock sinh ID cho các WorkPhase mới
         long[] newPhaseIdSeq = {501L, 502L};
         int[] phaseIdx = {0};
         when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(invocation -> {
             WorkPhaseEntity p = invocation.getArgument(0);
+            if (p.getId() != null) return p;
             return WorkPhaseEntity.builder()
                 .id(newPhaseIdSeq[phaseIdx[0]++])
                 .projectId(p.getProjectId())
@@ -133,6 +129,7 @@ class TemplateCloneServiceTest {
                 .code(n.getCode())
                 .title(n.getTitle())
                 .status(n.getStatus())
+                .assignedUserId(n.getAssignedUserId())
                 .build();
         });
 
@@ -159,7 +156,7 @@ class TemplateCloneServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo(500L);
         assertThat(result.name()).isEqualTo("My Cloned Project");
-        assertThat(result.status()).isEqualTo("PLANNING");
+        assertThat(result.status()).isEqualTo("DRAFT");
         assertThat(result.ownerId()).isEqualTo(currentUserId);
         assertThat(result.ownerName()).isEqualTo("Alex Kim");
         assertThat(result.totalNodes()).isEqualTo(3);
@@ -179,18 +176,22 @@ class TemplateCloneServiceTest {
         // Node A là node gốc (không có incoming deps) -> phải là TODO
         // Node B có incoming từ Node A -> phải là LOCKED
         // Node C có incoming từ Node B -> phải là LOCKED
+        // assignedUserId phải là null
         ArgumentCaptor<NodeEntity> nodeCaptor = ArgumentCaptor.forClass(NodeEntity.class);
         verify(nodeRepository, times(3)).save(nodeCaptor.capture());
         List<NodeEntity> savedNodes = nodeCaptor.getAllValues();
 
         assertThat(savedNodes.get(0).getCode()).isEqualTo("TASK-A");
         assertThat(savedNodes.get(0).getStatus()).isEqualTo(NodeStatus.TODO);
+        assertThat(savedNodes.get(0).getAssignedUserId()).isNull();
 
         assertThat(savedNodes.get(1).getCode()).isEqualTo("TASK-B");
         assertThat(savedNodes.get(1).getStatus()).isEqualTo(NodeStatus.LOCKED);
+        assertThat(savedNodes.get(1).getAssignedUserId()).isNull();
 
         assertThat(savedNodes.get(2).getCode()).isEqualTo("TASK-C");
         assertThat(savedNodes.get(2).getStatus()).isEqualTo(NodeStatus.LOCKED);
+        assertThat(savedNodes.get(2).getAssignedUserId()).isNull();
 
         // Kiểm tra remap 2 cạnh phụ thuộc DAG với ID mới: 601L -> 602L và 602L -> 603L
         @SuppressWarnings("unchecked")
@@ -205,16 +206,41 @@ class TemplateCloneServiceTest {
     }
 
     @Test
-    @DisplayName("cloneTemplate: Ném ResourceNotFoundException khi không tìm thấy Template/Project nguồn")
+    @DisplayName("cloneTemplate: Không clone dự án của người khác khi ID trùng dự án nhưng không có template (vá IDOR)")
+    void shouldNotCloneOtherUsersProject_whenIdMatchesProjectButNoTemplate() {
+        Long victimProjectId = 7L;
+        ProjectEntity otherUsersProject = ProjectEntity.builder()
+            .id(victimProjectId)
+            .name("Secret Project")
+            .ownerId(999L)
+            .status(ProjectStatus.ACTIVE)
+            .build();
+
+        when(pipelineTemplateRepository.findById(victimProjectId)).thenReturn(Optional.empty());
+        when(pipelineTemplateRepository.findBySlug("7")).thenReturn(Optional.empty());
+        lenient().when(projectRepository.findById(victimProjectId)).thenReturn(Optional.of(otherUsersProject));
+
+        CloneTemplateRequest req = new CloneTemplateRequest(victimProjectId, "Copy", null);
+
+        assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: 7");
+
+        verify(projectRepository, never()).save(any());
+        verify(nodeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("cloneTemplate: Ném ResourceNotFoundException khi không tìm thấy Template nguồn")
     void shouldThrowResourceNotFoundException_whenTemplateNotFound() {
-        when(projectRepository.findById(999L)).thenReturn(Optional.empty());
         when(pipelineTemplateRepository.findById(999L)).thenReturn(Optional.empty());
+        when(pipelineTemplateRepository.findBySlug("999")).thenReturn(Optional.empty());
 
         CloneTemplateRequest req = new CloneTemplateRequest(999L, "Invalid Project", "Desc", "PRIVATE");
 
         assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
             .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Không tìm thấy mẫu quy trình");
+            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: 999");
 
         verify(projectRepository, never()).save(any(ProjectEntity.class));
         verify(projectMemberRepository, never()).save(any(ProjectMemberEntity.class));
@@ -223,26 +249,36 @@ class TemplateCloneServiceTest {
     @Test
     @DisplayName("cloneTemplate: Thất bại và kích hoạt rollback khi gặp sự cố lúc lưu phụ thuộc DAG")
     void shouldPropagateExceptionAndRollback_whenDependencySaveFails() {
-        ProjectEntity sourceProject = ProjectEntity.builder().id(templateId).name("Template").ownerId(1L).build();
-        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(10L).projectId(templateId).name("P1").build();
-        NodeEntity n1 = NodeEntity.builder().id(101L).projectId(templateId).phaseId(10L).code("A").build();
-        NodeDependencyEntity dep1 = NodeDependencyEntity.builder().id(1L).projectId(templateId).parentNodeId(101L).childNodeId(101L).build();
+        Map<String, Object> graphData = new HashMap<>();
+        graphData.put("phases", List.of(
+            Map.of("id", "10", "name", "P1")
+        ));
+        graphData.put("nodes", List.of(
+            Map.of("id", "101", "phaseId", "10", "code", "A", "title", "A"),
+            Map.of("id", "102", "phaseId", "10", "code", "B", "title", "B")
+        ));
+        graphData.put("edges", List.of(
+            Map.of("source", "101", "target", "102")
+        ));
 
-        when(projectRepository.findById(templateId)).thenReturn(Optional.of(sourceProject));
-        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.empty());
+        PipelineTemplateEntity templateEntity = PipelineTemplateEntity.builder()
+            .id(templateId)
+            .name("Template")
+            .graphData(graphData)
+            .build();
+
+        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.of(templateEntity));
 
         when(projectRepository.save(any(ProjectEntity.class))).thenReturn(
-            ProjectEntity.builder().id(500L).name("P").ownerId(currentUserId).build()
+            ProjectEntity.builder().id(500L).name("P").ownerId(currentUserId).status(ProjectStatus.DRAFT).build()
         );
-        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(templateId)).thenReturn(List.of(p1));
         when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenReturn(
             WorkPhaseEntity.builder().id(501L).projectId(500L).build()
         );
-        when(nodeRepository.findByProjectId(templateId)).thenReturn(List.of(n1));
         when(nodeRepository.save(any(NodeEntity.class))).thenReturn(
-            NodeEntity.builder().id(601L).projectId(500L).build()
+            NodeEntity.builder().id(601L).projectId(500L).build(),
+            NodeEntity.builder().id(602L).projectId(500L).build()
         );
-        when(nodeDependencyRepository.findByProjectId(templateId)).thenReturn(List.of(dep1));
 
         // Giả lập lỗi tại tầng DB khi lưu dependency
         doThrow(new RuntimeException("Database constraint violation"))
@@ -258,26 +294,31 @@ class TemplateCloneServiceTest {
     @Test
     @DisplayName("cloneTemplateWithStats: Trả về thống kê chính xác số lượng phases, nodes, dependencies đã clone")
     void shouldReturnAccurateStats_whenCloneWithStats() {
-        ProjectEntity sourceProject = ProjectEntity.builder().id(templateId).name("Template").ownerId(1L).build();
-        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(10L).projectId(templateId).name("P1").build();
-        NodeEntity n1 = NodeEntity.builder().id(101L).projectId(templateId).phaseId(10L).code("A").build();
-        NodeDependencyEntity dep1 = NodeDependencyEntity.builder().id(1L).projectId(templateId).parentNodeId(101L).childNodeId(101L).build();
+        Map<String, Object> graphData = new HashMap<>();
+        graphData.put("phases", List.of(
+            Map.of("id", "10", "name", "P1")
+        ));
+        graphData.put("nodes", List.of(
+            Map.of("id", "101", "phaseId", "10", "code", "A", "title", "Task A")
+        ));
 
-        when(projectRepository.findById(templateId)).thenReturn(Optional.of(sourceProject));
-        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.empty());
+        PipelineTemplateEntity templateEntity = PipelineTemplateEntity.builder()
+            .id(templateId)
+            .name("Template")
+            .graphData(graphData)
+            .build();
+
+        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.of(templateEntity));
 
         when(projectRepository.save(any(ProjectEntity.class))).thenReturn(
-            ProjectEntity.builder().id(500L).name("P").ownerId(currentUserId).build()
+            ProjectEntity.builder().id(500L).name("P").ownerId(currentUserId).status(ProjectStatus.DRAFT).build()
         );
-        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(templateId)).thenReturn(List.of(p1));
         when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenReturn(
-            WorkPhaseEntity.builder().id(501L).projectId(500L).build()
+            WorkPhaseEntity.builder().id(501L).projectId(500L).name("P1").build()
         );
-        when(nodeRepository.findByProjectId(templateId)).thenReturn(List.of(n1));
         when(nodeRepository.save(any(NodeEntity.class))).thenReturn(
-            NodeEntity.builder().id(601L).projectId(500L).build()
+            NodeEntity.builder().id(601L).projectId(500L).phaseId(501L).status(NodeStatus.TODO).build()
         );
-        when(nodeDependencyRepository.findByProjectId(templateId)).thenReturn(List.of(dep1));
         when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(500L)).thenReturn(List.of(
             WorkPhaseEntity.builder().id(501L).projectId(500L).name("P1").build()
         ));
@@ -397,6 +438,7 @@ class TemplateCloneServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo(888L);
         assertThat(result.name()).isEqualTo("SDLC Cloned");
+        assertThat(result.status()).isEqualTo("DRAFT");
         assertThat(templateEntity.getCloneCount()).isEqualTo(6); // Tăng clone_count
 
         // Kiểm tra bảo toàn uiMetadata và trạng thái FSM

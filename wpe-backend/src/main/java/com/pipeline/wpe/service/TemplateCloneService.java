@@ -52,42 +52,32 @@ public class TemplateCloneService {
         log.info("Bắt đầu quy trình nhân bản DAG từ templateId: {} cho user: {}", req.templateId(), currentUserId);
 
         // =====================================================================
-        // Bước 1: Xác thực Nguồn mẫu (Source Template / Project)
+        // Bước 1: Xác thực Nguồn mẫu (Source Template)
         // =====================================================================
-        Long sourceProjectId = null;
         Long numericId = req.getNumericTemplateId();
         String identifier = req.getTemplateIdentifier();
 
         Optional<PipelineTemplateEntity> pipelineTemplateOpt = Optional.empty();
-        Optional<ProjectEntity> sourceProjectOpt = Optional.empty();
 
         if (numericId != null) {
             pipelineTemplateOpt = pipelineTemplateRepository.findById(numericId);
-            if (pipelineTemplateOpt.isEmpty()) {
-                sourceProjectOpt = projectRepository.findById(numericId);
-            }
         }
 
         if (pipelineTemplateOpt.isEmpty() && identifier != null) {
             pipelineTemplateOpt = pipelineTemplateRepository.findBySlug(identifier);
         }
 
-        if (sourceProjectOpt.isPresent()) {
-            sourceProjectId = sourceProjectOpt.get().getId();
-            log.info("Tìm thấy dự án mẫu nguồn: '{}' (ID: {})", sourceProjectOpt.get().getName(), sourceProjectId);
-        } else if (pipelineTemplateOpt.isPresent()) {
-            PipelineTemplateEntity tpl = pipelineTemplateOpt.get();
-            log.info("Tìm thấy PipelineTemplate mẫu: '{}' (ID: {}, Slug: {})", tpl.getName(), tpl.getId(), tpl.getSlug());
-        } else {
-            throw new ResourceNotFoundException("Không tìm thấy mẫu quy trình hoặc dự án nguồn với ID: " + identifier);
+        if (pipelineTemplateOpt.isEmpty()) {
+            throw new ResourceNotFoundException("Không tìm thấy mẫu quy trình với ID: " + identifier);
         }
 
+        PipelineTemplateEntity tpl = pipelineTemplateOpt.get();
+        log.info("Tìm thấy PipelineTemplate mẫu: '{}' (ID: {}, Slug: {})", tpl.getName(), tpl.getId(), tpl.getSlug());
+
         // Tăng số lượt clone nếu nguồn là PipelineTemplateEntity
-        pipelineTemplateOpt.ifPresent(tpl -> {
-            tpl.setCloneCount((tpl.getCloneCount() != null ? tpl.getCloneCount() : 0) + 1);
-            pipelineTemplateRepository.save(tpl);
-            log.info("Đã cập nhật clone_count cho template ID {}: {}", tpl.getId(), tpl.getCloneCount());
-        });
+        tpl.setCloneCount((tpl.getCloneCount() != null ? tpl.getCloneCount() : 0) + 1);
+        pipelineTemplateRepository.save(tpl);
+        log.info("Đã cập nhật clone_count cho template ID {}: {}", tpl.getId(), tpl.getCloneCount());
 
         // =====================================================================
         // Bước 2: Khởi tạo Dự án Mới & Gán Chủ sở hữu (OWNER)
@@ -96,7 +86,7 @@ public class TemplateCloneService {
             .name(req.projectName().trim())
             .description(req.description())
             .ownerId(currentUserId)
-            .status(ProjectStatus.PLANNING)
+            .status(ProjectStatus.DRAFT)
             .build();
 
         ProjectEntity savedProject = projectRepository.save(newProject);
@@ -118,110 +108,10 @@ public class TemplateCloneService {
         Map<Long, Long> phaseIdMap = new HashMap<>(); // oldPhaseId -> newPhaseId
         Map<Long, Long> nodeIdMap = new HashMap<>();   // oldNodeId -> newNodeId
 
-        // Nếu sourceProjectId hợp lệ trong bảng project, tiến hành nhân bản relational DAG
-        if (sourceProjectId != null) {
-            // =====================================================================
-            // Bước 4: Nhân bản các WorkPhase
-            // =====================================================================
-            List<WorkPhaseEntity> oldPhases = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(sourceProjectId);
-            log.info("Nhân bản {} giai đoạn (phases) từ sourceProjectId: {}", oldPhases.size(), sourceProjectId);
-
-            for (WorkPhaseEntity oldPhase : oldPhases) {
-                WorkPhaseEntity newPhase = WorkPhaseEntity.builder()
-                    .projectId(newProjectId)
-                    .parentPhaseId(null) // Cập nhật quan hệ cha-con ở pass 2 nếu có
-                    .name(oldPhase.getName())
-                    .subTitle(oldPhase.getSubTitle())
-                    .accentColor(oldPhase.getAccentColor())
-                    .orderIndex(oldPhase.getOrderIndex() != null ? oldPhase.getOrderIndex() : 0)
-                    .build();
-                WorkPhaseEntity savedPhase = workPhaseRepository.save(newPhase);
-                phaseIdMap.put(oldPhase.getId(), savedPhase.getId());
-            }
-
-            // Tái liên kết quan hệ phân tầng phase cha - con (sub-phases)
-            for (WorkPhaseEntity oldPhase : oldPhases) {
-                if (oldPhase.getParentPhaseId() != null && phaseIdMap.containsKey(oldPhase.getParentPhaseId())) {
-                    Long newPhaseId = phaseIdMap.get(oldPhase.getId());
-                    WorkPhaseEntity newPhase = workPhaseRepository.findById(newPhaseId).orElse(null);
-                    if (newPhase != null) {
-                        newPhase.setParentPhaseId(phaseIdMap.get(oldPhase.getParentPhaseId()));
-                        workPhaseRepository.save(newPhase);
-                    }
-                }
-            }
-
-            // =====================================================================
-            // Bước 5: Nhân bản các Node & Đặt Lại Trạng Thái Máy (FSM Reset)
-            // =====================================================================
-            List<NodeEntity> oldNodes = nodeRepository.findByProjectId(sourceProjectId);
-            List<NodeDependencyEntity> oldDependencies = nodeDependencyRepository.findByProjectId(sourceProjectId);
-
-            // Tập hợp ID của các node có cạnh tiền nhiệm (incoming dependencies: là child_node_id)
-            Set<Long> nodeIdsWithIncomingDeps = oldDependencies.stream()
-                .map(NodeDependencyEntity::getChildNodeId)
-                .collect(Collectors.toSet());
-
-            log.info("Nhân bản {} nodes từ sourceProjectId: {} (Số node có incoming deps: {})",
-                oldNodes.size(), sourceProjectId, nodeIdsWithIncomingDeps.size());
-
-            for (NodeEntity oldNode : oldNodes) {
-                Long newPhaseId = oldNode.getPhaseId() != null ? phaseIdMap.get(oldNode.getPhaseId()) : null;
-                boolean hasIncoming = nodeIdsWithIncomingDeps.contains(oldNode.getId());
-
-                // Reset FSM: Node gốc không có tiền nhiệm -> TODO, Node có tiền nhiệm -> LOCKED
-                NodeStatus initialStatus = hasIncoming ? NodeStatus.LOCKED : NodeStatus.TODO;
-
-                NodeEntity newNode = NodeEntity.builder()
-                    .projectId(newProjectId)
-                    .phaseId(newPhaseId)
-                    .code(oldNode.getCode())
-                    .title(oldNode.getTitle())
-                    .description(oldNode.getDescription())
-                    .status(initialStatus)
-                    .assignedUserId(null)
-                    .joinPolicy(oldNode.getJoinPolicy() != null ? oldNode.getJoinPolicy() : JoinPolicy.ALL_COMPLETED)
-                    .rejectReason(null)
-                    .dueDate(null)
-                    .isOverdue(false)
-                    .estimatedHours(oldNode.getEstimatedHours() != null ? oldNode.getEstimatedHours() : 8)
-                    .startedAt(null)
-                    .version(0L)
-                    .uiMetadata(oldNode.getUiMetadata() != null ? new HashMap<>(oldNode.getUiMetadata()) : new HashMap<>())
-                    .build();
-
-                NodeEntity savedNode = nodeRepository.save(newNode);
-                nodeIdMap.put(oldNode.getId(), savedNode.getId());
-            }
-
-            // =====================================================================
-            // Bước 6: Tái lập Cạnh Phụ Thuộc DAG (Node Dependencies)
-            // =====================================================================
-            List<NodeDependencyEntity> newDependencies = new ArrayList<>();
-            for (NodeDependencyEntity oldDep : oldDependencies) {
-                Long newParentId = nodeIdMap.get(oldDep.getParentNodeId());
-                Long newChildId = nodeIdMap.get(oldDep.getChildNodeId());
-
-                if (newParentId != null && newChildId != null) {
-                    NodeDependencyEntity newDep = NodeDependencyEntity.builder()
-                        .projectId(newProjectId)
-                        .parentNodeId(newParentId)
-                        .childNodeId(newChildId)
-                        .build();
-                    newDependencies.add(newDep);
-                }
-            }
-
-            if (!newDependencies.isEmpty()) {
-                nodeDependencyRepository.saveAll(newDependencies);
-                log.info("Tái lập thành công {} cạnh phụ thuộc DAG mới cho dự án ID: {}",
-                    newDependencies.size(), newProjectId);
-            }
-        } else if (pipelineTemplateOpt.isPresent()) {
-            // Trường hợp mẫu nằm hoàn toàn trong graph_data JSONB của PipelineTemplateEntity
-            PipelineTemplateEntity tpl = pipelineTemplateOpt.get();
-            cloneFromTemplateGraphData(tpl, newProjectId, phaseIdMap, nodeIdMap);
-        }
+        // =====================================================================
+        // Bước 4: Sao chép sâu đồ thị DAG từ Template graphData
+        // =====================================================================
+        cloneFromTemplateGraphData(tpl, newProjectId, phaseIdMap, nodeIdMap);
 
         // =====================================================================
         // Bước 7: Trả về kết quả ProjectDetailResponse

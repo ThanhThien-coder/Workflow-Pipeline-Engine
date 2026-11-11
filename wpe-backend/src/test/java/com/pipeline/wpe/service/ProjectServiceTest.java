@@ -14,11 +14,14 @@ import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.entity.UserEntity;
 import com.pipeline.wpe.entity.WorkPhaseEntity;
 import com.pipeline.wpe.exception.AccessDeniedException;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -87,9 +90,11 @@ class ProjectServiceTest {
 
         when(projectRepository.findAllAccessibleProjects(userId)).thenReturn(List.of(p1));
         when(userRepository.findAllById(List.of(userId))).thenReturn(List.of(ownerUser));
-        when(nodeRepository.countByProjectId(1L)).thenReturn(10L);
-        when(nodeRepository.countByProjectIdAndStatus(1L, NodeStatus.DONE)).thenReturn(6L);
-        when(nodeRepository.countByProjectIdAndStatus(1L, NodeStatus.IN_PROGRESS)).thenReturn(2L);
+        when(nodeRepository.countByProjectIdsGroupByStatus(List.of(1L))).thenReturn(List.<Object[]>of(
+            new Object[]{1L, NodeStatus.DONE, 6L},
+            new Object[]{1L, NodeStatus.IN_PROGRESS, 2L},
+            new Object[]{1L, NodeStatus.TODO, 2L}
+        ));
 
         List<ProjectSummaryResponse> result = projectService.getMyProjects(userId);
 
@@ -99,8 +104,11 @@ class ProjectServiceTest {
         assertThat(summary.name()).isEqualTo("Banking Workflow");
         assertThat(summary.ownerName()).isEqualTo("Alex Kim");
         assertThat(summary.totalNodes()).isEqualTo(10);
+        assertThat(summary.nodeCount()).isEqualTo(10);
         assertThat(summary.completedNodes()).isEqualTo(6);
+        assertThat(summary.doneNodes()).isEqualTo(6);
         assertThat(summary.inProgressNodes()).isEqualTo(2);
+        assertThat(summary.activeNodes()).isEqualTo(4);
         assertThat(summary.progressPercentage()).isEqualTo(60.0);
     }
 
@@ -114,7 +122,7 @@ class ProjectServiceTest {
             .name("Payment Pipeline")
             .description("Process payments")
             .ownerId(userId)
-            .status(ProjectStatus.PLANNING)
+            .status(ProjectStatus.DRAFT)
             .createdAt(Instant.now())
             .updatedAt(Instant.now())
             .build();
@@ -129,7 +137,7 @@ class ProjectServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.id()).isEqualTo(100L);
         assertThat(response.name()).isEqualTo("Payment Pipeline");
-        assertThat(response.status()).isEqualTo("PLANNING");
+        assertThat(response.status()).isEqualTo("DRAFT");
         assertThat(response.ownerId()).isEqualTo(userId);
         assertThat(response.ownerName()).isEqualTo("Alex Kim");
 
@@ -214,29 +222,211 @@ class ProjectServiceTest {
             .id(projectId)
             .ownerId(userId)
             .name("Fintech Core")
-            .status(ProjectStatus.PLANNING)
+            .status(ProjectStatus.ACTIVE)
             .createdAt(now)
             .updatedAt(now)
             .build();
 
-        UpdateProjectStatusRequest req = new UpdateProjectStatusRequest("ACTIVE");
+        UpdateProjectStatusRequest req = new UpdateProjectStatusRequest("PAUSED");
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.findById(userId)).thenReturn(Optional.of(
             UserEntity.builder().id(userId).username("alex.kim").fullName("Alex Kim").build()
         ));
-        when(nodeRepository.countByProjectId(projectId)).thenReturn(5L);
-        when(nodeRepository.countByProjectIdAndStatus(projectId, NodeStatus.DONE)).thenReturn(2L);
-        when(nodeRepository.countByProjectIdAndStatus(projectId, NodeStatus.IN_PROGRESS)).thenReturn(1L);
+        when(nodeRepository.countByProjectIdsGroupByStatus(List.of(projectId))).thenReturn(List.<Object[]>of(
+            new Object[]{projectId, NodeStatus.DONE, 2L},
+            new Object[]{projectId, NodeStatus.IN_PROGRESS, 1L},
+            new Object[]{projectId, NodeStatus.TODO, 2L}
+        ));
 
         ProjectSummaryResponse response = projectService.updateProjectStatus(projectId, req, userId);
 
         assertThat(response).isNotNull();
-        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(response.status()).isEqualTo("PAUSED");
         assertThat(response.totalNodes()).isEqualTo(5);
         assertThat(response.completedNodes()).isEqualTo(2);
         assertThat(response.progressPercentage()).isEqualTo(40.0);
+    }
+
+    @Test
+    @DisplayName("getMyProjects: Lọc chính xác theo từng tab all, mine, shared, archived")
+    void shouldFilterProjectsByTabCorrectly() {
+        Instant now = Instant.now();
+        ProjectEntity p1 = ProjectEntity.builder().id(1L).name("P1").ownerId(userId).status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+        ProjectEntity p2 = ProjectEntity.builder().id(2L).name("P2").ownerId(otherUserId).status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+        ProjectEntity p3 = ProjectEntity.builder().id(3L).name("P3").ownerId(userId).status(ProjectStatus.ARCHIVED).createdAt(now).updatedAt(now).build();
+
+        when(projectRepository.findAllAccessibleProjects(userId)).thenReturn(List.of(p1, p2, p3));
+        when(userRepository.findAllById(any())).thenReturn(List.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").build(),
+            UserEntity.builder().id(otherUserId).fullName("Other User").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(any())).thenReturn(List.of());
+
+        List<ProjectSummaryResponse> all = projectService.getMyProjects(userId, "all", "ts");
+        assertThat(all.stream().map(ProjectSummaryResponse::id).toList()).containsExactly(2L, 1L);
+
+        List<ProjectSummaryResponse> mine = projectService.getMyProjects(userId, "mine", "ts");
+        assertThat(mine.stream().map(ProjectSummaryResponse::id).toList()).containsExactly(1L);
+
+        List<ProjectSummaryResponse> shared = projectService.getMyProjects(userId, "shared", "ts");
+        assertThat(shared.stream().map(ProjectSummaryResponse::id).toList()).containsExactly(2L);
+
+        List<ProjectSummaryResponse> archived = projectService.getMyProjects(userId, "archived", "ts");
+        assertThat(archived.stream().map(ProjectSummaryResponse::id).toList()).containsExactly(3L);
+    }
+
+    @Test
+    @DisplayName("getMyProjects: Gom nhóm và tính toán đúng nodeCount, activeNodes, doneNodes từ 1 truy vấn GROUP BY")
+    void shouldCalculateNodeStatsFromSingleGroupByQuery() {
+        Instant now = Instant.now();
+        ProjectEntity p1 = ProjectEntity.builder().id(1L).name("P1").ownerId(userId).status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+
+        when(projectRepository.findAllAccessibleProjects(userId)).thenReturn(List.of(p1));
+        when(userRepository.findAllById(List.of(userId))).thenReturn(List.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(List.of(1L))).thenReturn(List.<Object[]>of(
+            new Object[]{1L, NodeStatus.TODO, 2L},
+            new Object[]{1L, NodeStatus.IN_PROGRESS, 1L},
+            new Object[]{1L, NodeStatus.REVIEW, 1L},
+            new Object[]{1L, NodeStatus.DONE, 3L},
+            new Object[]{1L, NodeStatus.LOCKED, 1L}
+        ));
+
+        List<ProjectSummaryResponse> result = projectService.getMyProjects(userId, "all", "ts");
+
+        assertThat(result).hasSize(1);
+        ProjectSummaryResponse summary = result.get(0);
+        assertThat(summary.nodeCount()).isEqualTo(8);
+        assertThat(summary.activeNodes()).isEqualTo(4);
+        assertThat(summary.doneNodes()).isEqualTo(3);
+        assertThat(summary.inProgressNodes()).isEqualTo(1);
+        verify(nodeRepository, times(1)).countByProjectIdsGroupByStatus(any());
+    }
+
+    @Test
+    @DisplayName("getMyProjects: Sắp xếp chính xác theo done và nodes giảm dần")
+    void shouldSortProjectsByDoneAndNodesCorrectly() {
+        Instant now = Instant.now();
+        ProjectEntity p1 = ProjectEntity.builder().id(1L).name("P1").ownerId(userId).status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+        ProjectEntity p2 = ProjectEntity.builder().id(2L).name("P2").ownerId(userId).status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+
+        when(projectRepository.findAllAccessibleProjects(userId)).thenReturn(List.of(p1, p2));
+        when(userRepository.findAllById(any())).thenReturn(List.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(any())).thenReturn(List.<Object[]>of(
+            new Object[]{1L, NodeStatus.DONE, 1L},
+            new Object[]{1L, NodeStatus.TODO, 4L},
+            new Object[]{2L, NodeStatus.DONE, 3L}
+        ));
+
+        List<ProjectSummaryResponse> sortedByDone = projectService.getMyProjects(userId, "all", "done");
+        assertThat(sortedByDone.stream().map(ProjectSummaryResponse::id).toList()).containsExactly(2L, 1L);
+
+        List<ProjectSummaryResponse> sortedByNodes = projectService.getMyProjects(userId, "all", "nodes");
+        assertThat(sortedByNodes.stream().map(ProjectSummaryResponse::id).toList()).containsExactly(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("getMyProjects: Ném IllegalArgumentException khi tab không hợp lệ")
+    void shouldThrowIllegalArgumentException_whenTabIsInvalid() {
+        assertThatThrownBy(() -> projectService.getMyProjects(userId, "xyz", "ts"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Tham số tab không hợp lệ: xyz");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "ACTIVE, PAUSED",
+        "PAUSED, ACTIVE",
+        "ACTIVE, ARCHIVED",
+        "ARCHIVED, ACTIVE",
+        "ACTIVE, COMPLETED"
+    })
+    @DisplayName("updateProjectStatus: Cho phép chuyển trạng thái hợp lệ")
+    void shouldAllowValidStatusTransitions(ProjectStatus from, ProjectStatus to) {
+        Instant now = Instant.now();
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .name("Workflow")
+            .status(from)
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(List.of(projectId))).thenReturn(List.of());
+
+        ProjectSummaryResponse resp = projectService.updateProjectStatus(
+            projectId, new UpdateProjectStatusRequest(to.name()), userId
+        );
+
+        assertThat(resp.status()).isEqualTo(to.name());
+        verify(projectRepository, times(1)).save(any(ProjectEntity.class));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "DRAFT",
+        "PLANNING"
+    })
+    @DisplayName("updateProjectStatus: DRAFT/PLANNING -> ACTIVE ném ConflictException USE_PUBLISH")
+    void shouldThrowConflictExceptionWithUsePublish_whenActivatingDraftOrPlanning(ProjectStatus initialStatus) {
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .status(initialStatus)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        UpdateProjectStatusRequest req = new UpdateProjectStatusRequest("ACTIVE");
+
+        assertThatThrownBy(() -> projectService.updateProjectStatus(projectId, req, userId))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> {
+                ConflictException ce = (ConflictException) ex;
+                assertThat(ce.getErrorCode()).isEqualTo("USE_PUBLISH");
+            });
+
+        verify(projectRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "COMPLETED, ACTIVE",
+        "ARCHIVED, PAUSED",
+        "ACTIVE, ACTIVE",
+        "DRAFT, ARCHIVED"
+    })
+    @DisplayName("updateProjectStatus: Chuyển trạng thái không hợp lệ ném ConflictException INVALID_PROJECT_STATUS")
+    void shouldThrowConflictExceptionWithInvalidStatus_whenTransitionNotAllowed(ProjectStatus from, ProjectStatus to) {
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .status(from)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        UpdateProjectStatusRequest req = new UpdateProjectStatusRequest(to.name());
+
+        assertThatThrownBy(() -> projectService.updateProjectStatus(projectId, req, userId))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> {
+                ConflictException ce = (ConflictException) ex;
+                assertThat(ce.getErrorCode()).isEqualTo("INVALID_PROJECT_STATUS");
+            });
+
+        verify(projectRepository, never()).save(any());
     }
 
     @Test
