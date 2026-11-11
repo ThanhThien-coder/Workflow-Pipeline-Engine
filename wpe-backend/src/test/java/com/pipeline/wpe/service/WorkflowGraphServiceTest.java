@@ -19,7 +19,13 @@ import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.PhaseDependencyRepository;
 import com.pipeline.wpe.entity.PhaseDependencyEntity;
+import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
+import com.pipeline.wpe.dto.request.graph.UpdateNodeMetadataRequest;
+import com.pipeline.wpe.dto.request.graph.UpdateNodeRequest;
+import org.springframework.dao.OptimisticLockingFailureException;
+import com.pipeline.wpe.mapper.NodeMapper;
+import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.service.engine.KahnDagService;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +67,15 @@ class WorkflowGraphServiceTest {
 
     @Mock
     private ProjectAuthorizationService authorizationService;
+
+    @Mock
+    private ProjectMemberRepository projectMemberRepository;
+
+    @Mock
+    private SseEmitterService sseEmitterService;
+
+    @Mock
+    private NodeMapper nodeMapper;
 
     @Spy
     private KahnDagService kahnDagService = new KahnDagService();
@@ -492,5 +507,297 @@ class WorkflowGraphServiceTest {
         verify(phaseDependencyRepository).deleteByParentPhaseIdAndChildPhaseId(1L, 4L);
         assertNull(p4.getParentPhaseId());
         verify(workPhaseRepository).save(p4);
+    }
+
+    // ===================== B3: 4 lỗ hổng của API node và phụ thuộc =====================
+
+    private NodeEntity node(long id, String code, NodeStatus status) {
+        return NodeEntity.builder().id(id).projectId(1L).code(code).title(code).status(status)
+            .joinPolicy(JoinPolicy.ALL_COMPLETED).version(0L).build();
+    }
+
+    private NodeDependencyEntity edge(long parentId, long childId) {
+        return NodeDependencyEntity.builder().projectId(1L).parentNodeId(parentId).childNodeId(childId).build();
+    }
+
+    @Test
+    @DisplayName("B3 lỗ hổng 1: A->B, B->C rồi nối C->A (vòng 3 node) ném CycleDetectedException, không lưu cạnh")
+    void testCreateDependencyLongCycle() {
+        NodeEntity a = node(1L, "WPE-001", NodeStatus.LOCKED);
+        NodeEntity b = node(2L, "WPE-002", NodeStatus.LOCKED);
+        NodeEntity c = node(3L, "WPE-003", NodeStatus.LOCKED);
+        lenient().when(nodeRepository.findById(1L)).thenReturn(Optional.of(a));
+        lenient().when(nodeRepository.findById(3L)).thenReturn(Optional.of(c));
+        lenient().when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(a, b, c));
+        lenient().when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of(edge(1L, 2L), edge(2L, 3L)));
+
+        CycleDetectedException ex = assertThrows(CycleDetectedException.class,
+            () -> workflowGraphService.createDependency(1L, new CreateDependencyRequest(3L, 1L), 2L));
+
+        assertEquals(List.of("WPE-001", "WPE-002", "WPE-003"), ex.getCycleNodes());
+        verify(nodeDependencyRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B3 lỗ hổng 2: người không phải owner (kể cả Viewer) gọi 4 API ghi node/cạnh/tọa độ đều bị 403")
+    void testNodeWriteApisRequireOwner() {
+        when(authorizationService.verifyProjectOwner(1L, 3L))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền."));
+        lenient().when(nodeRepository.findById(100L)).thenReturn(Optional.of(node(100L, "WPE-100", NodeStatus.TODO)));
+        CreateNodeRequest nodeReq = new CreateNodeRequest(null, null, "Task", null, null, null, null, null, null);
+
+        assertAll(
+            () -> assertThrows(ForbiddenException.class, () -> workflowGraphService.createNode(1L, nodeReq, 3L)),
+            () -> assertThrows(ForbiddenException.class,
+                () -> workflowGraphService.createDependency(1L, new CreateDependencyRequest(100L, 101L), 3L)),
+            () -> assertThrows(ForbiddenException.class, () -> workflowGraphService.deleteDependency(1L, 100L, 101L, 3L)),
+            () -> assertThrows(ForbiddenException.class,
+                () -> workflowGraphService.updateNodeMetadata(100L, new UpdateNodeMetadataRequest(Map.of("x", 1)), 3L))
+        );
+        verify(nodeRepository, never()).save(any());
+        verify(nodeDependencyRepository, never()).save(any());
+        verify(nodeDependencyRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("B3 lỗ hổng 3: lưu tọa độ không đi qua save() nên không làm tăng version của node")
+    void testUpdateNodeMetadataDoesNotBumpVersion() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setVersion(5L);
+        Map<String, Object> meta = Map.of("position", Map.of("x", 300, "y", 200));
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        lenient().when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = workflowGraphService.updateNodeMetadata(100L, new UpdateNodeMetadataRequest(meta), 2L);
+
+        verify(nodeRepository, never()).save(any());
+        verify(nodeRepository).updateUiMetadata(100L, meta);
+        assertEquals(5L, response.version());
+        assertEquals(meta, response.uiMetadata());
+        assertNull(n.getUiMetadata()); // không sửa entity đang được quản lý, tránh Hibernate tự tăng version
+    }
+
+    @Test
+    @DisplayName("B3 lỗ hổng 4a: node TODO được thêm một cha chưa DONE (ALL_COMPLETED) thì chuyển về LOCKED")
+    void testCreateDependencyLocksTodoChildWhenNewParentNotDone() {
+        NodeEntity parent = node(10L, "WPE-010", NodeStatus.TODO);
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.TODO);
+        when(nodeRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        lenient().when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(parent, child));
+        lenient().when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        workflowGraphService.createDependency(1L, new CreateDependencyRequest(10L, 11L), 2L);
+
+        assertEquals(NodeStatus.LOCKED, child.getStatus());
+    }
+
+    @Test
+    @DisplayName("B3 lỗ hổng 4b: gỡ cạnh làm node LOCKED mất hết cha thì chuyển sang TODO và gửi TASK_UNLOCKED")
+    void testDeleteDependencyUnlocksChildWithoutParents() {
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.LOCKED);
+        child.setAssignedUserId(3L);
+        NodeDependencyEntity dep = edge(10L, 11L);
+        when(nodeDependencyRepository.findByParentNodeIdAndChildNodeId(10L, 11L)).thenReturn(Optional.of(dep));
+        lenient().when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        lenient().when(nodeDependencyRepository.findByChildNodeId(11L)).thenReturn(List.of());
+        lenient().when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        workflowGraphService.deleteDependency(1L, 10L, 11L, 2L);
+
+        assertEquals(NodeStatus.TODO, child.getStatus());
+        verify(sseEmitterService).sendToUser(eq(3L), eq("TASK_UNLOCKED"), any());
+    }
+
+    // ===================== B3: các case bổ sung =====================
+
+    @Test
+    @DisplayName("B3 createDependency: ANY_COMPLETED đã có một cha DONE, thêm cha chưa DONE thì node con vẫn TODO")
+    void testCreateDependencyAnyCompletedKeepsTodo() {
+        NodeEntity doneParent = node(9L, "WPE-009", NodeStatus.DONE);
+        NodeEntity newParent = node(10L, "WPE-010", NodeStatus.TODO);
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.TODO);
+        child.setJoinPolicy(JoinPolicy.ANY_COMPLETED);
+        when(nodeRepository.findById(10L)).thenReturn(Optional.of(newParent));
+        when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(doneParent, newParent, child));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of(edge(9L, 11L)));
+
+        workflowGraphService.createDependency(1L, new CreateDependencyRequest(10L, 11L), 2L);
+
+        assertEquals(NodeStatus.TODO, child.getStatus());
+        verify(nodeDependencyRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("B3 createDependency: node con đang IN_PROGRESS ném NODE_IN_USE (HTTP 409), không lưu cạnh")
+    void testCreateDependencyChildInUse() {
+        NodeEntity parent = node(10L, "WPE-010", NodeStatus.TODO);
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.IN_PROGRESS);
+        when(nodeRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(parent, child));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        ConflictException ex = assertThrows(ConflictException.class,
+            () -> workflowGraphService.createDependency(1L, new CreateDependencyRequest(10L, 11L), 2L));
+
+        assertEquals("NODE_IN_USE", ex.getErrorCode());
+        verify(nodeDependencyRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B3 createDependency: cạnh đã có thì trả về luôn (lũy đẳng), không lưu lại, không đổi trạng thái")
+    void testCreateDependencyIdempotent() {
+        NodeEntity parent = node(10L, "WPE-010", NodeStatus.TODO);
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.IN_PROGRESS);
+        when(nodeRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        when(nodeDependencyRepository.existsByParentNodeIdAndChildNodeId(10L, 11L)).thenReturn(true);
+
+        var response = workflowGraphService.createDependency(1L, new CreateDependencyRequest(10L, 11L), 2L);
+
+        assertEquals("10", response.parentNodeId());
+        verify(nodeDependencyRepository, never()).save(any());
+        assertEquals(NodeStatus.IN_PROGRESS, child.getStatus());
+    }
+
+    @Test
+    @DisplayName("B3 deleteDependency: gỡ cạnh nhưng node LOCKED còn một cha chưa DONE thì vẫn LOCKED, không gửi SSE")
+    void testDeleteDependencyKeepsLockedWhenOtherParentNotDone() {
+        NodeEntity otherParent = node(9L, "WPE-009", NodeStatus.TODO);
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.LOCKED);
+        when(nodeDependencyRepository.findByParentNodeIdAndChildNodeId(10L, 11L)).thenReturn(Optional.of(edge(10L, 11L)));
+        when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        when(nodeDependencyRepository.findByChildNodeId(11L)).thenReturn(List.of(edge(9L, 11L)));
+        when(nodeRepository.findAllById(List.of(9L))).thenReturn(List.of(otherParent));
+
+        workflowGraphService.deleteDependency(1L, 10L, 11L, 2L);
+
+        assertEquals(NodeStatus.LOCKED, child.getStatus());
+        verifyNoInteractions(sseEmitterService);
+    }
+
+    @Test
+    @DisplayName("B3 ARCHIVED: 6 thao tác ghi node/cạnh/tọa độ trên dự án ARCHIVED đều ném PROJECT_ARCHIVED")
+    void testNodeWriteApisArchivedProject() {
+        archiveSampleProject();
+        lenient().when(nodeRepository.findById(100L)).thenReturn(Optional.of(node(100L, "WPE-100", NodeStatus.TODO)));
+        CreateNodeRequest nodeReq = new CreateNodeRequest(null, null, "Task", null, null, null, null, null, null);
+        UpdateNodeRequest updateReq = new UpdateNodeRequest("Task", null, null, null, null, null, null, 0L);
+
+        assertAll(
+            () -> assertProjectArchived(() -> workflowGraphService.createNode(1L, nodeReq, 2L)),
+            () -> assertProjectArchived(() -> workflowGraphService.createDependency(1L, new CreateDependencyRequest(100L, 101L), 2L)),
+            () -> assertProjectArchived(() -> workflowGraphService.deleteDependency(1L, 100L, 101L, 2L)),
+            () -> assertProjectArchived(() -> workflowGraphService.updateNodeMetadata(100L, new UpdateNodeMetadataRequest(Map.of("x", 1)), 2L)),
+            () -> assertProjectArchived(() -> workflowGraphService.updateNode(100L, updateReq, 2L)),
+            () -> assertProjectArchived(() -> workflowGraphService.deleteNode(100L, 2L))
+        );
+        verify(nodeRepository, never()).save(any());
+        verify(nodeRepository, never()).delete(any());
+    }
+
+    // ===================== B3: PUT /nodes/{id} =====================
+
+    @Test
+    @DisplayName("B3 updateNode: sửa các trường, dời dueDate sang tương lai thì isOverdue = false, không đổi status")
+    void testUpdateNodeSuccess() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.IN_PROGRESS);
+        n.setVersion(3L);
+        n.setIsOverdue(true);
+        Instant future = Instant.now().plusSeconds(86400);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(1L, 3L)).thenReturn(true);
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = workflowGraphService.updateNode(100L,
+            new UpdateNodeRequest("  Ten moi  ", "Mo ta", null, null, 3L, future, 16, 3L), 2L);
+
+        assertEquals("Ten moi", response.title());
+        assertEquals("Mo ta", n.getDescription());
+        assertEquals(3L, n.getAssignedUserId());
+        assertEquals(16, n.getEstimatedHours());
+        assertEquals(future, n.getDueDate());
+        assertFalse(n.getIsOverdue());
+        assertEquals(NodeStatus.IN_PROGRESS, n.getStatus());
+    }
+
+    @Test
+    @DisplayName("B3 updateNode: sai version ném OptimisticLockingFailureException (HTTP 409), không lưu")
+    void testUpdateNodeWrongVersion() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setVersion(3L);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+
+        assertThrows(OptimisticLockingFailureException.class,
+            () -> workflowGraphService.updateNode(100L, new UpdateNodeRequest("X", null, null, null, null, null, null, 2L), 2L));
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("B3 updateNode: người phụ trách không phải thành viên ném IllegalArgumentException ASSIGNEE_NOT_MEMBER (HTTP 400)")
+    void testUpdateNodeAssigneeNotMember() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(1L, 99L)).thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> workflowGraphService.updateNode(100L, new UpdateNodeRequest("X", null, null, null, 99L, null, null, 0L), 2L));
+
+        assertTrue(ex.getMessage().startsWith("ASSIGNEE_NOT_MEMBER"));
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("B3 updateNode: đổi ALL_COMPLETED sang ANY_COMPLETED khi đã có một cha DONE thì node LOCKED mở khóa thành TODO")
+    void testUpdateNodeJoinPolicyChangeRecomputesStatus() {
+        NodeEntity done = node(8L, "WPE-008", NodeStatus.DONE);
+        NodeEntity notDone = node(9L, "WPE-009", NodeStatus.TODO);
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.LOCKED);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(nodeDependencyRepository.findByChildNodeId(100L)).thenReturn(List.of(edge(8L, 100L), edge(9L, 100L)));
+        when(nodeRepository.findAllById(List.of(8L, 9L))).thenReturn(List.of(done, notDone));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = workflowGraphService.updateNode(100L,
+            new UpdateNodeRequest("WPE-100", null, null, JoinPolicy.ANY_COMPLETED, null, null, null, 0L), 2L);
+
+        assertEquals("TODO", response.status());
+        assertEquals("ANY_COMPLETED", response.joinPolicy());
+    }
+
+    // ===================== B3: DELETE /nodes/{id} =====================
+
+    @Test
+    @DisplayName("B3 deleteNode: node TODO được xóa cùng các cạnh; node con LOCKED mất cha duy nhất thì thành TODO")
+    void testDeleteNodeSuccessAndRecomputeChildren() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        NodeEntity child = node(101L, "WPE-101", NodeStatus.LOCKED);
+        List<NodeDependencyEntity> outgoing = List.of(edge(100L, 101L));
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(nodeRepository.findById(101L)).thenReturn(Optional.of(child));
+        when(nodeDependencyRepository.findByParentNodeId(100L)).thenReturn(outgoing);
+        when(nodeDependencyRepository.findByChildNodeId(100L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByChildNodeId(101L)).thenReturn(outgoing);
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        workflowGraphService.deleteNode(100L, 2L);
+
+        verify(nodeDependencyRepository).deleteAll(outgoing);
+        verify(nodeRepository).delete(n);
+        assertEquals(NodeStatus.TODO, child.getStatus());
+    }
+
+    @Test
+    @DisplayName("B3 deleteNode: node đang IN_PROGRESS ném NODE_IN_USE (HTTP 409), không xóa")
+    void testDeleteNodeInUse() {
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(node(100L, "WPE-100", NodeStatus.IN_PROGRESS)));
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> workflowGraphService.deleteNode(100L, 2L));
+
+        assertEquals("NODE_IN_USE", ex.getErrorCode());
+        verify(nodeRepository, never()).delete(any());
     }
 }

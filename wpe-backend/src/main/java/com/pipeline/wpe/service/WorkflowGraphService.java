@@ -14,15 +14,19 @@ import com.pipeline.wpe.exception.CycleDetectedException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
+import com.pipeline.wpe.mapper.NodeMapper;
 import com.pipeline.wpe.repository.PhaseDependencyRepository;
+import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
+import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.engine.KahnDagService;
 import com.pipeline.wpe.service.engine.KahnDagService.ProjectKahnResult;
 import com.pipeline.wpe.service.engine.PhaseProgressCalculator;
 import com.pipeline.wpe.service.engine.PhaseProgressCalculator.PhaseProgress;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +45,9 @@ public class WorkflowGraphService {
     private final PhaseDependencyRepository phaseDependencyRepository;
     private final ProjectAuthorizationService authorizationService;
     private final KahnDagService kahnDagService;
+    private final ProjectMemberRepository projectMemberRepository;
+    private final SseEmitterService sseEmitterService;
+    private final NodeMapper nodeMapper;
 
     /**
      * 4.1 Lấy toàn bộ đồ thị 2 tầng của dự án
@@ -252,7 +259,8 @@ public class WorkflowGraphService {
      */
     @Transactional
     public GraphNodeResponse createNode(Long projectId, CreateNodeRequest request, Long currentUserId) {
-        authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        // Chỉ owner được thiết kế đồ thị (UC10). Thành viên và Viewer chỉ được đọc.
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         if (request.phaseId() != null) {
             WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
@@ -308,7 +316,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public DependencyResponse createDependency(Long projectId, CreateDependencyRequest request, Long currentUserId) {
-        authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         Long parentId = request.parentNodeId();
         Long childId = request.childNodeId();
@@ -331,21 +339,48 @@ public class WorkflowGraphService {
             return new DependencyResponse(String.valueOf(parentId), String.valueOf(childId));
         }
 
-        // Kiểm tra vòng lặp 2 đỉnh trực tiếp: child -> parent đã có mà lại nối parent -> child
-        if (nodeDependencyRepository.existsByParentNodeIdAndChildNodeId(childId, parentId)) {
-            throw new CycleDetectedException(
-                "Phát hiện chu trình lặp phụ thuộc 2 chiều.",
-                List.of(parent.getCode(), child.getCode())
-            );
-        }
-
         NodeDependencyEntity entity = NodeDependencyEntity.builder()
             .projectId(projectId)
             .parentNodeId(parentId)
             .childNodeId(childId)
             .build();
 
+        // Chặn chu trình dài bất kỳ (A->B, B->C rồi C->A), không chỉ vòng 2 node:
+        // thêm parent -> child tạo vòng khi đã có đường đi từ child tới parent.
+        List<NodeEntity> projectNodes = nodeRepository.findByProjectId(projectId);
+        List<NodeDependencyEntity> projectEdges = nodeDependencyRepository.findByProjectId(projectId);
+        if (kahnDagService.wouldCreateCycle(projectNodes, projectEdges, parentId, childId)) {
+            // Chạy Kahn trên đồ thị giả định đã có cạnh mới để lấy mã các node nằm trên vòng
+            List<NodeDependencyEntity> edgesWithNew = new ArrayList<>(projectEdges);
+            edgesWithNew.add(entity);
+            throw new CycleDetectedException(
+                "Không thể nối: tạo chu trình lặp phụ thuộc giữa các công việc.",
+                kahnDagService.validateProjectDag(projectNodes, edgesWithNew).cycleNodeCodes()
+            );
+        }
+
+        // Công việc đã bắt đầu làm thì không được thêm tiền đề mới
+        if (child.getStatus() != NodeStatus.LOCKED && child.getStatus() != NodeStatus.TODO) {
+            throw new ConflictException("NODE_IN_USE",
+                "Công việc " + child.getCode() + " đang ở trạng thái " + child.getStatus() + ", không thể thêm tiền đề mới.");
+        }
+
         nodeDependencyRepository.save(entity);
+
+        // Tính lại trạng thái node con theo danh sách cha mới
+        Set<Long> parentIds = new HashSet<>();
+        parentIds.add(parentId);
+        for (NodeDependencyEntity edge : projectEdges) {
+            if (childId.equals(edge.getChildNodeId())) {
+                parentIds.add(edge.getParentNodeId());
+            }
+        }
+        List<NodeEntity> parents = new ArrayList<>(projectNodes.stream().filter(n -> parentIds.contains(n.getId())).toList());
+        if (parents.stream().noneMatch(n -> parentId.equals(n.getId()))) {
+            parents.add(parent);
+        }
+        recomputeNodeStatus(child, parents);
+
         return new DependencyResponse(String.valueOf(parentId), String.valueOf(childId));
     }
 
@@ -354,7 +389,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void deleteDependency(Long projectId, Long parentNodeId, Long childNodeId, Long currentUserId) {
-        authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         Optional<NodeDependencyEntity> existing = nodeDependencyRepository.findByParentNodeIdAndChildNodeId(parentNodeId, childNodeId);
         if (existing.isEmpty()) {
@@ -365,6 +400,95 @@ public class WorkflowGraphService {
             throw new IllegalArgumentException("Liên kết phụ thuộc không thuộc về dự án này.");
         }
         nodeDependencyRepository.delete(existing.get());
+
+        // Gỡ cạnh có thể làm node con đủ điều kiện mở khóa (ví dụ mất hết cha)
+        nodeRepository.findById(childNodeId)
+            .ifPresent(child -> recomputeNodeStatus(child, loadParentsExcluding(childNodeId, parentNodeId)));
+    }
+
+    /**
+     * 4.3 Sửa thông tin Node (không sửa status). Bắt buộc gửi version; sai version trả 409.
+     */
+    @Transactional
+    public GraphNodeResponse updateNode(Long nodeId, UpdateNodeRequest request, Long currentUserId) {
+        NodeEntity node = nodeRepository.findById(nodeId)
+            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
+        Long projectId = node.getProjectId();
+        ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(project);
+
+        if (!Objects.equals(node.getVersion(), request.version())) {
+            throw new OptimisticLockingFailureException(
+                "Công việc đã bị thay đổi (phiên bản máy chủ: " + node.getVersion() + ", phiên bản yêu cầu: " + request.version() + ").");
+        }
+
+        if (request.phaseId() != null && !request.phaseId().equals(node.getPhaseId())) {
+            WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase với ID: " + request.phaseId()));
+            if (!phase.getProjectId().equals(projectId)) {
+                throw new IllegalArgumentException("Phase không thuộc về dự án này.");
+            }
+            node.setPhaseId(request.phaseId());
+        }
+
+        if (request.assignedUserId() != null && !request.assignedUserId().equals(node.getAssignedUserId())) {
+            boolean isMember = request.assignedUserId().equals(project.getOwnerId())
+                || projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, request.assignedUserId());
+            if (!isMember) {
+                throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: Người phụ trách phải là thành viên của dự án.");
+            }
+            node.setAssignedUserId(request.assignedUserId());
+        }
+
+        node.setTitle(request.title().trim());
+        if (request.description() != null) node.setDescription(request.description());
+        if (request.estimatedHours() != null) node.setEstimatedHours(request.estimatedHours());
+        if (request.dueDate() != null) {
+            node.setDueDate(request.dueDate());
+            // Dời hạn sang tương lai thì công việc không còn quá hạn
+            if (request.dueDate().isAfter(Instant.now())) {
+                node.setIsOverdue(false);
+            }
+        }
+
+        if (request.joinPolicy() != null && request.joinPolicy() != node.getJoinPolicy()) {
+            node.setJoinPolicy(request.joinPolicy());
+            // Đổi AND/OR có thể làm đổi điều kiện hội tụ. Node chưa có cha thì không đụng trạng thái.
+            List<NodeEntity> parents = loadParentsExcluding(nodeId, null);
+            if (!parents.isEmpty()) {
+                recomputeNodeStatus(node, parents);
+            }
+        }
+
+        // saveAndFlush để response mang version mới, client dùng cho lần sửa kế tiếp
+        return mapToGraphNodeResponse(nodeRepository.saveAndFlush(node));
+    }
+
+    /**
+     * 4.3 Xóa Node. Chỉ xóa được khi node còn LOCKED hoặc TODO.
+     */
+    @Transactional
+    public void deleteNode(Long nodeId, Long currentUserId) {
+        NodeEntity node = nodeRepository.findById(nodeId)
+            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
+        ensureNotArchived(authorizationService.verifyProjectOwner(node.getProjectId(), currentUserId));
+
+        if (node.getStatus() != NodeStatus.LOCKED && node.getStatus() != NodeStatus.TODO) {
+            throw new ConflictException("NODE_IN_USE",
+                "Công việc " + node.getCode() + " đang ở trạng thái " + node.getStatus() + ", không thể xóa.");
+        }
+
+        List<NodeDependencyEntity> outgoing = nodeDependencyRepository.findByParentNodeId(nodeId);
+        nodeDependencyRepository.deleteAll(outgoing);
+        nodeDependencyRepository.deleteAll(nodeDependencyRepository.findByChildNodeId(nodeId));
+        nodeRepository.delete(node);
+
+        // Các node con vừa mất một cha: tính lại trạng thái
+        for (NodeDependencyEntity edge : outgoing) {
+            Long childId = edge.getChildNodeId();
+            nodeRepository.findById(childId)
+                .ifPresent(child -> recomputeNodeStatus(child, loadParentsExcluding(childId, nodeId)));
+        }
     }
 
     /**
@@ -375,11 +499,12 @@ public class WorkflowGraphService {
         NodeEntity node = nodeRepository.findById(nodeId)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
 
-        authorizationService.verifyProjectMemberOrOwner(node.getProjectId(), currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(node.getProjectId(), currentUserId));
 
-        node.setUiMetadata(request.metadata());
-        NodeEntity saved = nodeRepository.save(node);
-        return mapToGraphNodeResponse(saved);
+        // UPDATE trực tiếp, không gọi save(): save() làm tăng version (@Version) và gây 409 oan trên Kanban.
+        // Không setUiMetadata lên entity đang được quản lý, vì Hibernate sẽ tự phát hiện thay đổi và tăng version.
+        nodeRepository.updateUiMetadata(nodeId, request.metadata());
+        return mapToGraphNodeResponse(node, request.metadata());
     }
 
     /**
@@ -422,6 +547,43 @@ public class WorkflowGraphService {
 
         log.info("Project #{} published successfully. Unlocked {} root tasks.", projectId, unlockedCount);
         return new PublishPipelineResponse(true, "ACTIVE", Instant.now(), unlockedCount);
+    }
+
+    /**
+     * Các node cha trực tiếp của một node, bỏ qua cha có id = excludedParentId (cạnh vừa gỡ, có thể chưa flush).
+     */
+    private List<NodeEntity> loadParentsExcluding(Long childId, Long excludedParentId) {
+        List<Long> parentIds = nodeDependencyRepository.findByChildNodeId(childId).stream()
+            .map(NodeDependencyEntity::getParentNodeId)
+            .filter(id -> !id.equals(excludedParentId))
+            .toList();
+        return parentIds.isEmpty() ? List.of() : nodeRepository.findAllById(parentIds);
+    }
+
+    /**
+     * Tính lại trạng thái một node sau khi danh sách cha (hoặc joinPolicy) của nó thay đổi.
+     * Cùng luật hội tụ với StateMachineService.unlockDownstreamTasks:
+     * ALL_COMPLETED cần mọi cha DONE, ANY_COMPLETED cần ít nhất một cha DONE. Không còn cha thì coi như thỏa.
+     * Chỉ đụng tới node LOCKED hoặc TODO; node đã bắt đầu làm thì giữ nguyên.
+     */
+    private void recomputeNodeStatus(NodeEntity child, List<NodeEntity> parents) {
+        boolean satisfied = parents.isEmpty()
+            || (child.getJoinPolicy() == JoinPolicy.ANY_COMPLETED
+                ? parents.stream().anyMatch(p -> p.getStatus() == NodeStatus.DONE)
+                : parents.stream().allMatch(p -> p.getStatus() == NodeStatus.DONE));
+
+        if (child.getStatus() == NodeStatus.TODO && !satisfied) {
+            child.setStatus(NodeStatus.LOCKED);
+            nodeRepository.save(child);
+            log.info("Node {} chuyển TODO -> LOCKED vì điều kiện hội tụ không còn thỏa.", child.getCode());
+        } else if (child.getStatus() == NodeStatus.LOCKED && satisfied) {
+            child.setStatus(NodeStatus.TODO);
+            NodeEntity saved = nodeRepository.save(child);
+            log.info("Node {} chuyển LOCKED -> TODO sau khi đổi cạnh phụ thuộc.", child.getCode());
+            if (saved.getAssignedUserId() != null) {
+                sseEmitterService.sendToUser(saved.getAssignedUserId(), "TASK_UNLOCKED", nodeMapper.toKanbanTaskResponse(saved));
+            }
+        }
     }
 
     /**
@@ -504,6 +666,10 @@ public class WorkflowGraphService {
     }
 
     private GraphNodeResponse mapToGraphNodeResponse(NodeEntity n) {
+        return mapToGraphNodeResponse(n, n.getUiMetadata());
+    }
+
+    private GraphNodeResponse mapToGraphNodeResponse(NodeEntity n, Map<String, Object> uiMetadata) {
         return new GraphNodeResponse(
             String.valueOf(n.getId()),
             n.getPhaseId() != null ? String.valueOf(n.getPhaseId()) : null,
@@ -516,7 +682,7 @@ public class WorkflowGraphService {
             n.getDueDate(),
             n.getEstimatedHours(),
             n.getVersion(),
-            n.getUiMetadata()
+            uiMetadata
         );
     }
 }
