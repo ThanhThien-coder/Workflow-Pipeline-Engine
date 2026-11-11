@@ -13,7 +13,7 @@
 | [chung/](chung/README.md) | cả nhóm | T0, T1 (đầu kỳ, mỗi người tự làm) và X1–X4 (cuối kỳ, làm chung) |
 | [ghi-chep/](ghi-chep/README.md) | từng người | Ghi chép T0, T1 và biên bản |
 
-> ⚡ **Cần xong trong 1–2 ngày? Làm theo [SPRINT_2_NGAY.md](SPRINT_2_NGAY.md)**: chọn task quan trọng nhất, Claude làm nhanh, mỗi task ghi nhật ký 4 dòng; học kỹ lại sau khi nộp.
+> ⚡ **Cần xong trong 1–2 ngày? Làm theo [SPRINT_2_NGAY.md](SPRINT_2_NGAY.md)**: chọn task quan trọng nhất, Claude làm code và tự chạy test, mỗi task có một vòng hiểu 15–20 phút trước khi merge; bước cần trình duyệt gom về buổi kiểm chung.
 
 > **Cập nhật 11/11/2026 sau khi pull code mới (Dev B):** đã có sẵn API đồ thị, phase, node, phụ thuộc, xuất bản (`WorkflowGraphController/Service`), `KahnDagService`, CRUD template (`PipelineTemplateController/Service`), `HttpTemplateService` trên FE, và migration **V5, V6**. Vì vậy:
 > - B1–B6, D3, D4 đổi từ "viết mới" sang **"đọc hiểu, kiểm thử, vá lỗ hổng"** (các lỗ hổng cụ thể ghi trong từng file, và ở mục 10).

@@ -9,6 +9,11 @@ Mở khóa: D8, X1
 Nhánh git: d2-members
 Ước lượng: 1,5–2 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** tái hiện 2 lỗi đầu trên DB Docker **trước khi sửa** (từ chối 2 lần; mời lại người đã bị xóa), rồi chạy lại sau khi sửa; đối chiếu `unassignedTaskCount` bằng SQL.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** bước 5 (phần frontend).
+
 ## Vì sao cần task này
 Đọc code thấy các vấn đề sau (2 lỗi đầu **cần tái hiện để xác nhận**):
 - Ràng buộc `uq_pending_project_invitation UNIQUE (project_id, invitee_id, status)` trong V4: mời → từ chối → mời lại → từ chối lần 2 sẽ đụng unique với bản ghi REJECTED cũ.

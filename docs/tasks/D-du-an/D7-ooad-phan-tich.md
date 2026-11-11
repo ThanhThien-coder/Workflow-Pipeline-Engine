@@ -9,6 +9,11 @@ Mở khóa: D8
 Nhánh git: d7-ooad-phan-tich
 Ước lượng: 1 ngày
 
+> ⚡ **Chế độ sprint:** Claude làm hết các bước, kể cả 🧠; bỏ qua Bước 0 và mục "Dành cho Claude". Luồng làm: [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 2–3.
+> - **Claude tự chạy bằng dòng lệnh:** render các file `.puml` ra PNG.
+> - **Dời về buổi kiểm chung (mục 7):** không có.
+> - **Không làm trong sprint:** vẽ tay bản đầu trên giấy. Claude vẽ từ code thật; vòng hiểu là người làm giải thích lại 1 sơ đồ sequence (task số 7 thì 1 sơ đồ activity).
+
 ## Vì sao cần task này
 Mảng của D có nhiều actor nhất (Chủ dự án, thành viên, người được mời, khách/giáo viên, quản trị viên). Đây là chỗ luyện vẽ use case tốt nhất. Đặt actor sai hoặc vẽ sai include/extend là lỗi hay bị trừ điểm nhất khi chấm OOAD.
 

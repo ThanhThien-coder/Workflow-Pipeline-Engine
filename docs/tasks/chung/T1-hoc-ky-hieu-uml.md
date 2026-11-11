@@ -9,6 +9,10 @@ Mở khóa: A7, B7, C7, D7
 Nhánh git: t1-<chữ của bạn>
 Ước lượng: 1 ngày (gồm 45 phút họp so bài)
 
+> ⚡ **Chế độ sprint:** chỉ **tự đọc** `docs/ooad/CAM_NANG_VE_SO_DO.md` mục 3 (khoảng 30 phút). Xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6.
+> - **Làm:** tạo `ghi-chep/T1-<chữ>.md`, đặt `Trạng thái: xong` để mở khóa task OOAD số 7.
+> - **Không làm trong sprint:** 6 sơ đồ luyện, tự chấm, họp so bài, chép sang `docs/ooad/luyen-tap/`. Làm ở giai đoạn Học lại.
+
 ## Vì sao cần task này
 Môn OOAD chấm cả việc vẽ đúng ký hiệu lẫn việc hiểu sơ đồ. Cả 4 người cùng vẽ **một chức năng nhỏ** một cách độc lập rồi so bài: sai ở đâu thấy ngay, và cả nhóm thống nhất một cách vẽ trước khi vẽ sơ đồ thật cho mảng của mình (A7–D8).
 

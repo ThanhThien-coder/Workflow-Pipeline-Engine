@@ -9,6 +9,8 @@ Mở khóa: X2
 Nhánh git: x1-strict-security
 Ước lượng: 1 ngày
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 Trong lúc phát triển, backend chạy "mở": `anyRequest().permitAll()`, có header `X-Debug-User-Id`, có user mặc định. Một số controller còn cho **giả danh người khác qua tham số**:
 - `NodeController` nhận `?currentUserId=`, và rơi về `orElse(2L)` khi không có user.

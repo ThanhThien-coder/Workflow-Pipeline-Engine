@@ -11,6 +11,8 @@ Nhánh git: b5-graph-ui
 
 > **Cập nhật 11/11/2026 (sau khi pull):** `HttpWorkflowService.ts` đã gọi API thật cho `getMacroPhases`, `getPhaseEdges`, `getPhaseGraph`, `createPhase`, `connectPhases`, `disconnectPhases`, `deletePhase`, nhưng **vẫn rơi về mock khi lỗi** (`return super.…`), và phần chuyển dữ liệu nằm lẫn trong từng hàm. Sau khi A2 tách file, task này dọn lại phần đồ thị.
 
+> ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
+
 ## Vì sao cần task này
 - Lời gọi đồ thị đang có fallback ngầm: backend lỗi thì canvas hiện dữ liệu giả mà không ai biết.
 - Phần đổi dữ liệu từ mô hình phẳng của backend (phases, nodes, dependencies) sang mô hình Root/Branch/Ghost (`GraphNodeMap`) của FE đang viết lặp lại trong 3 hàm, chưa có test.

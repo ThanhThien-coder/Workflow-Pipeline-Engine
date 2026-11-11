@@ -9,6 +9,9 @@ Mở khóa: không
 Nhánh git: x4-bao-ve
 Ước lượng: 0,5–1 ngày
 
+> ⚡ **Chế độ sprint:** chỉ làm **bản rút gọn** ở tối ngày 2: mỗi người trình bày **mảng của chính mình** 5 phút, dùng 1 sơ đồ sequence. Không cần chờ X2. Xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6.
+> - **Không làm trong sprint:** thuyết trình chéo, luyện vẽ không nhìn, vấn đáp. Trạng thái X4 vẫn để `chưa làm`; bản đầy đủ làm sau hạn nộp.
+
 ## Vì sao cần task này
 Hiểu mảng mình chưa đủ. Khi bảo vệ, giảng viên có thể hỏi bất kỳ ai về bất kỳ phần nào, và môn OOAD có thể bắt vẽ ngay tại chỗ. Người trình bày mỗi mảng là người đã review mảng đó suốt kỳ, nên đã đọc kỹ code và sơ đồ của nó.
 
