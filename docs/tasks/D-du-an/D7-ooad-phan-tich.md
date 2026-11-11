@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: T1
 Cần trước bước frontend: không
 Mở khóa: D8
@@ -81,13 +81,28 @@ Người dán file này đang **học vẽ sơ đồ OOAD** cho mảng của h�
 ### Ảnh bản vẽ tay đầu tiên
 
 ### Tự chấm theo checklist (điểm từng sơ đồ)
+Sprint 12/11/2026: Antigravity vẽ từ code thật và SSOT, Claude soát theo checklist cẩm nang và đối chiếu code (1 vòng trả lại để sửa 7 chỗ).
+
+Đã có 4 sản phẩm trong `docs/ooad/D-du-an/`: `uc-du-an.puml` (2 sơ đồ: nội bộ, bên ngoài), `dac-ta-uc.md` (UC8 Mời thành viên, UC22 Gửi góp ý, UC21 Chạy chẩn đoán AI), `activity-moi-thanh-vien.puml` (3 làn), `bce-du-an.puml`.
+
+**Chưa xuất PNG**: máy chưa có PlantUML, và việc tải file `.jar` PlantUML về chạy bị chặn bởi lớp kiểm quyền của Claude Code. Cần mở bằng extension PlantUML trong VS Code (Alt+D) rồi "Export Current Diagram" ra `docs/ooad/png/D-<tên file>.png`. Cú pháp mới kiểm bằng mắt (đủ cặp `@startuml`/`@enduml`), chưa render thật.
+
+Điểm soát đã sửa:
+- Chấp nhận / Từ chối lời mời vẽ là tổng quát hóa của "Phản hồi lời mời" (không dùng extend).
+- UC23 (xem, đánh dấu góp ý) chỉ nối Cộng sự và Chủ dự án theo RBAC.
+- Mã lỗi `IllegalArgumentException` → 400 `BAD_REQUEST` (không phải `VALIDATION_FAILED`).
 
 ### Lỗi Claude hoặc người review chỉ ra và cách mình sửa
+Phát hiện khi đối chiếu code (đã ghi note trong sơ đồ, CHƯA sửa code):
+- `ProjectInvitationService.acceptInvitation` đặt `EXPIRED` rồi ném `IllegalArgumentException` trong `@Transactional` → bị rollback, trạng thái EXPIRED không được lưu.
+- Không có job quét lời mời quá 7 ngày; EXPIRED chỉ xảy ra khi người được mời bấm chấp nhận.
+- RBAC UC23 không cho Viewer đánh dấu góp ý, nhưng code dùng `verifyProjectMemberOrOwner` nên Viewer vẫn làm được.
+- RBAC UC21 cho Khách xem báo cáo AI, nhưng chưa có API AI cho khách.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
-- **Làm gì:**
-- **File chính đã sửa:**
+- **Làm gì:** Vẽ bộ sơ đồ phân tích mảng D: use case (2 sơ đồ), đặc tả 3 UC, activity mời thành viên, class phân tích BCE.
+- **File chính đã sửa:** `docs/ooad/D-du-an/uc-du-an.puml`, `dac-ta-uc.md`, `activity-moi-thanh-vien.puml`, `bce-du-an.puml`.
 - **Vì sao làm vậy** (tự viết):
-- **Cần học lại:**
+- **Cần học lại:** include khác extend khác tổng quát hóa (vì sao Chấp nhận/Từ chối là tổng quát hóa); actor Khách dùng token; Thành viên là lớp kết hợp; tự giải thích lại sơ đồ activity (vòng hiểu).
