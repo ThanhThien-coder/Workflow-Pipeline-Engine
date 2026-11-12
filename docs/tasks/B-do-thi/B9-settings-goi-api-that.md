@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: B6
 Cần trước bước frontend: không
 Mở khóa: không
@@ -119,3 +119,12 @@ Tests  7 failed (7)
 - **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
 - **Cần học lại:**
+
+## Review của C (12/11/2026, chế độ sprint)
+Đạt 2 tiêu chí review sprint, kiểm trên main `7d5a5b1` (PR #42 đã merge):
+1. **Test xanh:** `npx vitest run src/services/impl/http/__tests__/projectSettings.test.ts` 8/8 (chạy cùng test B6, tổng 39/39); `npm run typecheck` sạch.
+2. **File sửa:** 6 file, đều trong "Được ghi". Phần sửa `B6-xuat-ban-giao-dien.md` là dòng "Mở khóa", đúng giới hạn.
+
+Đối chiếu `services/impl/http/projectSettings.ts` với "Đặc tả đã chốt": trùng owner thì `OWNER` không gọi thêm; ngược lại tra `/members`; không có tên hoặc chưa đăng nhập thì `VIEWER`. Lỗi đi qua `apiRequest` nên ném `ApiError`, không trả dữ liệu giả. Đạt.
+
+Chưa kiểm: bước trình duyệt (sarah bị khóa nút sửa đồ thị, alex sửa được). Dời về buổi kiểm chung như tiêu chí ghi.

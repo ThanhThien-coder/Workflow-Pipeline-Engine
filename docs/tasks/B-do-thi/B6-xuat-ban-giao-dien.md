@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: B4, B5
 Cần trước bước frontend: không
 Mở khóa: X1, B9
@@ -201,3 +201,14 @@ Sau khi sửa (`npm run typecheck && npm test`):
 - **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
 - **Cần học lại:**
+
+## Review của C (12/11/2026, chế độ sprint)
+Đạt 2 tiêu chí review sprint, kiểm trên main `7d5a5b1` (PR #37 đã merge):
+1. **Test xanh:** `./mvnw test -Dtest=DagFixtureCasesTest` 18/18; `npx vitest run` 3 file (`dagFixtureCases`, `settingsPublish`, `projectSettings`) 39/39; `npm run typecheck` sạch. FE và BE đọc cùng `shared/test-fixtures/dag-cases.json` (18 case).
+2. **File sửa:** 10 file. 8 file trong "Được ghi". 2 file ngoài: `components/views/SettingsView.tsx` (1 dòng `publishProject(projectId)`, người B đồng ý, có ghi lý do ở "Điều chưa chắc" 1) và `store/slices/__tests__/settingsPublish.test.tsx` (test của file được ghi). Chấp nhận cả 2.
+
+Theo lời nhờ ở "Cần báo ai":
+- **`SettingsView.tsx` và chữ ký `publishProject(projectId?)`:** đúng. `projectId` lấy từ đường dẫn trang; không truyền thì dùng id của settings như cũ, nên chỗ gọi cũ không vỡ. Phần sửa `settingsSlice.ts` chỉ đụng `publishProject` (9 dòng thêm, 4 dòng bỏ), đúng phạm vi. Bỏ danh sách node bịa (`'WPE-009', 'WPE-014'`) khi máy chủ không gửi là đúng.
+- **2 cách tính "node lỗi" (mục 3):** không chặn B6. Ý của C: giữ như hiện tại trong sprint; sau hạn nộp nhóm quyết có cho template bóc đuôi giống dự án không.
+
+Chưa kiểm: bấm Publish trên trình duyệt. Dời về buổi kiểm chung (`SPRINT_2_NGAY.md` mục 7.2, dòng 8).
