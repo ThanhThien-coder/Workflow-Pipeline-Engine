@@ -2,7 +2,7 @@
 
 Người làm: C
 Người review: D
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: C1
 Cần trước bước frontend: không
 Mở khóa: C3, C6, C8
@@ -95,12 +95,105 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 > Viết bằng lời của bạn. Người review đọc phần này trước khi đọc code.
 
 ### Trả lời Bước 0
+Chế độ sprint: bỏ qua phần tự đọc; câu 1–2 trả lời bằng thực nghiệm thật (12/11/2026, trước khi sửa).
+1. Routing key `wpe.notification.invitation_created` khớp binding `wpe.notification.#` → vào `wpe.notification.queue` (danh sách binding lúc đó chỉ có 3: `wpe.ai.diagnostics`, `wpe.notification.#`, `wpe.task.completed`).
+2. alex mời admin vào dự án 1 (`POST /api/v1/projects/1/invitations` → 201). Log thật:
+   ```
+   INFO [nio-8080-exec-7] ProjectInvitationService: Created ProjectInvitation id=1 for project=1 invitee=1
+   INFO [nio-8080-exec-7] WorkflowEventPublisher: Publishing InvitationCreatedEvent for Invitation ID: 1, Project: Core Banking Pipeline, Invitee: admin@pipeline.engine
+   INFO [ntContainer#3-1] WorkflowEventConsumer: Processing NotificationEvent in background: Recipient=null, Title=null
+   ```
+   Message bị listener của queue thông báo đọc thành `NotificationEvent` rỗng rồi bỏ qua (vì `recipientUserId == null`). `handleInvitationCreated` không chạy. **Nghi ngờ trong task là đúng.** Bảng `notification` có 1 bản ghi lời mời do `ProjectInvitationService` tự lưu, nhưng admin không nhận realtime.
+3. (Không thực nghiệm) SSE một chiều server → trình duyệt trên HTTP thường, tự kết nối lại, đủ cho đẩy thông báo; WebSocket hai chiều, cần khi client gửi liên tục (chat, chỉnh sửa chung).
 
 ### Đã làm gì (file nào, vì sao)
+Làm theo chế độ sprint ngày 12/11/2026, nhánh `c2-realtime` **tách từ `c1-fsm`** (C1 đang chờ D review ở PR #35, chưa merge).
+- `BE/service/event/SseEmitterService.java`: `Map<Long, Set<SseEmitter>>` (`CopyOnWriteArraySet`), thêm emitter trong `compute` để nguyên tử với việc gỡ; `onCompletion/onTimeout/onError` và gửi lỗi chỉ gỡ đúng emitter đó; `sendToUser`, `broadcast` gửi tới mọi tab; `sendHeartbeat()` `@Scheduled(fixedRate = 25000)` gửi `PING`. Chữ ký `subscribe`, `sendToUser`, `broadcast`, `isUserConnected` giữ nguyên. Thêm `protected createEmitter()` để test thay emitter giả.
+- `BE/dto/response/notification/NotificationResponse.java` (mới): `id` (chuỗi), `title`, `message`, `linkUrl`, `isRead`, `createdAt`, có `from(NotificationEntity)`. C3 dùng lại cho API chuông.
+- `BE/service/event/WorkflowEventConsumer.java`: SSE `NOTIFICATION_RECEIVED` gửi `NotificationResponse` thay vì entity; `handleTaskCompleted` bắt riêng `OptimisticLockingFailureException`, log `warn` rồi ném lại để retry; bỏ 2 hàm lời mời (chuyển sang lớp mới).
+- `BE/service/event/InvitationEventConsumer.java` (mới): `@RabbitListener(queues = wpe.invitation.queue)` ở mức lớp, `@RabbitHandler` cho `handleInvitationCreated` và `handleInvitationAccepted`. Lời mời mới: tìm thông báo đã lưu theo deep-link, đẩy `NOTIFICATION_RECEIVED` 1 lần, không lưu thêm. Chấp nhận lời mời: chỉ ghi log.
+- `BE/config/RabbitMQConfig.java`: queue `wpe.invitation.queue` (có DLQ), binding `wpe.invitation.#`, hằng `ROUTING_KEY_INVITATION_CREATED/ACCEPTED`.
+- `BE/service/event/WorkflowEventPublisher.java`: lời mời gửi `wpe.invitation.created` / `wpe.invitation.accepted`. Chữ ký giữ nguyên.
+- Không sửa `ProjectInvitationService.java`, không sửa FE.
+- Docs: `workflow-engine.md` 3.5 (nhiều tab, heartbeat, danh mục sự kiện, queue lời mời, lũy đẳng), integration map 5.7.
+
+**Bảng test case** (viết trước, file test ở `BE-test/service/event/`):
+
+| # | Tình huống | Mong đợi | Test |
+| :- | :--- | :--- | :--- |
+| 1 | Mở tab | Tab nhận `INIT`, user đang kết nối | `SseEmitterServiceTest.subscribe_sendsInit` |
+| 2 | 1 user 2 tab, `sendToUser` | Cả 2 tab nhận | `twoTabs_bothReceive` |
+| 3 | Tab cũ đóng sau khi tab mới mở | Chỉ gỡ tab cũ, tab mới vẫn nhận | `closingOldTab_keepsNewTab` |
+| 4 | Timeout 1 tab, lỗi tab còn lại | Gỡ từng cái; hết tab thì không còn kết nối | `timeoutAndError_removeOnlyThatEmitter` |
+| 5 | Gửi lỗi ở 1 tab | Chỉ gỡ tab lỗi | `sendFails_removesOnlyBrokenTab` |
+| 6 | Heartbeat | `PING` tới mọi emitter mọi user | `heartbeat_pingsEveryEmitter` |
+| 7 | Heartbeat gặp emitter chết | Gỡ emitter chết | `heartbeat_removesDeadEmitters` |
+| 8 | Lịch heartbeat | `@Scheduled(fixedRate = 25000)` | `heartbeat_isScheduledEvery25Seconds` |
+| 9 | `broadcast` | Mọi tab mọi user | `broadcast_reachesEveryTab` |
+| 10 | User chưa kết nối | Bỏ qua, không lỗi | `sendToUser_notConnected_noError` |
+| 11 | Thông báo mới | Lưu 1 bản ghi, SSE payload `NotificationResponse` | `WorkflowEventConsumerTest.handleNotification_pushesNotificationResponse` |
+| 12 | Xung đột version khi mở khóa | Ném lại để retry | `handleTaskCompleted_optimisticLock_rethrowsForRetry` |
+| 13 | Cùng `TaskCompletedEvent` chạy 2 lần | Mở khóa và thông báo 1 lần | `handleTaskCompleted_twice_unlocksAndNotifiesOnce` |
+| 14 | Lời mời mới | SSE 1 lần bằng bản ghi đã lưu, không lưu thêm | `InvitationEventConsumerTest.created_pushesSavedNotificationOnce_withoutSaving` |
+| 15 | Lời mời mới, không thấy bản ghi | Không SSE, không tự tạo | `created_notificationMissing_noPushNoSave` |
+| 16 | Chấp nhận lời mời | Không lưu, không SSE | `accepted_noSaveNoPush` |
+| 17 | Lớp nghe đúng queue, 2 `@RabbitHandler` | Đúng | `listensOnInvitationQueue` |
+| 18 | Queue/binding lời mời | `wpe.invitation.queue`, `wpe.invitation.#`, có DLQ | `RabbitMQConfigTest.invitationQueue_boundWithInvitationPattern` |
+| 19 | Routing key lời mời | Không còn dưới `wpe.notification.` | `invitationRoutingKeys_outsideNotificationPattern` |
+| 20 | Converter đọc lại kiểu sự kiện lời mời từ `__TypeId__` | Đúng kiểu | `converter_restoresInvitationEventTypes` |
+| 21–22 | Publisher gửi lời mời | `wpe.invitation.created` / `.accepted` | `WorkflowEventPublisherTest.publishInvitation*` |
 
 ### Kết quả test (dán output thật, không chép tay)
+**1. Trước khi sửa** (đã có khung rỗng cho lớp mới để test biên dịch được):
+```
+[ERROR]   InvitationEventConsumerTest.created_pushesSavedNotificationOnce_withoutSaving:67
+[ERROR]   InvitationEventConsumerTest.listensOnInvitationQueue:97
+[ERROR]   SseEmitterServiceTest.broadcast_reachesEveryTab:192
+[ERROR]   SseEmitterServiceTest.closingOldTab_keepsNewTab:112
+[ERROR]   SseEmitterServiceTest.heartbeat_isScheduledEvery25Seconds:178
+[ERROR]   SseEmitterServiceTest.heartbeat_pingsEveryEmitter:153
+[ERROR]   SseEmitterServiceTest.heartbeat_removesDeadEmitters:170
+[ERROR]   SseEmitterServiceTest.timeoutAndError_removeOnlyThatEmitter:123
+[ERROR]   SseEmitterServiceTest.twoTabs_bothReceive:98
+[ERROR]   WorkflowEventConsumerTest.handleNotification_pushesNotificationResponse:77
+[ERROR]   WorkflowEventPublisherTest.publishInvitationAccepted_usesInvitationRoutingKey:130
+[ERROR]   WorkflowEventPublisherTest.publishInvitationCreated_usesInvitationRoutingKey:119
+[ERROR]   InvitationEventConsumerTest.created_notificationMissing_noPushNoSave » UnnecessaryStubbing
+[ERROR] Tests run: 28, Failures: 12, Errors: 1, Skipped: 0
+```
+Pass ngay từ đầu (hành vi đã đúng sẵn): lũy đẳng (#13), ném lại khi xung đột version (#12), converter (#20), gửi lỗi 1 tab (#5, pass vì map cũ chỉ còn tab mới), queue/binding (#18, viết cùng lúc với test).
+
+**2. Sau khi sửa:** `SseEmitterServiceTest` 10/10, `WorkflowEventConsumerTest` 3/3, `InvitationEventConsumerTest` 4/4, `RabbitMQConfigTest` 3/3, `WorkflowEventPublisherTest` 8/8, `RealtimeControllerTest` 1/1. Toàn bộ backend (`./mvnw test`): `Tests run=357, Failures=0, Errors=0, Skipped=1`. Sau khi C1 (#35) và #33, #34, #36, #37, #38 vào main, đã rebase nhánh lên main mới (không xung đột) và chạy lại: `Tests run=411, Failures=0, Errors=0, Skipped=1`.
+
+**3. Chạy thật (backend bật từ code C2):**
+```
+Queue: wpe.invitation.queue (1 consumer), binding wpe.workflow.exchange -> wpe.invitation.queue : wpe.invitation.#
+
+Lời mời: mở SSE cho admin (userId=1), alex mời admin -> HTTP 201
+  INFO [ntContainer#0-1] InvitationEventConsumer: Processing InvitationCreatedEvent: Invitation ID=2, Project=Core Banking Pipeline, Invitee=1
+  INFO [ntContainer#0-1] SseEmitterService: Đã bắn SSE event [NOTIFICATION_RECEIVED] tới User ID [1] (1 tab)
+SSE admin nhận: 1 INIT, 1 NOTIFICATION_RECEIVED, 1 PING
+data:{"id":"11","title":"Lời mời tham gia dự án: Core Banking Pipeline","message":"Alex Kim đã mời bạn ...","linkUrl":"/workspace?action=open-invite-modal&invitationId...
+Bảng notification của admin: 1 bản ghi   (không trùng)
+
+2 tab sarah + 1 tab alex (curl giữ kết nối 35 giây); sarah bắt đầu WPE-003 (200), nộp bài (200), alex duyệt (200):
+== sarah-tab1: INIT TASK_STATUS_CHANGED PING TASK_STATUS_CHANGED PING
+== sarah-tab2: INIT TASK_STATUS_CHANGED PING TASK_STATUS_CHANGED PING
+== alex-tab3:  INIT TASK_STATUS_CHANGED TASK_SUBMITTED NOTIFICATION_RECEIVED PING TASK_UNLOCKED NOTIFICATION_RECEIVED PING
+DB: WPE-003=DONE, WPE-004=TODO
+```
+Cả 2 tab của sarah nhận cùng sự kiện; heartbeat `PING` tới đều. Sau thực nghiệm đã trả DB về dữ liệu seed (WPE-003 TODO v0, WPE-004 LOCKED v0, 1 thông báo, 0 lời mời).
+
+**Dời về buổi kiểm chung (SPRINT 7.2 dòng 6):** mở 2 tab trình duyệt thật cùng user sarah, tab thứ 3 alex duyệt. Ở trên đã giả lập bằng `curl`.
 
 ### Điều chưa chắc / cần nhóm quyết
+- **Lệch nhỏ so với đặc tả, cần D/nhóm đồng ý:** đặc tả ghi "gắn `@RabbitListener` cho 2 hàm handle". Hai hàm cùng nghe một queue nên mình dùng `@RabbitListener` ở mức lớp và `@RabbitHandler` cho từng hàm, đặt trong lớp mới `InvitationEventConsumer`. Gắn `@RabbitListener` riêng cho từng hàm trên cùng queue thì 2 consumer giành message của nhau, lời mời mới có thể rơi vào hàm "đã chấp nhận".
+- **Báo D:** luồng lời mời đổi routing key sang `wpe.invitation.*` và có queue riêng. Không sửa `ProjectInvitationService.java`. `handleInvitationAccepted` chỉ ghi log vì đặc tả chưa có thông báo cho người mời.
+- **Đặc tả thiếu 1 sự kiện:** code còn gửi `TASK_OVERDUE` (`TaskOverdueScanner`, payload `KanbanTaskResponse`), không có trong 7 sự kiện đã chốt. Đã thêm vào danh mục ở 2 file docs để khớp code. Bộ quét gửi SSE này bên trong `@Transactional` nên vẫn trước commit; để C5 xem.
+- FE chưa nghe `TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE`, `PING` (FE không thuộc C2; nối ở C6, chuông ở C3). `PING` không có listener thì trình duyệt bỏ qua, không lỗi.
+- Map emitter nằm trong RAM: chạy nhiều instance backend thì cần pub/sub dùng chung.
+- Payload `KanbanTaskResponse` trong SSE vẫn có thể mang `version` cũ (đã ghi ở PR #35 của C1, chờ nhóm quyết sửa ở C1 hay C2).
+- Nhánh ban đầu tách từ `c1-fsm`; C1 đã merge (#35) nên đã rebase lên main mới.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa

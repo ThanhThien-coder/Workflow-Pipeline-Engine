@@ -845,9 +845,25 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Headers**: `Accept: text/event-stream`
 4. **Xử lý Backend**:
    - Khởi tạo đối tượng `SseEmitter` với thời gian sống (timeout 30 phút).
-   - Lưu trữ `emitter` vào `ConcurrentHashMap<Long, SseEmitter>` trong `SseEmitterService`.
-   - Đăng ký hook dọn dẹp `onCompletion`, `onTimeout`, `onError` để gỡ bỏ khi tab trình duyệt đóng.
-   - Gửi sự kiện khởi tạo ban đầu: `data: "Connected successfully"`.
+   - Lưu `emitter` vào `ConcurrentHashMap<Long, Set<SseEmitter>>` trong `SseEmitterService` (C2, 12/11/2026): **mỗi tab một emitter**, một user mở nhiều tab thì tab nào cũng nhận sự kiện. Tập emitter là `CopyOnWriteArraySet`.
+   - Đăng ký hook dọn dẹp `onCompletion`, `onTimeout`, `onError`: chỉ gỡ **đúng emitter của tab đó**; tab cuối cùng đóng thì user không còn kết nối.
+   - Gửi sự kiện khởi tạo ban đầu `INIT`: `data: "Connected successfully"`.
+   - Heartbeat: cứ 25 giây gửi `PING` tới mọi emitter (`@Scheduled(fixedRate = 25000)`); emitter gửi lỗi thì bị gỡ.
+   - **Danh mục sự kiện chuẩn** (FE và BE dùng chung, chi tiết ở `docs/specs/workflow-engine.md` mục 3.5):
+
+     | Sự kiện | Payload | Gửi khi |
+     | :--- | :--- | :--- |
+     | `INIT` | chuỗi | Vừa mở kết nối |
+     | `PING` | chuỗi `keep-alive` | Mỗi 25 giây |
+     | `TASK_UNLOCKED` | `KanbanTaskResponse` | Task LOCKED → TODO (tự mở khóa, force unlock, xuất bản dự án) |
+     | `TASK_STATUS_CHANGED` | `KanbanTaskResponse` | Đổi trạng thái task (người phụ trách; Owner nếu người đổi không phải Owner) |
+     | `TASK_SUBMITTED` | `KanbanTaskResponse` | Nộp bài (gửi Owner) |
+     | `TASK_REJECTED` | `KanbanTaskResponse` | Owner từ chối bài (gửi người phụ trách) |
+     | `NOTIFICATION_RECEIVED` | `NotificationResponse` `{ id (chuỗi), title, message, linkUrl, isRead, createdAt }` | Có thông báo mới, kể cả lời mời |
+     | `TASK_OVERDUE` | `KanbanTaskResponse` | Bộ quét trễ hạn (15 phút) đánh dấu task trễ hạn |
+
+     FE hiện mới nghe `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `NOTIFICATION_RECEIVED`; `TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE` và `PING` chưa có listener (FE nối ở C6, chuông ở C3).
+   - Lời mời (C2): `InvitationCreatedEvent` / `InvitationAcceptedEvent` đi routing key `wpe.invitation.created` / `wpe.invitation.accepted` vào queue riêng `wpe.invitation.queue`. `InvitationEventConsumer` đẩy `NOTIFICATION_RECEIVED` cho người được mời **đúng 1 lần** bằng bản ghi `ProjectInvitationService` đã lưu, không lưu thêm.
 5. **Response Stream & UI Mutation**:
    - **Status Code**: `200 OK` (Content-Type: `text/event-stream`).
    - **Cấu trúc sự kiện đẩy xuống**:

@@ -171,6 +171,25 @@ Khi một nút đạt trạng thái `DONE`, Engine kích hoạt luồng quét to
 ### 3.5 Đồng bộ Thời gian thực qua Server-Sent Events (SSE)
 * Ngay khi nút con được chuyển trạng thái từ `LOCKED` sang `TODO` (qua hội tụ AND/OR Join hoặc Force Unlock), hệ thống tự động đẩy sự kiện `TASK_UNLOCKED` kèm `KanbanTaskResponse` qua `SseEmitterService` xuống trình duyệt của người phụ trách (`assigned_user_id`).
 * Thẻ công việc tự động nạp vào cột TODO trên bảng Kanban của người dùng trong thời gian thực mà không yêu cầu tải lại trang (Zero-Reload Experience).
+* **Nhiều tab và heartbeat (C2, 12/11/2026):** `SseEmitterService` giữ `Map<Long, Set<SseEmitter>>`, mỗi tab một emitter; `sendToUser` gửi tới mọi tab của user; tab đóng, timeout hay lỗi chỉ gỡ đúng emitter đó. Cứ 25 giây gửi `PING` tới mọi emitter, emitter gửi lỗi thì gỡ. Map nằm trong RAM của từng instance: chạy nhiều instance backend thì cần pub/sub dùng chung (Redis, RabbitMQ fanout) mới đẩy được sự kiện sang user nối vào instance khác.
+* **Danh mục sự kiện SSE chuẩn** (FE và BE dùng chung một danh sách; integration map 5.7):
+
+  | Sự kiện | Payload | Bên gửi | Người nhận |
+  | :--- | :--- | :--- | :--- |
+  | `INIT` | chuỗi | `SseEmitterService.subscribe` | Tab vừa kết nối |
+  | `PING` | chuỗi `keep-alive` | `SseEmitterService.sendHeartbeat` (25 giây) | Mọi tab |
+  | `TASK_UNLOCKED` | `KanbanTaskResponse` | `unlockDownstreamTasks`, `forceUnlock`, `publishPipeline` | Người phụ trách task vừa mở |
+  | `TASK_STATUS_CHANGED` | `KanbanTaskResponse` | `updateStatus` | Người phụ trách; Owner nếu người đổi không phải Owner |
+  | `TASK_SUBMITTED` | `KanbanTaskResponse` | `submitTaskArtifact` | Owner |
+  | `TASK_REJECTED` | `KanbanTaskResponse` | `updateStatus` (REVIEW → IN_PROGRESS) | Người phụ trách |
+  | `NOTIFICATION_RECEIVED` | `NotificationResponse` | `WorkflowEventConsumer.handleNotification`, `InvitationEventConsumer` | Người nhận thông báo |
+  | `TASK_OVERDUE` | `KanbanTaskResponse` | `TaskOverdueScanner.scanOverdueTasks` (15 phút) | Người phụ trách task vừa trễ hạn |
+
+  `TASK_OVERDUE` không có trong danh mục đặc tả C2 ban đầu nhưng code đã gửi (thuộc mảng quét trễ hạn, C5). Bộ quét gọi `sendToUser` thẳng bên trong `@Transactional`, nên SSE này vẫn gửi trước commit (C5 xem lại).
+
+  Payload thông báo là `NotificationResponse` (`id` dạng chuỗi, `title`, `message`, `linkUrl`, `isRead`, `createdAt`), không gửi thẳng `NotificationEntity`.
+* **Lời mời đi queue riêng (C2):** trước đây lời mời gửi routing key `wpe.notification.invitation_*`, khớp `wpe.notification.#` nên rơi vào queue thông báo và bị đọc thành `NotificationEvent` rỗng (log `Recipient=null, Title=null`), người được mời không nhận realtime. Giờ dùng `wpe.invitation.created` / `wpe.invitation.accepted` → `wpe.invitation.queue` → `InvitationEventConsumer` (`@RabbitListener` mức lớp, `@RabbitHandler` cho từng kiểu sự kiện). Consumer chỉ đẩy SSE, không lưu thêm thông báo.
+* **Consumer `TaskCompletedEvent` lũy đẳng:** `unlockDownstreamTasks` chỉ mở khóa node con đang `LOCKED`, nên cùng một sự kiện chạy 2 lần (retry, giao lại) không mở khóa và không gửi thông báo lần 2. Gặp `OptimisticLockingFailureException` (hai cha cùng DONE sửa một con) thì ghi log `warn` và ném lại để Spring AMQP retry (3 lần, `spring.rabbitmq.listener.simple.retry`); hết lượt thì message vào DLQ `wpe.workflow.dlq`.
 
 ### 3.6 Gửi sự kiện RabbitMQ và SSE sau khi commit (C1, 12/11/2026)
 * **Vấn đề trước đây:** `updateStatus` gọi `publishTaskCompleted` khi transaction còn mở. Consumer (`WorkflowEventConsumer.handleTaskCompleted`, chạy ở luồng listener riêng) có thể nhận sự kiện trước khi commit, đọc thấy task cha chưa `DONE`, nên **không mở khóa** task con. Thực nghiệm C1 (thêm tạm `Thread.sleep(2000)` sau lời gọi publish) tái hiện được: duyệt WPE-003 xong, WPE-004 vẫn `LOCKED`.
