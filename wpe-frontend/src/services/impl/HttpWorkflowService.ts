@@ -4,6 +4,7 @@ import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
 import * as authApi from './http/auth'
 import * as graphApi from './http/graph'
+import * as projectSettingsApi from './http/projectSettings'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import type {
   ArtifactItem,
@@ -51,7 +52,6 @@ export const METHODS_STILL_MOCKED = [
   'toggleGuestAccess', // D5
   'generateGuestToken', // D5
   'getProjectMembers', // C6
-  'getProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
   'getProjectAuditLogs', // chưa có task: cần nhóm quyết
   'archiveProject', // D1 (PATCH /projects/{id}/status)
@@ -421,8 +421,9 @@ export class HttpWorkflowService implements IWorkflowService {
 
   // ───────────────────────── Cài đặt, thành viên (D1/D2) — còn mock ─────────────────────────
 
+  /** GET /projects/{id} (+ GET /projects/{id}/members nếu không phải owner) — xem impl/http/projectSettings.ts */
   getProjectSettings(projectId: string): Promise<ProjectSettingsDto> {
-    return this.mock.getProjectSettings(projectId) // chưa có task
+    return projectSettingsApi.fetchProjectSettings(projectId)
   }
 
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto> {
