@@ -97,6 +97,7 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
         <SettingsHeader myRole={effectiveRole} />
 
         <GeneralSettingsSection
+          projectId={projectId}
           settings={settings}
           myRole={effectiveRole}
           onSave={updateGeneralSettings}

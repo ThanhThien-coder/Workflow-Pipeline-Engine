@@ -4,6 +4,7 @@ import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.ProjectStatus;
+import com.pipeline.wpe.common.enums.TemplateVisibility;
 import com.pipeline.wpe.dto.project.CloneTemplateRequest;
 import com.pipeline.wpe.dto.project.CloneTemplateResponse;
 import com.pipeline.wpe.dto.project.ProjectDetailResponse;
@@ -36,6 +37,7 @@ public class TemplateCloneService {
     private final WorkPhaseRepository workPhaseRepository;
     private final NodeRepository nodeRepository;
     private final NodeDependencyRepository nodeDependencyRepository;
+    private final PhaseDependencyRepository phaseDependencyRepository;
     private final PipelineTemplateRepository pipelineTemplateRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final CurrentUserProvider currentUserProvider;
@@ -72,6 +74,9 @@ public class TemplateCloneService {
         }
 
         PipelineTemplateEntity tpl = pipelineTemplateOpt.get();
+        if (tpl.getVisibility() == TemplateVisibility.PRIVATE && (currentUserId == null || !currentUserId.equals(tpl.getCreatedBy()))) {
+            throw new ResourceNotFoundException("Không tìm thấy mẫu quy trình với ID: " + identifier);
+        }
         log.info("Tìm thấy PipelineTemplate mẫu: '{}' (ID: {}, Slug: {})", tpl.getName(), tpl.getId(), tpl.getSlug());
 
         // Tăng số lượt clone nếu nguồn là PipelineTemplateEntity
@@ -219,19 +224,21 @@ public class TemplateCloneService {
         }
 
         // 2. Tái lập liên kết thứ tự Phase (Phase DAG edges & runsAfter)
+        Set<String> seenPhaseEdges = new HashSet<>();
+        List<Map.Entry<Long, Long>> phaseEdgesToApply = new ArrayList<>();
+
         List<Map<String, Object>> phaseEdgesData = (List<Map<String, Object>>) graphData.get("phaseEdges");
         if (phaseEdgesData != null) {
             for (Map<String, Object> pe : phaseEdgesData) {
-                Object parentKeyObj = pe.get("parentPhaseId");
-                Object childKeyObj = pe.get("childPhaseId");
+                Object parentKeyObj = pe.get("parentPhaseId") != null ? pe.get("parentPhaseId") : pe.get("source");
+                Object childKeyObj = pe.get("childPhaseId") != null ? pe.get("childPhaseId") : pe.get("target");
                 if (parentKeyObj != null && childKeyObj != null) {
                     Long parentPhaseId = phaseKeyMap.get(parentKeyObj.toString());
                     Long childPhaseId = phaseKeyMap.get(childKeyObj.toString());
-                    if (parentPhaseId != null && childPhaseId != null) {
-                        WorkPhaseEntity childPhase = workPhaseRepository.findById(childPhaseId).orElse(null);
-                        if (childPhase != null && childPhase.getParentPhaseId() == null) {
-                            childPhase.setParentPhaseId(parentPhaseId);
-                            workPhaseRepository.save(childPhase);
+                    if (parentPhaseId != null && childPhaseId != null && !parentPhaseId.equals(childPhaseId)) {
+                        String edgeKey = parentPhaseId + "->" + childPhaseId;
+                        if (seenPhaseEdges.add(edgeKey)) {
+                            phaseEdgesToApply.add(Map.entry(parentPhaseId, childPhaseId));
                         }
                     }
                 }
@@ -241,20 +248,44 @@ public class TemplateCloneService {
             for (Map<String, Object> p : phasesData) {
                 String childKey = p.get("id") != null ? p.get("id").toString() : null;
                 Long childPhaseId = childKey != null ? phaseKeyMap.get(childKey) : null;
-                if (childPhaseId != null && p.get("runsAfter") instanceof List<?> runsAfterList && !runsAfterList.isEmpty()) {
-                    Object firstParent = runsAfterList.get(0);
-                    if (firstParent != null) {
-                        Long parentPhaseId = phaseKeyMap.get(firstParent.toString());
-                        if (parentPhaseId != null) {
-                            WorkPhaseEntity childPhase = workPhaseRepository.findById(childPhaseId).orElse(null);
-                            if (childPhase != null && childPhase.getParentPhaseId() == null) {
-                                childPhase.setParentPhaseId(parentPhaseId);
-                                workPhaseRepository.save(childPhase);
+                if (childPhaseId != null && p.get("runsAfter") instanceof List<?> runsAfterList) {
+                    for (Object parentObj : runsAfterList) {
+                        if (parentObj != null) {
+                            Long parentPhaseId = phaseKeyMap.get(parentObj.toString());
+                            if (parentPhaseId != null && !parentPhaseId.equals(childPhaseId)) {
+                                String edgeKey = parentPhaseId + "->" + childPhaseId;
+                                if (seenPhaseEdges.add(edgeKey)) {
+                                    phaseEdgesToApply.add(Map.entry(parentPhaseId, childPhaseId));
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+
+        List<PhaseDependencyEntity> extraPhaseDeps = new ArrayList<>();
+        for (Map.Entry<Long, Long> edge : phaseEdgesToApply) {
+            Long parentPhaseId = edge.getKey();
+            Long childPhaseId = edge.getValue();
+            WorkPhaseEntity childPhase = workPhaseRepository.findById(childPhaseId).orElse(null);
+            if (childPhase != null) {
+                if (childPhase.getParentPhaseId() == null) {
+                    childPhase.setParentPhaseId(parentPhaseId);
+                    workPhaseRepository.save(childPhase);
+                } else if (!parentPhaseId.equals(childPhase.getParentPhaseId())) {
+                    extraPhaseDeps.add(PhaseDependencyEntity.builder()
+                        .projectId(newProjectId)
+                        .parentPhaseId(parentPhaseId)
+                        .childPhaseId(childPhaseId)
+                        .build());
+                }
+            }
+        }
+
+        if (!extraPhaseDeps.isEmpty()) {
+            phaseDependencyRepository.saveAll(extraPhaseDeps);
+            log.info("Đã lưu {} quan hệ phase_dependency cho dự án ID {}", extraPhaseDeps.size(), newProjectId);
         }
 
         // 3. Nhân bản các Node và bảo toàn tọa độ uiMetadata

@@ -178,7 +178,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
               <option value="">Blank Project (Khởi tạo dự án trống - Mặc định)</option>
               {templates.map((tpl) => (
                 <option key={tpl.id} value={tpl.id}>
-                  {tpl.name} ({tpl.category} · {tpl.phaseCount} phases, {tpl.nodeCount} tasks)
+                  {tpl.name}{tpl.visibility === 'PRIVATE' ? ' [Của tôi]' : ''} ({tpl.category} · {tpl.phaseCount} phases, {tpl.nodeCount} tasks)
                 </option>
               ))}
             </select>

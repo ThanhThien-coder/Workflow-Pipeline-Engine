@@ -4,6 +4,7 @@ import type {
   TemplateDetailDto,
   CreateTemplateRequestDto,
   UpdateTemplateRequestDto,
+  SaveProjectAsTemplateRequestDto,
   GraphDataPayload,
   DagValidationResult,
 } from '../../types/template.types';
@@ -16,4 +17,5 @@ export interface ITemplateService {
   updateTemplate(id: string, dto: UpdateTemplateRequestDto): Promise<TemplateDetailDto>;
   deleteTemplate(id: string): Promise<void>;
   validateGraph(graphData: GraphDataPayload): Promise<DagValidationResult>;
+  saveProjectAsTemplate(projectId: string, payload: SaveProjectAsTemplateRequestDto): Promise<TemplateDetailDto>;
 }

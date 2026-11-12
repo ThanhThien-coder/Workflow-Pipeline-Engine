@@ -73,6 +73,14 @@ export interface TemplateSummaryDto {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  visibility?: 'PUBLIC' | 'PRIVATE';
+  sourceProjectId?: string | null;
+}
+
+export interface SaveProjectAsTemplateRequestDto {
+  name: string;
+  description?: string;
+  category?: string;
 }
 
 export interface TemplateDetailDto extends TemplateSummaryDto {

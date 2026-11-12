@@ -130,4 +130,35 @@ describe('CreatePipelineModal Component', () => {
       expect(screen.getByText('Create Pipeline ➔')).toBeDefined()
     })
   })
+
+  it('renders "Của tôi" label for templates with PRIVATE visibility', async () => {
+    vi.spyOn(container.templateService, 'getAllTemplates').mockResolvedValue([
+      {
+        id: 'tpl-private',
+        name: 'My Custom Pipeline',
+        description: 'Personal workflow',
+        category: 'General',
+        isSystemStandard: false,
+        visibility: 'PRIVATE',
+        phaseCount: 2,
+        nodeCount: 5,
+        cloneCount: 0,
+        createdBy: 'usr-me',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+
+    render(
+      <CreatePipelineModal
+        isOpen={true}
+        onClose={mockClose}
+        onCreate={mockCreate}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/My Custom Pipeline \[Của tôi\]/)).toBeDefined()
+    })
+  })
 })
