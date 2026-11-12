@@ -1,13 +1,21 @@
 import { Check, CheckCircle2 } from 'lucide-react'
 import type { FeedbackItem } from '../../types/overview.types'
 import { relativeEn } from '../../utils/relativeTime'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
 
 export interface FeedbackQueueCardProps {
   items: FeedbackItem[]
   onResolve: (item: FeedbackItem) => void
+  canResolve?: boolean
 }
 
-export function FeedbackQueueCard({ items, onResolve }: FeedbackQueueCardProps) {
+export function FeedbackQueueCard({ items, onResolve, canResolve }: FeedbackQueueCardProps) {
+  const simulatedRole = useWorkflowStore((state) => state.settings.simulatedRole)
+  const overviewRole = useWorkflowStore((state) => state.overview.data?.project.role)
+  const userRole = simulatedRole || overviewRole
+  const isAllowedRole = userRole ? (userRole === 'OWNER' || userRole === 'MANAGER') : true
+  const effectiveCanResolve = canResolve !== undefined ? canResolve : isAllowedRole
+
   const openCount = items.filter((item) => item.status === 'OPEN').length
 
   return (
@@ -57,23 +65,27 @@ export function FeedbackQueueCard({ items, onResolve }: FeedbackQueueCardProps) 
                   </span>
                 </div>
 
-                <div className="mt-1 text-xs font-medium text-indigo-600">
-                  {item.nodeRef.code} · {item.nodeRef.title}
-                </div>
+                {item.nodeRef && (
+                  <div className="mt-1 text-xs font-medium text-indigo-600">
+                    {item.nodeRef.code} · {item.nodeRef.title}
+                  </div>
+                )}
 
                 <p className="mt-2 text-xs leading-relaxed text-slate-600">{item.content}</p>
 
                 <div className="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-2">
                   <span className="text-[11px] text-slate-400">{relativeEn(item.createdAt)}</span>
                   {!isResolved ? (
-                    <button
-                      type="button"
-                      onClick={() => onResolve(item)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
-                    >
-                      <Check size={12} />
-                      <span>Mark Resolved</span>
-                    </button>
+                    effectiveCanResolve ? (
+                      <button
+                        type="button"
+                        onClick={() => onResolve(item)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                      >
+                        <Check size={12} />
+                        <span>Mark Resolved</span>
+                      </button>
+                    ) : null
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
                       <CheckCircle2 size={12} />

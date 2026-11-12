@@ -5,6 +5,7 @@ import { guestService } from '../services/container'
 import { navigate, useRouter } from '../router/useRouter'
 import { getSavedAvatar } from '../utils/avatarUtils'
 import { GuestLinkError } from '../types/guest.types'
+import { isApiError } from '../services/http/ApiError'
 import type {
   GuestAiReportDto,
   GuestAiSummaryDto,
@@ -21,18 +22,42 @@ import type {
 
 type Phase =
   | { kind: 'loading' }
-  | { kind: 'error'; code: GuestLinkErrorCode | 'UNKNOWN' }
+  | { kind: 'error'; code: GuestLinkErrorCode | 'UNKNOWN'; message?: string }
   | { kind: 'entry'; info: GuestLinkInfoDto }
   | { kind: 'ready'; info: GuestLinkInfoDto; session: GuestSessionDto }
 
 const storageKey = (token: string) => `wpe_guest_session:${token}`
-const toCode = (e: unknown): GuestLinkErrorCode | 'UNKNOWN' => (e instanceof GuestLinkError ? e.code : 'UNKNOWN')
+
+const ERROR_TEXT: Record<GuestLinkErrorCode | 'UNKNOWN', string> = {
+  INVALID: 'This link is not valid.',
+  EXPIRED: 'This link has expired.',
+  REVOKED: 'The owner has revoked access to this link.',
+  UNKNOWN: 'Something went wrong. Please try again later.',
+}
+
+const toErrorState = (e: unknown): { code: GuestLinkErrorCode | 'UNKNOWN'; message?: string } => {
+  if (isApiError(e)) {
+    if (e.status === 403 || e.code === 'REVOKED_GUEST') {
+      return { code: 'REVOKED', message: 'Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.' }
+    }
+    return { code: 'UNKNOWN', message: e.message }
+  }
+  if (e instanceof GuestLinkError) {
+    if (e.code === 'REVOKED' || e.code === 'EXPIRED') {
+      return { code: e.code, message: 'Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.' }
+    }
+    return { code: e.code, message: ERROR_TEXT[e.code] }
+  }
+  return { code: 'UNKNOWN' }
+}
 
 const STATUS_BAR: Record<GuestStatusKey, string> = {
   done: 'bg-emerald-500',
   inProgress: 'bg-blue-500',
   todo: 'bg-sky-400',
   blocked: 'bg-slate-300',
+  review: 'bg-amber-400',
+  locked: 'bg-slate-400',
 }
 const AVATAR = ['bg-indigo-500', 'bg-emerald-500', 'bg-rose-500', 'bg-amber-500']
 
@@ -56,21 +81,14 @@ function Logo() {
   )
 }
 
-const ERROR_TEXT: Record<GuestLinkErrorCode | 'UNKNOWN', string> = {
-  INVALID: 'This link is not valid.',
-  EXPIRED: 'This link has expired.',
-  REVOKED: 'The owner has revoked access to this link.',
-  UNKNOWN: 'Something went wrong. Please try again later.',
-}
-
-function ErrorScreen({ code }: { code: GuestLinkErrorCode | 'UNKNOWN' }) {
+function ErrorScreen({ code, message }: { code: GuestLinkErrorCode | 'UNKNOWN'; message?: string }) {
   return (
     <Shell>
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="rise w-full max-w-sm rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
           <AlertCircle className="mx-auto mb-3 text-red-700" size={32} />
           <h1 className="text-lg font-bold text-slate-900">Link unavailable</h1>
-          <p className="mt-1 text-sm text-slate-500">{ERROR_TEXT[code]}</p>
+          <p className="mt-1 text-sm text-slate-500">{message || ERROR_TEXT[code]}</p>
           <button onClick={() => navigate('/')} className="mt-5 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
             Back to home
           </button>
@@ -173,7 +191,7 @@ function Stars({ value, onPick, label }: { value: number; onPick?: (n: number) =
 }
 
 /** Use case "Tạo báo cáo AI": the teacher generates a full report on demand */
-function AiReportBlock({ token, onError }: { token: string; onError: (c: GuestLinkErrorCode | 'UNKNOWN') => void }) {
+function AiReportBlock({ token, onError }: { token: string; onError: (c: { code: GuestLinkErrorCode | 'UNKNOWN'; message?: string } | GuestLinkErrorCode | 'UNKNOWN') => void }) {
   const [report, setReport] = useState<GuestAiReportDto | null>(null)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -185,7 +203,7 @@ function AiReportBlock({ token, onError }: { token: string; onError: (c: GuestLi
     try {
       setReport(await guestService.generateAiReport(token))
     } catch (e) {
-      if (e instanceof GuestLinkError) onError(e.code)
+      if (e instanceof GuestLinkError || isApiError(e)) onError(toErrorState(e))
       else setFailed(true)
     } finally {
       setBusy(false)
@@ -245,7 +263,7 @@ function AiReportBlock({ token, onError }: { token: string; onError: (c: GuestLi
 }
 
 /** Use case "Đánh giá": rubric scores (1-5) plus an overall comment */
-function EvaluationCard({ token, session, onError }: { token: string; session: GuestSessionDto; onError: (c: GuestLinkErrorCode | 'UNKNOWN') => void }) {
+function EvaluationCard({ token, session, onError }: { token: string; session: GuestSessionDto; onError: (c: { code: GuestLinkErrorCode | 'UNKNOWN'; message?: string } | GuestLinkErrorCode | 'UNKNOWN') => void }) {
   const [saved, setSaved] = useState<GuestEvaluationDto | null>(null)
   const [scores, setScores] = useState<Partial<GuestScores>>({})
   const [comment, setComment] = useState('')
@@ -260,7 +278,7 @@ function EvaluationCard({ token, session, onError }: { token: string; session: G
       setScores(ev.scores)
       setComment(ev.comment)
       setEditing(false)
-    }).catch((e) => onError(toCode(e)))
+    }).catch((e) => onError(toErrorState(e)))
   }, [token, session.sessionId, onError])
 
   const complete = CRITERIA.every((c) => scores[c.key])
@@ -275,7 +293,7 @@ function EvaluationCard({ token, session, onError }: { token: string; session: G
       setSaved(ev)
       setEditing(false)
     } catch (err) {
-      if (err instanceof GuestLinkError) onError(err.code)
+      if (err instanceof GuestLinkError || isApiError(err)) onError(toErrorState(err))
       else setFailed(true)
     } finally {
       setBusy(false)
@@ -319,15 +337,28 @@ function EvaluationCard({ token, session, onError }: { token: string; session: G
   )
 }
 
-function Overview({ token, info, session, onError, onSwitch }: { token: string; info: GuestLinkInfoDto; session: GuestSessionDto; onError: (c: GuestLinkErrorCode | 'UNKNOWN') => void; onSwitch: () => void }) {
+function Overview({
+  token,
+  info,
+  session,
+  onError,
+  onSwitch,
+}: {
+  token: string
+  info: GuestLinkInfoDto
+  session: GuestSessionDto
+  onError: (c: { code: GuestLinkErrorCode | 'UNKNOWN'; message?: string } | GuestLinkErrorCode | 'UNKNOWN') => void
+  onSwitch: () => void
+}) {
   const [data, setData] = useState<GuestOverviewDto | null>(null)
   const [ai, setAi] = useState<GuestAiSummaryDto | null>(null)
   const [feedback, setFeedback] = useState<GuestFeedbackDto[]>([])
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   useEffect(() => {
-    guestService.getOverview(token).then(setData).catch((e) => onError(toCode(e)))
+    guestService.getOverview(token).then(setData).catch((e) => onError(toErrorState(e)))
     guestService.getAiSummary(token).then(setAi).catch(() => setAi(null))
     guestService.listFeedback(token, session.sessionId).then(setFeedback).catch(() => undefined)
   }, [token, session.sessionId, onError])
@@ -336,12 +367,33 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
     e.preventDefault()
     if (!message.trim()) return
     setSending(true)
+    setFeedbackError(null)
     try {
       const item = await guestService.submitFeedback(token, { sessionId: session.sessionId, message: message.trim() })
       setFeedback((prev) => [item, ...prev])
       setMessage('')
     } catch (err) {
-      onError(toCode(err))
+      if (isApiError(err)) {
+        if (err.status === 403 || err.code === 'REVOKED_GUEST') {
+          setFeedbackError('Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.')
+        } else if (err.status === 429) {
+          const sec = err.retryAfterSeconds ?? 60
+          const minutes = Math.max(1, Math.ceil(sec / 60))
+          setFeedbackError(`Bạn đã gửi quá nhiều góp ý. Vui lòng thử lại sau ${minutes} phút.`)
+        } else if (err.status === 400) {
+          setFeedbackError(err.message)
+        } else {
+          setFeedbackError(err.message || 'Gửi góp ý thất bại. Vui lòng thử lại sau.')
+        }
+      } else if (err instanceof GuestLinkError) {
+        if (err.code === 'REVOKED' || err.code === 'EXPIRED') {
+          setFeedbackError('Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.')
+        } else {
+          onError(err.code)
+        }
+      } else {
+        onError('UNKNOWN')
+      }
     } finally {
       setSending(false)
     }
@@ -451,7 +503,20 @@ function Overview({ token, info, session, onError, onSwitch }: { token: string; 
                 <section className="rise rounded-2xl border border-slate-200 bg-white p-5">
                   <h2 className="text-sm font-bold text-slate-900">Send Feedback</h2>
                   <form onSubmit={send} className="mt-3">
-                    <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={500} placeholder="Your comments on this project..." className="w-full resize-none rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:border-indigo-400" />
+                    <textarea
+                      value={message}
+                      onChange={(e) => {
+                        setMessage(e.target.value)
+                        setFeedbackError(null)
+                      }}
+                      rows={3}
+                      maxLength={2000}
+                      placeholder="Your comments on this project..."
+                      className="w-full resize-none rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:border-indigo-400"
+                    />
+                    {feedbackError && (
+                      <p className="mt-1.5 text-xs text-red-600">{feedbackError}</p>
+                    )}
                     <button type="submit" disabled={sending || !message.trim()} className="btn-primary-solid mt-2 flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50">
                       <Send size={13} /> Submit
                     </button>
@@ -520,7 +585,7 @@ export function GuestView() {
         }
         setPhase(session ? { kind: 'ready', info, session } : { kind: 'entry', info })
       })
-      .catch((e) => alive && setPhase({ kind: 'error', code: toCode(e) }))
+      .catch((e) => alive && setPhase({ kind: 'error', ...toErrorState(e) }))
     return () => { alive = false }
   }, [token])
 
@@ -531,7 +596,7 @@ export function GuestView() {
       localStorage.setItem(storageKey(token), JSON.stringify(session))
       setPhase({ kind: 'ready', info: phase.info, session })
     } catch (e) {
-      setPhase({ kind: 'error', code: toCode(e) })
+      setPhase({ kind: 'error', ...toErrorState(e) })
     }
   }
 
@@ -541,12 +606,21 @@ export function GuestView() {
     setPhase({ kind: 'entry', info: phase.info })
   }
 
-  const fail = useCallback((code: GuestLinkErrorCode | 'UNKNOWN') => setPhase({ kind: 'error', code }), [])
+  const fail = useCallback(
+    (err: { code: GuestLinkErrorCode | 'UNKNOWN'; message?: string } | GuestLinkErrorCode | 'UNKNOWN') => {
+      if (typeof err === 'string') {
+        setPhase({ kind: 'error', code: err })
+      } else {
+        setPhase({ kind: 'error', ...err })
+      }
+    },
+    [],
+  )
 
   if (phase.kind === 'loading') {
     return <Shell><div className="flex min-h-screen items-center justify-center"><Sparkles className="pulse2 text-indigo-600" /></div></Shell>
   }
-  if (phase.kind === 'error') return <ErrorScreen code={phase.code} />
+  if (phase.kind === 'error') return <ErrorScreen code={phase.code} message={phase.message} />
   if (phase.kind === 'entry') return <EntryScreen info={phase.info} onEnter={enter} />
   return <Overview token={token} info={phase.info} session={phase.session} onError={fail} onSwitch={change} />
 }
