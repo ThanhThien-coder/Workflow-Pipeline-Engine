@@ -135,7 +135,12 @@ package "Service Layer" {
   class AiServiceClientImpl {
     + requestDiagnosis(project : ProjectEntity, nodes : List<NodeEntity>, openFeedbacks : List<ProjectFeedbackEntity>) : Map<String, Object>
   }
-  note right of AiServiceClientImpl : D6 (đang làm) sẽ thay bằng HeuristicAiClient dùng CPM thật
+  note right of AiServiceClientImpl : Cài đặt giả (app.ai.mode=mock, mặc định)\nvà làm dự phòng khi microservice lỗi
+
+  class HttpAiServiceClient {
+    + requestDiagnosis(project : ProjectEntity, nodes : List<NodeEntity>, openFeedbacks : List<ProjectFeedbackEntity>) : Map<String, Object>
+  }
+  note right of HttpAiServiceClient : app.ai.mode=http: POST sang microservice AI (Python)\nxem docs/specs/ai-service-contract.md
 }
 
 ProjectController ..> ProjectService
@@ -170,6 +175,8 @@ AiDiagnosticService ..> ProjectAuthorizationService
 AiDiagnosticService ..> AiServiceClient
 
 AiServiceClientImpl ..|> AiServiceClient
+HttpAiServiceClient ..|> AiServiceClient
+HttpAiServiceClient ..> AiServiceClientImpl : dự phòng
 @enduml
 
 @startuml class-du-an-thuc-the

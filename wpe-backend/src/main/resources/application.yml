@@ -65,6 +65,11 @@ app:
   ai:
     cooldown-seconds: 180
     service-url: ${AI_SERVICE_URL:http://localhost:8081}
+    # mock = du lieu gia trong Java (mac dinh); http = goi microservice AI Python
+    mode: ${AI_MODE:mock}
+    diagnose-path: ${AI_DIAGNOSE_PATH:/api/ai/diagnose}
+    connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:3}
+    read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:30}
 
 # Cấu hình Token bảo mật JWT
 jwt:
