@@ -57,6 +57,7 @@ Người dán file này đang ráp bộ sơ đồ OOAD.
 
 ## Ghi chép của người làm
 ### Mỗi người đã vẽ gì
+- **C (12/11/2026, chế độ sprint, Claude vẽ từ code thật):** component diagram `docs/ooad/he-thong/component.puml` (PNG `docs/ooad/png/C-component.png`). Đã điền dòng của C7, C8 và component vào mục lục `docs/ooad/README.md`. Ghi chú trên sơ đồ: Profile, Admin, Notification ở giao diện vẫn dùng mock; integration map chương I còn nhắc `PhaseController`, `UserProfileController`, `AdminPortalController`, `NotificationController` nhưng code chưa có.
 
 ### Các chỗ lệch tìm được trong buổi kiểm nhất quán (tóm tắt)
 
