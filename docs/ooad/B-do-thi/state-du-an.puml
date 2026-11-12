@@ -1,0 +1,63 @@
+' Nguồn: wpe-backend/.../common/enums/ProjectStatus.java (7 giá trị),
+'        service/ProjectService.java (createProject, updateProjectStatus, ALLOWED_TRANSITIONS dòng 40–45),
+'        service/TemplateCloneService.java (cloneTemplate), service/WorkflowGraphService.java (publishPipeline),
+'        docs/specs/workflow-engine.md mục 5.1
+' State machine "Vòng đời dự án" (B8). Tên trạng thái giữ đúng enum ProjectStatus.
+' Chuyển trạng thái nào chưa có code thì ghi "chưa cài".
+
+@startuml state-du-an
+skinparam shadowing false
+
+state DRAFT : Bản thảo, đang vẽ đồ thị
+state PLANNING : Lên kế hoạch (dữ liệu cũ)
+state ACTIVE : Đang chạy
+state PAUSED : Tạm dừng
+state COMPLETED : Đã hoàn thành
+state INACTIVE : Không hoạt động
+state ARCHIVED : Đã lưu trữ, chỉ đọc
+
+[*] --> DRAFT : createProject / cloneTemplate
+[*] --> PLANNING : dữ liệu tạo trước D1\n(chưa cài: không còn code tạo PLANNING)
+
+DRAFT --> ACTIVE : publishPipeline [Chủ dự án, đồ thị không có chu trình]\n/ mở khóa công việc gốc LOCKED → TODO,\ngửi TASK_UNLOCKED sau commit
+PLANNING --> ACTIVE : publishPipeline [Chủ dự án, đồ thị không có chu trình]\n/ mở khóa công việc gốc LOCKED → TODO,\ngửi TASK_UNLOCKED sau commit
+
+ACTIVE --> PAUSED : updateProjectStatus(PAUSED) [Chủ dự án hoặc Admin]
+PAUSED --> ACTIVE : updateProjectStatus(ACTIVE) [Chủ dự án hoặc Admin]
+ACTIVE --> COMPLETED : updateProjectStatus(COMPLETED) [Chủ dự án hoặc Admin]
+
+ACTIVE --> ARCHIVED : updateProjectStatus(ARCHIVED) [Chủ dự án hoặc Admin]
+PAUSED --> ARCHIVED : updateProjectStatus(ARCHIVED) [Chủ dự án hoặc Admin]
+INACTIVE --> ARCHIVED : updateProjectStatus(ARCHIVED) [Chủ dự án hoặc Admin]
+ARCHIVED --> ACTIVE : updateProjectStatus(ACTIVE) [Chủ dự án hoặc Admin]\n/ khôi phục
+
+ACTIVE --> INACTIVE : 30 ngày không tương tác\n(chưa cài: không có job quét)
+
+COMPLETED --> [*]
+
+note right of PLANNING
+  Không code nào đưa dự án vào PLANNING:
+  createProject và cloneTemplate đều tạo DRAFT (D1).
+  PLANNING chỉ còn ở dữ liệu tạo trước D1;
+  vẫn xuất bản được như DRAFT (B4).
+end note
+
+note left of DRAFT
+  DRAFT/PLANNING → ACTIVE bằng updateProjectStatus
+  bị chặn: 409 USE_PUBLISH (phải dùng publishPipeline).
+  Có chu trình → 422 CYCLE_DETECTED, ở lại DRAFT.
+  DRAFT → ARCHIVED: chưa cài (ALLOWED_TRANSITIONS
+  không có DRAFT, trả 409 INVALID_PROJECT_STATUS).
+end note
+
+note bottom of ARCHIVED
+  Mọi API ghi đồ thị trả 409 PROJECT_ARCHIVED
+  (ensureNotArchived, B2–B4).
+end note
+
+note right of COMPLETED
+  Không có chuyển trạng thái đi ra
+  trong ALLOWED_TRANSITIONS.
+end note
+
+@enduml

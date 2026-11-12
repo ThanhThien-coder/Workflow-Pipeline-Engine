@@ -1,0 +1,252 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/ — controller/WorkflowGraphController.java,
+'        service/WorkflowGraphService.java, service/ProjectAuthorizationService.java,
+'        service/engine/KahnDagService.java, service/engine/PhaseProgressCalculator.java,
+'        service/event/SseEmitterService.java, service/event/WorkflowEventPublisher.java, mapper/NodeMapper.java,
+'        entity/*.java, repository/*.java, dto/**/*.java, common/enums/*.java
+' Class diagram thiết kế mảng B — Thiết kế quy trình DAG (B8). Tên lớp, phương thức, kiểu giữ đúng như code.
+' Không liệt kê getter/setter (Lombok sinh). Quan hệ entity vẽ bằng association có bội số,
+' KHÔNG ghi lại cột khóa ngoại (projectId, phaseId, parentNodeId…) thành thuộc tính để tránh vẽ trùng.
+' Tách 2 hình để ảnh không quá rộng: (1) controller + service, (2) repository + entity + enum + DTO.
+
+@startuml class-do-thi
+!pragma layout smetana
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+package "controller" {
+  class WorkflowGraphController {
+    - workflowGraphService : WorkflowGraphService
+    - currentUserProvider : CurrentUserProvider
+    + getGraph(id : Long, currentUserId : Long) : ResponseEntity<WorkflowGraphResponse>
+    + createPhase(id : Long, request : CreatePhaseRequest, currentUserId : Long) : ResponseEntity<PhaseResponse>
+    + connectPhases(id : Long, sourcePhaseId : Long, targetPhaseId : Long, currentUserId : Long) : ResponseEntity<Void>
+    + createNode(id : Long, request : CreateNodeRequest, currentUserId : Long) : ResponseEntity<GraphNodeResponse>
+    + createDependency(id : Long, request : CreateDependencyRequest, currentUserId : Long) : ResponseEntity<DependencyResponse>
+    + deleteDependency(id : Long, parentNodeId : Long, childNodeId : Long, currentUserId : Long) : ResponseEntity<Void>
+    + updateNodeMetadata(id : Long, projectId : Long, request : UpdateNodeMetadataRequest, currentUserId : Long) : ResponseEntity<GraphNodeResponse>
+    + publishPipeline(id : Long, currentUserId : Long) : ResponseEntity<PublishPipelineResponse>
+  }
+}
+
+package "service" {
+  class WorkflowGraphService {
+    + getGraph(projectId : Long, currentUserId : Long) : WorkflowGraphResponse
+    + createPhase(projectId : Long, request : CreatePhaseRequest, currentUserId : Long) : PhaseResponse
+    + updatePhase(projectId : Long, phaseId : Long, request : UpdatePhaseRequest, currentUserId : Long) : PhaseResponse
+    + deletePhase(projectId : Long, phaseId : Long, currentUserId : Long) : void
+    + connectPhases(projectId : Long, sourcePhaseId : Long, targetPhaseId : Long, currentUserId : Long) : void
+    + disconnectPhases(projectId : Long, sourcePhaseId : Long, targetPhaseId : Long, currentUserId : Long) : void
+    + createNode(projectId : Long, request : CreateNodeRequest, currentUserId : Long) : GraphNodeResponse
+    + createDependency(projectId : Long, request : CreateDependencyRequest, currentUserId : Long) : DependencyResponse
+    + deleteDependency(projectId : Long, parentNodeId : Long, childNodeId : Long, currentUserId : Long) : void
+    + updateNode(nodeId : Long, request : UpdateNodeRequest, currentUserId : Long) : GraphNodeResponse
+    + deleteNode(nodeId : Long, currentUserId : Long) : void
+    + updateNodeMetadata(nodeId : Long, request : UpdateNodeMetadataRequest, currentUserId : Long) : GraphNodeResponse
+    + publishPipeline(projectId : Long, currentUserId : Long) : PublishPipelineResponse
+    - recomputeNodeStatus(child : NodeEntity, parents : List<NodeEntity>) : void
+    - ensureNotArchived(project : ProjectEntity) : void
+    - addPhaseEdge(projectId : Long, parent : WorkPhaseEntity, child : WorkPhaseEntity) : void
+  }
+
+  class ProjectAuthorizationService {
+    + verifyProjectOwner(projectId : Long, userId : Long) : ProjectEntity
+    + verifyProjectMemberOrOwner(projectId : Long, userId : Long) : ProjectEntity
+  }
+
+  class KahnDagService {
+    + validateProjectDag(nodes : List<NodeEntity>, dependencies : List<NodeDependencyEntity>) : ProjectKahnResult
+    + wouldCreateCycle(nodes : List<NodeEntity>, dependencies : List<NodeDependencyEntity>, parentId : Long, childId : Long) : boolean
+    - peelNodesBehindCycle(blockedIds : Set<Long>, adjacencyList : Map<Long, List<Long>>) : Set<Long>
+  }
+
+  class "KahnDagService.ProjectKahnResult" as ProjectKahnResult <<record>> {
+    + isValid : boolean
+    + visitedCount : int
+    + totalNodes : int
+    + rootNodeIds : Set<Long>
+    + cycleNodeCodes : List<String>
+    + sortedOrder : List<Long>
+    + blockedNodeCodes : List<String>
+  }
+
+  class PhaseProgressCalculator <<utility>> {
+    + {static} compute(phaseTasks : List<NodeEntity>) : PhaseProgress
+  }
+  note bottom of PhaseProgressCalculator
+    Lớp tiện ích tĩnh: final, chỉ có hàm static
+    (gạch chân), không tạo đối tượng, không phải bean Spring.
+  end note
+
+  class "PhaseProgressCalculator.PhaseProgress" as PhaseProgress <<record>> {
+    + status : String
+    + progressPct : int
+    + totalTasks : int
+    + doneTasks : int
+  }
+
+  class SseEmitterService {
+    + sendToUser(userId : Long, eventName : String, data : Object) : void
+  }
+  class WorkflowEventPublisher {
+    + publishNotification(event : NotificationEvent) : void
+  }
+  interface NodeMapper <<MapStruct>> {
+    + toKanbanTaskResponse(entity : NodeEntity) : KanbanTaskResponse
+  }
+}
+
+WorkflowGraphController ..> WorkflowGraphService
+WorkflowGraphService ..> ProjectAuthorizationService
+WorkflowGraphService ..> KahnDagService
+WorkflowGraphService ..> PhaseProgressCalculator
+WorkflowGraphService ..> SseEmitterService
+WorkflowGraphService ..> WorkflowEventPublisher
+WorkflowGraphService ..> NodeMapper
+KahnDagService ..> ProjectKahnResult : <<create>>
+PhaseProgressCalculator ..> PhaseProgress : <<create>>
+
+@enduml
+
+@startuml class-do-thi-du-lieu
+!pragma layout smetana
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+' WorkflowGraphController, WorkflowGraphService: xem chi tiết ở hình class-do-thi; ở đây chỉ hiện tên
+class WorkflowGraphController
+class WorkflowGraphService
+
+package "repository" {
+  interface "JpaRepository<T, ID>" as JpaRepository
+  interface ProjectRepository
+  interface WorkPhaseRepository {
+    + findByProjectIdOrderByOrderIndexAsc(projectId : Long) : List<WorkPhaseEntity>
+  }
+  interface PhaseDependencyRepository {
+    + findByProjectId(projectId : Long) : List<PhaseDependencyEntity>
+  }
+  interface NodeRepository {
+    + findByProjectId(projectId : Long) : List<NodeEntity>
+    + findByPhaseId(phaseId : Long) : List<NodeEntity>
+    + updateUiMetadata(id : Long, uiMetadata : Map<String, Object>) : int
+  }
+  interface NodeDependencyRepository {
+    + findByProjectId(projectId : Long) : List<NodeDependencyEntity>
+    + findByChildNodeId(childNodeId : Long) : List<NodeDependencyEntity>
+    + existsByParentNodeIdAndChildNodeId(parentNodeId : Long, childNodeId : Long) : boolean
+  }
+  ProjectRepository --|> JpaRepository : <<bind>> T = ProjectEntity
+  WorkPhaseRepository --|> JpaRepository : <<bind>> T = WorkPhaseEntity
+  PhaseDependencyRepository --|> JpaRepository
+  NodeRepository --|> JpaRepository : <<bind>> T = NodeEntity
+  NodeDependencyRepository --|> JpaRepository
+}
+
+package "entity" {
+  class ProjectEntity {
+    - id : Long
+    - ownerId : Long
+    - name : String
+    - description : String
+    - status : ProjectStatus
+    - createdAt : Instant
+    - updatedAt : Instant
+  }
+  class WorkPhaseEntity {
+    - id : Long
+    - name : String
+    - subTitle : String
+    - accentColor : String
+    - orderIndex : Integer
+    - uiMetadata : Map<String, Object>
+  }
+  class PhaseDependencyEntity {
+    - id : Long
+  }
+  class NodeEntity {
+    - id : Long
+    - code : String
+    - title : String
+    - status : NodeStatus
+    - joinPolicy : JoinPolicy
+    - assignedUserId : Long
+    - dueDate : Instant
+    - estimatedHours : Integer
+    - version : Long
+    - uiMetadata : Map<String, Object>
+  }
+  class NodeDependencyEntity {
+    - id : Long
+  }
+  note "Trong code, quan hệ lưu bằng id (projectId, phaseId,\nparentNodeId, childNodeId, parentPhaseId, childPhaseId),\nkhông dùng @ManyToOne. Sơ đồ vẽ thành association\nkèm bội số, không ghi lại các cột id đó." as FkNote
+}
+
+package "common.enums" {
+  enum ProjectStatus {
+    DRAFT
+    PLANNING
+    ACTIVE
+    PAUSED
+    COMPLETED
+    INACTIVE
+    ARCHIVED
+  }
+  enum NodeStatus {
+    LOCKED
+    TODO
+    IN_PROGRESS
+    REVIEW
+    DONE
+  }
+  enum JoinPolicy {
+    ALL_COMPLETED
+    ANY_COMPLETED
+  }
+}
+
+package "dto" {
+  class CreateDependencyRequest <<record>> {
+    + parentNodeId : Long
+    + childNodeId : Long
+  }
+  class DependencyResponse <<record>> {
+    + parentNodeId : String
+    + childNodeId : String
+  }
+  class PublishPipelineResponse <<record>> {
+    + success : boolean
+    + status : String
+    + publishedAt : Instant
+    + unlockedTaskCount : int
+  }
+}
+
+WorkflowGraphController ..> CreateDependencyRequest
+WorkflowGraphService ..> ProjectRepository
+WorkflowGraphService ..> WorkPhaseRepository
+WorkflowGraphService ..> PhaseDependencyRepository
+WorkflowGraphService ..> NodeRepository
+WorkflowGraphService ..> NodeDependencyRepository
+WorkflowGraphService ..> DependencyResponse : <<create>>
+WorkflowGraphService ..> PublishPipelineResponse : <<create>>
+
+' --- Quan hệ giữa entity (theo khóa ngoại và luật xóa trong DB) ---
+' Composition: xóa Dự án thì Giai đoạn, Công việc bị xóa theo (ON DELETE CASCADE).
+ProjectEntity "1" *-- "0..*" WorkPhaseEntity
+ProjectEntity "1" *-- "0..*" NodeEntity
+' Aggregation: xóa Giai đoạn thì Công việc còn lại thành độc lập (ON DELETE SET NULL).
+WorkPhaseEntity "0..1" o-- "0..*" NodeEntity
+' NodeDependencyEntity nối Công việc với Công việc: 2 quan hệ, một đầu "cha", một đầu "con".
+NodeEntity "1" -- "0..*" NodeDependencyEntity : parentNode <
+NodeEntity "1" -- "0..*" NodeDependencyEntity : childNode <
+' PhaseDependencyEntity (V6) nối Giai đoạn với Giai đoạn, cùng kiểu.
+WorkPhaseEntity "1" -- "0..*" PhaseDependencyEntity : parentPhase <
+WorkPhaseEntity "1" -- "0..*" PhaseDependencyEntity : childPhase <
+
+ProjectEntity --> "1" ProjectStatus : status
+NodeEntity --> "1" NodeStatus : status
+NodeEntity --> "1" JoinPolicy : joinPolicy
+
+@enduml

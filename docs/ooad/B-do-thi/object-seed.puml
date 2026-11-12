@@ -1,0 +1,104 @@
+' Nguồn: wpe-backend/src/main/resources/db/migration/V2__seed_initial_data.sql (dự án 1 "Core Banking Pipeline"),
+'        service/engine/KahnDagService.java (validateProjectDag: inDegree, queue, sortedOrder, visitedCount)
+' Sơ đồ đối tượng dữ liệu seed (B8), 2 ảnh chụp để giải thích Kahn:
+'   1. ngay trước vòng lặp Kahn (đã đếm in-degree, đã đưa node in-degree 0 vào hàng đợi);
+'   2. sau bước đầu tiên (lấy WPE-001 ra khỏi hàng đợi).
+' inDegree, queue, sortedOrder là biến cục bộ trong validateProjectDag, không phải thuộc tính của NodeEntity.
+' Dòng "[1] WPE-001 = 0" nghĩa là: khóa id 1 (node WPE-001) có in-degree 0.
+
+@startuml object-seed
+!pragma layout smetana
+skinparam shadowing false
+
+package "Dữ liệu seed (dự án 1, không đổi giữa 2 ảnh)" {
+  object "p1 : WorkPhaseEntity" as p1 {
+    id = 1
+    name = "FOUNDATION"
+  }
+  object "p2 : WorkPhaseEntity" as p2 {
+    id = 2
+    name = "AUTH GATEWAY"
+  }
+  object "p3 : WorkPhaseEntity" as p3 {
+    id = 3
+    name = "CORE ENGINE"
+  }
+  object "n1 : NodeEntity" as n1 {
+    id = 1
+    code = "WPE-001"
+    status = DONE
+    joinPolicy = ALL_COMPLETED
+  }
+  object "n2 : NodeEntity" as n2 {
+    id = 2
+    code = "WPE-002"
+    status = IN_PROGRESS
+    joinPolicy = ALL_COMPLETED
+  }
+  object "n3 : NodeEntity" as n3 {
+    id = 3
+    code = "WPE-003"
+    status = TODO
+    joinPolicy = ALL_COMPLETED
+  }
+  object "n4 : NodeEntity" as n4 {
+    id = 4
+    code = "WPE-004"
+    status = LOCKED
+    joinPolicy = ALL_COMPLETED
+  }
+  object "d1 : NodeDependencyEntity" as d1
+  object "d2 : NodeDependencyEntity" as d2
+  object "d3 : NodeDependencyEntity" as d3
+
+  p1 o-- n1
+  p2 o-- n2
+  p2 o-- n3
+  p3 o-- n4
+  n1 -- d1 : parentNode
+  d1 -- n2 : childNode
+  n2 -- d2 : parentNode
+  d2 -- n3 : childNode
+  n3 -- d3 : parentNode
+  d3 -- n4 : childNode
+}
+
+package "Ảnh 1 — trước vòng lặp Kahn" {
+  object "inDegree : HashMap<Long, Integer>" as in1 {
+    [1] WPE-001 = 0
+    [2] WPE-002 = 1
+    [3] WPE-003 = 1
+    [4] WPE-004 = 1
+  }
+  object "queue : PriorityQueue<Long>" as q1 {
+    [1]
+  }
+  object "sortedOrder : ArrayList<Long>" as s1 {
+    []
+  }
+}
+
+package "Ảnh 2 — sau bước 1 (lấy WPE-001 ra)" {
+  object "inDegree : HashMap<Long, Integer>" as in2 {
+    [1] WPE-001 = 0
+    [2] WPE-002 = 0
+    [3] WPE-003 = 1
+    [4] WPE-004 = 1
+  }
+  object "queue : PriorityQueue<Long>" as q2 {
+    [2]
+  }
+  object "sortedOrder : ArrayList<Long>" as s2 {
+    [1]
+  }
+}
+
+note bottom of in2
+  Bước 1: poll() lấy id 1 (WPE-001), thêm vào sortedOrder.
+  Con duy nhất của WPE-001 là WPE-002: in-degree 1 → 0,
+  nên add(2) vào hàng đợi. Lặp tiếp: 2 → 3 → 4.
+  Kết thúc: duyệt đủ 4/4 node → hợp lệ,
+  rootNodeIds = {1}, sortedOrder = [1, 2, 3, 4].
+end note
+
+@enduml
