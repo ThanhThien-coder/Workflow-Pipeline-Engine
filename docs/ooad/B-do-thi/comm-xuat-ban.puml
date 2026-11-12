@@ -1,0 +1,48 @@
+' Sơ đồ communication "Xuất bản dự án" (B8), chuyển từ seq-xuat-ban.puml.
+' PlantUML không có loại communication riêng: vẽ gần đúng bằng object diagram (cẩm nang 3.5).
+' Số thứ tự theo cấp lồng nhau. [hợp lệ] / [có chu trình] là điều kiện của nhánh alt trong sequence.
+' Bảng đối chiếu số ở đây với số message trong seq-xuat-ban: xem nhat-quan.md.
+
+@startuml comm-xuat-ban
+!pragma layout smetana
+skinparam shadowing false
+left to right direction
+
+object ":GeneralSettingsSection" as UI
+object ":settingsSlice" as Slice
+object ":HttpWorkflowService" as Http
+object ":WorkflowGraphController" as Ctl
+object ":WorkflowGraphService" as Svc
+object ":ProjectAuthorizationService" as Auth
+object ":KahnDagService" as Kahn
+object ":NodeRepository" as NodeRepo
+object ":NodeDependencyRepository" as DepRepo
+object ":ProjectRepository" as ProjRepo
+object ":TransactionSynchronizationManager" as Tx
+object ":SseEmitterService" as Sse
+object ":WorkflowEventPublisher" as Pub
+
+UI -- Slice : 1: publishProject(projectId) →
+note bottom of Slice
+  Slice tự cập nhật sau khi 1.1 trả về:
+  1.2 [có chu trình]: kahnCycleErrors = violatingNodeIds
+  1.3 [hợp lệ]: settings.status = ACTIVE, showToast(...)
+end note
+Slice -- Http : 1.1: publishPipeline(projectId) →
+Http -- Ctl : 1.1.1: POST /api/v1/projects/{id}/publish →
+Ctl -- Svc : 1.1.1.1: publishPipeline(projectId, currentUserId) →
+Svc -- Auth : 1.1.1.1.1: verifyProjectOwner(projectId, userId) →
+Svc -- NodeRepo : 1.1.1.1.2: findByProjectId(projectId) →\n1.1.1.1.6* [hợp lệ, mỗi công việc gốc LOCKED]: save(node) →
+Svc -- DepRepo : 1.1.1.1.3: findByProjectId(projectId) →
+Svc -- Kahn : 1.1.1.1.4: validateProjectDag(nodes, dependencies) →
+Svc -- ProjRepo : 1.1.1.1.5 [hợp lệ]: save(project) →
+Svc -- Tx : 1.1.1.1.7 [hợp lệ, có việc cần gửi]: registerSynchronization(afterCommit) →\n← 2: afterCommit() (sau khi commit)
+Svc -- Sse : 2.1* [mỗi công việc vừa mở khóa có người phụ trách]: sendToUser(assigneeId, "TASK_UNLOCKED", …) (bất đồng bộ) →
+Svc -- Pub : 2.2* [mỗi công việc vừa mở khóa có người phụ trách]: publishNotification(NotificationEvent) (bất đồng bộ) →
+Pub -- Tx : 2.2.1: registerSynchronization(afterCompletion) →\n← 3: afterCompletion(STATUS_COMMITTED)
+object "RabbitMQ" as MQ
+Pub -- MQ : 3.1* [mỗi thông báo đã hẹn]: convertAndSend(exchange, routingKey, event) (bất đồng bộ) →
+
+note "→ : đối tượng bên trái gọi đối tượng bên phải\n← : đối tượng bên phải gọi ngược lại\n(bất đồng bộ) : không chờ kết quả\n* : lặp" as Legend
+
+@enduml

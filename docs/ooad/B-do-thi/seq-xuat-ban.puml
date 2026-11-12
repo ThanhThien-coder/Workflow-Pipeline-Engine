@@ -1,0 +1,134 @@
+' Nguồn: wpe-frontend/src/components/settings/GeneralSettingsSection.tsx, store/slices/settingsSlice.ts,
+'        services/impl/HttpWorkflowService.ts, services/impl/http/graph.ts;
+'        wpe-backend/.../controller/WorkflowGraphController.java, service/WorkflowGraphService.java (publishPipeline),
+'        service/engine/KahnDagService.java (validateProjectDag), service/event/SseEmitterService.java,
+'        service/event/WorkflowEventPublisher.java
+' Sequence "Xuất bản dự án" (B8). Ví dụ: alex xuất bản dự án DRAFT có WPE-001 (sarah phụ trách) là công việc gốc.
+' Số dòng của từng message: xem nhat-quan.md.
+
+@startuml seq-xuat-ban
+skinparam shadowing false
+skinparam sequenceMessageAlign left
+autonumber
+
+actor "Chủ dự án" as Owner
+boundary ":GeneralSettingsSection" as UI
+control ":settingsSlice" as Slice
+control ":HttpWorkflowService" as Http
+control ":WorkflowGraphController" as Ctl
+control ":WorkflowGraphService" as Svc
+control ":ProjectAuthorizationService" as Auth
+control ":KahnDagService" as Kahn
+entity ":NodeRepository" as NodeRepo
+entity ":NodeDependencyRepository" as DepRepo
+entity ":ProjectRepository" as ProjRepo
+control ":TransactionSynchronizationManager" as Tx
+control ":SseEmitterService" as Sse
+control ":WorkflowEventPublisher" as Pub
+queue "RabbitMQ" as MQ
+
+Owner -> UI : bấm "Publish Pipeline"
+activate UI
+UI -> Slice : publishProject(projectId)
+activate Slice
+Slice -> Http : publishPipeline(projectId)
+activate Http
+Http -> Ctl : POST /api/v1/projects/{id}/publish\n(qua graph.ts publishProject → apiRequest)
+activate Ctl
+Ctl -> Svc : publishPipeline(projectId, currentUserId)
+activate Svc
+note right of Svc : @Transactional: mở transaction
+Svc -> Auth : verifyProjectOwner(projectId, userId)
+activate Auth
+Auth --> Svc : ProjectEntity
+deactivate Auth
+Svc -> Svc : ensureNotArchived(project)
+note right of Svc
+  ARCHIVED → 409 PROJECT_ARCHIVED;
+  không phải DRAFT/PLANNING → 409 INVALID_PROJECT_STATUS
+  (rút gọn, không vẽ nhánh lỗi này)
+end note
+Svc -> NodeRepo : findByProjectId(projectId)
+activate NodeRepo
+NodeRepo --> Svc : List<NodeEntity> (N công việc)
+deactivate NodeRepo
+Svc -> DepRepo : findByProjectId(projectId)
+activate DepRepo
+DepRepo --> Svc : List<NodeDependencyEntity>
+deactivate DepRepo
+
+Svc -> Kahn : validateProjectDag(nodes, dependencies)
+activate Kahn
+Kahn -> Kahn : đếm in-degree, đưa công việc in-degree 0 vào hàng đợi
+loop hàng đợi (PriorityQueue) còn công việc
+  Kahn -> Kahn : poll() công việc u, thêm vào sortedOrder
+  loop mỗi công việc con v của u
+    Kahn -> Kahn : giảm in-degree(v); về 0 thì add(v) vào hàng đợi
+  end
+end
+opt số công việc đã duyệt < N
+  Kahn -> Kahn : peelNodesBehindCycle(blockedIds, adjacencyList)
+end
+Kahn --> Svc : ProjectKahnResult
+deactivate Kahn
+
+alt có chu trình (isValid = false)
+  Svc --> Ctl : CycleDetectedException(cycleNodeCodes)
+  note right of Svc : transaction rollback, không đổi gì
+  Ctl --> Http : 422 CYCLE_DETECTED {cycleNodes}\n(GlobalExceptionHandler.handleCycleDetected)
+  Http --> Slice : PublishPipelineResult {cycleDetected, violatingNodeIds}
+  Slice -> Slice : kahnCycleErrors = violatingNodeIds
+  Slice --> UI : false
+  note right of UI : SettingsView mở KahnCycleModal với mã các công việc trên vòng
+else hợp lệ (isValid = true)
+  Svc -> ProjRepo : save(project) (status = ACTIVE)
+  activate ProjRepo
+  ProjRepo --> Svc : ProjectEntity
+  deactivate ProjRepo
+  loop mỗi công việc gốc (rootNodeIds) đang LOCKED
+    Svc -> NodeRepo : save(node) (status = TODO)
+    activate NodeRepo
+    NodeRepo --> Svc : NodeEntity
+    deactivate NodeRepo
+    opt công việc có người phụ trách
+      Svc -> Svc : afterCommitActions.add(gửi SSE + thông báo)
+    end
+  end
+  opt có việc cần gửi
+    Svc -> Tx : registerSynchronization(afterCommit)
+  end
+  Svc --> Ctl : PublishPipelineResponse {success, ACTIVE, publishedAt, unlockedTaskCount}
+  note right of Svc : Spring commit transaction khi publishPipeline trả về
+  Tx ->> Svc : afterCommit()
+  activate Svc
+  loop mỗi công việc vừa mở khóa có người phụ trách
+    Svc ->> Sse : sendToUser(assigneeId, "TASK_UNLOCKED", nodeMapper.toKanbanTaskResponse(node))
+    Svc ->> Pub : publishNotification(NotificationEvent TASK_READY)
+    activate Pub
+    Pub -> Tx : registerSynchronization(afterCompletion)
+    deactivate Pub
+  end
+  deactivate Svc
+  Tx ->> Pub : afterCompletion(STATUS_COMMITTED)
+  activate Pub
+  loop mỗi thông báo đã hẹn
+    Pub ->> MQ : convertAndSend(exchange, "wpe.notification.task_ready", event)
+  end
+  deactivate Pub
+  note right of Pub
+    C1: WorkflowEventPublisher.sendAfterCommit dùng afterCompletion
+    (không dùng afterCommit) vì được gọi từ bên trong afterCommit
+    của publishPipeline; afterCommit đăng ký muộn sẽ không chạy.
+  end note
+  Ctl --> Http : 200 OK PublishPipelineResponse
+  Http --> Slice : PublishPipelineResult {success, newStatus: ACTIVE}
+  Slice -> Slice : settings.status = ACTIVE, showToast(...)
+  Slice --> UI : true
+end
+deactivate Svc
+deactivate Ctl
+deactivate Http
+deactivate Slice
+deactivate UI
+
+@enduml

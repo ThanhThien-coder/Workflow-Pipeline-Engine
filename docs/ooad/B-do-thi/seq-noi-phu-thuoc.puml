@@ -1,0 +1,123 @@
+' Nguồn: wpe-frontend/src/components/mindmap/MindmapTree.tsx, components/workflow/MindmapDrawer.tsx,
+'        store/useWorkflowStore.ts, services/impl/HttpWorkflowService.ts, services/impl/http/graph.ts;
+'        wpe-backend/.../controller/WorkflowGraphController.java, service/WorkflowGraphService.java,
+'        service/ProjectAuthorizationService.java, service/engine/KahnDagService.java, repository/*.java
+' Sequence "Nối phụ thuộc" (B8). Ví dụ: alex kéo WPE-002 thả vào WPE-003 trong cùng một giai đoạn.
+' Số dòng của từng message: xem nhat-quan.md.
+
+@startuml seq-noi-phu-thuoc
+skinparam shadowing false
+skinparam sequenceMessageAlign left
+autonumber
+
+actor "Chủ dự án" as Owner
+boundary ":MindmapTree" as Tree
+boundary ":MindmapDrawer" as Drawer
+control ":useWorkflowStore" as Store
+control ":HttpWorkflowService" as Http
+control "graph.ts" as Graph
+control ":WorkflowGraphController" as Ctl
+control ":WorkflowGraphService" as Svc
+control ":ProjectAuthorizationService" as Auth
+control ":KahnDagService" as Kahn
+entity ":NodeRepository" as NodeRepo
+entity ":NodeDependencyRepository" as DepRepo
+
+Owner -> Tree : kéo từ WPE-002, thả vào WPE-003
+activate Tree
+Tree -> Drawer : onConnectNodes(parentId, childId)
+activate Drawer
+Drawer -> Store : connectNodes(phaseId, parentId, childId)
+activate Store
+Store -> Store : ensureCanEditGraph(get())
+note right of Store
+  Không phải Chủ dự án hoặc dự án ARCHIVED:
+  ném ApiError GRAPH_READ_ONLY, không gửi request
+  (lớp chặn ở giao diện, B5)
+end note
+Store -> Http : attachGhostNode(phaseId, {sourcePhaseId, sourceTaskId, targetTaskId})
+activate Http
+Http -> Graph : createDependency(projectId, parentNodeId, childNodeId)
+activate Graph
+Graph -> Ctl : POST /api/v1/projects/{id}/dependencies\n{parentNodeId, childNodeId}
+activate Ctl
+Ctl -> Svc : createDependency(projectId, request, currentUserId)
+activate Svc
+Svc -> Auth : verifyProjectOwner(projectId, userId)
+activate Auth
+Auth --> Svc : ProjectEntity
+deactivate Auth
+Svc -> Svc : ensureNotArchived(project)
+Svc -> NodeRepo : findById(parentId), findById(childId)
+activate NodeRepo
+NodeRepo --> Svc : parent, child
+deactivate NodeRepo
+Svc -> DepRepo : existsByParentNodeIdAndChildNodeId(parentId, childId)
+activate DepRepo
+DepRepo --> Svc : boolean
+deactivate DepRepo
+
+alt cạnh (cha, con) đã có
+  Svc --> Ctl : DependencyResponse (cạnh cũ, lũy đẳng)
+else cạnh mới
+  Svc -> NodeRepo : findByProjectId(projectId)
+  activate NodeRepo
+  NodeRepo --> Svc : List<NodeEntity>
+  deactivate NodeRepo
+  Svc -> DepRepo : findByProjectId(projectId)
+  activate DepRepo
+  DepRepo --> Svc : List<NodeDependencyEntity>
+  deactivate DepRepo
+  Svc -> Kahn : wouldCreateCycle(nodes, edges, parentId, childId)
+  activate Kahn
+  Kahn --> Svc : boolean
+  deactivate Kahn
+
+  alt tạo vòng
+    Svc -> Kahn : validateProjectDag(nodes, edgesWithNew)
+    activate Kahn
+    Kahn --> Svc : ProjectKahnResult (cycleNodeCodes)
+    deactivate Kahn
+    Svc --> Ctl : CycleDetectedException(cycleNodeCodes)
+  else công việc con đã bắt đầu (IN_PROGRESS, REVIEW, DONE)
+    Svc --> Ctl : ConflictException("NODE_IN_USE")
+  else hợp lệ
+    Svc -> DepRepo : save(entity)
+    activate DepRepo
+    DepRepo --> Svc : NodeDependencyEntity
+    deactivate DepRepo
+    Svc -> Svc : recomputeNodeStatus(child, parents)
+    Svc --> Ctl : DependencyResponse
+  end
+end
+deactivate Svc
+
+alt thành công
+  Ctl --> Graph : 201 Created {parentNodeId, childNodeId}
+  Graph --> Http : BackendDependencyDto
+  Http --> Store : GhostDependency
+  Store -> Store : updateTree(phaseId, thêm parentId vào child.parentIds)
+  Store --> Drawer : (xong)
+else tạo vòng
+  Ctl --> Graph : 422 CYCLE_DETECTED {cycleNodes}\n(GlobalExceptionHandler.handleCycleDetected)
+  Graph --> Http : ApiError(status 422, cycleNodes)
+  Http --> Store : ApiError
+  Store --> Drawer : ApiError
+  Drawer -> Drawer : handleError(error)
+  note right of Drawer : mở KahnCycleModal với mã các công việc trên vòng
+else công việc con đã bắt đầu
+  Ctl --> Graph : 409 NODE_IN_USE\n(GlobalExceptionHandler.handleConflict)
+  Graph --> Http : ApiError(status 409)
+  Http --> Store : ApiError
+  Store --> Drawer : ApiError
+  Drawer -> Drawer : handleError(error)
+  note right of Drawer : hiện toast theo ApiError.code
+end
+deactivate Ctl
+deactivate Graph
+deactivate Http
+deactivate Store
+deactivate Drawer
+deactivate Tree
+
+@enduml
