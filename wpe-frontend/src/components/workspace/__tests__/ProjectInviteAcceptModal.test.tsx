@@ -180,4 +180,84 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(acceptBtn.disabled).toBe(false)
     })
   })
+
+  it('disables accept and decline buttons and shows expired message when invitation is expired', async () => {
+    vi.spyOn(workflowService as any, 'getInvitationDetail').mockResolvedValueOnce({
+      id: 'inv-expired',
+      projectId: '1',
+      projectName: 'Expired Pipeline',
+      inviterId: 'usr-1',
+      inviterName: 'Lead Architect',
+      inviteeEmail: 'tester@pipeline.org',
+      role: 'COLLABORATOR',
+      status: 'PENDING',
+      createdAt: new Date(Date.now() - 100000000).toISOString(),
+      expiresAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+    })
+
+    render(
+      <ProjectInviteAcceptModal
+        isOpen={true}
+        invitationId="inv-expired"
+        onClose={mockClose}
+        onAccepted={mockAccepted}
+        onDeclined={mockDeclined}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Expired Pipeline')).toBeDefined()
+    })
+
+    // Check for expired label containing "hết hạn"
+    expect(screen.getByText(/hết hạn/i)).toBeDefined()
+
+    // Accept button should be disabled
+    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i }) as HTMLButtonElement
+    expect(acceptBtn.disabled).toBe(true)
+
+    // Decline button should also be disabled
+    const declineBtn = screen.getByRole('button', { name: /Từ chối/i }) as HTMLButtonElement
+    expect(declineBtn.disabled).toBe(true)
+
+    // Clicking accept should not trigger API call
+    const acceptSpy = vi.spyOn(workflowService as any, 'acceptInvitation')
+    fireEvent.click(acceptBtn)
+    expect(acceptSpy).not.toHaveBeenCalled()
+  })
+
+  it('keeps accept and decline buttons enabled when invitation is still valid', async () => {
+    vi.spyOn(workflowService as any, 'getInvitationDetail').mockResolvedValueOnce({
+      id: 'inv-valid',
+      projectId: '1',
+      projectName: 'Valid Pipeline',
+      inviterId: 'usr-1',
+      inviterName: 'Lead Architect',
+      inviteeEmail: 'tester@pipeline.org',
+      role: 'COLLABORATOR',
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 86400000).toISOString(), // 1 day in future
+    })
+
+    render(
+      <ProjectInviteAcceptModal
+        isOpen={true}
+        invitationId="inv-valid"
+        onClose={mockClose}
+        onAccepted={mockAccepted}
+        onDeclined={mockDeclined}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Valid Pipeline')).toBeDefined()
+    })
+
+    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i }) as HTMLButtonElement
+    expect(acceptBtn.disabled).toBe(false)
+
+    const declineBtn = screen.getByRole('button', { name: /Từ chối/i }) as HTMLButtonElement
+    expect(declineBtn.disabled).toBe(false)
+  })
 })

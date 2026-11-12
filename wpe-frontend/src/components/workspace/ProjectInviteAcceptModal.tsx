@@ -35,6 +35,32 @@ export function ProjectInviteAcceptModal({
   const [submitting, setSubmitting] = useState<'accept' | 'decline' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const isExpired = invitation
+    ? invitation.status !== 'PENDING' || new Date(invitation.expiresAt).getTime() <= Date.now()
+    : false
+
+  const getExpiredStatusLabel = () => {
+    if (!invitation) return 'Lời mời đã hết hạn'
+    if (invitation.status === 'ACCEPTED') return 'Lời mời đã được chấp nhận'
+    if (invitation.status === 'REJECTED') return 'Lời mời đã bị từ chối'
+    if (invitation.status === 'REVOKED') return 'Lời mời đã bị thu hồi'
+    return 'Lời mời đã hết hạn'
+  }
+
+  const extractErrorMessage = (err: unknown, defaultMsg: string): string => {
+    if (!err) return defaultMsg
+    const anyErr = err as any
+    const errCode = anyErr?.response?.data?.error || anyErr?.error || anyErr?.errorCode
+    if (errCode === 'INVITATION_EXPIRED') {
+      return 'Lời mời đã hết hạn.'
+    }
+    const msg = err instanceof Error ? err.message : defaultMsg
+    if (typeof msg === 'string' && msg.includes('INVITATION_EXPIRED')) {
+      return 'Lời mời đã hết hạn.'
+    }
+    return msg
+  }
+
   const showToast = useWorkflowStore((state) => state.ui.showToast)
   const fetchProjects = useWorkflowStore((state) => state.workspace.fetchProjects)
   const acceptInvitationStore = useWorkflowStore((state) => state.settings.acceptInvitation)
@@ -68,7 +94,7 @@ export function ProjectInviteAcceptModal({
         }
       } catch (err: unknown) {
         if (isMounted) {
-          const msg = err instanceof Error ? err.message : 'Không thể tải chi tiết lời mời.'
+          const msg = extractErrorMessage(err, 'Không thể tải chi tiết lời mời.')
           setError(msg)
         }
       } finally {
@@ -84,7 +110,7 @@ export function ProjectInviteAcceptModal({
   }, [isOpen, invitationId])
 
   const handleAccept = async () => {
-    if (!invitationId) return
+    if (!invitationId || isExpired) return
     setSubmitting('accept')
     setError(null)
     try {
@@ -100,7 +126,7 @@ export function ProjectInviteAcceptModal({
       onAccepted?.(invitationId)
       onClose()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Chấp nhận lời mời thất bại.'
+      const msg = extractErrorMessage(err, 'Chấp nhận lời mời thất bại.')
       setError(msg)
       showToast(msg)
     } finally {
@@ -109,7 +135,7 @@ export function ProjectInviteAcceptModal({
   }
 
   const handleDecline = async () => {
-    if (!invitationId) return
+    if (!invitationId || isExpired) return
     setSubmitting('decline')
     setError(null)
     try {
@@ -122,7 +148,7 @@ export function ProjectInviteAcceptModal({
       onDeclined?.(invitationId)
       onClose()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Từ chối lời mời thất bại.'
+      const msg = extractErrorMessage(err, 'Từ chối lời mời thất bại.')
       setError(msg)
       showToast(msg)
     } finally {
@@ -216,8 +242,19 @@ export function ProjectInviteAcceptModal({
 
             {!loading && invitation && (
               <div className="space-y-4">
+                {isExpired && (
+                  <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/80 px-3.5 py-2.5 text-xs font-semibold text-rose-700">
+                    <AlertCircle size={15} className="shrink-0 text-rose-600" />
+                    <span>{getExpiredStatusLabel()}</span>
+                  </div>
+                )}
+
                 {/* Details Box */}
-                <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 space-y-3">
+                <div
+                  className={`rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 space-y-3 transition-opacity ${
+                    isExpired ? 'opacity-60 grayscale' : ''
+                  }`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-slate-500">Dự án</span>
                     <span className="text-sm font-bold text-slate-800">
@@ -276,8 +313,8 @@ export function ProjectInviteAcceptModal({
               <button
                 type="button"
                 onClick={handleDecline}
-                disabled={submitting !== null}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50 cursor-pointer"
+                disabled={submitting !== null || isExpired}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {submitting === 'decline' ? (
                   <Loader2 size={14} className="animate-spin text-slate-500" />
@@ -290,8 +327,8 @@ export function ProjectInviteAcceptModal({
               <button
                 type="button"
                 onClick={handleAccept}
-                disabled={submitting !== null}
-                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
+                disabled={submitting !== null || isExpired}
+                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {submitting === 'accept' ? (
                   <Loader2 size={14} className="animate-spin text-white" />

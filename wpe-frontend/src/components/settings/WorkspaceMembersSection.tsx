@@ -186,39 +186,62 @@ export function WorkspaceMembersSection({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/60">
-                {pendingInvitations.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-100/60 transition-colors">
-                    <td className="px-3 py-2 font-medium text-slate-700">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-amber-400" />
-                        <span>{inv.inviteeEmail}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${ROLE_BADGE[inv.role] || ROLE_BADGE.VIEWER}`}>
-                        {inv.role}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-400">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock size={11} />
-                        {formatDate(inv.expiresAt)}
-                      </span>
-                    </td>
-                    {isOwner && (
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => onRevokeInvitation?.(inv.id)}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 shadow-2xs hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition"
-                        >
-                          <Trash2 size={11} />
-                          <span>Revoke</span>
-                        </button>
+                {pendingInvitations.map((inv) => {
+                  const isInvExpired = new Date(inv.expiresAt).getTime() <= Date.now()
+                  return (
+                    <tr
+                      key={inv.id}
+                      className={`transition-colors hover:bg-slate-100/60 ${
+                        isInvExpired ? 'opacity-60 grayscale' : ''
+                      }`}
+                    >
+                      <td className="px-3 py-2 font-medium text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              isInvExpired ? 'bg-slate-300' : 'bg-amber-400'
+                            }`}
+                          />
+                          <span>{inv.inviteeEmail}</span>
+                        </div>
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="px-3 py-2">
+                        <span
+                          className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            ROLE_BADGE[inv.role] || ROLE_BADGE.VIEWER
+                          }`}
+                        >
+                          {inv.role}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-[11px] text-slate-400">
+                        {isInvExpired ? (
+                          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200">
+                            <Clock size={11} />
+                            Đã hết hạn
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            <Clock size={11} />
+                            {formatDate(inv.expiresAt)}
+                          </span>
+                        )}
+                      </td>
+                      {isOwner && (
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => onRevokeInvitation?.(inv.id)}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 shadow-2xs hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition"
+                          >
+                            <Trash2 size={11} />
+                            <span>Revoke</span>
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
