@@ -315,6 +315,12 @@ File: `wpe-backend/src/main/java/com/pipeline/wpe/service/engine/KahnDagService.
 3. **`INACTIVE`**: Dự án không có tương tác nào trong 30 ngày; nhận cảnh báo trước khi chuyển lưu trữ.
 4. **`ARCHIVED`**: Dự án đóng băng chỉ đọc (Read-only); có thể được khôi phục bởi Chủ dự án trong thời hạn quy định.
 
+**Luật xuất bản `POST /projects/{id}/publish` (cập nhật 12/11/2026, task B4):**
+* Chỉ chuyển sang `ACTIVE` được từ `DRAFT` hoặc `PLANNING`. Dự án `ARCHIVED` trả 409 `PROJECT_ARCHIVED`; các trạng thái khác (`ACTIVE`, `PAUSED`, `COMPLETED`, `INACTIVE`) trả 409 `INVALID_PROJECT_STATUS`. Xuất bản lần 2 vì thế luôn bị từ chối, không mở khóa hay gửi sự kiện lặp lại.
+* Thứ tự kiểm: quyền owner (403) → trạng thái dự án (409) → thuật toán Kahn toàn dự án (422 `CYCLE_DETECTED`, `cycleNodes` = `cycleNodeCodes`, xem mục 4.3).
+* Node gốc (in-degree = 0) đang `LOCKED` chuyển sang `TODO`. Mỗi node vừa mở khóa có người phụ trách sinh 1 SSE `TASK_UNLOCKED` và 1 thông báo `TASK_READY`, gửi **sau khi transaction commit**. Rollback thì không gửi.
+* Độ phức tạp: O(V + E) với V là số node, E là số cạnh của dự án (đọc node và cạnh 1 lần, Kahn O(V + E), duyệt node gốc O(V)).
+
 ### 5.2 Khóa Lạc quan (Optimistic Locking via JPA `@Version`)
 * Khi nhiều nhánh phụ thuộc chạy song song hoàn thành cùng một lúc, các downstream tasks có thể bị gọi mở khóa đồng thời từ nhiều luồng (threads).
 * Entity `Node` khai báo:

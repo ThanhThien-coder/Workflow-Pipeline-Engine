@@ -44,6 +44,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -76,6 +77,9 @@ class WorkflowGraphServiceTest {
 
     @Mock
     private NodeMapper nodeMapper;
+
+    @Mock
+    private com.pipeline.wpe.service.event.WorkflowEventPublisher eventPublisher;
 
     @Spy
     private KahnDagService kahnDagService = new KahnDagService();
@@ -331,6 +335,169 @@ class WorkflowGraphServiceTest {
 
         assertThrows(CycleDetectedException.class, () -> workflowGraphService.publishPipeline(1L, 2L));
         verify(projectRepository, never()).save(sampleProject);
+    }
+
+    // ===================== B4: vá publishPipeline =====================
+
+    @Test
+    @DisplayName("B4 lỗi 1: dự án PAUSED, COMPLETED, INACTIVE không xuất bản được, ném ConflictException INVALID_PROJECT_STATUS (HTTP 409)")
+    void testPublishPipelineRejectsNonDraftStatuses() {
+        for (var status : List.of(
+            com.pipeline.wpe.common.enums.ProjectStatus.PAUSED,
+            com.pipeline.wpe.common.enums.ProjectStatus.COMPLETED,
+            com.pipeline.wpe.common.enums.ProjectStatus.INACTIVE)) {
+            sampleProject.setStatus(status);
+
+            ConflictException ex = assertThrows(ConflictException.class,
+                () -> workflowGraphService.publishPipeline(1L, 2L),
+                "Dự án " + status + " phải bị chặn xuất bản");
+
+            assertEquals("INVALID_PROJECT_STATUS", ex.getErrorCode());
+            assertEquals(status, sampleProject.getStatus(), "Trạng thái dự án không được đổi");
+        }
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B4 lỗi 1: dự án ARCHIVED không xuất bản được, ném ConflictException PROJECT_ARCHIVED (HTTP 409)")
+    void testPublishPipelineRejectsArchived() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED);
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> workflowGraphService.publishPipeline(1L, 2L));
+
+        assertEquals("PROJECT_ARCHIVED", ex.getErrorCode());
+        assertEquals(com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED, sampleProject.getStatus());
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B4 lỗi 2: dự án đã ACTIVE xuất bản lần nữa ném ConflictException INVALID_PROJECT_STATUS (HTTP 409), không phải 400")
+    void testPublishPipelineAlreadyActiveIsConflict() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE);
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> workflowGraphService.publishPipeline(1L, 2L));
+
+        assertEquals("INVALID_PROJECT_STATUS", ex.getErrorCode());
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("B4: dự án PLANNING vẫn xuất bản được")
+    void testPublishPipelineFromPlanning() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.PLANNING);
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        PublishPipelineResponse response = workflowGraphService.publishPipeline(1L, 2L);
+
+        assertEquals("ACTIVE", response.status());
+        assertEquals(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE, sampleProject.getStatus());
+    }
+
+    @Test
+    @DisplayName("B4 lỗi 3: người phụ trách node gốc vừa mở khóa nhận SSE TASK_UNLOCKED và thông báo; node không có người phụ trách và node con thì không")
+    void testPublishPipelineNotifiesAssigneesOfUnlockedRoots() {
+        NodeEntity rootOfSarah = NodeEntity.builder().id(1L).projectId(1L).code("WPE-001").title("Thu thập yêu cầu").status(NodeStatus.LOCKED).assignedUserId(3L).build();
+        NodeEntity rootNoAssignee = NodeEntity.builder().id(2L).projectId(1L).code("WPE-002").title("Chuẩn bị môi trường").status(NodeStatus.LOCKED).build();
+        NodeEntity child = NodeEntity.builder().id(3L).projectId(1L).code("WPE-003").title("Thiết kế").status(NodeStatus.LOCKED).assignedUserId(4L).build();
+        NodeDependencyEntity edge = NodeDependencyEntity.builder().id(10L).projectId(1L).parentNodeId(1L).childNodeId(3L).build();
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(rootOfSarah, rootNoAssignee, child));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of(edge));
+
+        PublishPipelineResponse response = workflowGraphService.publishPipeline(1L, 2L);
+
+        assertEquals(2, response.unlockedTaskCount());
+        verify(sseEmitterService).sendToUser(eq(3L), eq("TASK_UNLOCKED"), any());
+        verify(sseEmitterService, times(1)).sendToUser(any(), any(), any());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(com.pipeline.wpe.dto.event.NotificationEvent.class);
+        verify(eventPublisher, times(1)).publishNotification(captor.capture());
+        assertEquals(3L, captor.getValue().recipientUserId());
+        assertEquals(1L, captor.getValue().projectId());
+        assertTrue(captor.getValue().message().contains("WPE-001"));
+    }
+
+    @Test
+    @DisplayName("B4 lỗi 3: SSE và thông báo chỉ gửi SAU KHI transaction commit, trước đó chưa gửi gì")
+    void testPublishPipelineSendsEventsOnlyAfterCommit() {
+        NodeEntity root = NodeEntity.builder().id(1L).projectId(1L).code("WPE-001").title("Thu thập yêu cầu").status(NodeStatus.LOCKED).assignedUserId(3L).build();
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(root));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        // Giả lập đang ở trong một transaction: Spring cho đăng ký việc "làm sau khi commit"
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            workflowGraphService.publishPipeline(1L, 2L);
+
+            // Hàm đã chạy xong nhưng transaction chưa commit: chưa được gửi gì
+            verify(sseEmitterService, never()).sendToUser(any(), any(), any());
+            verify(eventPublisher, never()).publishNotification(any());
+            // Nội dung gửi đi cũng phải tạo sau commit: lúc đó node mới mang số version đã tăng trong DB.
+            // Tạo sớm thì client nhận version cũ, bấm "bắt đầu" sẽ bị 409 lệch version.
+            verify(nodeMapper, never()).toKanbanTaskResponse(any());
+
+            // Giả lập commit thành công
+            var syncs = org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations();
+            assertEquals(1, syncs.size());
+            syncs.forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+
+            verify(sseEmitterService).sendToUser(eq(3L), eq("TASK_UNLOCKED"), any());
+            verify(eventPublisher).publishNotification(any());
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("B4 lỗi 3: gửi thông báo bị lỗi (RabbitMQ hỏng) không làm hỏng kết quả xuất bản, node sau vẫn được gửi")
+    void testPublishPipelineSurvivesNotificationFailure() {
+        NodeEntity r1 = NodeEntity.builder().id(1L).projectId(1L).code("WPE-001").title("A").status(NodeStatus.LOCKED).assignedUserId(3L).build();
+        NodeEntity r2 = NodeEntity.builder().id(2L).projectId(1L).code("WPE-002").title("B").status(NodeStatus.LOCKED).assignedUserId(4L).build();
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(r1, r2));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+        doThrow(new RuntimeException("RabbitMQ down")).when(eventPublisher).publishNotification(any());
+
+        PublishPipelineResponse response = assertDoesNotThrow(() -> workflowGraphService.publishPipeline(1L, 2L));
+
+        assertTrue(response.success());
+        assertEquals(2, response.unlockedTaskCount());
+        verify(sseEmitterService).sendToUser(eq(3L), eq("TASK_UNLOCKED"), any());
+        verify(sseEmitterService).sendToUser(eq(4L), eq("TASK_UNLOCKED"), any());
+    }
+
+    @Test
+    @DisplayName("B4: node gốc đã TODO từ trước (không nằm trong Phase, hoặc được gỡ cạnh lúc DRAFT) không tính vào unlockedTaskCount và không gửi lại SSE")
+    void testPublishPipelineSkipsRootsAlreadyTodo() {
+        NodeEntity alreadyTodo = NodeEntity.builder().id(1L).projectId(1L).code("WPE-001").title("A").status(NodeStatus.TODO).assignedUserId(3L).build();
+        NodeEntity locked = NodeEntity.builder().id(2L).projectId(1L).code("WPE-002").title("B").status(NodeStatus.LOCKED).assignedUserId(4L).build();
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(alreadyTodo, locked));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        PublishPipelineResponse response = workflowGraphService.publishPipeline(1L, 2L);
+
+        assertEquals(1, response.unlockedTaskCount());
+        verify(sseEmitterService, never()).sendToUser(eq(3L), any(), any());
+        verify(sseEmitterService).sendToUser(eq(4L), eq("TASK_UNLOCKED"), any());
+    }
+
+    @Test
+    @DisplayName("B4 lỗi 4: cycleNodes chỉ gồm node nằm trên chu trình, không gồm node đứng sau chu trình")
+    void testPublishPipelineCycleNodesExcludeDownstream() {
+        NodeEntity n1 = NodeEntity.builder().id(1L).code("WPE-001").projectId(1L).build();
+        NodeEntity n2 = NodeEntity.builder().id(2L).code("WPE-002").projectId(1L).build();
+        NodeEntity n3 = NodeEntity.builder().id(3L).code("WPE-003").projectId(1L).build();
+        // 1 <-> 2 là chu trình; 3 chỉ đứng sau chu trình (2 -> 3)
+        NodeDependencyEntity e1 = NodeDependencyEntity.builder().parentNodeId(1L).childNodeId(2L).projectId(1L).build();
+        NodeDependencyEntity e2 = NodeDependencyEntity.builder().parentNodeId(2L).childNodeId(1L).projectId(1L).build();
+        NodeDependencyEntity e3 = NodeDependencyEntity.builder().parentNodeId(2L).childNodeId(3L).projectId(1L).build();
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(n1, n2, n3));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of(e1, e2, e3));
+
+        CycleDetectedException ex = assertThrows(CycleDetectedException.class, () -> workflowGraphService.publishPipeline(1L, 2L));
+
+        assertEquals(List.of("WPE-001", "WPE-002"), ex.getCycleNodes().stream().sorted().toList());
+        assertEquals(com.pipeline.wpe.common.enums.ProjectStatus.DRAFT, sampleProject.getStatus());
+        verify(sseEmitterService, never()).sendToUser(any(), any(), any());
     }
 
     // ===================== B2: chặn ghi trên dự án ARCHIVED =====================
