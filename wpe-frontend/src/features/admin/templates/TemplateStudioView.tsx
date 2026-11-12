@@ -1,10 +1,55 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useTemplateStudio } from '../../../hooks/useTemplateStudio';
+import { isApiError } from '../../../services/http/ApiError';
 import { StudioTopbar } from './components/StudioTopbar';
 import { PhaseCanvas } from './components/PhaseCanvas';
 import { PhaseDetailDrawer } from './components/PhaseDetailDrawer';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { Loader2, AlertCircle } from 'lucide-react';
+
+export interface SaveErrorDescription {
+  message: string;
+  cycleIds: string[];
+  keepOpen: boolean;
+}
+
+export function describeSaveError(err: unknown): SaveErrorDescription {
+  if (isApiError(err)) {
+    if (err.status === 422) {
+      return {
+        message: 'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.',
+        cycleIds: err.cycleNodes ?? [],
+        keepOpen: true,
+      };
+    }
+    if (err.status === 403) {
+      return {
+        message: 'Chỉ quản trị viên được chỉnh sửa template',
+        cycleIds: [],
+        keepOpen: true,
+      };
+    }
+    if (err.isNetworkError || err.status === 0) {
+      return {
+        message: 'Mất kết nối máy chủ, bản nháp vẫn còn, hãy thử lưu lại.',
+        cycleIds: [],
+        keepOpen: true,
+      };
+    }
+    return {
+      message: err.message || 'Lỗi khi lưu template',
+      cycleIds: [],
+      keepOpen: true,
+    };
+  }
+
+  const msg = err instanceof Error ? err.message : 'Lỗi khi lưu template';
+  return {
+    message: msg,
+    cycleIds: [],
+    keepOpen: true,
+  };
+}
 
 interface TemplateStudioViewProps {
   templateId: string | null;
@@ -46,6 +91,16 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   // Dialog states
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [phaseToDelete, setPhaseToDelete] = useState<string | null>(null);
+  const [serverCycleIds, setServerCycleIds] = useState<string[]>([]);
+  const draftAtErrorRef = useRef<unknown>(null);
+
+  // Sửa đồ thị sau đó (draft thay đổi) thì xóa serverCycleIds
+  useEffect(() => {
+    if (serverCycleIds.length > 0 && draft !== draftAtErrorRef.current) {
+      setServerCycleIds([]);
+      draftAtErrorRef.current = null;
+    }
+  }, [draft, serverCycleIds]);
 
   // Load template on mount or ID change
   useEffect(() => {
@@ -87,8 +142,15 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
       onToast(msg, 'emerald');
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi lưu template';
-      onToast(msg, 'rose');
+      const desc = describeSaveError(err);
+      if (desc.cycleIds.length > 0) {
+        draftAtErrorRef.current = draft;
+        setServerCycleIds(desc.cycleIds);
+      }
+      onToast(desc.message, 'rose');
+      if (!desc.keepOpen) {
+        onClose();
+      }
     }
   };
 
@@ -111,8 +173,26 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
       }
     }
 
+    if (serverCycleIds.length > 0) {
+      const knownPhaseIds = new Set(draft?.graphData?.phases?.map((p) => p.id) ?? []);
+      const knownNodeIds = new Set(draft?.graphData?.nodes?.map((n) => n.id) ?? []);
+
+      for (const id of serverCycleIds) {
+        if (knownPhaseIds.has(id)) {
+          phaseSet.add(id);
+        }
+        if (knownNodeIds.has(id)) {
+          nodeSet.add(id);
+        }
+        if (!knownPhaseIds.has(id) && !knownNodeIds.has(id)) {
+          phaseSet.add(id);
+          nodeSet.add(id);
+        }
+      }
+    }
+
     return { cyclePhaseIds: phaseSet, cycleNodeIds: nodeSet };
-  }, [validation]);
+  }, [validation, serverCycleIds, draft]);
 
   // Current selected phase
   const selectedPhase = useMemo(() => {
@@ -131,7 +211,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     );
   }
 
-  if (status === 'error' || !draft) {
+  if (!draft) {
     return (
       <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-slate-50 p-6 text-center animate-fade font-sans">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mb-4 shadow-sm animate-pop">
