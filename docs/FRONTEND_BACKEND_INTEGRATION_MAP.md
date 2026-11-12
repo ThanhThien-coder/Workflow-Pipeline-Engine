@@ -259,9 +259,29 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - Khi Refresh: Tra cứu `token_hash`. Kiểm tra `revoked == FALSE` và chưa hết hạn. Đánh dấu token cũ `revoked = TRUE`, tạo token mới. Nếu phát hiện token đã bị thu hồi từ trước mà vẫn gửi lại -> lập tức thu hồi toàn bộ token của người dùng đó (Phát hiện tấn công).
    - Khi Logout: Đánh dấu `REFRESH_TOKEN.revoked = TRUE`.
 5. **Response DTO & UI Mutation**:
-   - `POST /api/auth/refresh`: `200 OK` trả về cặp token mới.
-   - `POST /api/auth/logout`: `200 OK` `{ "success": true }`.
+   - `POST /api/auth/refresh`: `200 OK` trả về cặp token mới, cùng dạng với response login (`{ token, refreshToken, user }`). Refresh token cũ bị thu hồi ngay, FE phải thay bằng token mới.
+   - `POST /api/auth/logout`: `200 OK` `{ "success": true }`. Luôn 200 kể cả khi token không tồn tại hoặc thiếu body (idempotent).
    - **UI Mutation**: Xóa sạch storage, reset toàn bộ Zustand Store về initial state, chuyển hướng về trang đăng nhập.
+
+### 1.4 Chốt hợp đồng sau A3 (mã lỗi, thời hạn, filter)
+- **Đường dẫn**: mọi endpoint ở cả `/api/v1/auth/*` và `/api/auth/*`. `register` → 201, `login`/`refresh`/`logout` → 200. `user.id` luôn là **chuỗi**.
+- **Body lỗi** (chung toàn hệ thống): `{ "timestamp", "status", "error": "<MÃ>", "message", "path" }`. FE xử lý theo trường `error`.
+
+| Mã `error` | HTTP | Khi nào |
+| :--- | :--- | :--- |
+| `BAD_CREDENTIALS` | 401 | Sai mật khẩu **hoặc** không có user (cùng một thông báo, không lộ user có tồn tại). |
+| `ACCOUNT_LOCKED` | 403 | `is_locked = true` (login, chỉ báo khi mật khẩu đúng; hoặc lúc refresh — khi đó mọi refresh token của user bị thu hồi). |
+| `USERNAME_TAKEN` / `EMAIL_TAKEN` | 409 | Register trùng username / email. |
+| `VALIDATION_FAILED` | 400 | Body register/login sai định dạng (kèm `validationErrors[]`). |
+| `INVALID_REFRESH_TOKEN` | 401 | Refresh token không có, không tồn tại hoặc hết hạn. |
+| `REFRESH_TOKEN_REUSED` | 401 | Gửi lại refresh token đã bị thu hồi (đã xoay hoặc đã logout) → backend thu hồi **mọi** refresh token của user. FE phải đăng xuất. |
+| `TOKEN_EXPIRED` | 401 | API nghiệp vụ dùng `requireCurrentUserId()` mà request **có** `Authorization` nhưng access token sai/hết hạn/`tv` lệch/user khóa. FE gọi refresh một lần (single-flight) rồi thử lại. |
+
+- **Access token**: JWT HS256, sống 15 phút (`jwt.access-token-expiration-ms`). Claims: `sub` = userId (chuỗi), `username`, `role` (`USER`/`ADMIN`), `tv` = `token_version`, `iat`, `exp`. Gửi qua header `Authorization: Bearer <token>`.
+- **Refresh token**: `rt_` + 32 byte ngẫu nhiên base64url (tổng 46 ký tự), sống 7 ngày, dùng **một lần** (mỗi lần refresh nhận token mới). DB chỉ lưu SHA-256 hex. `rememberMe` không đổi thời hạn; FE tự chọn `localStorage` (nhớ) hay `sessionStorage`.
+- **Hai request refresh song song bằng cùng một token**: request đến sau bị coi là dùng lại → `REFRESH_TOKEN_REUSED` và mọi phiên bị thu hồi. FE **bắt buộc** single-flight (A4).
+- **JwtAuthFilter (trước X1)**: token sai **không** bị chặn ở filter (vẫn `permitAll`), chỉ không đặt principal. Request không có `Authorization` vẫn dùng `X-Debug-User-Id`/user mặc định cho tới X1; có `Authorization` sai thì không rơi về user debug.
+- **Secret**: `jwt.secret` đọc biến môi trường `JWT_SECRET` (>= 32 byte); giá trị mặc định trong `application.yml` chỉ cho máy dev.
 
 ---
 

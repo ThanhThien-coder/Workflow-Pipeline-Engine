@@ -41,7 +41,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.UNAUTHORIZED.value(),
-            "UNAUTHORIZED",
+            ex.getErrorCode(),
             ex.getMessage(),
             request.getRequestURI()
         );
