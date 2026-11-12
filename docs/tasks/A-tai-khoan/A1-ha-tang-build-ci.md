@@ -125,7 +125,7 @@ Không có test backend lỗi. Không test nào bị skip.
       Tests  151 passed (151)
 ```
 
-**CI trên GitHub:** xem tab Checks của PR A1 (chạy ngay khi mở PR).
+**CI trên GitHub** (PR #25): `backend` pass (40s), `frontend` pass (43s). Lần chạy: https://github.com/ThanhThien-coder/Workflow-Pipeline-Engine/actions/runs/43131237327
 
 **Vòng hiểu:** Claude đã giải thích các thay đổi; người làm **chưa trả lời** câu bảo vệ 1 (vắng mặt, A cho mở PR trước). Làm bù khi A quay lại.
 
