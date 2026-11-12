@@ -1,0 +1,67 @@
+' Nguồn: wpe-backend/.../controller/WorkflowGraphController.java, service/WorkflowGraphService.java,
+'        service/engine/KahnDagService.java, docs/specs/system-overview.md mục 4 (UC10, UC11, UC19),
+'        docs/FRONTEND_BACKEND_INTEGRATION_MAP.md Cụm 4
+' Sơ đồ use case mảng B — Thiết kế quy trình DAG (B7)
+
+@startuml uc-do-thi
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Người xem" as Viewer
+actor "Cộng sự" as Collab
+actor "Quản lý dự án" as Manager
+actor "Chủ dự án" as Owner
+
+' Tổng quát hóa (con --|> cha): vai trò con làm được mọi việc của vai trò cha.
+' Trong mảng đồ thị, Cộng sự và Quản lý dự án chưa có quyền gì thêm so với Người xem
+' (Quản lý dự án chỉ có thêm quyền duyệt task, đổi người làm — mảng C, D; PR #33).
+Collab --|> Viewer
+Manager --|> Collab
+Owner --|> Manager
+
+rectangle "Workflow Pipeline Engine — Thiết kế quy trình DAG" {
+  usecase "Xem đồ thị" as UC_View
+
+  usecase "Tạo giai đoạn" as UC_CreatePhase
+  usecase "Sửa giai đoạn" as UC_EditPhase
+  usecase "Xóa giai đoạn" as UC_DeletePhase
+  usecase "Nối giai đoạn" as UC_ConnectPhase
+
+  usecase "Thêm công việc" as UC_AddNode
+  usecase "Sửa công việc" as UC_EditNode
+  usecase "Nối phụ thuộc" as UC_ConnectNode
+
+  usecase "Lưu bố cục canvas" as UC_Layout
+  usecase "Xuất bản dự án" as UC_Publish
+
+  usecase "Kiểm tra chu trình" as UC_CheckCycle
+  usecase "Xem danh sách node gây vòng lặp" as UC_ShowCycle
+}
+
+' Mọi vai trò trong dự án đều xem được đồ thị (UC19)
+Viewer --> UC_View
+
+' Chỉ Chủ dự án sửa được đồ thị (UC10) và xuất bản (UC11), kể cả Quản lý dự án cũng không.
+' Từ B3, backend trả 403 cho vai trò khác.
+Owner --> UC_CreatePhase
+Owner --> UC_EditPhase
+Owner --> UC_DeletePhase
+Owner --> UC_ConnectPhase
+Owner --> UC_AddNode
+Owner --> UC_EditNode
+Owner --> UC_ConnectNode
+Owner --> UC_Layout
+Owner --> UC_Publish
+
+' include: luôn xảy ra. Mũi tên từ use case gốc tới use case được include.
+UC_ConnectNode .> UC_CheckCycle : <<include>>
+UC_ConnectPhase .> UC_CheckCycle : <<include>>
+UC_Publish .> UC_CheckCycle : <<include>>
+
+' extend: chỉ xảy ra khi thỏa điều kiện. Mũi tên từ use case mở rộng tới use case gốc.
+UC_ShowCycle .> UC_Publish : <<extend>>\n[phát hiện chu trình]
+UC_ShowCycle .> UC_ConnectNode : <<extend>>\n[cạnh mới tạo vòng]
+
+@enduml

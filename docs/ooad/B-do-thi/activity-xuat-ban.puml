@@ -1,0 +1,65 @@
+' Nguồn: wpe-backend/.../service/WorkflowGraphService.java (publishPipeline),
+'        service/engine/KahnDagService.java (validateProjectDag, peelNodesBehindCycle),
+'        docs/tasks/B-do-thi/B4-xuat-ban-du-an.md (Đặc tả đã chốt: 409 INVALID_PROJECT_STATUS, sự kiện sau commit)
+' Activity "Xuất bản dự án" (B7). Hai làn: Chủ dự án | Hệ thống.
+
+@startuml activity-xuat-ban
+skinparam shadowing false
+
+|Chủ dự án|
+start
+:Chọn "Xuất bản dự án";
+
+|Hệ thống|
+:Kiểm tra quyền Chủ dự án;
+if (Người gọi là Chủ dự án?) then (không)
+  :Báo lỗi 403 ACCESS_DENIED;
+  stop
+else (có)
+endif
+
+if (Dự án đã lưu trữ (ARCHIVED)?) then (đúng)
+  :Báo lỗi 409 PROJECT_ARCHIVED;
+  stop
+elseif (Dự án đang DRAFT hoặc PLANNING?) then (sai)
+  :Báo lỗi 409 INVALID_PROJECT_STATUS;
+  stop
+else (đúng)
+endif
+
+:Nạp N công việc và các cạnh phụ thuộc của dự án;
+:Đếm số cạnh đi vào (in-degree) của từng công việc;
+:Đưa các công việc có in-degree 0 vào hàng đợi;
+
+while (Hàng đợi còn công việc?) is (còn)
+  :Lấy công việc u ra khỏi hàng đợi;
+  :Tăng số công việc đã duyệt thêm 1;
+  :Giảm in-degree của từng công việc con v của u;
+  if (Có công việc con về in-degree 0?) then (có)
+    :Đưa các công việc con đó vào hàng đợi;
+  else (không)
+  endif
+endwhile (rỗng)
+
+' Nhánh lỗi tự kết thúc bên trong if (giống nhánh 403), nhánh thành công đi tiếp sau endif,
+' để hai nhánh không vẽ chung một đường khi đổi làn.
+if (Số công việc đã duyệt?) then ([còn node])
+  :Bỏ các công việc chỉ đứng sau vòng lặp;
+  :Báo lỗi 422 CYCLE_DETECTED kèm mã các công việc trên vòng lặp;
+  |Chủ dự án|
+  :Xem danh sách node gây vòng lặp;
+  stop
+else ([đã duyệt đủ N node])
+endif
+
+|Hệ thống|
+:Chuyển dự án sang ACTIVE;
+:Mở khóa công việc gốc đang LOCKED sang TODO;
+:Lưu thay đổi (commit);
+:Gửi TASK_UNLOCKED và thông báo cho người phụ trách công việc vừa mở khóa;
+:Trả số công việc vừa mở khóa;
+|Chủ dự án|
+:Xem dự án ở trạng thái ACTIVE;
+stop
+
+@enduml

@@ -1,0 +1,94 @@
+' Nguồn: wpe-backend/.../entity/(ProjectEntity, WorkPhaseEntity, NodeEntity, NodeDependencyEntity, PhaseDependencyEntity).java,
+'        service/WorkflowGraphService.java, service/engine/KahnDagService.java,
+'        wpe-frontend/src/components/workflow/MacroWorkflow.tsx, MindmapDrawer.tsx, components/settings/KahnCycleModal.tsx
+' Sơ đồ lớp phân tích BCE mảng B — Thiết kế quy trình DAG (B7)
+' Quy tắc gọi: actor chỉ làm việc với boundary; boundary gọi control; control làm việc với entity; entity không gọi boundary.
+
+@startuml bce-do-thi
+!pragma layout smetana
+' allowmixing: cho phép vẽ actor chung với class (BCE có actor đứng trước boundary)
+allowmixing
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty methods
+
+actor "Chủ dự án" as Owner
+actor "Người xem" as Viewer
+
+' --- Boundary ---
+class "Màn hình đồ thị Macro" as B_Macro <<boundary>>
+class "Màn hình Mindmap" as B_Mindmap <<boundary>>
+class "Hộp thoại chu trình" as B_CycleDialog <<boundary>> {
+  danh sách mã công việc trên vòng lặp
+}
+
+' --- Control ---
+class "Điều khiển thiết kế đồ thị" as C_Design <<control>>
+class "Bộ kiểm tra DAG" as C_Dag <<control>>
+
+' --- Entity ---
+class "Dự án" as E_Project <<entity>> {
+  tên
+  trạng thái
+}
+class "Giai đoạn" as E_Phase <<entity>> {
+  tên
+  mô tả ngắn
+  màu nhấn
+  thứ tự
+  vị trí trên canvas
+}
+class "Công việc" as E_Node <<entity>> {
+  mã
+  tiêu đề
+  trạng thái
+  chính sách hội tụ
+  người phụ trách
+  hạn chót
+  số giờ ước lượng
+  phiên bản
+  vị trí trên canvas
+}
+class "Phụ thuộc công việc" as E_NodeDep <<entity>>
+class "Phụ thuộc giai đoạn" as E_PhaseDep <<entity>>
+
+' Actor chỉ làm việc với boundary
+Owner --> B_Macro
+Owner --> B_Mindmap
+Viewer --> B_Macro
+Viewer --> B_Mindmap
+
+' Boundary gọi control; khi control báo có vòng lặp thì màn hình mở hộp thoại chu trình
+B_Macro --> C_Design
+B_Mindmap --> C_Design
+B_Macro ..> B_CycleDialog : mở khi có vòng lặp
+B_Mindmap ..> B_CycleDialog : mở khi có vòng lặp
+
+' Control làm việc với entity
+C_Design --> C_Dag : kiểm tra chu trình
+C_Design --> E_Project
+C_Design --> E_Phase
+C_Design --> E_Node
+C_Design --> E_NodeDep
+C_Design --> E_PhaseDep
+C_Dag ..> E_Node : đọc
+C_Dag ..> E_NodeDep : đọc
+
+' Quan hệ giữa các entity (bội số lấy theo khóa ngoại trong DB)
+E_Project "1" *-- "0..*" E_Phase : gồm
+E_Project "1" *-- "0..*" E_Node : gồm
+E_Phase "0..1" o-- "0..*" E_Node : chứa
+note on link
+  Công việc độc lập không thuộc giai đoạn nào
+  (phase_id = null, ví dụ sau khi xóa giai đoạn)
+end note
+
+' Phụ thuộc công việc: một cạnh "cha -> con" giữa 2 Công việc, lưu thành bản ghi riêng
+E_Node "1" -- "0..*" E_NodeDep : là cha >
+E_NodeDep "0..*" -- "1" E_Node : < là con
+
+' Phụ thuộc giai đoạn: tương tự, giữa 2 Giai đoạn
+E_Phase "1" -- "0..*" E_PhaseDep : là cha >
+E_PhaseDep "0..*" -- "1" E_Phase : < là con
+
+@enduml
