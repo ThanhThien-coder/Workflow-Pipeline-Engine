@@ -1,4 +1,4 @@
-' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ (ProjectController.java, ProjectInvitationController.java, GuestGatewayController.java, FeedbackQueueController.java, AiDiagnosticController.java, TemplateController.java), docs/specs/system-overview.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ (ProjectController.java, ProjectInvitationController.java, ProjectMemberController.java, NodeAssignmentController.java, GuestGatewayController.java, FeedbackQueueController.java, AiDiagnosticController.java, PipelineTemplateController.java), docs/specs/system-overview.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md
 ' Sơ đồ Use Case mảng D - Dự án, Template, Khách & AI (WPE)
 
 @startuml uc-du-an-noi-bo
@@ -10,17 +10,19 @@ skinparam shadowing false
 actor "Người dùng" as User
 actor "Thành viên dự án" as Member
 actor "Chủ dự án" as Owner
+actor "Quản lý" as Manager
 actor "Cộng sự" as Collab
 actor "Người xem" as Viewer
 actor "Người được mời" as Invitee
 
 Member --|> User
 Owner --|> Member
+Manager --|> Member
 Collab --|> Member
 Viewer --|> Member
 Invitee --|> User
 
-rectangle "WPE - Mảng Dự án" {
+rectangle "WPE - Mảng Dự án (Nội bộ & Thành viên)" {
   usecase "Tạo dự án" as UC_Create
   usecase "Tạo dự án từ template" as UC_Clone
   usecase "Xem danh sách dự án" as UC_List
@@ -33,6 +35,8 @@ rectangle "WPE - Mảng Dự án" {
   usecase "Đổi vai trò thành viên" as UC_ChangeRole
   usecase "Chuyển quyền sở hữu" as UC_TransferOwner
   usecase "Xóa thành viên" as UC_RemoveMember
+  usecase "Xem lịch sử thành viên" as UC_MemberHistory
+  usecase "Đổi người làm và hạn chót" as UC_Assign
 }
 
 User --> UC_Create
@@ -43,6 +47,11 @@ Owner --> UC_Invite
 Owner --> UC_RevokeInvite
 Owner --> UC_ChangeRole
 Owner --> UC_RemoveMember
+Owner --> UC_Assign
+
+Manager --> UC_Assign
+
+Member --> UC_MemberHistory
 
 Invitee --> UC_RespondInvite
 
@@ -63,18 +72,20 @@ skinparam shadowing false
 actor "Người dùng" as User
 actor "Quản trị viên" as Admin
 actor "Thành viên dự án" as Member
-actor "Cộng sự" as Collab
 actor "Chủ dự án" as Owner
+actor "Quản lý" as Manager
+actor "Cộng sự" as Collab
 actor "Người xem" as Viewer
 actor "Khách / Giáo viên\n(truy cập bằng token)" as Guest
 
 Admin --|> User
 Member --|> User
 Owner --|> Member
+Manager --|> Member
 Collab --|> Member
 Viewer --|> Member
 
-rectangle "WPE - Mảng Dự án" {
+rectangle "WPE - Mảng Dự án (Khách, Góp ý, AI & Template)" {
   usecase "Tạo link khách" as UC_CreateGuestLink
   usecase "Thu hồi link khách" as UC_RevokeGuestLink
   usecase "Xem tiến độ qua link" as UC_ViewGuestProgress
@@ -85,10 +96,19 @@ rectangle "WPE - Mảng Dự án" {
   usecase "Chạy chẩn đoán AI" as UC_RunAiDiag
   usecase "Quản lý template" as UC_ManageTemplate
   usecase "Kiểm tra chu trình" as UC_CheckCycle
+  usecase "Lưu dự án thành template" as UC_SaveTemplate
 }
 
 Owner --> UC_CreateGuestLink
 Owner --> UC_RevokeGuestLink
+Owner --> UC_ViewFeedback
+Owner --> UC_ResolveFeedback
+Owner --> UC_SaveTemplate
+
+Manager --> UC_ViewFeedback
+Manager --> UC_ResolveFeedback
+
+Collab --> UC_ViewFeedback
 
 Guest --> UC_ViewGuestProgress
 Guest --> UC_SendFeedback
@@ -98,19 +118,6 @@ note right of UC_ViewAiDiag
   SSOT UC21: Khách ngoài được phép xem báo cáo AI.
   Code hiện tại chưa có API AI cho khách
   (chỉ thành viên/chủ dự án có API).
-end note
-
-Collab --> UC_ViewFeedback
-Owner --> UC_ViewFeedback
-
-Collab --> UC_ResolveFeedback
-Owner --> UC_ResolveFeedback
-
-note bottom of UC_ResolveFeedback
-  RBAC SSOT UC23: Chỉ Chủ dự án và Cộng sự
-  được xem và đánh dấu RESOLVED góp ý (Viewer không được).
-  Code hiện dùng verifyProjectMemberOrOwner nên
-  Người xem (Viewer) vẫn làm được (lệch SSOT).
 end note
 
 Member --> UC_ViewAiDiag

@@ -8,6 +8,7 @@ skinparam shadowing false
 
 ' --- Actors ---
 actor "Chủ dự án" as Act_Owner
+actor "Quản lý" as Act_Manager
 actor "Thành viên" as Act_Member
 actor "Người được mời" as Act_Invitee
 actor "Khách / Giáo viên" as Act_Guest
@@ -16,13 +17,16 @@ actor "Quản trị viên" as Act_Admin
 ' --- Boundaries ---
 class "Màn hình Workspace" as B_Workspace <<boundary>>
 class "Màn hình Cài đặt thành viên" as B_MemberSettings <<boundary>>
+class "Màn hình Kanban/Chi tiết task" as B_TaskDetail <<boundary>>
 class "Trang khách" as B_GuestPortal <<boundary>>
 class "Template Studio" as B_TemplateStudio <<boundary>>
 
 ' --- Controls ---
 class "Điều khiển dự án" as C_Project <<control>>
 class "Điều khiển lời mời" as C_Invitation <<control>>
+class "Bộ quét lời mời hết hạn" as C_ExpiryJob <<control>>
 class "Điều khiển thành viên" as C_Member <<control>>
+class "Điều khiển phân công" as C_Assignment <<control>>
 class "Cổng khách" as C_GuestGateway <<control>>
 class "Điều khiển góp ý" as C_Feedback <<control>>
 class "Bộ chẩn đoán AI" as C_AiDiagnostic <<control>>
@@ -70,6 +74,8 @@ class "Template" as E_Template <<entity>> {
   mã mẫu
   tên mẫu
   danh mục
+  phạm vi (công khai / riêng)
+  dự án gốc
   dữ liệu đồ thị
   số lượt nhân bản
 }
@@ -92,7 +98,14 @@ class "Node" as E_Node <<entity>> {
 ' --- Nối Actor <--> Boundary ---
 Act_Owner --> B_Workspace
 Act_Owner --> B_MemberSettings
+Act_Owner --> B_TaskDetail
+
+Act_Manager --> B_Workspace
+Act_Manager --> B_TaskDetail
+
 Act_Member --> B_Workspace
+Act_Member --> B_TaskDetail
+
 Act_Invitee --> B_Workspace
 Act_Guest --> B_GuestPortal
 Act_Admin --> B_TemplateStudio
@@ -102,9 +115,12 @@ B_Workspace --> C_Project
 B_Workspace --> C_AiDiagnostic
 B_Workspace --> C_Feedback
 B_Workspace --> C_Invitation
+B_Workspace --> C_Template
 
 B_MemberSettings --> C_Invitation
 B_MemberSettings --> C_Member
+
+B_TaskDetail --> C_Assignment
 
 B_GuestPortal --> C_GuestGateway
 B_GuestPortal --> C_Feedback
@@ -120,8 +136,14 @@ C_Invitation --> E_Project
 C_Invitation --> E_User
 C_Invitation --> E_Member
 
+C_ExpiryJob --> E_Invitation
+
 C_Member --> E_Member
 C_Member --> E_Node
+
+C_Assignment --> E_Node
+C_Assignment --> E_Project
+C_Assignment --> E_Member
 
 C_GuestGateway --> E_GuestLink
 C_GuestGateway --> E_Project
@@ -137,6 +159,7 @@ C_AiDiagnostic --> E_Node
 C_AiDiagnostic --> E_Feedback
 
 C_Template --> E_Template
+C_Template --> E_Project
 
 ' --- Quan hệ giữa các Entity kèm bội số ---
 E_Project "1" -- "*" E_Member : có >
@@ -153,9 +176,10 @@ E_Node "0..1" -- "*" E_Feedback : gắn với <
 
 E_Project "1" -- "*" E_Node : bao gồm >
 E_User "1" -- "*" E_Template : khởi tạo >
+E_Project "0..1" -- "*" E_Template : nguồn tạo >
 
 ' --- Note Lớp kết hợp ---
-note "Thành viên là lớp kết hợp giữa Người dùng và Dự án\n(lưu vai trò dự án, ngày gia nhập, ngày xóa mềm)" as Note_Member
+note "Thành viên là lớp kết hợp giữa Người dùng và Dự án\n(lưu vai trò dự án, ngày gia nhập, ngày xóa mềm;\nmỗi lần gia nhập là một dòng mới theo Cách B)" as Note_Member
 Note_Member .. E_Member
 
 @enduml

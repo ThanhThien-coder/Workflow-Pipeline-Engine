@@ -1,4 +1,4 @@
-' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ProjectInvitationController.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectInvitationService.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectInvitationRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectMemberRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/NotificationRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/service/event/WorkflowEventPublisher.java, wpe-backend/src/main/java/com/pipeline/wpe/exception/GlobalExceptionHandler.java
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ProjectInvitationController.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectInvitationService.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectInvitationRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectMemberRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/NotificationRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/service/event/WorkflowEventPublisher.java, wpe-backend/src/main/java/com/pipeline/wpe/service/event/InvitationEventConsumer.java, wpe-backend/src/main/java/com/pipeline/wpe/exception/GlobalExceptionHandler.java
 @startuml seq-moi-thanh-vien
 autonumber
 skinparam shadowing false
@@ -15,6 +15,7 @@ entity ":ProjectMemberRepository" as MemberRepo
 entity ":NotificationRepository" as NotifRepo
 control ":WorkflowEventPublisher" as Publisher
 queue "RabbitMQ" as MQ
+control ":InvitationEventConsumer" as Consumer
 
 == 1. Chủ dự án gửi lời mời tham gia dự án ==
 
@@ -47,15 +48,27 @@ else [là chủ dự án hợp lệ]
   MemberRepo --> Svc : boolean alreadyMember
   deactivate MemberRepo
 
-  Svc -> InviteRepo : existsByProjectIdAndInviteeIdAndStatus(projectId, invitee.getId(), PENDING)
-  activate InviteRepo
-  InviteRepo --> Svc : boolean alreadyPending
-  deactivate InviteRepo
+  alt [đã là thành viên hoạt động: alreadyMember == true]
+    Svc --> Ctl : throw IllegalArgumentException("Người dùng đã là thành viên chính thức.")
+    Ctl --> Owner : 400 BAD_REQUEST
+  else [chưa là thành viên hoạt động]
+    Svc -> InviteRepo : findByProjectIdAndInviteeIdAndStatus(projectId, invitee.getId(), PENDING)
+    activate InviteRepo
+    InviteRepo --> Svc : Optional<ProjectInvitationEntity> pendingInvitationOpt
+    deactivate InviteRepo
 
-  alt [đã có lời mời PENDING: alreadyPending == true]
-    Svc --> Ctl : throw ConflictException("INVITATION_ALREADY_PENDING")
-    Ctl --> Owner : 409 INVITATION_ALREADY_PENDING
-  else [chưa có lời mời pending]
+    opt [đã có lời mời PENDING: pendingInvitationOpt.isPresent()]
+      alt [lời mời cũ đã quá hạn: pendingInvitation.getExpiresAt().isBefore(now)]
+        Svc -> InviteRepo : saveAndFlush(pendingInvitation [status=EXPIRED])
+        activate InviteRepo
+        InviteRepo --> Svc : savedInvitation
+        deactivate InviteRepo
+      else [lời mời cũ còn hạn]
+        Svc --> Ctl : throw ConflictException("INVITATION_ALREADY_PENDING")
+        Ctl --> Owner : 409 INVITATION_ALREADY_PENDING
+      end
+    end
+
     Svc -> InviteRepo : save(invitation)
     activate InviteRepo
     InviteRepo --> Svc : savedInvitation
@@ -68,9 +81,13 @@ else [là chủ dự án hợp lệ]
 
     Svc -> Publisher : publishInvitationCreated(invitationCreatedEvent)
     activate Publisher
-    Publisher ->> MQ : publish(exchange="wpe.exchange",\nroutingKey="wpe.notification.invitation_created")
+    Publisher ->> MQ : publish(exchange="wpe.workflow.exchange",\nroutingKey="wpe.invitation.created")
     Publisher --> Svc : void
     deactivate Publisher
+
+    MQ ->> Consumer : handleInvitationCreated(invitationCreatedEvent)
+    activate Consumer
+    deactivate Consumer
 
     Svc --> Ctl : InvitationResponse
     Ctl --> Owner : 201 CREATED (InvitationResponse)
@@ -93,17 +110,11 @@ deactivate InviteRepo
 
 alt [quá expires_at: invitation.getExpiresAt().isBefore(now)]
   Svc -> InviteRepo : save(invitation [status=EXPIRED])
-  note over Svc, InviteRepo
-    acceptInvitation (ProjectInvitationService) đặt status EXPIRED và save,
-    rồi ném IllegalArgumentException trong cùng @Transactional nên transaction
-    bị ROLLBACK: trạng thái EXPIRED KHÔNG được lưu vào DB (lỗi code, cần nhóm sửa).
-    Mũi tên trả lời 400 BAD_REQUEST.
-  end note
   activate InviteRepo
   InviteRepo --> Svc : savedInvitation
   deactivate InviteRepo
-  Svc --> Ctl : throw IllegalArgumentException("Lời mời tham gia dự án đã hết hạn.")
-  Ctl --> Invitee : 400 BAD_REQUEST
+  Svc --> Ctl : throw ConflictException("INVITATION_EXPIRED")
+  Ctl --> Invitee : 409 INVITATION_EXPIRED
 else [chưa quá expires_at]
   alt [đụng optimistic lock với thu hồi: version không khớp]
     Svc -> InviteRepo : save(invitation [status=ACCEPTED])
@@ -118,18 +129,13 @@ else [chưa quá expires_at]
     InviteRepo --> Svc : savedInvitation
     deactivate InviteRepo
 
-    Svc -> MemberRepo : findByProjectIdAndUserId(projectId, currentUserId)
+    Svc -> MemberRepo : existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, currentUserId)
     activate MemberRepo
-    MemberRepo --> Svc : Optional<ProjectMemberEntity> existingMemberOpt
+    MemberRepo --> Svc : boolean alreadyActiveMember
     deactivate MemberRepo
 
-    alt [từng bị xóa mềm: existingMemberOpt.isPresent() && removedAt != null]
-      Svc -> MemberRepo : save(existingMember [removedAt=null, role, joinedAt=now])
-      activate MemberRepo
-      MemberRepo --> Svc : updatedMember
-      deactivate MemberRepo
-    else [chưa từng là thành viên: existingMemberOpt.isEmpty()]
-      Svc -> MemberRepo : save(newMember)
+    opt [chưa là thành viên hoạt động: !alreadyActiveMember]
+      Svc -> MemberRepo : save(new ProjectMemberEntity)
       activate MemberRepo
       MemberRepo --> Svc : savedMember
       deactivate MemberRepo
@@ -156,9 +162,13 @@ else [chưa quá expires_at]
 
     Svc -> Publisher : publishInvitationAccepted(invitationAcceptedEvent)
     activate Publisher
-    Publisher ->> MQ : publish(exchange="wpe.exchange",\nroutingKey="wpe.notification.invitation_accepted")
+    Publisher ->> MQ : publish(exchange="wpe.workflow.exchange",\nroutingKey="wpe.invitation.accepted")
     Publisher --> Svc : void
     deactivate Publisher
+
+    MQ ->> Consumer : handleInvitationAccepted(invitationAcceptedEvent)
+    activate Consumer
+    deactivate Consumer
 
     Svc --> Ctl : void
     Ctl --> Invitee : 200 OK (Map: success=true, message, invitationId)
