@@ -2,7 +2,7 @@
 
 Người làm: A
 Người review: B
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: T0
 Cần trước bước frontend: không
 Mở khóa: A3
@@ -97,10 +97,44 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Trả lời Bước 0
 
 ### Đã làm gì (file nào, vì sao)
+> Làm ở chế độ sprint (Claude làm), nhánh `a1-build-ci` tách từ main `a56f69b`, ngày 12/11/2026.
+
+- `wpe-backend/mvnw`, `wpe-backend/mvnw.cmd`: tạo bằng Maven 3.9.11 có sẵn trong IntelliJ 2025.3 (máy không cài Maven), lệnh `mvn -B -N org.apache.maven.plugins:maven-wrapper-plugin:3.3.4:wrapper -Dtype=only-script -Dmaven=3.9.16`. Ghim plugin 3.3.4 và Maven 3.9.16 cho khớp file properties. `maven-wrapper.properties` đã có sẵn trong git, sau khi chạy goal **không đổi** (git diff rỗng). `mvnw` dùng xuống dòng LF; khi commit phải `git add --chmod=+x wpe-backend/mvnw` để CI Linux chạy được.
+- `application.yml`: thêm `spring.flyway.out-of-order: true` kèm comment chỉ dùng cho dev.
+- `.github/workflows/ci.yml` (mới): chạy khi `pull_request` và `push` lên `main`. Job `backend`: ubuntu, checkout, `setup-java` temurin 17 cache maven, `./mvnw -B test` trong `wpe-backend`. Job `frontend`: ubuntu, checkout, `setup-node` Node 20 cache npm (`cache-dependency-path: wpe-frontend/package-lock.json` vì lock file không nằm ở gốc repo), `npm ci`, `npm run typecheck`, `npm test` trong `wpe-frontend`. Không có secret.
+- `docs/TEAM_DEVELOPMENT_GUIDE.md`: thêm mục "Chạy test bằng dòng lệnh" (sau PHẦN 3 Flyway): lệnh BE, lệnh FE, cách đọc `target/surefire-reports`, lưu ý Node 25+.
 
 ### Kết quả test (dán output thật, không chép tay)
+**Backend**, máy A (Windows 11, Temurin 21.0.12.1), `.\mvnw.cmd -v`:
+```
+Apache Maven 3.9.16 (2bdd9fddda4b155ebf8000e807eb73fd829a51d5)
+Java version: 21.0.12.1, vendor: Eclipse Adoptium
+```
+`.\mvnw.cmd -B test`:
+```
+[INFO] Tests run: 159, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+Không có test backend lỗi. Không test nào bị skip.
+
+**Frontend**, máy A (Node v26.13.0). Lần `npm ci` đầu lỗi `EPERM ... esbuild.exe` vì Vite dev server đang chạy giữ file; tắt dev server rồi chạy lại thì `npm ci` thành công (chỉ có cảnh báo postinstall của `esbuild@0.21.5` chưa được cho phép, như T0).
+`npm run typecheck` (`tsc -b`): exit 0, không lỗi.
+`NODE_OPTIONS=--no-webstorage npm test` (bắt buộc trên Node 25+, xem mục dưới):
+```
+ Test Files  25 passed (25)
+      Tests  151 passed (151)
+```
+
+**CI trên GitHub:** xem tab Checks của PR A1 (chạy ngay khi mở PR).
+
+**Vòng hiểu:** Claude đã giải thích các thay đổi; người làm **chưa trả lời** câu bảo vệ 1 (vắng mặt, A cho mở PR trước). Làm bù khi A quay lại.
+
+**Flyway `out-of-order`:** chưa khởi động app để kiểm. Đã kiểm file YAML đúng cú pháp; Spring Boot 3.2.4 có thuộc tính `spring.flyway.out-of-order`. Không khởi động thêm một bản backend vì bản đang chạy trong IntelliJ dùng chung RabbitMQ, chạy bản thứ hai có thể lấy mất message của bản kia.
 
 ### Điều chưa chắc / cần nhóm quyết
+- **Node 25+ và `localStorage`:** trên Node 26, `npm test` lỗi 26/151 test vì Node có `localStorage` riêng che `localStorage` của jsdom; chạy với `NODE_OPTIONS=--no-webstorage` thì 151/151 đạt (chi tiết: `docs/tasks/ghi-chep/T0-A.md`). CI giữ Node 20 theo đặc tả nên không bị. Không sửa cấu hình vitest; chỉ thêm lưu ý vào TEAM_DEVELOPMENT_GUIDE. Nhóm cần quyết: có ghim phiên bản Node (`engines` trong package.json hoặc `.nvmrc`) hay sửa setup test để chạy được trên Node mới.
+- **`out-of-order: true`** đang áp cho mọi môi trường vì chỉ có một `application.yml`. Trước khi triển khai thật cần tắt, hoặc chuyển sang profile `dev`.
+- **Bit thực thi của `mvnw`:** Windows không lưu bit +x. Nếu sau này ai tạo lại `mvnw` trên Windows và commit mà quên `--chmod=+x`, job `backend` sẽ báo `Permission denied`.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa

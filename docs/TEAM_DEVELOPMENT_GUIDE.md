@@ -243,6 +243,38 @@ Nếu muốn bật giao diện web lên trải nghiệm:
 
 ---
 
+## Chạy test bằng dòng lệnh
+
+Không cần cài Maven: repo có sẵn Maven Wrapper (`mvnw`, `mvnw.cmd`), lần chạy đầu tự tải Maven về `~/.m2/wrapper`. Cần Java 17+ (CI dùng Temurin 17) và Node 20 (CI dùng Node 20).
+
+**Backend** (không cần Docker, các test hiện có là `@WebMvcTest` và Mockito, không đụng PostgreSQL/RabbitMQ):
+```bash
+cd wpe-backend
+./mvnw -B test        # macOS, Linux, Git Bash
+mvnw.cmd -B test      # Windows CMD hoặc PowerShell (.\mvnw.cmd -B test)
+./mvnw -B test -Dtest=KahnDagServiceTest   # chỉ chạy 1 lớp test
+```
+Cuối log có dòng tổng `Tests run: X, Failures: F, Errors: E, Skipped: S` và `BUILD SUCCESS` hoặc `BUILD FAILURE`.
+
+**Đọc báo cáo khi test lỗi:** mỗi lớp test có 2 file trong `wpe-backend/target/surefire-reports/`:
+* `com.pipeline.wpe.<...>.<TênTest>.txt`: tóm tắt số test đạt/lỗi và stack trace của test lỗi. Mở file này trước.
+* `TEST-com.pipeline.wpe.<...>.<TênTest>.xml`: bản đầy đủ, có cả log in ra trong lúc test.
+* `Failures` là assert sai (kết quả khác mong đợi); `Errors` là test ném exception ngoài dự kiến.
+
+**Frontend:**
+```bash
+cd wpe-frontend
+npm ci                # cài đúng phiên bản trong package-lock.json
+npm run typecheck     # kiểm tra kiểu TypeScript
+npm test              # chạy toàn bộ test Vitest
+```
+
+> ⚠️ **Node 25 trở lên:** Node có sẵn `localStorage` riêng, che `localStorage` của jsdom nên khoảng 26 test frontend lỗi `Cannot read properties of undefined (reading 'clear')`. Chạy với Web Storage của Node tắt: `NODE_OPTIONS=--no-webstorage npm test` (PowerShell: `$env:NODE_OPTIONS="--no-webstorage"; npm test`), hoặc dùng Node 20/22 như CI.
+
+**CI:** mỗi Pull Request và mỗi lần push lên `main`, GitHub Actions (`.github/workflows/ci.yml`) chạy 2 job `backend` và `frontend` như trên. Job đỏ thì bấm vào job xem bước lỗi; không merge khi CI đỏ.
+
+---
+
 ## PHẦN 4: QUY CHUẨN KHI CODE 1 TÍNH NĂNG BACKEND (LAYERED ARCHITECTURE)
 
 Mọi tính năng đều phải tuân thủ kiến trúc phân tầng đã định nghĩa tại [docs/specs/backend-architecture.md](file:///c:/Users/Admin/Desktop/J2EE/Workflow-Pipeline-Engine/docs/specs/backend-architecture.md). 
