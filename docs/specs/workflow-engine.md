@@ -175,11 +175,11 @@ Khi một nút đạt trạng thái `DONE`, Engine kích hoạt luồng quét to
 ### 3.6 Gửi sự kiện RabbitMQ và SSE sau khi commit (C1, 12/11/2026)
 * **Vấn đề trước đây:** `updateStatus` gọi `publishTaskCompleted` khi transaction còn mở. Consumer (`WorkflowEventConsumer.handleTaskCompleted`, chạy ở luồng listener riêng) có thể nhận sự kiện trước khi commit, đọc thấy task cha chưa `DONE`, nên **không mở khóa** task con. Thực nghiệm C1 (thêm tạm `Thread.sleep(2000)` sau lời gọi publish) tái hiện được: duyệt WPE-003 xong, WPE-004 vẫn `LOCKED`.
 * **Quy tắc:** mọi hàm `publish*` của `WorkflowEventPublisher` kiểm `TransactionSynchronizationManager.isSynchronizationActive()`:
-  * đang trong transaction → đăng ký `TransactionSynchronization.afterCommit()` rồi mới `convertAndSend`; transaction rollback thì **không** gửi;
+  * đang trong transaction → đăng ký một `TransactionSynchronization`, chỉ `convertAndSend` ở `afterCompletion(STATUS_COMMITTED)`; transaction rollback thì **không** gửi. Không dùng `afterCommit()` vì publish có thể bị gọi từ bên trong `afterCommit` của code khác (ví dụ `publishPipeline`), lúc đó một `afterCommit` đăng ký thêm sẽ không bao giờ chạy;
   * không có transaction → gửi ngay.
 * SSE trong `StateMachineService` (`TASK_STATUS_CHANGED`, `TASK_REJECTED`, `TASK_SUBMITTED`, `TASK_UNLOCKED`) cũng gửi sau commit theo cùng cách, để trình duyệt không nhận trạng thái mà DB còn có thể rollback.
 * Chữ ký các hàm `publish*` và `SseEmitterService.sendToUser` giữ nguyên; code của B và D gọi như cũ là tự được gửi sau commit.
-* **Hạn chế đã biết:** `afterCommit` chạy trên chính luồng của request, sau khi commit xong. Nếu RabbitMQ lỗi đúng lúc đó thì dữ liệu đã lưu nhưng **sự kiện bị mất** (chỉ ghi log `ERROR`, request vẫn trả thành công). Muốn không mất sự kiện thì cần outbox pattern: ghi sự kiện vào một bảng trong cùng transaction, rồi một job đọc bảng đó để gửi lên RabbitMQ.
+* **Hạn chế đã biết:** việc gửi sau commit chạy trên chính luồng của request, sau khi commit xong. Nếu RabbitMQ lỗi đúng lúc đó thì dữ liệu đã lưu nhưng **sự kiện bị mất** (chỉ ghi log `ERROR`, request vẫn trả thành công). Muốn không mất sự kiện thì cần outbox pattern: ghi sự kiện vào một bảng trong cùng transaction, rồi một job đọc bảng đó để gửi lên RabbitMQ.
 
 ---
 

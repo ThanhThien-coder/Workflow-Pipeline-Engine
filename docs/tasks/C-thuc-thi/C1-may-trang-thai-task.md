@@ -92,12 +92,12 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 
 ### Đã làm gì (file nào, vì sao)
 Làm theo chế độ sprint ngày 12/11/2026, nhánh `c1-fsm`.
-- `BE/service/event/WorkflowEventPublisher.java`: thêm `sendAfterCommit`, mọi hàm `publish*` đi qua hàm này. Đang trong transaction thì đăng ký `TransactionSynchronization.afterCommit` rồi mới `convertAndSend`; rollback thì không gửi; không có transaction thì gửi ngay. RabbitMQ lỗi sau commit thì chỉ ghi log `ERROR`, không làm request đã commit trả lỗi. Chữ ký các hàm `publish*` giữ nguyên.
+- `BE/service/event/WorkflowEventPublisher.java`: thêm `sendAfterCommit`, mọi hàm `publish*` đi qua hàm này. Đang trong transaction thì đăng ký một `TransactionSynchronization`, chỉ `convertAndSend` ở `afterCompletion(STATUS_COMMITTED)`; rollback thì không gửi; không có transaction thì gửi ngay. Dùng `afterCompletion` chứ không dùng `afterCommit` để vẫn gửi được khi publish bị gọi từ bên trong `afterCommit` của code khác (xem kết quả test mục 6). RabbitMQ lỗi sau commit thì chỉ ghi log `ERROR`, không làm request đã commit trả lỗi. Chữ ký các hàm `publish*` giữ nguyên.
 - `BE/service/engine/StateMachineService.java`:
   - `ensureNotArchived`: `updateStatus`, `submitTaskArtifact`, `forceUnlock` trả 409 `PROJECT_ARCHIVED` khi dự án ARCHIVED. Dùng lại `ConflictException("PROJECT_ARCHIVED", …)` giống phần đồ thị của B.
-  - `afterCommit`: mọi SSE (`TASK_STATUS_CHANGED`, `TASK_REJECTED`, `TASK_SUBMITTED`, `TASK_UNLOCKED`) gửi sau commit.
+  - Hàm `afterCommit(Runnable)`: mọi SSE (`TASK_STATUS_CHANGED`, `TASK_REJECTED`, `TASK_SUBMITTED`, `TASK_UNLOCKED`) gửi sau commit, cùng cách `afterCompletion(STATUS_COMMITTED)` như publisher.
   - `forceUnlock`: log `info` ghi userId người mở; gửi `publishNotification` loại `FORCE_UNLOCKED` ("… được Chủ dự án mở khóa sớm") cho người phụ trách.
-- Test mới: `BE-test/service/event/WorkflowEventPublisherTest.java` (5 test), `BE-test/service/engine/StateMachineServiceMatrixTest.java` (39 test). 15 test cũ trong `StateMachineServiceTest` giữ nguyên.
+- Test mới: `BE-test/service/event/WorkflowEventPublisherTest.java` (6 test), `BE-test/service/engine/StateMachineServiceMatrixTest.java` (40 test). 15 test cũ trong `StateMachineServiceTest` giữ nguyên. Test transaction chạy bằng `BE-test/service/event/NoOpTransactionManager.java`: không có DB nhưng đi đúng quy trình commit/rollback thật của Spring.
 - `docs/specs/workflow-engine.md`: mục 3.4 (force unlock), mục mới 3.6 (gửi sau commit, hạn chế khi RabbitMQ lỗi), mục 5.1 (ARCHIVED chỉ đọc).
 - Không sửa `NodeController` (không cần).
 
@@ -144,7 +144,7 @@ Hàng 7–11 gồm 11 cặp (từ, đến), chạy bằng Owner để chắc ch�
 ```
 11 test fail đúng các lỗi của task; 33 ô ma trận còn lại pass vì đó là hành vi đang đúng.
 
-**2. Sau khi sửa, toàn bộ test backend** (`./mvnw test`, code cuối cùng, không còn `Thread.sleep`): `Tests run=324, Failures=0, Errors=0, Skipped=1` (test skip là test có sẵn).
+**2. Sau khi sửa, toàn bộ test backend** (`./mvnw test`, không còn `Thread.sleep`, trước khi rebase lên main mới — xem mục 6 cho số cuối): `Tests run=324, Failures=0, Errors=0, Skipped=1` (test skip là test có sẵn).
 ```
 StateMachineServiceTest        Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
 StateMachineServiceMatrixTest  Tests run: 39, Failures: 0, Errors: 0, Skipped: 0
@@ -173,12 +173,28 @@ Trước khi sửa, consumer chạy sau publish 11 ms, khi transaction còn mở
 
 Sau mỗi thực nghiệm đã khôi phục DB local về đúng dữ liệu seed (WPE-003 TODO v0, WPE-004 LOCKED v0, dự án ACTIVE, xóa thông báo sinh ra trong thực nghiệm).
 
+**6. Rebase lên `main` mới (đã có B4 `publishPipeline`):** B4 gọi `eventPublisher.publishNotification` từ **bên trong** `afterCommit` của nó. Bản C1 đầu dùng `afterCommit` nên đăng ký thêm một `afterCommit` lúc Spring đã lấy xong danh sách cần gọi → thông báo `TASK_READY` khi xuất bản dự án **mất lặng lẽ**. Đã thêm test dùng quy trình commit thật của Spring (`NoOpTransactionManager`), chạy với code cũ:
+```
+[ERROR] com.pipeline.wpe.service.event.WorkflowEventPublisherTest.publishNotification_calledFromAnotherAfterCommit_stillSends -- Time elapsed: 0.033 s <<< FAILURE!
+Wanted but not invoked:
+Actually, there were zero interactions with this mock.
+[ERROR] Tests run: 6, Failures: 1, Errors: 0, Skipped: 0
+```
+Sửa: chuyển sang `afterCompletion(STATUS_COMMITTED)` (Spring cũng cài `@TransactionalEventListener(AFTER_COMMIT)` theo cách này). Sau khi sửa, toàn bộ test backend: `Tests run=335, Failures=0, Errors=0, Skipped=1`.
+```
+WorkflowEventPublisherTest     Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+StateMachineServiceMatrixTest  Tests run: 40, Failures: 0, Errors: 0, Skipped: 0
+StateMachineServiceTest        Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
+WorkflowGraphServiceTest       Tests run: 53, Failures: 0, Errors: 0, Skipped: 0
+```
+**Chưa chạy lại thực nghiệm thật (mục 3–5) với bản `afterCompletion`:** backend cũ còn giữ cổng 8080 và lệnh dừng tiến trình bị chặn. Cần chạy lại kịch bản T0 (duyệt WPE-003 → WPE-004 mở khóa) và xuất bản một dự án DRAFT (thông báo `TASK_READY` có trong bảng `notification`) trước khi chốt.
+
 **Dời về buổi kiểm chung (SPRINT mục 7.2 dòng 6):** alex duyệt task của sarah trên giao diện → WPE-004 tự mở khóa.
 
 ### Điều chưa chắc / cần nhóm quyết
 - **RabbitMQ lỗi đúng lúc sau commit thì sự kiện bị mất** (chỉ có log `ERROR`). Muốn không mất cần outbox pattern; chưa làm, đã ghi ở `workflow-engine.md` mục 3.6.
 - Task đã DONE trong dự án ARCHIVED vẫn trả 400 "đã hoàn tất", không phải 409, vì kiểm DONE chạy trước khi tải dự án. Vẫn bị chặn, chỉ khác mã lỗi. Giữ thứ tự này để không đổi hành vi mà test cũ đang kiểm.
-- **Cho B (B4):** `publish*` giờ tự gửi sau commit, B4 không cần tự dùng `TransactionSynchronization`. Nhưng `SseEmitterService.sendToUser` gọi trực tiếp từ `WorkflowGraphService` (B3, B4) vẫn gửi ngay lúc gọi; muốn gửi sau commit thì phía B tự bọc (C2 có thể xem xét đưa vào `SseEmitterService`).
+- **Cho B (B4):** `publish*` giờ tự gửi sau commit. Code B4 hiện tự bọc `publishNotification` trong `afterCommit` của nó; vẫn chạy đúng (mục 6), nhưng có thể gọi thẳng `publishNotification` cho gọn — B quyết. Ngoài ra `SseEmitterService.sendToUser` gọi trực tiếp từ `WorkflowGraphService` (B3, B4) vẫn gửi ngay lúc gọi; muốn gửi sau commit thì phía B tự bọc (C2 có thể xem xét đưa vào `SseEmitterService`).
 - Thông báo `FORCE_UNLOCKED` mới chỉ được **lưu vào bảng `notification`**, chưa hiện trên chuông: FE vẫn dùng `MockNotificationApi` (`FE/services/container.ts`) và BE chưa có API đọc thông báo. Việc nối chuông với API thật và nghe SSE `NOTIFICATION_RECEIVED` là của C3. Kiểm C1 thì xem bảng `notification` bằng SQL, không xem chuông.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
