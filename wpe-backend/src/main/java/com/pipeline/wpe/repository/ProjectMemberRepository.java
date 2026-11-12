@@ -12,6 +12,6 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMemberEnti
     List<ProjectMemberEntity> findByProjectIdAndRemovedAtIsNull(Long projectId);
     List<ProjectMemberEntity> findByUserIdAndRemovedAtIsNull(Long userId);
     Optional<ProjectMemberEntity> findByProjectIdAndUserIdAndRemovedAtIsNull(Long projectId, Long userId);
-    Optional<ProjectMemberEntity> findByProjectIdAndUserId(Long projectId, Long userId);
+    List<ProjectMemberEntity> findByProjectIdOrderByJoinedAtAsc(Long projectId);
     boolean existsByProjectIdAndUserIdAndRemovedAtIsNull(Long projectId, Long userId);
 }

@@ -70,6 +70,9 @@ app:
     diagnose-path: ${AI_DIAGNOSE_PATH:/api/ai/diagnose}
     connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:3}
     read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:30}
+  invitation:
+    expiry-days: ${INVITATION_EXPIRY_DAYS:7}
+    expiry-scan-ms: ${INVITATION_EXPIRY_SCAN_MS:3600000}
 
 # Cấu hình Token bảo mật JWT
 jwt:

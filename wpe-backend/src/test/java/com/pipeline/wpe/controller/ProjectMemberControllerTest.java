@@ -3,6 +3,7 @@ package com.pipeline.wpe.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.dto.request.project.UpdateMemberRoleRequest;
+import com.pipeline.wpe.dto.response.project.ProjectMemberHistoryResponse;
 import com.pipeline.wpe.dto.response.project.ProjectMemberResponse;
 import com.pipeline.wpe.dto.response.project.RemoveMemberResponse;
 import com.pipeline.wpe.exception.ForbiddenException;
@@ -115,5 +116,25 @@ class ProjectMemberControllerTest {
         mockMvc.perform(delete("/api/v1/projects/10/members/3"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/1/members/history - Trả về HTTP 200 và danh sách lịch sử thành viên")
+    void testGetMemberHistory_returns200() throws Exception {
+        ProjectMemberHistoryResponse historyItem = new ProjectMemberHistoryResponse(
+                "2", "sarah.chen", "Sarah Chen", "COLLABORATOR", now, null, true
+        );
+
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(1L);
+        when(projectMemberService.getMemberHistory(1L, 1L)).thenReturn(List.of(historyItem));
+
+        mockMvc.perform(get("/api/v1/projects/1/members/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].userId").value("2"))
+                .andExpect(jsonPath("$[0].username").value("sarah.chen"))
+                .andExpect(jsonPath("$[0].role").value("COLLABORATOR"))
+                .andExpect(jsonPath("$[0].active").value(true));
+
+        verify(projectMemberService).getMemberHistory(1L, 1L);
     }
 }
