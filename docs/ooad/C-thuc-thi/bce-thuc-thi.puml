@@ -1,0 +1,159 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/ (controller/NodeController.java, service/engine/StateMachineService.java, service/event/, entity/), docs/specs/system-overview.md, docs/specs/workflow-engine.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md
+' Sơ đồ Class phân tích (Boundary - Control - Entity) mảng Chạy task, FSM & Realtime (WPE)
+
+@startuml bce-thuc-thi
+!pragma layout smetana
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+' allowmixing: cho phép vẽ actor chung với class (BCE có actor đứng trước boundary)
+allowmixing
+skinparam classAttributeIconSize 0
+hide empty methods
+
+' --- Actors ---
+actor "Người xem" as Act_Viewer
+actor "Cộng sự" as Act_Collab
+actor "Quản lý" as Act_Manager
+actor "Chủ dự án" as Act_Owner
+actor "Bộ hẹn giờ\n(Actor thời gian)" as Act_Timer
+
+Act_Collab --|> Act_Viewer
+Act_Manager --|> Act_Collab
+Act_Owner --|> Act_Manager
+
+' --- Boundaries (Giao diện & Cổng tiếp nhận) ---
+class "Bảng Kanban" as B_Kanban <<boundary>>
+class "Hộp thoại nộp bài" as B_SubmitModal <<boundary>>
+class "Hộp thoại chi tiết tác vụ" as B_TaskDetail <<boundary>>
+class "Chuông thông báo" as B_NotificationBell <<boundary>>
+class "Kho tài nguyên dự án" as B_ArtifactsHub <<boundary>>
+class "Bộ lập lịch hệ thống" as B_SystemScheduler <<boundary>>
+
+' --- Controls (Bộ điều khiển nghiệp vụ) ---
+class "Điều khiển trạng thái công việc" as C_StateMachine <<control>>
+class "Bộ mở khóa phụ thuộc" as C_DependencyUnlocker <<control>>
+class "Bộ phát sự kiện và thời gian thực" as C_EventPublisher <<control>>
+class "Bộ quét trễ hạn" as C_OverdueScanner <<control>>
+class "Điều khiển kho tài nguyên" as C_ArtifactHub <<control>>
+
+' --- Entities (Thực thể dữ liệu nghiệp vụ) ---
+class "Công việc" as E_Task <<entity>> {
+  mã công việc
+  tiêu đề
+  mô tả
+  trạng thái
+  chính sách hội tụ
+  lý do từ chối
+  hạn hoàn thành
+  cờ trễ hạn
+  thời điểm bắt đầu
+  phiên bản
+}
+
+class "Minh chứng" as E_Artifact <<entity>> {
+  mã minh chứng
+  tên minh chứng
+  loại minh chứng
+  đường dẫn liên kết
+  cờ công khai cho khách
+  thời điểm tạo
+}
+
+class "Thông báo" as E_Notification <<entity>> {
+  mã thông báo
+  tiêu đề
+  nội dung
+  đường dẫn liên kết
+  trạng thái đã đọc
+  thời điểm tạo
+}
+
+class "Phụ thuộc công việc" as E_Dependency <<entity>> {
+  mã nút cha
+  mã nút con
+  thời điểm tạo
+}
+
+class "Dự án" as E_Project <<entity>> {
+  mã dự án
+  tên dự án
+  trạng thái dự án
+}
+
+class "Thành viên dự án" as E_Member <<entity>> {
+  vai trò trong dự án
+  thời điểm tham gia
+  thời điểm bị loại
+}
+
+class "Người dùng" as E_User <<entity>> {
+  mã người dùng
+  tên đăng nhập
+  họ tên
+  email
+}
+
+' --- Nối Actor <--> Boundary ---
+Act_Viewer --> B_NotificationBell
+Act_Viewer --> B_ArtifactsHub
+Act_Collab --> B_Kanban
+Act_Collab --> B_SubmitModal
+Act_Collab --> B_TaskDetail
+Act_Manager --> B_TaskDetail : duyệt / từ chối
+Act_Owner --> B_Kanban : mở khóa cưỡng bức
+Act_Timer --> B_SystemScheduler
+
+' --- Nối Boundary <--> Control ---
+B_Kanban --> C_StateMachine
+B_SubmitModal --> C_StateMachine
+B_TaskDetail --> C_StateMachine
+B_NotificationBell --> C_EventPublisher : đăng ký nhận SSE
+B_ArtifactsHub --> C_ArtifactHub
+B_SystemScheduler --> C_OverdueScanner
+
+' --- Nối Control <--> Control ---
+C_StateMachine --> C_EventPublisher : gửi sự kiện sau commit
+C_EventPublisher --> C_DependencyUnlocker : TaskCompletedEvent
+C_DependencyUnlocker ..> C_EventPublisher : TASK_READY, TASK_UNLOCKED
+C_OverdueScanner --> C_EventPublisher
+
+' --- Nối Control <--> Entity ---
+C_StateMachine --> E_Task
+C_StateMachine --> E_Artifact
+C_StateMachine --> E_Project
+C_StateMachine --> E_Member : kiểm quyền Quản lý
+
+C_DependencyUnlocker --> E_Task
+C_DependencyUnlocker --> E_Dependency
+
+C_EventPublisher --> E_Notification
+
+C_OverdueScanner --> E_Task
+
+C_ArtifactHub --> E_Artifact
+C_ArtifactHub --> E_Member : kiểm vai trò (Viewer chỉ xem)
+
+' --- Quan hệ giữa các Entity kèm bội số ---
+E_Project "1" -- "*" E_Task : chứa >
+E_User "1" -- "*" E_Task : được giao phụ trách <
+E_Task "1" -- "*" E_Artifact : sở hữu >
+E_User "1" -- "*" E_Artifact : tải lên <
+E_User "1" -- "*" E_Notification : nhận >
+E_Project "1" -- "*" E_Member : có >
+E_User "1" -- "*" E_Member : tham gia >
+
+E_Task "1" -- "*" E_Dependency : nút cha <
+E_Task "1" -- "*" E_Dependency : nút con <
+
+' --- Ghi chú ánh xạ lớp phân tích sang lớp code thật ---
+note "Ánh xạ Boundary sang code thật:\n- Bảng Kanban: MyTasksView.tsx / PhaseKanbanBoard.tsx\n- Hộp thoại nộp bài: SubmitArtifactModal.tsx\n- Hộp thoại chi tiết: TaskDetailModal.tsx\n- Chuông thông báo: NotificationBell.tsx\n- Kho tài nguyên: ProjectResourcesSection.tsx\n- Bộ lập lịch hệ thống: Spring @Scheduled Runner\n- API: NodeController.java (/api/nodes/*), ArtifactController.java, RealtimeController.java (SSE)" as Note_Boundary
+Note_Boundary .. B_Kanban
+
+note "Ánh xạ Control sang code thật:\n- Điều khiển trạng thái: StateMachineService.java\n- Bộ mở khóa phụ thuộc: StateMachineService.unlockDownstreamTasks (gọi ngầm)\n- Bộ phát sự kiện: WorkflowEventPublisher.java, WorkflowEventConsumer.java, SseEmitterService.java\n- Bộ quét trễ hạn: TaskOverdueScanner.java (scanOverdueTasks, @Scheduled 15 phút, cập nhật is_overdue=true và bắn SSE/Notification)\n- Điều khiển kho tài nguyên: ArtifactService.java (requireWriter: Viewer chỉ xem)" as Note_Control
+Note_Control .. C_StateMachine
+
+note "Ánh xạ Entity sang code JPA & DB:\n- Công việc: NodeEntity.java (bảng NODE)\n- Minh chứng: ArtifactEntity.java (bảng ARTIFACTS)\n- Thông báo: NotificationEntity.java (bảng NOTIFICATION)\n- Phụ thuộc: NodeDependencyEntity.java (bảng NODE_DEPENDENCY)\n- Dự án: ProjectEntity.java (bảng PROJECT)\n- Thành viên dự án: ProjectMemberEntity.java (bảng PROJECT_MEMBER)\n- Người dùng: UserEntity.java (bảng USERS)" as Note_Entity
+Note_Entity .. E_Task
+
+@enduml
