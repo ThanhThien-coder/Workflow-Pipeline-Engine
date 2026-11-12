@@ -12,6 +12,8 @@ export interface NodePropertiesModalProps {
   onClose: () => void
   onDelete: () => void
   onSave?: (updated: Partial<BranchGraphNode>) => void
+  /** B5: người không phải owner chỉ xem chi tiết node; ẩn nút xóa và lưu. */
+  readOnly?: boolean
 }
 
 export function NodePropertiesModal({
@@ -20,6 +22,7 @@ export function NodePropertiesModal({
   onClose,
   onDelete,
   onSave,
+  readOnly = false,
 }: NodePropertiesModalProps) {
   const [title, setTitle] = useState(node.title)
   const [status, setStatus] = useState<NodeStatus>(node.status)
@@ -214,6 +217,9 @@ export function NodePropertiesModal({
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 bg-slate-50/90 rounded-b-2xl shrink-0">
+          {readOnly ? (
+            <span className="text-xs text-slate-500">Chỉ chủ dự án được sửa đồ thị</span>
+          ) : (
           <button
             type="button"
             onClick={(event) => {
@@ -225,22 +231,23 @@ export function NodePropertiesModal({
             <Trash2 size={13} />
             <span>Delete Node</span>
           </button>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
               className="text-xs font-semibold text-slate-600 hover:bg-slate-200/60 border border-slate-200 bg-white rounded-xl px-3.5 py-2 transition-colors cursor-pointer"
             >
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </button>
-            <button
+            {!readOnly && <button
               type="button"
               onClick={handleSave}
               className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer"
             >
               <Check size={14} />
               <span>Save Changes</span>
-            </button>
+            </button>}
           </div>
         </div>
       </div>

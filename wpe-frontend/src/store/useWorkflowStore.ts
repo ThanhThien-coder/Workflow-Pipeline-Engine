@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { workflowService } from '../services/container'
 import type { CreatePhaseDto, IWorkflowService } from '../services/contracts/IWorkflowService'
 import type { GraphNodeMap, MacroPhase } from '../types/workflow.types'
+import { ApiError } from '../services/http/ApiError'
 import { computePhaseProgress, syncTrackProgress, withPhaseProgress } from '../domain/phaseProgress'
 import { deleteNodeCascade } from '../utils/spanningTreeLayout'
 import { getStoredProjectGraph, saveStoredProjectGraph } from '../services/mock/mockProjectGraphStore'
@@ -43,7 +44,39 @@ export interface WorkflowState
   updateTree: (phaseId: string, update: (nodes: GraphNodeMap) => GraphNodeMap) => void
   deleteNode: (phaseId: string, nodeId: string) => void
   resetPhaseTree: (phaseId: string) => Promise<void>
+  /** true khi service có API thêm node, nối node (chế độ API thật). Mock thì false, canvas giữ cách thêm node cục bộ. */
+  graphWritesUseApi: boolean
+  /** B5: thêm 1 node vào phase qua API rồi đọc lại cây của phase. */
+  addRootTask: (phaseId: string, title: string) => Promise<void>
+  /** B5: tạo cạnh phụ thuộc từ node ở phase khác (ghost) qua API rồi đọc lại cây. */
+  attachGhostNode: (phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }) => Promise<void>
+  /** B5: nối 2 node cùng phase qua API. Thành công mới vẽ cạnh. Tạo vòng thì ném ApiError 422. */
+  connectNodes: (phaseId: string, parentId: string, childId: string) => Promise<void>
   setActiveTab: (tab: NavigationTab) => void
+}
+
+/**
+ * B5 — Có được sửa đồ thị không. Quy ước giống GeneralSettingsSection: isOwner = myRole === 'OWNER'.
+ * - Dự án ARCHIVED: owner cũng chỉ xem (backend trả 409 PROJECT_ARCHIVED).
+ * - Chưa nạp vai trò (settings chưa tải, hoặc settings đang là của dự án khác): KHÔNG khóa,
+ *   để owner vào thẳng canvas vẫn làm được; backend vẫn chặn bằng 403 và UI hiện toast.
+ *   Xem "Điều chưa chắc" của B5.
+ */
+export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'currentProjectId'>): boolean {
+  const settings = state.settings.settings
+  if (!settings?.myRole) return true
+  if (state.currentProjectId && String(settings.id) !== String(state.currentProjectId)) return true
+  if (settings.status === 'ARCHIVED') return false
+  return settings.myRole === 'OWNER'
+}
+
+export const GRAPH_READ_ONLY_MESSAGE = 'Chỉ chủ dự án được sửa đồ thị'
+
+/** Lớp chặn cuối ở store: không phải owner thì không gửi request ghi đồ thị nào. */
+function ensureCanEditGraph(state: WorkflowState): void {
+  if (!selectCanEditGraph(state)) {
+    throw new ApiError({ status: 403, code: 'GRAPH_READ_ONLY', message: GRAPH_READ_ONLY_MESSAGE })
+  }
 }
 
 export const createWorkflowStore = (service: IWorkflowService = workflowService) => create<WorkflowState>((set, get) => ({
@@ -74,6 +107,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     })
   },
   createPhase: async (dto) => {
+    ensureCanEditGraph(get())
     const currentProjectId = get().currentProjectId
     const phase = await service.createPhase({ ...dto, projectId: currentProjectId || undefined }, currentProjectId || undefined)
     const rootTree = syncTrackProgress(await service.getPhaseGraph(phase.id, currentProjectId || undefined))
@@ -90,6 +124,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     await get().createPhase({ name: `PHASE ${num}`, sub: `Cụm công việc ${num}`, parentPhaseId })
   },
   connectPhases: async (sourceId, targetId) => {
+    ensureCanEditGraph(get())
     const currentProjectId = get().currentProjectId
     await service.connectPhases(sourceId, targetId, currentProjectId || undefined)
     set((state) => ({
@@ -104,6 +139,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     }))
   },
   disconnectPhases: async (sourceId, targetId) => {
+    ensureCanEditGraph(get())
     const currentProjectId = get().currentProjectId
     if (service.disconnectPhases) {
       await service.disconnectPhases(sourceId, targetId, currentProjectId || undefined)
@@ -118,6 +154,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     }))
   },
   deletePhase: async (phaseId) => {
+    ensureCanEditGraph(get())
     const currentProjectId = get().currentProjectId
     await service.deletePhase(phaseId, currentProjectId || undefined)
     set((state) => ({
@@ -130,6 +167,8 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     }))
   },
   updatePhasePosition: async (phaseId, pos) => {
+    // Chỉ xem thì không đổi vị trí và không gửi PUT (canvas cũng đã chặn kéo thả)
+    ensureCanEditGraph(get())
     const currentProjectId = get().currentProjectId
     set((state) => ({
       macroPhases: state.macroPhases.map((phase) =>
@@ -226,6 +265,32 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     } catch (err) {
       console.error('Failed to reset phase tree:', err)
     }
+  },
+  graphWritesUseApi: Boolean(service.addRootTask && service.attachGhostNode),
+  addRootTask: async (phaseId, title) => {
+    ensureCanEditGraph(get())
+    if (!service.addRootTask) throw new Error('Service hiện tại không hỗ trợ thêm node qua API.')
+    await service.addRootTask(phaseId, { title })
+    await get().resetPhaseTree(phaseId)
+  },
+  attachGhostNode: async (phaseId, payload) => {
+    ensureCanEditGraph(get())
+    if (!service.attachGhostNode) throw new Error('Service hiện tại không hỗ trợ nối node qua API.')
+    await service.attachGhostNode(phaseId, payload)
+    // Ghost do mapper dựng từ dependencies: đọc lại cây là thấy
+    await get().resetPhaseTree(phaseId)
+  },
+  connectNodes: async (phaseId, parentId, childId) => {
+    ensureCanEditGraph(get())
+    if (!service.attachGhostNode) throw new Error('Service hiện tại không hỗ trợ nối node qua API.')
+    // Cùng một API POST /dependencies với ghost; nguồn và đích nằm cùng phase
+    await service.attachGhostNode(phaseId, { sourcePhaseId: phaseId, sourceTaskId: parentId, targetTaskId: childId })
+    // Server nhận rồi mới vẽ cạnh (không vẽ trước rồi phải gỡ)
+    get().updateTree(phaseId, (nodes) => {
+      const child = nodes[childId]
+      if (!child || child.parentIds.includes(parentId)) return nodes
+      return { ...nodes, [childId]: { ...child, parentIds: [...child.parentIds, parentId] } }
+    })
   },
   setActiveTab: (activeTab) => set({ activeTab }),
 }))

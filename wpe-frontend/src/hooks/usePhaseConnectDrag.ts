@@ -2,13 +2,23 @@ import { useRef, useState } from 'react'
 import type { MacroPhase } from '../types/workflow.types'
 import { isPhaseAncestor } from '../utils/spanningTreeLayout'
 
-export function usePhaseConnectDrag(phases: MacroPhase[], onConnect: (sourceId: string, targetId: string) => Promise<void>, onSpawnChild: (sourceId: string) => Promise<void>) {
+/**
+ * Kéo từ cổng (+) của một phase sang phase khác để nối; bấm (không kéo) để tạo phase con.
+ * `enabled = false` (người không phải owner, B5): không mở thao tác kéo, không gọi onConnect/onSpawnChild.
+ */
+export function usePhaseConnectDrag(
+  phases: MacroPhase[],
+  onConnect: (sourceId: string, targetId: string) => Promise<void>,
+  onSpawnChild: (sourceId: string) => Promise<void>,
+  enabled = true,
+) {
   const [line, setLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const [error, setError] = useState<{ x: number; y: number; message: string } | null>(null)
   const dragging = useRef(false)
   const start = (event: React.MouseEvent, sourceId: string) => {
     event.stopPropagation()
     event.preventDefault()
+    if (!enabled) return
     const rect = event.currentTarget.getBoundingClientRect()
     const sx = rect.right - 3
     const sy = rect.top + rect.height / 2

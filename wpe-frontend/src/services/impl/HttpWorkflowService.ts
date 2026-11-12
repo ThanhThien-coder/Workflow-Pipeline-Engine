@@ -3,6 +3,8 @@ import type { CreatePhaseDto, IWorkflowService } from '../contracts/IWorkflowSer
 import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
 import * as authApi from './http/auth'
+import * as graphApi from './http/graph'
+import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import type {
   ArtifactItem,
   ArtifactType,
@@ -33,7 +35,9 @@ import type {
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
 import type { GuestAccessState, OverviewData } from '../../types/overview.types'
-import type { MacroPhase, PhaseTreeData, BranchGraphNode, GhostGraphNode, PhaseAccent, PhaseStatus } from '../../types/workflow.types'
+import type { BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
+// Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
+import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
 
 /**
  * A2 — Các phương thức CHƯA có backend (hoặc chưa nối) nên vẫn gọi mock một cách TƯỜNG MINH.
@@ -42,7 +46,6 @@ import type { MacroPhase, PhaseTreeData, BranchGraphNode, GhostGraphNode, PhaseA
  * (không còn tự chuyển sang dữ liệu giả).
  */
 export const METHODS_STILL_MOCKED = [
-  'updatePhasePosition', // B5 (sau B2)
   'getOverviewData', // D5 (phần AI: D6)
   'resolveFeedback', // D5
   'toggleGuestAccess', // D5
@@ -515,179 +518,171 @@ export class HttpWorkflowService implements IWorkflowService {
     return { success: true }
   }
 
-  // ───────────────────────── Đồ thị và xuất bản (B) ─────────────────────────
+  // ───────────────────────── Đồ thị và xuất bản (B5) — gọi qua impl/http/graph.ts ─────────────────────────
+  // Đổi dữ liệu phẳng của backend sang MacroPhase / GraphNodeMap: mappers/graphMapper.ts.
+
+  /**
+   * Ghi nhớ từ lần đọc đồ thị gần nhất: phase thuộc dự án nào, tên gì; node tên gì, ở phase nào.
+   * Cần vì contract chỉ truyền phaseId cho addRootTask/attachGhostNode, và PUT /phases bắt buộc có name.
+   */
+  private readonly phaseIndex = new Map<string, { projectId: string; name: string }>()
+  private readonly nodeIndex = new Map<string, { title: string; phaseId: string | null; status: string | null }>()
+  private readonly schedulePhaseSave = graphApi.createKeyedDebounce(graphApi.PHASE_POSITION_DEBOUNCE_MS)
+
+  private async loadGraph(projectId: string): Promise<BackendGraphResponse> {
+    const graph = await graphApi.fetchGraph(projectId)
+    for (const p of graph?.phases || []) {
+      this.phaseIndex.set(String(p.id), { projectId, name: p.name })
+    }
+    for (const n of graph?.nodes || []) {
+      this.nodeIndex.set(String(n.id), {
+        title: n.title,
+        phaseId: n.phaseId != null ? String(n.phaseId) : null,
+        status: n.status ?? null,
+      })
+    }
+    return graph
+  }
+
+  private projectIdOfPhase(phaseId: string): string {
+    const known = this.phaseIndex.get(String(phaseId))
+    if (!known) {
+      throw new ApiError({
+        status: 400,
+        code: 'PHASE_NOT_LOADED',
+        message: `Chưa tải đồ thị chứa phase ${phaseId}. Tải lại trang rồi thử lại.`,
+      })
+    }
+    return known.projectId
+  }
 
   /** GET /projects/{id}/graph → danh sách phase. Dự án chưa có phase thì trả [] (không lấy phase giả). */
   async getMacroPhases(projectId?: string): Promise<MacroPhase[]> {
-    const pid = projectId || '1'
-    const data = await apiRequest<any>('GET', `/projects/${pid}/graph`)
-    const phases: any[] = data?.phases || []
-    return phases.map((p: any, idx: number) => ({
-      id: String(p.id),
-      name: p.name,
-      sub: p.sub || '',
-      accent: (p.accent as PhaseAccent) || 'slate',
-      // Backend tính sẵn tiến độ & trạng thái Phase từ task (cùng công thức với domain/phaseProgress)
-      status: (p.status || 'TODO') as PhaseStatus,
-      pct: typeof p.progressPct === 'number' ? p.progressPct : 0,
-      x: 60 + (p.orderIndex ?? idx) * 360,
-      y: 80,
-      w: 260,
-      h: 128,
-      parentPhaseIds: (p.parentPhaseIds || []).map(String),
-      locked: p.status === 'LOCKED',
-    }))
+    return toMacroPhases(await this.loadGraph(projectId || '1'))
   }
 
   /** GET /projects/{id}/graph → cạnh giữa các phase. Không có cạnh thì trả []. */
   async getPhaseEdges(projectId?: string): Promise<[string, string][]> {
-    const pid = projectId || '1'
-    const data = await apiRequest<any>('GET', `/projects/${pid}/graph`)
-    const edges: string[][] = data?.phaseEdges || []
-    return edges.map(([from, to]) => [String(from), String(to)])
+    return toPhaseEdges(await this.loadGraph(projectId || '1'))
   }
 
   /** GET /projects/{id}/graph → cây node của 1 phase. Không tìm thấy phase thì ném ApiError 404. */
   async getPhaseGraph(phaseId: string, projectId?: string): Promise<PhaseTreeData> {
     const pid = projectId || '1'
-    const data = await apiRequest<any>('GET', `/projects/${pid}/graph`)
-    const phase = (data?.phases || []).find((p: any) => String(p.id) === String(phaseId))
-    if (!phase) {
-      // Lỗi tính ở phía FE (backend trả 200 nhưng không có phase này): báo lỗi thay vì trả cây giả.
+    const tree = toPhaseTree(await this.loadGraph(pid), phaseId)
+    if (!tree) {
+      // Backend trả 200 nhưng không có phase này: báo lỗi thay vì trả cây giả.
       throw new ApiError({
         status: 404,
         code: 'RESOURCE_NOT_FOUND',
         message: `Không tìm thấy phase ${phaseId} trong dự án ${pid}.`,
       })
     }
-
-    // Phase chưa có node vẫn trả về cây chỉ có root (không lấy dữ liệu Mock của project khác)
-    const phaseNodes = (data.nodes || []).filter((n: any) => String(n.phaseId) === String(phaseId))
-
-    const rootId = `root_${phaseId}`
-    const tree: PhaseTreeData = {
-      [rootId]: {
-        id: rootId,
-        kind: 'root',
-        title: phase.name,
-        parentIds: [],
-        x: 80,
-        y: 200,
-      },
-    }
-
-    for (const n of phaseNodes) {
-      const branch: BranchGraphNode = {
-        id: String(n.id),
-        kind: 'branch',
-        code: n.code,
-        title: n.title,
-        description: n.description || '',
-        isTrack: false,
-        status: (n.status as any) || 'LOCKED',
-        assignee: n.assignedUserId ? String(n.assignedUserId) : null,
-        due: n.dueDate ? n.dueDate.split('T')[0] : null,
-        blocker: null,
-        joinPolicy: n.joinPolicy === 'ANY_COMPLETED' ? 'ANY_COMPLETED' : 'ALL_COMPLETED',
-        phaseId: String(phaseId),
-        parentIds: [rootId],
-        x: n.uiMetadata?.position?.x ?? 280,
-        y: n.uiMetadata?.position?.y ?? 180,
-        width: n.uiMetadata?.width ?? 220,
-        height: n.uiMetadata?.height ?? 90,
-      }
-      tree[String(n.id)] = branch
-    }
-
-    // Cross-phase ghost nodes
-    for (const dep of data.dependencies || []) {
-      if (phaseNodes.some((pn: any) => String(pn.id) === String(dep.childNodeId))) {
-        const parentNode = (data.nodes || []).find((dn: any) => String(dn.id) === String(dep.parentNodeId))
-        if (parentNode && String(parentNode.phaseId) !== String(phaseId)) {
-          const ghostId = `ghost_${dep.parentNodeId}_to_${dep.childNodeId}`
-          const sourcePhase = (data.phases || []).find((p: any) => String(p.id) === String(parentNode.phaseId))
-          const ghostNode: GhostGraphNode = {
-            id: ghostId,
-            kind: 'ghost',
-            refPhase: String(parentNode.phaseId || '1'),
-            refId: String(dep.parentNodeId),
-            dir: 'up',
-            targetTaskId: String(dep.childNodeId),
-            title: parentNode.title || 'Upstream Prerequisite',
-            parentIds: [],
-            sourceTaskTitle: parentNode.title,
-            sourcePhaseTitle: sourcePhase?.name,
-          }
-          tree[ghostId] = ghostNode
-        }
-      }
-    }
-
     return tree
   }
 
   /** POST /projects/{id}/phases */
   async createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase> {
     const pid = projectId || dto.projectId || '1'
-    const item = await apiRequest<any>('POST', `/projects/${pid}/phases`, {
-      body: {
-        name: dto.name,
-        sub: dto.sub,
-        accent: dto.accent,
-        parentPhaseId: dto.parentPhaseId ? Number(dto.parentPhaseId) : null,
-      },
+    const item = await graphApi.createPhase(pid, {
+      name: dto.name,
+      sub: dto.sub,
+      accent: dto.accent,
+      parentPhaseId: dto.parentPhaseId ? Number(dto.parentPhaseId) : null,
     })
-    return {
-      id: String(item.id),
-      name: item.name,
-      sub: item.sub || '',
-      accent: (item.accent as PhaseAccent) || 'slate',
-      status: 'TODO',
-      pct: 0,
-      x: dto.x ?? (60 + (item.orderIndex ?? 0) * 360),
-      y: dto.y ?? 80,
-      w: 260,
-      h: 128,
-      parentPhaseIds: (item.parentPhaseIds || []).map(String),
-      locked: (item.parentPhaseIds || []).length > 0,
-    }
+    this.phaseIndex.set(String(item.id), { projectId: pid, name: item.name })
+    return toCreatedMacroPhase(item, { x: dto.x, y: dto.y })
   }
 
   /** POST /projects/{id}/phases/connect?sourcePhaseId=&targetPhaseId= — 422 chu trình ném ApiError có cycleNodes. */
   async connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void> {
-    const pid = projectId || '1'
-    await apiRequest<unknown>('POST', `/projects/${pid}/phases/connect`, {
-      query: { sourcePhaseId, targetPhaseId },
-    })
+    await graphApi.connectPhases(projectId || '1', sourcePhaseId, targetPhaseId)
   }
 
   /** POST /projects/{id}/phases/disconnect?sourcePhaseId=&targetPhaseId= */
   async disconnectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void> {
-    const pid = projectId || '1'
-    await apiRequest<unknown>('POST', `/projects/${pid}/phases/disconnect`, {
-      query: { sourcePhaseId, targetPhaseId },
-    })
+    await graphApi.disconnectPhases(projectId || '1', sourcePhaseId, targetPhaseId)
   }
 
   /** DELETE /projects/{id}/phases/{phaseId} — 404 coi như đã xóa (giữ hành vi cũ). */
   async deletePhase(phaseId: string, projectId?: string): Promise<void> {
-    const pid = projectId || '1'
     try {
-      await apiRequest<void>('DELETE', `/projects/${pid}/phases/${phaseId}`)
+      await graphApi.deletePhase(projectId || '1', phaseId)
+      this.phaseIndex.delete(String(phaseId))
     } catch (error) {
       if (isApiError(error) && error.status === 404) return
       throw error
     }
   }
 
+  /**
+   * PUT /projects/{id}/phases/{phaseId} với uiMetadata {x, y, w, h} (B2, V9).
+   * Debounce 300ms theo từng phase: kéo nhiều lần liên tiếp chỉ gửi vị trí cuối cùng.
+   */
   updatePhasePosition(phaseId: string, pos: { x: number; y: number }, projectId?: string): Promise<void> {
-    return this.mock.updatePhasePosition(phaseId, pos, projectId) // B5 (sau B2)
+    const id = String(phaseId)
+    return this.schedulePhaseSave(id, async () => {
+      const pid = projectId || this.phaseIndex.get(id)?.projectId || '1'
+      if (!this.phaseIndex.has(id)) await this.loadGraph(pid)
+      const name = this.phaseIndex.get(id)?.name
+      if (!name) {
+        throw new ApiError({ status: 404, code: 'RESOURCE_NOT_FOUND', message: `Không tìm thấy phase ${id} trong dự án ${pid}.` })
+      }
+      await graphApi.updatePhase(pid, id, {
+        name,
+        uiMetadata: { x: Math.round(pos.x), y: Math.round(pos.y), w: MACRO_PHASE_W, h: MACRO_PHASE_H },
+      })
+    })
   }
+
+  /** POST /projects/{id}/nodes — thêm 1 node vào phase (backend tạo ở trạng thái LOCKED). */
+  async addRootTask(phaseId: string, payload: { title: string }): Promise<PhaseNode> {
+    const pid = this.projectIdOfPhase(phaseId)
+    const created = await graphApi.createNode(pid, {
+      phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
+      title: payload.title.trim(),
+    })
+    this.nodeIndex.set(String(created.id), { title: created.title, phaseId: String(phaseId), status: created.status ?? null })
+    return {
+      id: String(created.id),
+      title: created.title,
+      status: ((created.status as TaskStatus) || 'LOCKED'),
+      parentId: rootIdOf(String(phaseId)),
+    }
+  }
+
+  /**
+   * POST /projects/{id}/dependencies — node nguồn (sourceTaskId) là cha, node đích (targetTaskId) là con.
+   * Dùng cho cả ghost (nguồn ở phase khác) lẫn nối 2 node cùng phase. Tạo vòng thì ApiError 422 có cycleNodes.
+   */
+  async attachGhostNode(
+    phaseId: string,
+    payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }
+  ): Promise<GhostDependency> {
+    const pid = this.projectIdOfPhase(phaseId)
+    const parentId = graphApi.toBackendId(payload.sourceTaskId, 'Node nguồn')
+    const childId = graphApi.toBackendId(payload.targetTaskId, 'Node đích')
+    await graphApi.createDependency(pid, parentId, childId)
+
+    const source = this.nodeIndex.get(payload.sourceTaskId)
+    return {
+      id: ghostIdOf(payload.sourceTaskId, payload.targetTaskId),
+      sourcePhaseId: payload.sourcePhaseId,
+      sourcePhaseTitle: this.phaseIndex.get(payload.sourcePhaseId)?.name || payload.sourcePhaseId,
+      sourceTaskId: payload.sourceTaskId,
+      sourceTaskTitle: source?.title || payload.sourceTaskId,
+      targetTaskId: payload.targetTaskId,
+      status: source?.status === 'DONE' ? 'DONE' : 'LOCKED',
+    }
+  }
+
+  // resetPhaseTree: chưa có trong SSOT (integration map Cụm 4) nên HttpWorkflowService không cài.
+  // Nút "Reset Phase Tree" trên canvas gọi store.resetPhaseTree, tức là chỉ đọc lại đồ thị từ backend (GET), không xóa gì.
 
   /** POST /projects/{id}/publish — 422 trả kết quả chu trình (giữ hành vi cũ), lỗi khác ném ApiError. */
   async publishPipeline(projectId: string): Promise<PublishPipelineResult> {
     try {
-      const data = await apiRequest<any>('POST', `/projects/${projectId}/publish`)
+      const data = await graphApi.publishProject(projectId)
       return {
         success: true,
         newStatus: (data?.status || 'ACTIVE') as any,

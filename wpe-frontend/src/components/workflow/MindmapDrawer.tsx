@@ -1,11 +1,14 @@
 import { Link2, Merge, X } from 'lucide-react'
 import { useMemo, useState, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { GRAPH_READ_ONLY_MESSAGE, selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
 import { useResizable } from '../../hooks/useResizable'
 import { MindmapTree } from '../mindmap/MindmapTree'
 import { NodePropertiesModal } from '../mindmap/NodePropertiesModal'
 import { AddGhostModal } from '../mindmap/AddGhostModal'
+import { AddRootTaskModal } from '../mindmap/AddRootTaskModal'
+import { KahnCycleModal } from '../settings/KahnCycleModal'
+import { cycleNodesOf, graphErrorMessage, useGraphErrorHandler } from './useGraphErrorHandler'
 import { Popover } from '../popovers/Popover'
 import { GhostInfo } from '../popovers/GhostInfo'
 import { GhostPicker } from '../popovers/GhostPicker'
@@ -31,6 +34,15 @@ export function MindmapDrawer() {
   const updateTree = useWorkflowStore((state) => state.updateTree)
   const deleteNode = useWorkflowStore((state) => state.deleteNode)
   const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
+  // B5: quyền sửa và các thao tác ghi đồ thị qua API (chế độ API thật)
+  const canEdit = useWorkflowStore(selectCanEditGraph)
+  const graphWritesUseApi = useWorkflowStore((state) => state.graphWritesUseApi)
+  const addRootTaskViaApi = useWorkflowStore((state) => state.addRootTask)
+  const attachGhostViaApi = useWorkflowStore((state) => state.attachGhostNode)
+  const connectNodesViaApi = useWorkflowStore((state) => state.connectNodes)
+  const showToast = useWorkflowStore((state) => state.ui.showToast)
+  const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
+  const [isRootTaskModalOpen, setIsRootTaskModalOpen] = useState(false)
 
   const { w, dragging, onMouseDown } = useResizable(
     Math.round(window.innerWidth * 0.5)
@@ -60,6 +72,7 @@ export function MindmapDrawer() {
     setMergeSelection(new Set())
     setIsGhostModalOpen(false)
     setGhostAnchorTaskId(undefined)
+    setIsRootTaskModalOpen(false)
   }, [selectedPhaseId])
 
   // Automatically ensure phase tree data is loaded if missing
@@ -104,16 +117,59 @@ export function MindmapDrawer() {
     anchorId?: string
     targetTaskId?: string
   }) => {
-    if (!selectedPhaseId) return
+    if (!selectedPhaseId || !canEdit) return
     const targetTaskId = value.targetTaskId || value.anchorId
     if (targetTaskId) {
-      void workflowService.attachGhostNode(selectedPhaseId, {
-        sourcePhaseId: value.refPhase,
-        sourceTaskId: value.refId,
-        targetTaskId,
-      })
+      const payload = { sourcePhaseId: value.refPhase, sourceTaskId: value.refId, targetTaskId }
+      if (graphWritesUseApi) void attachGhostViaApi(selectedPhaseId, payload).catch(handleError)
+      else void workflowService.attachGhostNode(selectedPhaseId, payload)
     }
     setPopover(null)
+  }
+
+  /** Chế độ API: thêm cạnh ghost (nút Attach). Lỗi 422 mở modal chu trình, lỗi khác báo trong modal. */
+  const attachGhost = async (payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }) => {
+    if (!selectedPhaseId) return
+    if (!graphWritesUseApi) {
+      await workflowService.attachGhostNode(selectedPhaseId, payload)
+      return
+    }
+    try {
+      await attachGhostViaApi(selectedPhaseId, payload)
+    } catch (error) {
+      if (cycleNodesOf(error)) {
+        handleError(error) // mở KahnCycleModal, đóng hộp Attach
+        return
+      }
+      throw new Error(graphErrorMessage(error)) // hiện ngay trong hộp Attach
+    }
+  }
+
+  /**
+   * Chế độ API: kéo-nối 2 node trên cây. Nguồn là ghost thì cha thật là node ở phase khác (refId).
+   * Nguồn là gốc phase thì không có cạnh tương ứng ở backend.
+   */
+  const connectNodes = (parentId: string, childId: string) => {
+    if (!selectedPhaseId || !tree) return
+    const source = tree[parentId]
+    const target = tree[childId]
+    if (!source || !target || target.kind !== 'branch') {
+      showToast('Chỉ nối được vào một node công việc.', 3000)
+      return
+    }
+    if (source.kind === 'root') {
+      showToast('Không nối từ gốc phase. Hãy kéo từ một node công việc.', 3000)
+      return
+    }
+    if (source.kind === 'ghost') {
+      void attachGhostViaApi(selectedPhaseId, {
+        sourcePhaseId: source.refPhase,
+        sourceTaskId: source.refId,
+        targetTaskId: childId,
+      }).catch(handleError)
+      return
+    }
+    void connectNodesViaApi(selectedPhaseId, parentId, childId).catch(handleError)
   }
 
   const createMerge = () => {
@@ -255,13 +311,14 @@ export function MindmapDrawer() {
           {viewMode === 'graph' && (
             <button
               type="button"
+              disabled={!canEdit}
               onClick={() => {
                 setGhostAnchorTaskId(selectedNodeId ?? undefined)
                 setIsGhostModalOpen(true)
               }}
-              title="Attach Ghost Prerequisite"
+              title={canEdit ? 'Attach Ghost Prerequisite' : GRAPH_READ_ONLY_MESSAGE}
               aria-label="Add ghost node"
-              className="rounded-lg p-1.5 text-indigo-500 hover:bg-indigo-50 transition-colors cursor-pointer"
+              className="rounded-lg p-1.5 text-indigo-500 hover:bg-indigo-50 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             >
               <Link2 size={16} />
             </button>
@@ -308,10 +365,16 @@ export function MindmapDrawer() {
                   selectedPhaseId && updateTree(selectedPhaseId, update)
                 }
                 onAddGhost={(pos) => {
+                  if (!canEdit) return
                   setGhostAnchorTaskId(pos?.anchorId || selectedNodeId || undefined)
                   setIsGhostModalOpen(true)
                 }}
                 phaseId={selectedPhaseId ?? undefined}
+                readOnly={!canEdit}
+                // Chế độ API: "+ Add Root Task" mở hộp nhập tên rồi POST /nodes; kéo-nối gọi POST /dependencies.
+                // Chế độ mock: giữ cách cũ (thêm và nối cục bộ).
+                onAddRootTask={graphWritesUseApi ? () => setIsRootTaskModalOpen(true) : undefined}
+                onConnectNodes={graphWritesUseApi ? connectNodes : undefined}
               />
             ) : (
               <div className="grid h-full place-items-center text-xs text-slate-400">
@@ -342,7 +405,7 @@ export function MindmapDrawer() {
       </div>
 
       {/* Merge Selection Bar in Graph View */}
-      {viewMode === 'graph' && mergeSelection.size >= 2 && (
+      {viewMode === 'graph' && canEdit && mergeSelection.size >= 2 && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-amber-200 bg-amber-50 px-4 py-2.5">
           <span className="text-xs font-medium text-amber-700">
             {mergeSelection.size} tasks selected
@@ -365,6 +428,7 @@ export function MindmapDrawer() {
             key="node-properties"
             node={tree[selectedNodeId] as BranchGraphNode}
             members={members}
+            readOnly={!canEdit}
             onClose={() => setSelectedNodeId(null)}
             onSave={(updated) => {
               if (selectedPhaseId && selectedNodeId) {
@@ -468,7 +532,7 @@ export function MindmapDrawer() {
 
       {/* Redesigned 3-Step Add Ghost Node Modal */}
       <AddGhostModal
-        isOpen={isGhostModalOpen}
+        isOpen={isGhostModalOpen && canEdit}
         onClose={() => {
           setIsGhostModalOpen(false)
           setGhostAnchorTaskId(undefined)
@@ -477,11 +541,30 @@ export function MindmapDrawer() {
         anchorTaskId={ghostAnchorTaskId}
         onAttach={async (payload) => {
           if (!selectedPhaseId) return
-          await workflowService.attachGhostNode(selectedPhaseId, payload)
+          await attachGhost(payload)
           setIsGhostModalOpen(false)
           setGhostAnchorTaskId(undefined)
         }}
       />
+
+      {/* B5 chế độ API: thêm node vào phase (POST /projects/{id}/nodes) */}
+      <AddRootTaskModal
+        isOpen={isRootTaskModalOpen && canEdit && graphWritesUseApi}
+        onClose={() => setIsRootTaskModalOpen(false)}
+        phaseId={selectedPhaseId ?? ''}
+        onCreated={async (title) => {
+          if (!selectedPhaseId) return
+          try {
+            await addRootTaskViaApi(selectedPhaseId, title)
+          } catch (error) {
+            // Hiện lỗi ngay trong hộp nhập (giữ tên đã gõ), câu báo theo ApiError.code
+            throw new Error(graphErrorMessage(error))
+          }
+        }}
+      />
+
+      {/* B5: nối node tạo vòng (backend trả 422) */}
+      <KahnCycleModal violatingNodeIds={cycleNodes} onClose={closeCycleModal} />
 
       {/* Toast Notification */}
       {toastMessage && (
