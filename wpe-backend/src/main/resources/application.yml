@@ -26,6 +26,10 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+    # CHỈ DÙNG CHO GIAI ĐOẠN DEV khi 4 người làm song song: cho phép chạy migration có số
+    # nhỏ hơn bản mới nhất đã chạy (VD: máy đã chạy V8 rồi mới pull về V7). Trước khi
+    # triển khai thật phải tắt (false) và chốt lại thứ tự migration.
+    out-of-order: true
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
