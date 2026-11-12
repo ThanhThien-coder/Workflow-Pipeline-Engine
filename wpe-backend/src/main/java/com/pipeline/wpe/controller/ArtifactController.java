@@ -50,7 +50,8 @@ public class ArtifactController {
         @PathVariable Long projectId,
         @Valid @RequestBody CreateArtifactRequest request
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(1L);
+        // C4: bắt buộc đăng nhập. Trước đây không đăng nhập vẫn tạo được và bị ghi là của admin (user 1).
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         ArtifactResponse response = artifactService.createArtifact(projectId, request, currentUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -64,7 +65,8 @@ public class ArtifactController {
         @PathVariable Long projectId,
         @PathVariable Long artifactId
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(null);
+        // C4: bắt buộc đăng nhập. Trước đây orElse(null) làm service bỏ qua luôn bước kiểm quyền xóa.
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         artifactService.deleteArtifact(projectId, artifactId, currentUserId);
         return ResponseEntity.noContent().build();
     }
@@ -80,7 +82,8 @@ public class ArtifactController {
         @Parameter(description = "Trạng thái hiển thị trong kho chung")
         @RequestParam(required = false, defaultValue = "true") Boolean isInRepo
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(null);
+        // C4: thao tác ghi nên bắt buộc đăng nhập (Viewer bị chặn ở service).
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         ArtifactResponse response = artifactService.toggleRepositoryVisibility(projectId, artifactId, isInRepo, currentUserId);
         return ResponseEntity.ok(response);
     }
