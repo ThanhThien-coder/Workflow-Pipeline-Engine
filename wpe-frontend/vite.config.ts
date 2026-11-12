@@ -13,4 +13,10 @@ export default defineConfig({
       },
     },
   },
+  // A2: test luôn chạy chế độ mock, không phụ thuộc .env.local hay biến môi trường của từng máy.
+  test: {
+    env: {
+      VITE_USE_MOCK: 'true',
+    },
+  },
 })

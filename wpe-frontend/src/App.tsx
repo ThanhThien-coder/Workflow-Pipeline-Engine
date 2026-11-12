@@ -11,8 +11,9 @@ import { ToastHost } from './components/common/ToastHost'
 import { ProjectInviteAcceptModal } from './components/workspace/ProjectInviteAcceptModal'
 import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
 import { useRouter } from './router/useRouter'
+import { isMockMode } from './services/env'
 
-const DevToolbar = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true'
+const DevToolbar = import.meta.env.DEV && isMockMode
   ? lazy(() => import('./components/dev/DevToolbar').then((m) => ({ default: m.DevToolbar })))
   : null
 
