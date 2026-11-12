@@ -13,5 +13,7 @@ public record TemplateSummaryResponse(
     int cloneCount,
     String createdBy,
     Instant createdAt,
-    Instant updatedAt
+    Instant updatedAt,
+    String visibility,
+    Long sourceProjectId
 ) {}

@@ -1,6 +1,7 @@
 package com.pipeline.wpe.controller;
 
 import com.pipeline.wpe.dto.request.template.CreateTemplateRequest;
+import com.pipeline.wpe.dto.request.template.SaveProjectAsTemplateRequest;
 import com.pipeline.wpe.dto.request.template.ValidateTemplateGraphRequest;
 import com.pipeline.wpe.dto.response.template.DagValidationResponse;
 import com.pipeline.wpe.dto.response.template.TemplateDetailResponse;
@@ -38,9 +39,11 @@ public class PipelineTemplateController {
         @Parameter(description = "Tìm kiếm theo tên hoặc mô tả")
         @RequestParam(required = false) String search,
         @Parameter(description = "Lọc mẫu chuẩn hệ thống")
-        @RequestParam(required = false) Boolean isSystemStandard
+        @RequestParam(required = false) Boolean isSystemStandard,
+        @RequestParam(required = false) Long currentUserId
     ) {
-        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard);
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(null);
+        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard, callerId);
         return ResponseEntity.ok(list);
     }
 
@@ -49,8 +52,12 @@ public class PipelineTemplateController {
         summary = "10.3.2 Lấy chi tiết Template",
         description = "Trả về thông tin chi tiết của Template bao gồm toàn bộ cấu trúc đồ thị JSONB 2 tầng (graphData)."
     )
-    public ResponseEntity<TemplateDetailResponse> getTemplateById(@PathVariable String id) {
-        TemplateDetailResponse response = templateService.getTemplateByIdOrSlug(id);
+    public ResponseEntity<TemplateDetailResponse> getTemplateById(
+        @PathVariable String id,
+        @RequestParam(required = false) Long currentUserId
+    ) {
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(null);
+        TemplateDetailResponse response = templateService.getTemplateByIdOrSlug(id, callerId);
         return ResponseEntity.ok(response);
     }
 
@@ -95,6 +102,20 @@ public class PipelineTemplateController {
         Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
         templateService.deleteTemplateBySlugOrId(id, callerId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/projects/{id}/save-as-template")
+    @Operation(
+        summary = "Lưu dự án thành template riêng",
+        description = "Chủ dự án lưu cấu trúc đồ thị hiện tại thành template cá nhân (PRIVATE)."
+    )
+    public ResponseEntity<TemplateDetailResponse> saveProjectAsTemplate(
+        @PathVariable Long id,
+        @Valid @RequestBody SaveProjectAsTemplateRequest request
+    ) {
+        Long callerId = currentUserProvider.requireCurrentUserId();
+        TemplateDetailResponse response = templateService.saveProjectAsTemplate(id, request, callerId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/templates/validate")
