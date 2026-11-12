@@ -4,6 +4,7 @@ import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.ProjectStatus;
+import com.pipeline.wpe.common.enums.TemplateVisibility;
 import com.pipeline.wpe.dto.project.CloneTemplateRequest;
 import com.pipeline.wpe.dto.project.CloneTemplateResponse;
 import com.pipeline.wpe.dto.project.ProjectDetailResponse;
@@ -42,6 +43,9 @@ class TemplateCloneServiceTest {
 
     @Mock
     private NodeDependencyRepository nodeDependencyRepository;
+
+    @Mock
+    private PhaseDependencyRepository phaseDependencyRepository;
 
     @Mock
     private PipelineTemplateRepository pipelineTemplateRepository;
@@ -655,5 +659,148 @@ class TemplateCloneServiceTest {
         assertThat(statusByTitle.get("Node 3")).isEqualTo(NodeStatus.TODO);
         assertThat(statusByTitle.get("Node 4")).isEqualTo(NodeStatus.LOCKED);
         assertThat(statusByTitle.get("Node 5")).isEqualTo(NodeStatus.LOCKED);
+    }
+
+    @Test
+    @DisplayName("cloneTemplate: Ném ResourceNotFoundException khi clone template PRIVATE của người khác")
+    void shouldThrowResourceNotFound_whenCloningOtherUsersPrivateTemplate() {
+        Long otherUserId = 99L;
+        PipelineTemplateEntity privateTemplate = PipelineTemplateEntity.builder()
+            .id(templateId)
+            .name("Secret Template")
+            .visibility(TemplateVisibility.PRIVATE)
+            .createdBy(otherUserId)
+            .build();
+
+        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.of(privateTemplate));
+
+        CloneTemplateRequest req = new CloneTemplateRequest(templateId, "My Copy", "Desc", "PRIVATE");
+
+        assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: " + templateId);
+
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("cloneTemplate: Clone thành công template PRIVATE của chính mình")
+    void shouldCloneSuccessfully_whenCloningOwnPrivateTemplate() {
+        Map<String, Object> graphData = new HashMap<>();
+        graphData.put("phases", List.of(
+            Map.of("id", "10", "name", "Phase 1")
+        ));
+        graphData.put("nodes", List.of(
+            Map.of("id", "101", "phaseId", "10", "code", "A", "title", "Task A")
+        ));
+        graphData.put("edges", List.of());
+
+        PipelineTemplateEntity privateTemplate = PipelineTemplateEntity.builder()
+            .id(templateId)
+            .name("My Private Template")
+            .visibility(TemplateVisibility.PRIVATE)
+            .createdBy(currentUserId)
+            .graphData(graphData)
+            .cloneCount(0)
+            .build();
+
+        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.of(privateTemplate));
+
+        when(projectRepository.save(any(ProjectEntity.class))).thenReturn(
+            ProjectEntity.builder().id(500L).name("P").ownerId(currentUserId).status(ProjectStatus.DRAFT).build()
+        );
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenReturn(
+            WorkPhaseEntity.builder().id(501L).projectId(500L).name("Phase 1").build()
+        );
+        when(nodeRepository.save(any(NodeEntity.class))).thenReturn(
+            NodeEntity.builder().id(601L).projectId(500L).phaseId(501L).status(NodeStatus.TODO).build()
+        );
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(500L)).thenReturn(List.of(
+            WorkPhaseEntity.builder().id(501L).projectId(500L).name("Phase 1").build()
+        ));
+        when(nodeRepository.findByProjectId(500L)).thenReturn(List.of(
+            NodeEntity.builder().id(601L).projectId(500L).phaseId(501L).status(NodeStatus.TODO).build()
+        ));
+        when(userRepository.findById(currentUserId)).thenReturn(Optional.of(
+            UserEntity.builder().id(currentUserId).username("alex.kim").build()
+        ));
+
+        CloneTemplateRequest req = new CloneTemplateRequest(templateId, "My Project", "Desc", "PRIVATE");
+        ProjectDetailResponse result = templateCloneService.cloneTemplate(req, currentUserId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.id()).isEqualTo(500L);
+        assertThat(privateTemplate.getCloneCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("cloneTemplate: Đồ thị có phase con có 2 cha -> lưu 1 PhaseDependencyEntity")
+    void shouldSavePhaseDependency_whenChildPhaseHasTwoParents() {
+        Map<String, Object> graphData = new HashMap<>();
+        graphData.put("phases", List.of(
+            Map.of("id", "10", "name", "Phase 1"),
+            Map.of("id", "20", "name", "Phase 2"),
+            Map.of("id", "30", "name", "Phase 3")
+        ));
+        graphData.put("phaseEdges", List.of(
+            Map.of("parentPhaseId", "10", "childPhaseId", "30"),
+            Map.of("parentPhaseId", "20", "childPhaseId", "30")
+        ));
+        graphData.put("nodes", List.of());
+        graphData.put("edges", List.of());
+
+        PipelineTemplateEntity templateEntity = PipelineTemplateEntity.builder()
+            .id(templateId)
+            .name("Multi-Parent Phase Template")
+            .visibility(TemplateVisibility.PUBLIC)
+            .graphData(graphData)
+            .cloneCount(0)
+            .build();
+
+        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.of(templateEntity));
+
+        when(projectRepository.save(any(ProjectEntity.class))).thenReturn(
+            ProjectEntity.builder().id(500L).name("P").ownerId(currentUserId).status(ProjectStatus.DRAFT).build()
+        );
+
+        long[] phaseSeq = {501L, 502L, 503L};
+        int[] pIdx = {0};
+        when(workPhaseRepository.save(any(WorkPhaseEntity.class))).thenAnswer(invocation -> {
+            WorkPhaseEntity p = invocation.getArgument(0);
+            if (p.getId() != null) return p;
+            return WorkPhaseEntity.builder()
+                .id(phaseSeq[pIdx[0]++])
+                .projectId(p.getProjectId())
+                .name(p.getName())
+                .build();
+        });
+
+        WorkPhaseEntity phase3Entity = WorkPhaseEntity.builder().id(503L).projectId(500L).name("Phase 3").build();
+        when(workPhaseRepository.findById(503L)).thenAnswer(invocation -> Optional.of(phase3Entity));
+
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(500L)).thenReturn(List.of(
+            WorkPhaseEntity.builder().id(501L).projectId(500L).name("Phase 1").build(),
+            WorkPhaseEntity.builder().id(502L).projectId(500L).name("Phase 2").build(),
+            phase3Entity
+        ));
+        when(nodeRepository.findByProjectId(500L)).thenReturn(Collections.emptyList());
+        when(userRepository.findById(currentUserId)).thenReturn(Optional.of(
+            UserEntity.builder().id(currentUserId).username("alex.kim").build()
+        ));
+
+        CloneTemplateRequest req = new CloneTemplateRequest(templateId, "Multi-Parent Project", "Desc", "PRIVATE");
+        ProjectDetailResponse result = templateCloneService.cloneTemplate(req, currentUserId);
+
+        assertThat(result).isNotNull();
+        assertThat(phase3Entity.getParentPhaseId()).isEqualTo(501L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PhaseDependencyEntity>> phaseDepsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(phaseDependencyRepository, times(1)).saveAll(phaseDepsCaptor.capture());
+        List<PhaseDependencyEntity> savedPhaseDeps = phaseDepsCaptor.getValue();
+        assertThat(savedPhaseDeps).hasSize(1);
+        assertThat(savedPhaseDeps.get(0).getProjectId()).isEqualTo(500L);
+        assertThat(savedPhaseDeps.get(0).getParentPhaseId()).isEqualTo(502L);
+        assertThat(savedPhaseDeps.get(0).getChildPhaseId()).isEqualTo(503L);
     }
 }

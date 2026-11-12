@@ -175,7 +175,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      {
        "username": "minhdang2026",
        "email": "dang.dev@wpe.io",
-       "password": "SecurePassword123!",
+       "password": "example-StrongPass123!",
        "fullName": "Dang Minh"
      }
      ```
@@ -190,8 +190,8 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Response Body**:
      ```json
      {
-       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJtaW5oZGFuZyIsImV4cCI6MTgwMDAwMDAwMH0...",
-       "refreshToken": "rt_8f93bc10427845f9a0c7932156...",
+       "token": "example-access-token-jwt",
+       "refreshToken": "example-refresh-token",
        "user": {
          "id": "1",
          "username": "minhdang2026",
@@ -231,8 +231,8 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Response Body**:
      ```json
      {
-       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-       "refreshToken": "rt_98234abcf0912384723...",
+       "token": "example-access-token-jwt",
+       "refreshToken": "example-refresh-token",
        "user": {
          "id": "1",
          "username": "alex.kim",
@@ -252,7 +252,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 2. **Luồng Mã Nguồn**:
    - `HttpInterceptor` / `src/store/slices/authSlice.ts` (`logout`) -> `container.workflowService.logout()` -> `IWorkflowService.logout(): Promise<void>`.
 3. **Request DTO**:
-   - `POST /api/auth/refresh`: Body `{ "refreshToken": "rt_98234abcf0912384723..." }`.
+   - `POST /api/auth/refresh`: Body `{ "refreshToken": "example-refresh-token" }`.
    - `POST /api/auth/logout`: Header `Authorization: Bearer <jwt>`, Body `{ "refreshToken": "rt_..." }`.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `REFRESH_TOKEN`.
@@ -330,7 +330,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      ```json
      {
        "currentPassword": "OldPassword123!",
-       "newPassword": "NewStrongPassword2026!"
+       "newPassword": "example-NewStrongPass456!"
      }
      ```
 4. **Xử lý Backend & Bảng CSDL Tác động**:
@@ -645,13 +645,15 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Headers**: `Authorization: Bearer <jwt>`
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `PROJECT`, `NODE`, `NODE_DEPENDENCY`.
-   - Kiểm tra quyền: Chỉ `OWNER` mới có quyền publish.
+   - Kiểm tra quyền: Chỉ `OWNER` mới có quyền publish (người khác → 403 `ACCESS_DENIED`).
+   - **Kiểm tra trạng thái dự án (cập nhật 12/11/2026, task B4)**: chỉ xuất bản được từ `DRAFT` hoặc `PLANNING`. Dự án `ARCHIVED` → 409 `PROJECT_ARCHIVED`. Các trạng thái còn lại (`ACTIVE`, `PAUSED`, `COMPLETED`, `INACTIVE`) → 409 `INVALID_PROJECT_STATUS`. Bước này chạy trước thuật toán Kahn; trạng thái dự án và node không đổi.
    - **Thuật toán Kahn**:
      1. Khởi tạo danh sách In-degree của tất cả các Node trong dự án.
      2. Đưa toàn bộ các Node có `in-degree == 0` vào hàng đợi `Queue`.
      3. Trong khi `Queue` không rỗng: lấy node $u$ ra, tăng biến đếm `visitedCount += 1`. Với mỗi node con $v$ của $u$, giảm `in-degree(v) -= 1`. Nếu `in-degree(v) == 0`, đưa $v$ vào `Queue`.
-     4. Nếu `visitedCount < totalNodes`: Tồn tại ít nhất một chu trình! Thu thập các Node còn `in-degree > 0` đưa vào `cycleNodes`. Trả về mã lỗi HTTP 422 Unprocessable Entity.
-     5. Nếu `visitedCount == totalNodes`: Không có chu trình. Cập nhật `PROJECT.status = 'ACTIVE'`. Mở khóa các Node có `in-degree == 0` từ `LOCKED` sang `TODO`.
+     4. Nếu `visitedCount < totalNodes`: Tồn tại ít nhất một chu trình! Trả về mã lỗi HTTP 422 Unprocessable Entity. `cycleNodes` lấy từ `KahnDagService.validateProjectDag(...).cycleNodeCodes` (task B1): chỉ gồm node **nằm trên** chu trình (hoặc nằm giữa 2 chu trình), **không** gồm node chỉ đứng sau chu trình.
+     5. Nếu `visitedCount == totalNodes`: Không có chu trình. Cập nhật `PROJECT.status = 'ACTIVE'`. Mở khóa các Node có `in-degree == 0` từ `LOCKED` sang `TODO`. `unlockedTaskCount` = số node vừa đổi `LOCKED` → `TODO` trong lần xuất bản này (node gốc đã `TODO` từ trước, ví dụ task không thuộc Phase, không được tính).
+   - **Sự kiện sau khi commit (task B4)**: với mỗi node vừa mở khóa **có người phụ trách**, backend gửi SSE `TASK_UNLOCKED` (payload `KanbanTaskResponse`, cùng dạng với mục 5) qua `SseEmitterService.sendToUser` và một thông báo `TASK_READY` qua `WorkflowEventPublisher.publishNotification`. Cả hai chỉ gửi **sau khi transaction commit** (`TransactionSynchronization.afterCommit`); nếu xuất bản bị rollback thì không gửi gì. Gửi lỗi (mất kết nối SSE, RabbitMQ hỏng) chỉ ghi log, không làm request trả lỗi.
 5. **Response DTO & UI Mutation**:
    - **Thành công (200 OK)**:
      ```json
@@ -674,6 +676,16 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      }
      ```
      *UI Mutation*: Mở modal `KahnCycleModal.tsx`, hiển thị danh sách các mã Node vi phạm với hiệu ứng viền đỏ cảnh báo.
+   - **Thất bại do trạng thái dự án (409 Conflict)** (task B4): `error` là `INVALID_PROJECT_STATUS` (dự án không ở `DRAFT`/`PLANNING`, kể cả đã `ACTIVE`) hoặc `PROJECT_ARCHIVED` (dự án đã lưu trữ).
+     ```json
+     {
+       "timestamp": "2026-11-12T02:30:38Z",
+       "status": 409,
+       "error": "INVALID_PROJECT_STATUS",
+       "message": "Chỉ xuất bản được dự án đang ở trạng thái DRAFT hoặc PLANNING. Trạng thái hiện tại: ACTIVE.",
+       "path": "/api/v1/projects/4/publish"
+     }
+     ```
 
 ---
 

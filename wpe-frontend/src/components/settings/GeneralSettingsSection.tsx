@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Archive, RotateCcw } from 'lucide-react'
 import type { ProjectRole, ProjectSettingsDto, UpdateProjectCommand } from '../../types/settings.types'
+import { container } from '../../services/container'
 
 interface GeneralSettingsSectionProps {
   settings: ProjectSettingsDto | null
@@ -8,6 +9,7 @@ interface GeneralSettingsSectionProps {
   onSave: (cmd: UpdateProjectCommand) => Promise<boolean>
   onPublish: () => Promise<boolean>
   onRestore?: () => Promise<void>
+  projectId?: string
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -23,13 +25,25 @@ export function GeneralSettingsSection({
   onSave,
   onPublish,
   onRestore,
+  projectId,
 }: GeneralSettingsSectionProps) {
   const isOwner = myRole === 'OWNER'
   const isArchived = settings?.status === 'ARCHIVED'
+  const currentProjectId = projectId || settings?.id || '1'
+  // B6: khớp backend (B4) — chỉ xuất bản được từ DRAFT hoặc PLANNING.
+  // ProjectStatus của settings.types chưa có PLANNING (file của D) dù backend có trả, nên so như chuỗi.
+  const statusText: string | undefined = settings?.status
+  const canPublish = statusText === 'DRAFT' || statusText === 'PLANNING'
   const [form, setForm] = useState({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [restoring, setRestoring] = useState(false)
+
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDesc, setTemplateDesc] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [templateNotice, setTemplateNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   useEffect(() => {
     if (settings) {
@@ -56,7 +70,7 @@ export function GeneralSettingsSection({
   }
 
   const handlePublish = async () => {
-    if (!isOwner || settings.status !== 'DRAFT' || publishing) return
+    if (!isOwner || !canPublish || publishing) return
     setPublishing(true)
     try {
       await onPublish()
@@ -72,6 +86,28 @@ export function GeneralSettingsSection({
       await onRestore()
     } finally {
       setRestoring(false)
+    }
+  }
+
+  const handleSaveAsTemplate = async () => {
+    if (!templateName.trim() || savingTemplate) return
+    setSavingTemplate(true)
+    setTemplateNotice(null)
+    try {
+      await container.templateService.saveProjectAsTemplate(currentProjectId, {
+        name: templateName.trim(),
+        description: templateDesc.trim() || undefined,
+      })
+      setTemplateNotice({ type: 'success', message: 'Đã lưu template riêng của bạn' })
+      setTemplateName('')
+      setTemplateDesc('')
+    } catch (err: any) {
+      setTemplateNotice({
+        type: 'error',
+        message: err?.message || 'Có lỗi xảy ra khi lưu template riêng.',
+      })
+    } finally {
+      setSavingTemplate(false)
     }
   }
 
@@ -143,7 +179,7 @@ export function GeneralSettingsSection({
               </button>
             )}
 
-            {isOwner && settings.status === 'DRAFT' && (
+            {isOwner && canPublish && (
               <button
                 type="button"
                 onClick={handlePublish}
@@ -151,6 +187,22 @@ export function GeneralSettingsSection({
                 className="whitespace-nowrap rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-40"
               >
                 {publishing ? 'Publishing...' : 'Publish Pipeline'}
+              </button>
+            )}
+
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTemplateModal((prev) => !prev)
+                  setTemplateNotice(null)
+                  if (!templateName && settings?.name) {
+                    setTemplateName(`${settings.name} Template`)
+                  }
+                }}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
+              >
+                <span>Lưu thành template</span>
               </button>
             )}
 
@@ -164,6 +216,83 @@ export function GeneralSettingsSection({
             </button>
           </div>
         </div>
+
+        {isOwner && showTemplateModal && (
+          <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-800">Lưu dự án thành Template riêng</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTemplateModal(false)
+                  setTemplateNotice(null)
+                }}
+                className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {templateNotice && (
+              <div
+                className={`rounded-lg px-3 py-2 text-xs font-medium ${
+                  templateNotice.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {templateNotice.message}
+              </div>
+            )}
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700">
+                Tên Template <span className="text-rose-500">*</span>
+              </label>
+              <input
+                className={`${inputCls} mt-1`}
+                value={templateName}
+                disabled={savingTemplate}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Nhập tên template..."
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700">Mô tả (tùy chọn)</label>
+              <textarea
+                rows={2}
+                className={`${inputCls} mt-1 resize-none`}
+                value={templateDesc}
+                disabled={savingTemplate}
+                onChange={(e) => setTemplateDesc(e.target.value)}
+                placeholder="Mô tả mục đích của template này..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                disabled={savingTemplate}
+                onClick={() => {
+                  setShowTemplateModal(false)
+                  setTemplateNotice(null)
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={!templateName.trim() || savingTemplate}
+                onClick={handleSaveAsTemplate}
+                className="rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
+              >
+                {savingTemplate ? 'Đang lưu...' : 'Lưu'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )

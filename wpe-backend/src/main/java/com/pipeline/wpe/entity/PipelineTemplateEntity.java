@@ -1,5 +1,6 @@
 package com.pipeline.wpe.entity;
 
+import com.pipeline.wpe.common.enums.TemplateVisibility;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -42,6 +43,14 @@ public class PipelineTemplateEntity {
     @Column(name = "is_system_standard", nullable = false)
     @Builder.Default
     private Boolean isSystemStandard = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    @Builder.Default
+    private TemplateVisibility visibility = TemplateVisibility.PUBLIC;
+
+    @Column(name = "source_project_id")
+    private Long sourceProjectId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "graph_data", columnDefinition = "jsonb", nullable = false)

@@ -97,10 +97,11 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
         <SettingsHeader myRole={effectiveRole} />
 
         <GeneralSettingsSection
+          projectId={projectId}
           settings={settings}
           myRole={effectiveRole}
           onSave={updateGeneralSettings}
-          onPublish={() => publishProject()}
+          onPublish={() => publishProject(projectId)}
           onRestore={async () => {
             await restoreProject()
           }}

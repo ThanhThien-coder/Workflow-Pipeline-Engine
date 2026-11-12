@@ -16,6 +16,10 @@ export interface PhaseCardProps {
   onSpawnDown: (event: React.MouseEvent<HTMLButtonElement>, phaseId: string) => void
   onDragCardStart?: (event: React.MouseEvent, phaseId: string) => void
   onDeletePhase?: (phaseId: string) => void
+  /** B5: người không phải owner. Không có nút xóa, cổng nối bị vô hiệu hóa, con trỏ không còn kiểu "kéo". */
+  readOnly?: boolean
+  /** Lời giải thích hiện trên nút bị vô hiệu hóa khi readOnly. */
+  readOnlyTitle?: string
 }
 
 export function PhaseCard({
@@ -26,6 +30,8 @@ export function PhaseCard({
   onSpawnDown,
   onDragCardStart,
   onDeletePhase,
+  readOnly = false,
+  readOnlyTitle,
 }: PhaseCardProps) {
   // Màu đi theo trạng thái suy ra từ task: hoàn thành -> xanh lá, đang khóa -> xám, còn lại giữ accent của Phase
   const accentKey =
@@ -52,7 +58,9 @@ export function PhaseCard({
         width: MACRO_CARD_W,
         height: MACRO_CARD_H,
       }}
-      className={`group select-none text-left rounded-2xl bg-white border shadow-sm overflow-visible transition-shadow duration-200 cursor-grab active:cursor-grabbing ${
+      className={`group select-none text-left rounded-2xl bg-white border shadow-sm overflow-visible transition-shadow duration-200 ${
+        readOnly ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+      } ${
         selected
           ? 'border-indigo-400 shadow-xl ring-2 ring-indigo-200'
           : 'border-slate-200 hover:shadow-md hover:border-slate-300'
@@ -84,7 +92,7 @@ export function PhaseCard({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 pointer-events-auto">
-            {onDeletePhase && (
+            {onDeletePhase && !readOnly && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -138,13 +146,24 @@ export function PhaseCard({
       {/* Source Connection Handle (Right Port) */}
       <button
         type="button"
-        onMouseDown={(event) => onSpawnDown(event, phase.id)}
+        disabled={readOnly}
+        onMouseDown={(event) => {
+          if (readOnly) {
+            event.stopPropagation()
+            return
+          }
+          onSpawnDown(event, phase.id)
+        }}
         onClick={(event) => {
           event.stopPropagation()
           event.preventDefault()
         }}
-        title="Drag to another phase to connect · Or click to quickly create child phase"
-        className="absolute -right-3.5 top-1/2 z-20 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-blue-500 text-white shadow-md hover:bg-blue-600 hover:scale-110 active:scale-95 cursor-crosshair transition-all pointer-events-auto"
+        title={readOnly ? readOnlyTitle : 'Drag to another phase to connect · Or click to quickly create child phase'}
+        className={`absolute -right-3.5 top-1/2 z-20 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-white shadow-md transition-all pointer-events-auto ${
+          readOnly
+            ? 'bg-slate-300 cursor-not-allowed'
+            : 'bg-blue-500 hover:bg-blue-600 hover:scale-110 active:scale-95 cursor-crosshair'
+        }`}
       >
         <Plus size={14} />
       </button>

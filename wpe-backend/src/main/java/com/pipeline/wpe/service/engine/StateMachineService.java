@@ -4,6 +4,7 @@ import com.pipeline.wpe.common.enums.ArtifactType;
 import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.event.TaskCompletedEvent;
 import com.pipeline.wpe.dto.request.node.SubmitTaskArtifactRequest;
@@ -15,6 +16,7 @@ import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.NodeDependencyEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.mapper.NodeMapper;
@@ -30,6 +32,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -124,6 +128,7 @@ public class StateMachineService {
 
         ProjectEntity project = projectRepository.findById(node.getProjectId())
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án ID: " + node.getProjectId()));
+        ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
@@ -176,8 +181,10 @@ public class StateMachineService {
                     Instant.now()
                 ));
 
-                // Đẩy thông báo thời gian thực qua SSE
-                sseEmitterService.sendToUser(node.getAssignedUserId(), "TASK_REJECTED", nodeMapper.toKanbanTaskResponse(node));
+                // Đẩy thông báo thời gian thực qua SSE (sau commit)
+                KanbanTaskResponse rejected = nodeMapper.toKanbanTaskResponse(node);
+                Long assigneeId = node.getAssignedUserId();
+                afterCommit(() -> sseEmitterService.sendToUser(assigneeId, "TASK_REJECTED", rejected));
             }
 
         } else if (targetStatus == NodeStatus.IN_PROGRESS && currentStatus == NodeStatus.TODO) {
@@ -213,13 +220,17 @@ public class StateMachineService {
         NodeEntity saved = nodeRepository.save(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
 
-        // Bắn tín hiệu real-time cập nhật trạng thái tới tất cả các bên
-        if (saved.getAssignedUserId() != null) {
-            sseEmitterService.sendToUser(saved.getAssignedUserId(), "TASK_STATUS_CHANGED", response);
-        }
-        if (!isOwner) {
-            sseEmitterService.sendToUser(project.getOwnerId(), "TASK_STATUS_CHANGED", response);
-        }
+        // Bắn tín hiệu real-time cập nhật trạng thái tới tất cả các bên (sau commit)
+        Long assigneeId = saved.getAssignedUserId();
+        Long ownerId = project.getOwnerId();
+        afterCommit(() -> {
+            if (assigneeId != null) {
+                sseEmitterService.sendToUser(assigneeId, "TASK_STATUS_CHANGED", response);
+            }
+            if (!isOwner) {
+                sseEmitterService.sendToUser(ownerId, "TASK_STATUS_CHANGED", response);
+            }
+        });
 
         return response;
     }
@@ -242,6 +253,7 @@ public class StateMachineService {
 
         ProjectEntity project = projectRepository.findById(node.getProjectId())
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án ID: " + node.getProjectId()));
+        ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
@@ -306,8 +318,9 @@ public class StateMachineService {
 
         KanbanTaskResponse taskResponse = nodeMapper.toKanbanTaskResponse(savedNode);
 
-        // Bắn SSE real-time cho Owner
-        sseEmitterService.sendToUser(project.getOwnerId(), "TASK_SUBMITTED", taskResponse);
+        // Bắn SSE real-time cho Owner (sau commit)
+        Long ownerId = project.getOwnerId();
+        afterCommit(() -> sseEmitterService.sendToUser(ownerId, "TASK_SUBMITTED", taskResponse));
 
         return new SubmitTaskArtifactResponse(taskResponse, artifactResponse);
     }
@@ -322,6 +335,7 @@ public class StateMachineService {
 
         ProjectEntity project = projectRepository.findById(node.getProjectId())
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án ID: " + node.getProjectId()));
+        ensureNotArchived(project);
 
         if (!project.getOwnerId().equals(currentUserId)) {
             throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền mở khóa cưỡng bức (Force Unlock).");
@@ -335,9 +349,23 @@ public class StateMachineService {
         NodeEntity saved = nodeRepository.save(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
 
-        // Bắn thông báo và SSE cho Assignee
-        if (saved.getAssignedUserId() != null) {
-            sseEmitterService.sendToUser(saved.getAssignedUserId(), "TASK_UNLOCKED", response);
+        // Ghi lại ai đã mở khóa sớm (audit)
+        log.info("Force unlock: task ID {} ({}) trong dự án {} được user {} mở khóa sớm LOCKED -> TODO",
+            saved.getId(), saved.getCode(), saved.getProjectId(), currentUserId);
+
+        // Bắn thông báo và SSE cho Assignee (cả hai đều gửi sau commit)
+        Long assigneeId = saved.getAssignedUserId();
+        if (assigneeId != null) {
+            eventPublisher.publishNotification(new NotificationEvent(
+                assigneeId,
+                saved.getProjectId(),
+                "Tác vụ được mở khóa sớm",
+                "Tác vụ " + saved.getCode() + " (" + saved.getTitle() + ") được Chủ dự án mở khóa sớm, bạn có thể bắt đầu làm.",
+                "FORCE_UNLOCKED",
+                "/projects/" + saved.getProjectId() + "/tasks",
+                Instant.now()
+            ));
+            afterCommit(() -> sseEmitterService.sendToUser(assigneeId, "TASK_UNLOCKED", response));
         }
 
         return response;
@@ -393,11 +421,50 @@ public class StateMachineService {
                             Instant.now()
                         ));
 
-                        // ĐẨY REAL-TIME SSE XUỐNG CLIENT CỦA ASSIGNEE MÀ KHÔNG CẦN RELOAD (F5)
-                        sseEmitterService.sendToUser(savedChild.getAssignedUserId(), "TASK_UNLOCKED", taskResponse);
+                        // ĐẨY REAL-TIME SSE XUỐNG CLIENT CỦA ASSIGNEE MÀ KHÔNG CẦN RELOAD (F5), sau commit
+                        Long assigneeId = savedChild.getAssignedUserId();
+                        afterCommit(() -> sseEmitterService.sendToUser(assigneeId, "TASK_UNLOCKED", taskResponse));
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Dự án ARCHIVED là chỉ đọc (workflow-engine.md 5.1): mọi thao tác đổi trạng thái,
+     * nộp bài, force unlock đều bị chặn 409 PROJECT_ARCHIVED (cùng mã lỗi với phần đồ thị của B).
+     */
+    private void ensureNotArchived(ProjectEntity project) {
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED",
+                "Dự án đã được lưu trữ, chỉ có thể xem. Không thể thay đổi trạng thái tác vụ.");
+        }
+    }
+
+    /**
+     * Chạy action sau khi transaction hiện tại commit; không có transaction thì chạy ngay.
+     * Dùng cho SSE để trình duyệt không nhận trạng thái mà DB có thể còn rollback.
+     * Lỗi gửi SSE sau commit chỉ ghi log, không làm hỏng request đã commit.
+     * Dùng afterCompletion(STATUS_COMMITTED) thay vì afterCommit() để vẫn chạy khi được gọi từ bên trong
+     * afterCommit của code khác (lý do chi tiết ở WorkflowEventPublisher.sendAfterCommit).
+     */
+    private void afterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    return;
+                }
+                try {
+                    action.run();
+                } catch (RuntimeException ex) {
+                    log.error("Gửi SSE sau commit thất bại: {}", ex.getMessage(), ex);
+                }
+            }
+        });
     }
 }

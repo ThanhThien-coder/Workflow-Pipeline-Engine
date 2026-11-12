@@ -5,13 +5,62 @@ import type {
 } from '../../types/template.types';
 
 /**
+ * Kết quả kiểm DAG.
+ * - `violations`: mọi node còn in-degree > 0 sau Kahn (nằm trên vòng **và** đứng sau vòng).
+ *   Giữ nguyên nghĩa cũ vì khớp phần kiểm template của backend (`KahnDagService.validateSimpleDag`).
+ * - `cycleNodes` (B6): chỉ node **nằm trên** vòng lặp (hoặc giữa 2 vòng), bỏ node chỉ đứng sau vòng.
+ *   Khớp `cycleNodeCodes` của backend (`validateProjectDag`, B1) — đây là danh sách backend trả trong 422.
+ *   Cả hai giữ thứ tự như trong `vertices`.
+ */
+export interface DagCheckResult {
+  valid: boolean
+  violations: string[]
+  cycleNodes: string[]
+}
+
+/**
+ * Bỏ dần các node "đứng sau" vòng lặp: trong tập node bị chặn, node không còn cạnh đi ra tới node
+ * bị chặn nào thì không nằm trên vòng; bỏ nó rồi lặp lại. Phần còn lại là node trên vòng.
+ * Cùng thuật toán với `KahnDagService.peelNodesBehindCycle` ở backend.
+ */
+function peelNodesBehindCycle(blocked: string[], adj: Record<string, string[]>): Set<string> {
+  const blockedSet = new Set(blocked)
+  const outDegree: Record<string, number> = {}
+  const parents: Record<string, string[]> = {}
+  for (const id of blocked) {
+    outDegree[id] = 0
+    parents[id] = []
+  }
+  for (const from of blocked) {
+    for (const to of adj[from]) {
+      if (blockedSet.has(to)) {
+        outDegree[from]++
+        parents[to].push(from)
+      }
+    }
+  }
+
+  const queue = blocked.filter((id) => outDegree[id] === 0)
+  const remaining = new Set(blocked)
+  while (queue.length > 0) {
+    const removed = queue.shift()!
+    remaining.delete(removed)
+    for (const parent of parents[removed]) {
+      outDegree[parent]--
+      if (outDegree[parent] === 0) queue.push(parent)
+    }
+  }
+  return remaining
+}
+
+/**
  * Pure function to execute Kahn's Topological Sort cycle detection.
  * Complexity: O(V + E)
  */
 export function validateDag(
   vertices: string[],
   edges: [string, string][]
-): { valid: boolean; violations: string[] } {
+): DagCheckResult {
   const indeg: Record<string, number> = {};
   const adj: Record<string, string[]> = {};
   const vertexSet = new Set(vertices);
@@ -44,12 +93,13 @@ export function validateDag(
   }
 
   if (visited === vertices.length) {
-    return { valid: true, violations: [] };
+    return { valid: true, violations: [], cycleNodes: [] };
   }
 
   // Nodes remaining with in-degree > 0 are part of or influenced by a cycle
   const violations = vertices.filter((v) => indeg[v] > 0);
-  return { valid: false, violations };
+  const onCycle = peelNodesBehindCycle(violations, adj);
+  return { valid: false, violations, cycleNodes: violations.filter((v) => onCycle.has(v)) };
 }
 
 /**

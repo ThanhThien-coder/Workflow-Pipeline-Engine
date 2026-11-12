@@ -166,10 +166,20 @@ Khi một nút đạt trạng thái `DONE`, Engine kích hoạt luồng quét to
 ### 3.4 Cơ chế Mở khóa Cưỡng bức (Force Unlock)
 * Nhằm phục vụ kịch bản thành viên cần làm trước bằng mock data khi task cha chưa xong, Project Owner được cung cấp nút **"Force Unlock"**.
 * Bấm Force Unlock lập tức chuyển task từ `LOCKED` sang `TODO` và ghi log audit mà không phá vỡ liên kết DAG.
+* Cài đặt (C1, 12/11/2026): chỉ Owner; task phải đang `LOCKED` (khác → 400); dự án `ARCHIVED` → 409 `PROJECT_ARCHIVED`. Log mức `info` ghi id task, mã task, dự án và **userId người mở**. Nếu task có người phụ trách: tạo thông báo `FORCE_UNLOCKED` ("Tác vụ … được Chủ dự án mở khóa sớm") và đẩy SSE `TASK_UNLOCKED`, cả hai gửi sau commit (mục 3.6).
 
 ### 3.5 Đồng bộ Thời gian thực qua Server-Sent Events (SSE)
 * Ngay khi nút con được chuyển trạng thái từ `LOCKED` sang `TODO` (qua hội tụ AND/OR Join hoặc Force Unlock), hệ thống tự động đẩy sự kiện `TASK_UNLOCKED` kèm `KanbanTaskResponse` qua `SseEmitterService` xuống trình duyệt của người phụ trách (`assigned_user_id`).
 * Thẻ công việc tự động nạp vào cột TODO trên bảng Kanban của người dùng trong thời gian thực mà không yêu cầu tải lại trang (Zero-Reload Experience).
+
+### 3.6 Gửi sự kiện RabbitMQ và SSE sau khi commit (C1, 12/11/2026)
+* **Vấn đề trước đây:** `updateStatus` gọi `publishTaskCompleted` khi transaction còn mở. Consumer (`WorkflowEventConsumer.handleTaskCompleted`, chạy ở luồng listener riêng) có thể nhận sự kiện trước khi commit, đọc thấy task cha chưa `DONE`, nên **không mở khóa** task con. Thực nghiệm C1 (thêm tạm `Thread.sleep(2000)` sau lời gọi publish) tái hiện được: duyệt WPE-003 xong, WPE-004 vẫn `LOCKED`.
+* **Quy tắc:** mọi hàm `publish*` của `WorkflowEventPublisher` kiểm `TransactionSynchronizationManager.isSynchronizationActive()`:
+  * đang trong transaction → đăng ký một `TransactionSynchronization`, chỉ `convertAndSend` ở `afterCompletion(STATUS_COMMITTED)`; transaction rollback thì **không** gửi. Không dùng `afterCommit()` vì publish có thể bị gọi từ bên trong `afterCommit` của code khác (ví dụ `publishPipeline`), lúc đó một `afterCommit` đăng ký thêm sẽ không bao giờ chạy;
+  * không có transaction → gửi ngay.
+* SSE trong `StateMachineService` (`TASK_STATUS_CHANGED`, `TASK_REJECTED`, `TASK_SUBMITTED`, `TASK_UNLOCKED`) cũng gửi sau commit theo cùng cách, để trình duyệt không nhận trạng thái mà DB còn có thể rollback.
+* Chữ ký các hàm `publish*` và `SseEmitterService.sendToUser` giữ nguyên; code của B và D gọi như cũ là tự được gửi sau commit.
+* **Hạn chế đã biết:** việc gửi sau commit chạy trên chính luồng của request, sau khi commit xong. Nếu RabbitMQ lỗi đúng lúc đó thì dữ liệu đã lưu nhưng **sự kiện bị mất** (chỉ ghi log `ERROR`, request vẫn trả thành công). Muốn không mất sự kiện thì cần outbox pattern: ghi sự kiện vào một bảng trong cùng transaction, rồi một job đọc bảng đó để gửi lên RabbitMQ.
 
 ---
 
@@ -314,6 +324,13 @@ File: `wpe-backend/src/main/java/com/pipeline/wpe/service/engine/KahnDagService.
 2. **`ACTIVE`**: Dự án đã vượt qua thuật toán Kahn và được kích hoạt. Các nút gốc (In-degree = 0) chuyển sang `TODO` và tự động đẩy vào My Tasks của người phụ trách.
 3. **`INACTIVE`**: Dự án không có tương tác nào trong 30 ngày; nhận cảnh báo trước khi chuyển lưu trữ.
 4. **`ARCHIVED`**: Dự án đóng băng chỉ đọc (Read-only); có thể được khôi phục bởi Chủ dự án trong thời hạn quy định.
+   * Mọi thao tác ghi trả 409 `PROJECT_ARCHIVED`: sửa đồ thị, phase, node, cạnh (B2, B3); đổi trạng thái task, duyệt hoặc từ chối bài, nộp bài, force unlock (C1). Đọc dữ liệu vẫn được.
+
+**Luật xuất bản `POST /projects/{id}/publish` (cập nhật 12/11/2026, task B4):**
+* Chỉ chuyển sang `ACTIVE` được từ `DRAFT` hoặc `PLANNING`. Dự án `ARCHIVED` trả 409 `PROJECT_ARCHIVED`; các trạng thái khác (`ACTIVE`, `PAUSED`, `COMPLETED`, `INACTIVE`) trả 409 `INVALID_PROJECT_STATUS`. Xuất bản lần 2 vì thế luôn bị từ chối, không mở khóa hay gửi sự kiện lặp lại.
+* Thứ tự kiểm: quyền owner (403) → trạng thái dự án (409) → thuật toán Kahn toàn dự án (422 `CYCLE_DETECTED`, `cycleNodes` = `cycleNodeCodes`, xem mục 4.3).
+* Node gốc (in-degree = 0) đang `LOCKED` chuyển sang `TODO`. Mỗi node vừa mở khóa có người phụ trách sinh 1 SSE `TASK_UNLOCKED` và 1 thông báo `TASK_READY`, gửi **sau khi transaction commit**. Rollback thì không gửi.
+* Độ phức tạp: O(V + E) với V là số node, E là số cạnh của dự án (đọc node và cạnh 1 lần, Kahn O(V + E), duyệt node gốc O(V)).
 
 ### 5.2 Khóa Lạc quan (Optimistic Locking via JPA `@Version`)
 * Khi nhiều nhánh phụ thuộc chạy song song hoàn thành cùng một lúc, các downstream tasks có thể bị gọi mở khóa đồng thời từ nhiều luồng (threads).

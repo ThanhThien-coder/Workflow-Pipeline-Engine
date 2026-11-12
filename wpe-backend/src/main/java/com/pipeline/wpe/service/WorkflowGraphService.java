@@ -20,6 +20,10 @@ import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.service.event.SseEmitterService;
+import com.pipeline.wpe.service.event.WorkflowEventPublisher;
+import com.pipeline.wpe.dto.event.NotificationEvent;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.pipeline.wpe.service.engine.KahnDagService;
 import com.pipeline.wpe.service.engine.KahnDagService.ProjectKahnResult;
 import com.pipeline.wpe.service.engine.PhaseProgressCalculator;
@@ -48,6 +52,7 @@ public class WorkflowGraphService {
     private final ProjectMemberRepository projectMemberRepository;
     private final SseEmitterService sseEmitterService;
     private final NodeMapper nodeMapper;
+    private final WorkflowEventPublisher eventPublisher;
 
     /**
      * 4.1 Lấy toàn bộ đồ thị 2 tầng của dự án
@@ -514,8 +519,13 @@ public class WorkflowGraphService {
     public PublishPipelineResponse publishPipeline(Long projectId, Long currentUserId) {
         ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
 
-        if (project.getStatus() == com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE) {
-            throw new IllegalArgumentException("Dự án đã được xuất bản trước đó.");
+        // Chỉ xuất bản được từ DRAFT hoặc PLANNING. ARCHIVED -> 409 PROJECT_ARCHIVED, còn lại -> 409 INVALID_PROJECT_STATUS.
+        ensureNotArchived(project);
+        com.pipeline.wpe.common.enums.ProjectStatus currentStatus = project.getStatus();
+        if (currentStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT
+            && currentStatus != com.pipeline.wpe.common.enums.ProjectStatus.PLANNING) {
+            throw new ConflictException("INVALID_PROJECT_STATUS",
+                "Chỉ xuất bản được dự án đang ở trạng thái DRAFT hoặc PLANNING. Trạng thái hiện tại: " + currentStatus + ".");
         }
 
         List<NodeEntity> nodes = nodeRepository.findByProjectId(projectId);
@@ -531,22 +541,69 @@ public class WorkflowGraphService {
         }
 
         // Đồ thị hợp lệ: Chuyển dự án sang ACTIVE
+        Instant publishedAt = Instant.now();
         project.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE);
-        project.setUpdatedAt(Instant.now());
+        project.setUpdatedAt(publishedAt);
         projectRepository.save(project);
 
         // Tự động mở khóa các node gốc (in-degree == 0) từ LOCKED -> TODO
         int unlockedCount = 0;
+        // Việc báo cho người phụ trách (SSE + thông báo) gom lại ở đây, chưa gửi ngay.
+        List<Runnable> afterCommitActions = new ArrayList<>();
         for (NodeEntity node : nodes) {
             if (result.rootNodeIds().contains(node.getId()) && node.getStatus() == NodeStatus.LOCKED) {
                 node.setStatus(NodeStatus.TODO);
                 nodeRepository.save(node);
                 unlockedCount++;
+
+                Long assigneeId = node.getAssignedUserId();
+                if (assigneeId != null) {
+                    NotificationEvent notification = new NotificationEvent(
+                        assigneeId,
+                        projectId,
+                        "Tác vụ sẵn sàng thực hiện",
+                        "Dự án đã được xuất bản. Tác vụ " + node.getCode() + " (" + node.getTitle() + ") đã mở khóa, bạn có thể bắt đầu!",
+                        "TASK_READY",
+                        "/projects/" + projectId + "/tasks",
+                        publishedAt
+                    );
+                    String nodeCode = node.getCode();
+                    afterCommitActions.add(() -> {
+                        // Mỗi lần gửi tự bắt lỗi riêng: dữ liệu đã commit rồi, gửi hỏng không được làm request trả 500.
+                        try {
+                            // Tạo nội dung ở đây (sau commit) để node mang số version đã tăng trong DB;
+                            // tạo sớm hơn thì client nhận version cũ và bị 409 khi bấm bắt đầu.
+                            sseEmitterService.sendToUser(assigneeId, "TASK_UNLOCKED", nodeMapper.toKanbanTaskResponse(node));
+                        } catch (RuntimeException e) {
+                            log.warn("Không gửi được SSE TASK_UNLOCKED của node {} tới user {}: {}", nodeCode, assigneeId, e.getMessage());
+                        }
+                        try {
+                            eventPublisher.publishNotification(notification);
+                        } catch (RuntimeException e) {
+                            log.warn("Không gửi được thông báo mở khóa node {} tới user {}: {}", nodeCode, assigneeId, e.getMessage());
+                        }
+                    });
+                }
+            }
+        }
+
+        // Chỉ gửi SAU KHI transaction commit: nếu commit hỏng (rollback) thì không ai nhận tin sai.
+        if (!afterCommitActions.isEmpty()) {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        afterCommitActions.forEach(Runnable::run);
+                    }
+                });
+            } else {
+                // Không có transaction nào đang mở (ví dụ unit test gọi thẳng): không có gì để chờ, gửi luôn.
+                afterCommitActions.forEach(Runnable::run);
             }
         }
 
         log.info("Project #{} published successfully. Unlocked {} root tasks.", projectId, unlockedCount);
-        return new PublishPipelineResponse(true, "ACTIVE", Instant.now(), unlockedCount);
+        return new PublishPipelineResponse(true, "ACTIVE", publishedAt, unlockedCount);
     }
 
     /**

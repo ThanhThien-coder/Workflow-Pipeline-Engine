@@ -34,7 +34,8 @@ export interface SettingsSlice {
     loadSettings: (projectId?: string) => Promise<void>
     setSimulatedRole: (role: ProjectRole) => void
     updateGeneralSettings: (cmd: UpdateProjectCommand) => Promise<boolean>
-    publishProject: () => Promise<boolean>
+    /** projectId: id dự án đang mở (lấy từ trang). Không truyền thì dùng id của settings như cũ. */
+    publishProject: (projectId?: string) => Promise<boolean>
     archiveProject: () => Promise<boolean>
     restoreProject: () => Promise<boolean>
     deleteProject: () => Promise<boolean>
@@ -162,14 +163,18 @@ export const createSettingsSlice = (
         }
       },
 
-      publishProject: async () => {
-        const pid = currentProjectId()
+      publishProject: async (projectId?: string) => {
+        // B6: ưu tiên id dự án đang mở. settings ở chế độ API thật vẫn là mock (id luôn '1'),
+        // dùng id đó sẽ xuất bản nhầm dự án 1. Gốc vấn đề (nạp settings thật) là việc của D.
+        const pid = projectId || currentProjectId()
         try {
           const result = await workflowService.publishPipeline(pid)
           if (result.cycleDetected || !result.success) {
             set((state) =>
               produce(state, (draft) => {
-                draft.settings.kahnCycleErrors = result.violatingNodeIds || ['WPE-009', 'WPE-014', 'WPE-009']
+                // B6: chỉ dùng danh sách máy chủ gửi (cycleNodes của 422). Không có thì để rỗng,
+                // modal vẫn mở và tự giải thích; không bịa mã node.
+                draft.settings.kahnCycleErrors = result.violatingNodeIds ?? []
               }),
             )
             return false

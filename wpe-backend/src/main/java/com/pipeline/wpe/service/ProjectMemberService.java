@@ -2,6 +2,7 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.dto.response.project.ProjectMemberHistoryResponse;
 import com.pipeline.wpe.dto.response.project.ProjectMemberResponse;
 import com.pipeline.wpe.dto.response.project.RemoveMemberResponse;
 import com.pipeline.wpe.entity.NodeEntity;
@@ -86,6 +87,39 @@ public class ProjectMemberService {
                     activeNodeCount,
                     initials,
                     null
+            );
+        }).toList();
+    }
+
+    /**
+     * Lấy toàn bộ lịch sử thành viên dự án (Cách B: mỗi lần tham gia là một dòng).
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectMemberHistoryResponse> getMemberHistory(Long projectId, Long currentUserId) {
+        projectAuthorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+
+        List<ProjectMemberEntity> members = projectMemberRepository.findByProjectIdOrderByJoinedAtAsc(projectId);
+        if (members.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> userIds = members.stream().map(ProjectMemberEntity::getUserId).distinct().toList();
+        Map<Long, UserEntity> userMap = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(UserEntity::getId, Function.identity(), (a, b) -> a));
+
+        return members.stream().map(m -> {
+            UserEntity user = userMap.get(m.getUserId());
+            String username = user != null ? user.getUsername() : "unknown";
+            String fullName = user != null ? user.getFullName() : null;
+            boolean active = m.getRemovedAt() == null;
+            return new ProjectMemberHistoryResponse(
+                    String.valueOf(m.getUserId()),
+                    username,
+                    fullName,
+                    m.getRole().name(),
+                    m.getJoinedAt(),
+                    m.getRemovedAt(),
+                    active
             );
         }).toList();
     }

@@ -15,5 +15,7 @@ public record TemplateDetailResponse(
     String createdBy,
     Instant createdAt,
     Instant updatedAt,
-    Map<String, Object> graphData
+    Map<String, Object> graphData,
+    String visibility,
+    Long sourceProjectId
 ) {}

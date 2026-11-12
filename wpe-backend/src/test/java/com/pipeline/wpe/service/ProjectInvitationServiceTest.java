@@ -101,7 +101,7 @@ class ProjectInvitationServiceTest {
         when(userRepository.findById(inviterId)).thenReturn(Optional.of(inviter));
         when(userRepository.findByEmail("sarah.chen@pipeline.engine")).thenReturn(Optional.of(invitee));
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
-        when(projectInvitationRepository.existsByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING)).thenReturn(false);
+        when(projectInvitationRepository.findByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING)).thenReturn(Optional.empty());
 
         ProjectInvitationEntity savedInvitation = ProjectInvitationEntity.builder()
                 .id(invitationId)
@@ -161,7 +161,7 @@ class ProjectInvitationServiceTest {
                 .build();
 
         when(projectInvitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
-        when(projectMemberRepository.findByProjectIdAndUserId(projectId, inviteeId)).thenReturn(Optional.empty());
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
         when(notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(inviteeId)).thenReturn(List.of(unreadNotif));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(ProjectEntity.builder().id(projectId).name("Core Banking Pipeline").build()));
         when(userRepository.findById(inviteeId)).thenReturn(Optional.of(UserEntity.builder().id(inviteeId).username("sarah.chen").build()));
@@ -309,11 +309,22 @@ class ProjectInvitationServiceTest {
 
         CreateInvitationRequest req = new CreateInvitationRequest("sarah.chen@pipeline.engine", ProjectRole.COLLABORATOR);
 
+        ProjectInvitationEntity activePending = ProjectInvitationEntity.builder()
+                .id(99L)
+                .projectId(projectId)
+                .inviterId(inviterId)
+                .inviteeId(inviteeId)
+                .role(ProjectRole.COLLABORATOR)
+                .status(InvitationStatus.PENDING)
+                .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+                .build();
+
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(userRepository.findById(inviterId)).thenReturn(Optional.of(inviter));
         when(userRepository.findByEmail("sarah.chen@pipeline.engine")).thenReturn(Optional.of(invitee));
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
-        when(projectInvitationRepository.existsByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING)).thenReturn(true);
+        when(projectInvitationRepository.findByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING))
+                .thenReturn(Optional.of(activePending));
 
         assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, inviterId))
                 .isInstanceOf(ConflictException.class)
@@ -380,8 +391,8 @@ class ProjectInvitationServiceTest {
     }
 
     @Test
-    @DisplayName("acceptInvitation: Khi thành viên đã bị xóa mềm chấp nhận lời mời mới, cập nhật chính bản ghi cũ")
-    void shouldReactivateExistingMember_whenSoftDeletedMemberAcceptsInvitation() {
+    @DisplayName("acceptInvitation: Người từng bị xóa mềm khi chấp nhận lời mời mới thì tạo entity mới (id null), không khôi phục dòng cũ")
+    void shouldCreateNewMemberRecord_whenSoftDeletedMemberAcceptsInvitation() {
         ProjectInvitationEntity invitation = ProjectInvitationEntity.builder()
                 .id(invitationId)
                 .projectId(projectId)
@@ -399,17 +410,8 @@ class ProjectInvitationServiceTest {
                 .isRead(false)
                 .build();
 
-        ProjectMemberEntity deletedMember = ProjectMemberEntity.builder()
-                .id(200L)
-                .projectId(projectId)
-                .userId(inviteeId)
-                .role(ProjectRole.VIEWER)
-                .joinedAt(Instant.now().minus(30, ChronoUnit.DAYS))
-                .removedAt(Instant.now().minus(5, ChronoUnit.DAYS))
-                .build();
-
         when(projectInvitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
-        when(projectMemberRepository.findByProjectIdAndUserId(projectId, inviteeId)).thenReturn(Optional.of(deletedMember));
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
         when(notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(inviteeId)).thenReturn(List.of(unreadNotif));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(ProjectEntity.builder().id(projectId).name("Core Banking Pipeline").build()));
         when(userRepository.findById(inviteeId)).thenReturn(Optional.of(UserEntity.builder().id(inviteeId).username("sarah.chen").build()));
@@ -422,11 +424,139 @@ class ProjectInvitationServiceTest {
         verify(projectMemberRepository, times(1)).save(memberCaptor.capture());
         ProjectMemberEntity saved = memberCaptor.getValue();
 
-        assertThat(saved.getId()).isEqualTo(200L);
-        assertThat(saved.getRemovedAt()).isNull();
+        assertThat(saved.getId()).isNull();
+        assertThat(saved.getProjectId()).isEqualTo(projectId);
+        assertThat(saved.getUserId()).isEqualTo(inviteeId);
         assertThat(saved.getRole()).isEqualTo(ProjectRole.COLLABORATOR);
+        assertThat(saved.getRemovedAt()).isNull();
         assertThat(saved.getJoinedAt()).isNotNull();
 
         verify(workflowEventPublisher, times(1)).publishInvitationAccepted(any(InvitationAcceptedEvent.class));
+    }
+
+    @Test
+    @DisplayName("acceptInvitation: Chấp nhận lời mời quá hạn ném ConflictException INVITATION_EXPIRED và lưu status EXPIRED")
+    void shouldThrowConflictAndSaveExpired_whenAcceptingOverdueInvitation() {
+        ProjectInvitationEntity invitation = ProjectInvitationEntity.builder()
+                .id(invitationId)
+                .projectId(projectId)
+                .inviterId(inviterId)
+                .inviteeId(inviteeId)
+                .role(ProjectRole.COLLABORATOR)
+                .status(InvitationStatus.PENDING)
+                .expiresAt(Instant.now().minus(1, ChronoUnit.HOURS))
+                .build();
+
+        when(projectInvitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> projectInvitationService.acceptInvitation(invitationId, inviteeId))
+                .isInstanceOf(ConflictException.class)
+                .satisfies(e -> {
+                    ConflictException ce = (ConflictException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo("INVITATION_EXPIRED");
+                    assertThat(ce.getMessage()).isEqualTo("Lời mời đã hết hạn.");
+                });
+
+        assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+        assertThat(invitation.getRespondedAt()).isNotNull();
+        verify(projectInvitationRepository, times(1)).save(invitation);
+        verify(projectMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("rejectInvitation: Từ chối lời mời quá hạn ném ConflictException INVITATION_EXPIRED và lưu status EXPIRED")
+    void shouldThrowConflictAndSaveExpired_whenRejectingOverdueInvitation() {
+        ProjectInvitationEntity invitation = ProjectInvitationEntity.builder()
+                .id(invitationId)
+                .projectId(projectId)
+                .inviterId(inviterId)
+                .inviteeId(inviteeId)
+                .role(ProjectRole.COLLABORATOR)
+                .status(InvitationStatus.PENDING)
+                .expiresAt(Instant.now().minus(1, ChronoUnit.HOURS))
+                .build();
+
+        when(projectInvitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> projectInvitationService.rejectInvitation(invitationId, inviteeId))
+                .isInstanceOf(ConflictException.class)
+                .satisfies(e -> {
+                    ConflictException ce = (ConflictException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo("INVITATION_EXPIRED");
+                    assertThat(ce.getMessage()).isEqualTo("Lời mời đã hết hạn.");
+                });
+
+        assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+        assertThat(invitation.getRespondedAt()).isNotNull();
+        verify(projectInvitationRepository, times(1)).save(invitation);
+        verify(projectMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("sendInvitation: Khi lời mời PENDING cũ đã quá hạn thì saveAndFlush lời mời cũ sang EXPIRED và tạo lời mời mới")
+    void shouldExpireOldAndCreateNew_whenSendingWithOverduePendingInvitation() {
+        ProjectEntity project = ProjectEntity.builder()
+                .id(projectId)
+                .name("Core Banking Pipeline")
+                .ownerId(inviterId)
+                .build();
+
+        UserEntity inviter = UserEntity.builder().id(inviterId).username("alex.kim").fullName("Alex Kim").build();
+        UserEntity invitee = UserEntity.builder().id(inviteeId).username("sarah.chen").email("example-sarah@example-pipeline.org").build();
+
+        ProjectInvitationEntity oldInvitation = ProjectInvitationEntity.builder()
+                .id(999L)
+                .projectId(projectId)
+                .inviterId(inviterId)
+                .inviteeId(inviteeId)
+                .role(ProjectRole.VIEWER)
+                .status(InvitationStatus.PENDING)
+                .expiresAt(Instant.now().minus(2, ChronoUnit.DAYS))
+                .build();
+
+        CreateInvitationRequest req = new CreateInvitationRequest("example-sarah@example-pipeline.org", ProjectRole.COLLABORATOR);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(userRepository.findById(inviterId)).thenReturn(Optional.of(inviter));
+        when(userRepository.findByEmail("example-sarah@example-pipeline.org")).thenReturn(Optional.of(invitee));
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
+        when(projectInvitationRepository.findByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING))
+                .thenReturn(Optional.of(oldInvitation));
+
+        ProjectInvitationEntity newSaved = ProjectInvitationEntity.builder()
+                .id(invitationId)
+                .projectId(projectId)
+                .inviterId(inviterId)
+                .inviteeId(inviteeId)
+                .role(ProjectRole.COLLABORATOR)
+                .status(InvitationStatus.PENDING)
+                .createdAt(Instant.now())
+                .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
+                .build();
+        when(projectInvitationRepository.save(any(ProjectInvitationEntity.class))).thenReturn(newSaved);
+
+        InvitationResponse response = projectInvitationService.sendInvitation(projectId, req, inviterId);
+
+        assertThat(response.id()).isEqualTo(invitationId);
+        assertThat(oldInvitation.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+        assertThat(oldInvitation.getRespondedAt()).isNotNull();
+        verify(projectInvitationRepository, times(1)).saveAndFlush(oldInvitation);
+        verify(projectInvitationRepository, times(1)).save(any(ProjectInvitationEntity.class));
+    }
+
+    @Test
+    @DisplayName("acceptInvitation và rejectInvitation: Có @Transactional với noRollbackFor chứa ConflictException.class")
+    void shouldHaveNoRollbackForConflictExceptionOnAcceptAndReject() throws Exception {
+        org.springframework.transaction.annotation.Transactional acceptTx =
+                ProjectInvitationService.class.getMethod("acceptInvitation", Long.class, Long.class)
+                        .getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertThat(acceptTx).isNotNull();
+        assertThat(acceptTx.noRollbackFor()).contains(ConflictException.class);
+
+        org.springframework.transaction.annotation.Transactional rejectTx =
+                ProjectInvitationService.class.getMethod("rejectInvitation", Long.class, Long.class)
+                        .getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertThat(rejectTx).isNotNull();
+        assertThat(rejectTx.noRollbackFor()).contains(ConflictException.class);
     }
 }

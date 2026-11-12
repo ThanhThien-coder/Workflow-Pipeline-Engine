@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Plus, LayoutGrid } from 'lucide-react'
-import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { GRAPH_READ_ONLY_MESSAGE, selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
 import type { MacroPhase } from '../../types/workflow.types'
+import { KahnCycleModal } from '../settings/KahnCycleModal'
+import { useGraphErrorHandler } from './useGraphErrorHandler'
+import { isApiError } from '../../services/http/ApiError'
 import { usePanZoom } from '../../hooks/usePanZoom'
 import { WorkflowEdge } from './WorkflowEdge'
 import { PhaseCard } from './PhaseCard'
@@ -25,13 +28,39 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
   const deletePhase = useWorkflowStore((state) => state.deletePhase)
   const updatePhasePosition = useWorkflowStore((state) => state.updatePhasePosition)
   const selectPhase = useWorkflowStore((state) => state.selectPhase)
+  // B5: không phải owner (hoặc dự án ARCHIVED) thì canvas chỉ xem
+  const canEdit = useWorkflowStore(selectCanEditGraph)
+  const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [phaseToDelete, setPhaseToDelete] = useState<MacroPhase | null>(null)
   const [dragPhase, setDragPhase] = useState<{ id: string; x: number; y: number } | null>(null)
 
   const panZoom = usePanZoom()
-  const phaseConnect = usePhaseConnectDrag(phases, connectPhases, spawnChildPhase)
+
+  // Lỗi API (403/409/422...) hiện toast hoặc modal chu trình; lỗi khác để hook hiện tooltip như cũ
+  const connectPhasesSafe = useCallback(
+    async (sourceId: string, targetId: string) => {
+      try {
+        await connectPhases(sourceId, targetId)
+      } catch (error) {
+        if (isApiError(error)) handleError(error)
+        else throw error
+      }
+    },
+    [connectPhases, handleError]
+  )
+  const spawnChildPhaseSafe = useCallback(
+    (parentPhaseId: string) => spawnChildPhase(parentPhaseId).catch(handleError),
+    [spawnChildPhase, handleError]
+  )
+  const savePhasePosition = useCallback(
+    (phaseId: string, pos: { x: number; y: number }) => {
+      void updatePhasePosition(phaseId, pos).catch(handleError)
+    },
+    [updatePhasePosition, handleError]
+  )
+  const phaseConnect = usePhaseConnectDrag(phases, connectPhasesSafe, spawnChildPhaseSafe, canEdit)
 
   const phaseRecord = useMemo(
     () => phases.reduce<Record<string, (typeof phases)[number]>>((record, phase) => ({ ...record, [phase.id]: phase }), {}),
@@ -68,10 +97,9 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
 
   // Auto Layout action: cleanly aligns all phases into a standard DAG layout
   const handleAutoLayout = useCallback(() => {
-    Object.entries(layoutPositions).forEach(([id, pos]) => {
-      void updatePhasePosition(id, pos)
-    })
-  }, [layoutPositions, updatePhasePosition])
+    if (!canEdit) return
+    Object.entries(layoutPositions).forEach(([id, pos]) => savePhasePosition(id, pos))
+  }, [canEdit, layoutPositions, savePhasePosition])
 
   // Smooth dragging of Phase Cards
   const handleDragCardStart = useCallback(
@@ -92,6 +120,8 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       let lastY = initY
 
       const onMouseMove = (moveEv: MouseEvent) => {
+        // Chỉ xem: không kéo được thẻ; thả chuột vẫn chọn phase như bấm thường
+        if (!canEdit) return
         const dx = (moveEv.clientX - startClientX) / panZoom.scale
         const dy = (moveEv.clientY - startClientY) / panZoom.scale
 
@@ -118,7 +148,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           }
           window.addEventListener('click', blockClick, true)
 
-          void updatePhasePosition(phaseId, { x: lastX, y: lastY })
+          savePhasePosition(phaseId, { x: lastX, y: lastY })
           setDragPhase(null)
         } else {
           selectPhase(selectedPhaseId === phaseId ? null : phaseId)
@@ -128,7 +158,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
     },
-    [phases, dragPhase, layoutPositions, panZoom.scale, updatePhasePosition, selectPhase, selectedPhaseId]
+    [canEdit, phases, dragPhase, layoutPositions, panZoom.scale, savePhasePosition, selectPhase, selectedPhaseId]
   )
 
   return (
@@ -138,7 +168,9 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
         <div>
           <h1 className="text-base font-bold text-slate-900 leading-tight">Workflow Pipeline Engine</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Macro Pipeline · Drag cards to reposition, scroll to zoom, connect from (+)
+            {canEdit
+              ? 'Macro Pipeline · Drag cards to reposition, scroll to zoom, connect from (+)'
+              : `Macro Pipeline · Chế độ chỉ xem (${GRAPH_READ_ONLY_MESSAGE}) · Kéo nền để di chuyển, cuộn để zoom`}
           </p>
         </div>
 
@@ -146,9 +178,10 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           {/* Add Phase Button */}
           <button
             type="button"
+            disabled={!canEdit}
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition-all"
-            title="Add new phase to pipeline"
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-indigo-600 disabled:active:scale-100"
+            title={canEdit ? 'Add new phase to pipeline' : GRAPH_READ_ONLY_MESSAGE}
           >
             <Plus size={14} /> Add Phase
           </button>
@@ -156,9 +189,10 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           {/* Auto DAG Layout Button */}
           <button
             type="button"
+            disabled={!canEdit}
             onClick={handleAutoLayout}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
-            title="Auto-layout phases into a clean DAG"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
+            title={canEdit ? 'Auto-layout phases into a clean DAG' : GRAPH_READ_ONLY_MESSAGE}
           >
             <LayoutGrid size={13} className="text-slate-500" /> Auto Layout
           </button>
@@ -191,7 +225,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
                 a={phases.find((phase) => phase.id === from)}
                 b={phases.find((phase) => phase.id === to)}
                 positions={currentPositions}
-                onDisconnect={(src, tgt) => void disconnectPhases(src, tgt)}
+                onDisconnect={canEdit ? (src, tgt) => void disconnectPhases(src, tgt).catch(handleError) : undefined}
               />
             ))}
           </svg>
@@ -210,6 +244,8 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
                 const target = phases.find((p) => p.id === id)
                 if (target) setPhaseToDelete(target)
               }}
+              readOnly={!canEdit}
+              readOnlyTitle={GRAPH_READ_ONLY_MESSAGE}
             />
           ))}
         </div>
@@ -270,7 +306,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       </div>
 
       {/* Create Phase Modal */}
-      {isCreateModalOpen && (
+      {isCreateModalOpen && canEdit && (
         <CreatePhaseModal
           phases={phases}
           onSubmit={async (dto) => {
@@ -291,12 +327,15 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
         isDanger={true}
         onConfirm={() => {
           if (phaseToDelete) {
-            void deletePhase(phaseToDelete.id)
+            void deletePhase(phaseToDelete.id).catch(handleError)
             setPhaseToDelete(null)
           }
         }}
         onCancel={() => setPhaseToDelete(null)}
       />
+
+      {/* B5: nối phase tạo vòng (backend trả 422) */}
+      <KahnCycleModal violatingNodeIds={cycleNodes} onClose={closeCycleModal} />
     </section>
   )
 }
