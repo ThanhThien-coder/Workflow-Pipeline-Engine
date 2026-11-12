@@ -13,6 +13,19 @@ import { ZoomControls } from './ZoomControls'
 import { useConnectDrag } from '../../hooks/useConnectDrag'
 import { AddNodeToolbar } from './AddNodeToolbar'
 import { TaskNodeItem } from './TaskNodeItem'
+import { GRAPH_READ_ONLY_MESSAGE } from '../../store/useWorkflowStore'
+
+/**
+ * Tìm cạnh mới mà một lần kéo-nối vừa thêm: so cây trước và sau, node nào có thêm cha.
+ * useConnectDrag (ngoài phạm vi B5) chỉ trả hàm cập nhật cây, nên phải so để biết cha và con.
+ */
+function findAddedEdge(before: GraphNodeMap, after: GraphNodeMap): { parentId: string; childId: string } | null {
+  for (const [id, node] of Object.entries(after)) {
+    const added = node.parentIds.find((p) => !(before[id]?.parentIds ?? []).includes(p))
+    if (added) return { parentId: added, childId: id }
+  }
+  return null
+}
 
 export function MindmapTree({
   nodes,
@@ -26,7 +39,16 @@ export function MindmapTree({
   onAddRootTask,
   onDelete,
   phaseId,
+  readOnly = false,
+  onConnectNodes,
 }: {
+  /** B5: người không phải owner. Không thêm, xóa, nối, sửa tên node; vẫn pan, zoom, chọn, xem chi tiết. */
+  readOnly?: boolean
+  /**
+   * B5: có thì kéo-nối 2 node gọi hàm này (gọi API) thay vì chỉ sửa cây cục bộ.
+   * Nhận id node cha (nguồn kéo) và node con (đích thả).
+   */
+  onConnectNodes?: (parentId: string, childId: string) => void
   nodes: GraphNodeMap
   selectedId: string | null
   onSelect: (id: string) => void
@@ -47,7 +69,15 @@ export function MindmapTree({
   const [editValue, setEditValue] = useState('')
 
   const activeMerge = mergeSelection ?? internalMerge
-  const connect = useConnectDrag(nodes, (update) => onUpdateNodes?.(update))
+  const connect = useConnectDrag(nodes, (update) => {
+    if (readOnly) return
+    if (onConnectNodes) {
+      const edge = findAddedEdge(nodes, update(nodes))
+      if (edge) onConnectNodes(edge.parentId, edge.childId)
+      return
+    }
+    onUpdateNodes?.(update)
+  })
 
   // BƯỚC 1: CÔ LẬP HOÀN TOÀN TÍNH TOÁN TỌA ĐỘ KHỎI STATE HOVER - SSOT LAYOUT ENGINE
   const { layoutNodes, layoutEdges } = useMemo(() => {
@@ -97,7 +127,7 @@ export function MindmapTree({
   // Pure Data Action: Tạo Node con phân rã của bất kỳ Node nào (Root, Track, Task, Subtask...)
   const handleAddChild = useCallback(
     (parentId: string) => {
-      if (!parentId || !onUpdateNodes) return
+      if (readOnly || !parentId || !onUpdateNodes) return
       const parentNode = nodes[parentId]
       if (!parentNode) return
 
@@ -131,7 +161,7 @@ export function MindmapTree({
         })
       }
     },
-    [nodes, onUpdateNodes, phaseId, collapsed]
+    [readOnly, nodes, onUpdateNodes, phaseId, collapsed]
   )
 
   const handleAddTask = useCallback(
@@ -149,7 +179,7 @@ export function MindmapTree({
   )
 
   const addTrack = useCallback(() => {
-    if (!onUpdateNodes) return
+    if (readOnly || !onUpdateNodes) return
     const track = createNewBranchNode(null, nodes, phaseId)
     onUpdateNodes((current) => ({ ...current, [track.id]: track }))
     setEditingId(track.id)
@@ -170,7 +200,7 @@ export function MindmapTree({
         }))
       }
     }
-  }, [nodes, onUpdateNodes, phaseId, panZoom])
+  }, [readOnly, nodes, onUpdateNodes, phaseId, panZoom])
 
   const handleContainerMouseLeave = () => {
     panZoom.onMouseLeave()
@@ -284,16 +314,19 @@ export function MindmapTree({
               onAddChild={handleAddChild}
               onAddTask={handleAddTask}
               onAddSibling={handleAddChild}
-              onSpawnDown={(event, sourceId) =>
+              onSpawnDown={(event, sourceId) => {
+                if (readOnly) return
                 connect.startDrag(event, sourceId, () => {
                   handleAddChild(sourceId)
                 })
-              }
+              }}
+              readOnly={readOnly}
               onDelete={(id) => {
                 onDelete?.(id)
                 if (selectedId === id) onSelect('')
               }}
               onEdit={(id) => {
+                if (readOnly) return
                 setEditingId(id)
                 setEditValue(nodes[id]?.title ?? '')
               }}
@@ -315,6 +348,7 @@ export function MindmapTree({
       />
 
       <AddNodeToolbar
+        disabledReason={readOnly ? GRAPH_READ_ONLY_MESSAGE : undefined}
         onAddTrack={onAddRootTask || addTrack}
         onAddGhost={(pos) =>
           onAddGhost?.({

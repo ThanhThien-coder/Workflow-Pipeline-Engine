@@ -10,6 +10,8 @@ export interface GhostCardProps {
   onHover?: (id: string | null) => void
   isHovered?: boolean
   onSpawnDown?: (event: React.MouseEvent<HTMLButtonElement>, sourceId: string) => void
+  /** B5: người không phải owner thì không có nút gỡ ghost. */
+  readOnly?: boolean
 }
 
 export function GhostCard({
@@ -17,6 +19,7 @@ export function GhostCard({
   onDelete,
   onHover,
   isHovered,
+  readOnly = false,
 }: GhostCardProps) {
   const store = useWorkflowStore.getState()
   const sourceTask = store?.trees?.[node.refPhase]?.[node.refId]
@@ -69,7 +72,7 @@ export function GhostCard({
         </div>
 
         {/* Delete Prerequisite Button */}
-        <button
+        {!readOnly && <button
           type="button"
           onClick={(event) => {
             event.stopPropagation()
@@ -80,7 +83,7 @@ export function GhostCard({
           className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-white/80 hover:text-white hover:bg-white/20 transition-all cursor-pointer shrink-0"
         >
           <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        </button>}
       </div>
 
       {/* Card Body */}

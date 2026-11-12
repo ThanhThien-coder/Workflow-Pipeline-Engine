@@ -29,6 +29,8 @@ export interface TaskNodeItemProps {
   onAddChild?: (parentId: string) => void
   onAddTask?: (trackId: string) => void
   onAddSibling?: (trackId: string, insertAfterTaskId?: string) => void
+  /** B5: người không phải owner, truyền xuống thẻ node để ẩn nút sửa. */
+  readOnly?: boolean
 }
 
 export function TaskNodeItem({
@@ -56,6 +58,7 @@ export function TaskNodeItem({
   onAddChild,
   onAddTask,
   onAddSibling,
+  readOnly = false,
 }: TaskNodeItemProps) {
   // BƯỚC 2: CỐ ĐỊNH KÍCH THƯỚC VÀ DÙNG TỌA ĐỘ TUYỆT ĐỐI (ABSOLUTE POSITIONING)
   const nodeStyle: React.CSSProperties = {
@@ -110,6 +113,7 @@ export function TaskNodeItem({
           onDelete={() => onDelete(node.id)}
           onHover={onHover}
           isHovered={isHovered}
+          readOnly={readOnly}
         />
       </div>
     )
@@ -152,6 +156,7 @@ export function TaskNodeItem({
         onCancel={onCancel}
         onHover={onHover}
         isHovered={isHovered}
+        readOnly={readOnly}
         onAddChild={
           onAddChild
             ? () => onAddChild(branch.id)
