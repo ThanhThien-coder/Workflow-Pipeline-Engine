@@ -1,5 +1,5 @@
 export type ProjectStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'PLANNING' | 'PAUSED' | 'COMPLETED'
-export type ProjectRole = 'OWNER' | 'COLLABORATOR' | 'VIEWER'
+export type ProjectRole = 'OWNER' | 'MANAGER' | 'COLLABORATOR' | 'VIEWER'
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED'
 
 export interface ProjectInvitation {
@@ -7,7 +7,7 @@ export interface ProjectInvitation {
   projectId: string
   projectName: string
   inviterName: string
-  role: 'COLLABORATOR' | 'VIEWER'
+  role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER'
   status: InvitationStatus
   expiresAt: string
 }

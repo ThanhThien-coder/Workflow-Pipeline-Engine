@@ -6,7 +6,7 @@ interface WorkspaceMembersSectionProps {
   pendingInvitations?: ProjectInvitationDto[]
   simulatedRole: ProjectRole
   onOpenInvite: () => void
-  onRoleChange: (userId: string, role: 'COLLABORATOR' | 'VIEWER') => void
+  onRoleChange: (userId: string, role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => void
   onPromptDemote: (member: ProjectMemberDetail) => void
   onPromptKick: (member: ProjectMemberDetail) => void
   onRevokeInvitation?: (invitationId: string) => void
@@ -14,6 +14,7 @@ interface WorkspaceMembersSectionProps {
 
 const ROLE_BADGE: Record<string, string> = {
   OWNER: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  MANAGER: 'bg-amber-50 text-amber-700 border-amber-200',
   COLLABORATOR: 'bg-blue-50 text-blue-700 border-blue-200',
   VIEWER: 'bg-slate-100 text-slate-600 border-slate-200',
 }
@@ -40,7 +41,7 @@ export function WorkspaceMembersSection({
 }: WorkspaceMembersSectionProps) {
   const isOwner = simulatedRole === 'OWNER'
 
-  const handleRoleSelect = (member: ProjectMemberDetail, targetRole: 'COLLABORATOR' | 'VIEWER') => {
+  const handleRoleSelect = (member: ProjectMemberDetail, targetRole: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => {
     if (targetRole === member.role) return
     if (targetRole === 'VIEWER' && member.activeNodeCount > 0) {
       onPromptDemote(member)
@@ -111,9 +112,10 @@ export function WorkspaceMembersSection({
                   {isOwner && member.role !== 'OWNER' ? (
                     <select
                       value={member.role}
-                      onChange={(e) => handleRoleSelect(member, e.target.value as 'COLLABORATOR' | 'VIEWER')}
+                      onChange={(e) => handleRoleSelect(member, e.target.value as 'MANAGER' | 'COLLABORATOR' | 'VIEWER')}
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-xs outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     >
+                      <option value="MANAGER">MANAGER</option>
                       <option value="COLLABORATOR">COLLABORATOR</option>
                       <option value="VIEWER">VIEWER</option>
                     </select>

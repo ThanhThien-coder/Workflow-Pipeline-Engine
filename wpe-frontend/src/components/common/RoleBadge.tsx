@@ -1,14 +1,16 @@
 import type { FC } from 'react'
-import type { ProjectRole } from '../../types/workspace.types'
+import type { ProjectRole } from '../../types/settings.types'
 
 const ROLE_STYLES: Record<ProjectRole, string> = {
   OWNER: 'bg-violet-50 text-violet-700 border-violet-200',
+  MANAGER: 'bg-amber-50 text-amber-700 border-amber-200',
   COLLABORATOR: 'bg-sky-50 text-sky-700 border-sky-200',
   VIEWER: 'bg-slate-100 text-slate-600 border-slate-200',
 }
 
 const ROLE_LABELS: Record<ProjectRole, string> = {
   OWNER: 'OWNER',
+  MANAGER: 'Quản lý',
   COLLABORATOR: 'COLLABORATOR',
   VIEWER: 'VIEWER',
 }
@@ -30,9 +32,11 @@ export const RoleBadge: FC<RoleBadgeProps> = ({
       ? ROLE_LABELS[role] ?? 'VIEWER'
       : role === 'OWNER'
         ? 'Owner'
-        : role === 'COLLABORATOR'
-          ? 'Collaborator'
-          : 'Viewer'
+        : role === 'MANAGER'
+          ? 'Quản lý'
+          : role === 'COLLABORATOR'
+            ? 'Collaborator'
+            : 'Viewer'
 
   return (
     <span

@@ -9,7 +9,7 @@ interface InviteMemberModalProps {
 
 export function InviteMemberModal({ isOpen, onClose, onInvite }: InviteMemberModalProps) {
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
-  const [role, setRole] = useState<'COLLABORATOR' | 'VIEWER'>('COLLABORATOR')
+  const [role, setRole] = useState<'MANAGER' | 'COLLABORATOR' | 'VIEWER'>('COLLABORATOR')
   const [submitting, setSubmitting] = useState(false)
 
   if (!isOpen) return null
@@ -67,8 +67,9 @@ export function InviteMemberModal({ isOpen, onClose, onInvite }: InviteMemberMod
             <select
               className={`${inputCls} mt-1`}
               value={role}
-              onChange={(e) => setRole(e.target.value as 'COLLABORATOR' | 'VIEWER')}
+              onChange={(e) => setRole(e.target.value as 'MANAGER' | 'COLLABORATOR' | 'VIEWER')}
             >
+              <option value="MANAGER">MANAGER (Quản lý - Can review tasks and assign nodes)</option>
               <option value="COLLABORATOR">COLLABORATOR (Can edit tasks and pipelines)</option>
               <option value="VIEWER">VIEWER (Read-only access)</option>
             </select>
