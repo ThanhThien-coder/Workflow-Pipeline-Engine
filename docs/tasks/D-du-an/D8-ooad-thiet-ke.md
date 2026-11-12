@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: D7, D2
 Cần trước bước frontend: không
 Mở khóa: X3
@@ -81,13 +81,23 @@ Người dán file này đang **học vẽ sơ đồ thiết kế OOAD** khớp 
 ### Ảnh bản vẽ tay đầu tiên
 
 ### Ma trận nhất quán: các chỗ lệch đã tìm thấy và cách xử lý
+Sprint 12/11/2026: Antigravity vẽ từ code thật (gồm code D2 ở PR #18), Claude soát và dò ma trận bằng script.
+
+Đủ 7 sản phẩm trong `docs/ooad/D-du-an/`: `seq-moi-thanh-vien.puml`, `seq-gop-y-khach.puml`, `seq-chan-doan-ai.puml`, `comm-moi-thanh-vien.puml`, `class-du-an.puml` (2 sơ đồ: dịch vụ, thực thể), `state-loi-moi.puml` (InvitationStatus, FeedbackStatus), `nhat-quan.md`.
+
+Dò `nhat-quan.md` bằng script (mỗi ô `file:dòng` phải chứa đúng tên phương thức trong ±3 dòng): 41/56 khớp trực tiếp; 15 dòng còn lại là `findById`/`save` kế thừa từ `JpaRepository`, trỏ về dòng khai báo interface và có ghi chú "kế thừa". State lời mời khớp đủ 5 giá trị enum `InvitationStatus`.
+
+**Chưa xuất PNG** (lý do như D7: chưa có PlantUML, tải về bị chặn). Render bằng extension PlantUML trong VS Code.
 
 ### Lỗi Claude hoặc người review chỉ ra và cách mình sửa
+- Chuyển PENDING → EXPIRED trong code bị rollback (lỗi code ghi ở D7), đã ghi note trong sequence, state và ma trận (⚠ lệch).
+- `class-du-an.puml` vẽ `AiServiceClientImpl` theo code hiện tại; D6 (PR riêng) đổi thành `HeuristicAiClient`, cần cập nhật sơ đồ sau khi D6 merge.
+- PR này dựng trên nhánh D2 và D7: merge #18 (D2) và #19 (D7) trước thì diff mới gọn.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
-- **Làm gì:**
-- **File chính đã sửa:**
+- **Làm gì:** Vẽ bộ sơ đồ thiết kế mảng D: 3 sequence, 1 communication, class thiết kế, state lời mời và góp ý, ma trận nhất quán message → phương thức → file:dòng.
+- **File chính đã sửa:** `docs/ooad/D-du-an/seq-*.puml`, `comm-moi-thanh-vien.puml`, `class-du-an.puml`, `state-loi-moi.puml`, `nhat-quan.md`.
 - **Vì sao làm vậy** (tự viết):
-- **Cần học lại:**
+- **Cần học lại:** Realization (AiServiceClientImpl ..|> AiServiceClient) khác generalization; message đồng bộ và bất đồng bộ (RabbitMQ) vẽ khác nhau; trạng thái kết thúc của lời mời; tự giải thích lại seq-moi-thanh-vien (vòng hiểu).

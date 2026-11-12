@@ -1,0 +1,38 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ProjectInvitationController.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectInvitationService.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectInvitationRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectMemberRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/NotificationRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/service/event/WorkflowEventPublisher.java
+@startuml comm-moi-thanh-vien
+!pragma layout smetana
+skinparam shadowing false
+skinparam roundcorner 4
+
+object "Chủ dự án" as Owner
+object "Người được mời" as Invitee
+object ":ProjectInvitationController" as Ctl
+object ":ProjectInvitationService" as Svc
+object ":ProjectRepository" as ProjectRepo
+object ":UserRepository" as UserRepo
+object ":ProjectInvitationRepository" as InviteRepo
+object ":ProjectMemberRepository" as MemberRepo
+object ":NotificationRepository" as NotifRepo
+object ":WorkflowEventPublisher" as Publisher
+object "RabbitMQ" as MQ
+
+Owner -- Ctl : 1: POST /api/v1/projects/{projectId}/invitations →
+Invitee -- Ctl : 2: POST /api/v1/invitations/{id}/accept →
+
+Ctl -- Svc : 1.1: sendInvitation(projectId, req, userId) →\n2.1: acceptInvitation(id, userId) →
+
+Svc -- ProjectRepo : 1.1.1: findById(projectId) →\n2.1.7: findById(projectId) →
+
+Svc -- UserRepo : 1.1.2: findById(userId) →\n1.1.3: findByEmail() / findByUsername() →\n2.1.8: findById(userId) →
+
+Svc -- InviteRepo : 1.1.5: existsByProjectIdAndInviteeIdAndStatus() →\n1.1.6: save(invitation) →\n2.1.1: findById(id) →\n2.1.2: save(invitation [ACCEPTED]) →
+
+Svc -- MemberRepo : 1.1.4: existsByProjectIdAndUserIdAndRemovedAtIsNull() →\n2.1.3: findByProjectIdAndUserId() →\n2.1.4: save(member) →
+
+Svc -- NotifRepo : 1.1.7: save(notification) →\n2.1.5: findByUserIdAndIsReadFalse...() →\n2.1.6: save(notification [isRead=true]) →
+
+Svc -- Publisher : 1.1.8: publishInvitationCreated(event) →\n2.1.9: publishInvitationAccepted(event) →
+
+Publisher -- MQ : 1.1.8.1: publish(exchange, routingKey) →\n2.1.9.1: publish(exchange, routingKey) →
+
+@enduml

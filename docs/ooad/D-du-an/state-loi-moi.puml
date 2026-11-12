@@ -1,0 +1,33 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/common/enums/InvitationStatus.java, wpe-backend/src/main/java/com/pipeline/wpe/common/enums/FeedbackStatus.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectInvitationService.java, wpe-backend/src/main/java/com/pipeline/wpe/service/FeedbackQueueService.java
+@startuml state-loi-moi
+!pragma layout smetana
+skinparam shadowing false
+skinparam roundcorner 4
+
+state "Vòng đời Lời mời tham gia dự án (InvitationStatus)" as InvitationLifecycle {
+  [*] --> PENDING : sendInvitation / expiresAt = now + 7 days,\nversion = 0, lưu notification, publishInvitationCreated
+
+  PENDING --> ACCEPTED : acceptInvitation [now <= expiresAt] /\nstatus = ACCEPTED, respondedAt = now,\nkết nạp thành viên (tạo mới hoặc gỡ xóa mềm),\npublishInvitationAccepted
+
+  PENDING --> EXPIRED : acceptInvitation [now > expiresAt] /\nstatus = EXPIRED, respondedAt = now
+  note on link : Code hiện tại bị rollback, EXPIRED chưa được lưu; chưa có job quét hết hạn 7 ngày
+
+  PENDING --> REJECTED : rejectInvitation [là người được mời] /\nstatus = REJECTED, respondedAt = now,\nđánh dấu đọc notification
+
+  PENDING --> REVOKED : revokeInvitation [là chủ dự án/người mời/admin] /\nstatus = REVOKED, respondedAt = now
+
+  ACCEPTED --> [*]
+  EXPIRED --> [*]
+  REJECTED --> [*]
+  REVOKED --> [*]
+}
+
+state "Vòng đời Góp ý từ khách ngoài (FeedbackStatus)" as FeedbackLifecycle {
+  [*] --> OPEN : submitGuestFeedback [token hợp lệ, dự án ACTIVE,\n<= 10 góp ý/giờ, độ dài <= 2000] /\nstatus = OPEN, publishNotification(FEEDBACK)
+
+  OPEN --> RESOLVED : resolveFeedback [là thành viên hoặc chủ dự án] /\nstatus = RESOLVED
+
+  RESOLVED --> [*]
+}
+
+@enduml

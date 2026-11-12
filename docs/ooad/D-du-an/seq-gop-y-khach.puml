@@ -1,0 +1,107 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/GuestGatewayController.java, wpe-backend/src/main/java/com/pipeline/wpe/service/FeedbackQueueService.java, wpe-backend/src/main/java/com/pipeline/wpe/service/GuestGatewayService.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectAuthorizationService.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/GuestLinkRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectFeedbackRepository.java, wpe-backend/src/main/java/com/pipeline/wpe/service/event/WorkflowEventPublisher.java, wpe-backend/src/main/java/com/pipeline/wpe/exception/GlobalExceptionHandler.java
+@startuml seq-gop-y-khach
+autonumber
+skinparam shadowing false
+skinparam roundcorner 4
+
+actor "Khách/Giáo viên" as Guest
+boundary ":GuestGatewayController" as Ctl
+control ":FeedbackQueueService" as FeedbackSvc
+control ":GuestGatewayService" as GuestSvc
+control ":ProjectAuthorizationService" as AuthSvc
+entity ":GuestLinkRepository" as LinkRepo
+entity ":ProjectRepository" as ProjectRepo
+entity ":ProjectFeedbackRepository" as FeedbackRepo
+entity ":NodeRepository" as NodeRepo
+control ":WorkflowEventPublisher" as Publisher
+queue "RabbitMQ" as MQ
+
+Guest -> Ctl : POST /api/v1/guest/{token}/feedback\n(CreateGuestFeedbackRequest)
+activate Ctl
+Ctl -> FeedbackSvc : submitGuestFeedback(token, request)
+activate FeedbackSvc
+
+FeedbackSvc -> GuestSvc : validateAndGetActiveGuestLink(token)
+activate GuestSvc
+
+GuestSvc -> LinkRepo : findByToken(token)
+activate LinkRepo
+LinkRepo --> GuestSvc : Optional<GuestLinkEntity>
+deactivate LinkRepo
+
+alt [token không tồn tại / bị thu hồi / hết hạn]
+  GuestSvc --> FeedbackSvc : throw ForbiddenException("REVOKED_GUEST")
+  FeedbackSvc --> Ctl : throw ForbiddenException("REVOKED_GUEST")
+  Ctl --> Guest : 403 REVOKED_GUEST
+else [token hợp lệ bước đầu]
+  GuestSvc -> AuthSvc : getProjectOrThrow(guestLink.getProjectId())
+  activate AuthSvc
+  AuthSvc -> ProjectRepo : findById(projectId)
+  activate ProjectRepo
+  ProjectRepo --> AuthSvc : Optional<ProjectEntity>
+  deactivate ProjectRepo
+  AuthSvc --> GuestSvc : ProjectEntity
+  deactivate AuthSvc
+
+  alt [dự án không ACTIVE: project.getStatus() != ACTIVE]
+    GuestSvc --> FeedbackSvc : throw ForbiddenException("REVOKED_GUEST")
+    FeedbackSvc --> Ctl : throw ForbiddenException("REVOKED_GUEST")
+    Ctl --> Guest : 403 REVOKED_GUEST
+  else [dự án ACTIVE]
+    GuestSvc --> FeedbackSvc : GuestLinkEntity
+    deactivate GuestSvc
+
+    alt [nội dung > 2000 ký tự: request.content().length() > 2000]
+      FeedbackSvc --> Ctl : throw IllegalArgumentException("Nội dung góp ý tối đa 2000 ký tự.")
+      Ctl --> Guest : 400 BAD_REQUEST
+    else [nội dung hợp lệ]
+      FeedbackSvc -> FeedbackRepo : countByProjectIdAndCreatedAtAfter(projectId, since)
+      activate FeedbackRepo
+      FeedbackRepo --> FeedbackSvc : long recentCount
+      deactivate FeedbackRepo
+
+      alt [đã có >= 10 góp ý trong 1 giờ: recentCount >= 10]
+        FeedbackSvc -> FeedbackRepo : findFirstByProjectIdAndCreatedAtAfterOrderByCreatedAtAsc(projectId, since)
+        activate FeedbackRepo
+        FeedbackRepo --> FeedbackSvc : Optional<ProjectFeedbackEntity> oldest
+        deactivate FeedbackRepo
+        FeedbackSvc --> Ctl : throw CooldownActiveException(retryAfterSeconds)
+        Ctl --> Guest : 429 COOLDOWN_ACTIVE (retryAfterSeconds)
+      else [chưa vượt giới hạn rate-limit]
+        FeedbackSvc -> AuthSvc : getProjectOrThrow(projectId)
+        activate AuthSvc
+        AuthSvc -> ProjectRepo : findById(projectId)
+        activate ProjectRepo
+        ProjectRepo --> AuthSvc : Optional<ProjectEntity>
+        deactivate ProjectRepo
+        AuthSvc --> FeedbackSvc : ProjectEntity
+        deactivate AuthSvc
+
+        opt [request.nodeId() != null]
+          FeedbackSvc -> NodeRepo : findById(request.nodeId())
+          activate NodeRepo
+          NodeRepo --> FeedbackSvc : Optional<NodeEntity>
+          deactivate NodeRepo
+        end
+
+        FeedbackSvc -> FeedbackRepo : save(feedback)
+        activate FeedbackRepo
+        FeedbackRepo --> FeedbackSvc : savedFeedback
+        deactivate FeedbackRepo
+
+        FeedbackSvc -> Publisher : publishNotification(notificationEvent)
+        activate Publisher
+        Publisher ->> MQ : publish(exchange="wpe.exchange",\nroutingKey="wpe.notification.feedback")
+        Publisher --> FeedbackSvc : void
+        deactivate Publisher
+
+        FeedbackSvc --> Ctl : GuestFeedbackResponse
+        Ctl --> Guest : 201 CREATED (GuestFeedbackResponse)
+      end
+    end
+  end
+end
+
+deactivate FeedbackSvc
+deactivate Ctl
+@enduml
