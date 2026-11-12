@@ -1,0 +1,316 @@
+' Nguồn: docs/specs/system-overview.md (mục 4), docs/specs/workflow-engine.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md, docs/ooad/D-du-an/uc-du-an.puml
+' Sơ đồ Use Case Tổng quát Toàn hệ thống WPE (Workflow Pipeline Engine)
+' Tác giả: ThanhThien-coder (mảng D - X3)
+
+' ==============================================================================
+' SƠ ĐỒ 1: TOÀN CẢNH TOÀN HỆ THỐNG (UC1 - UC23)
+' ==============================================================================
+@startuml uc-tong-quat
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam actor {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #0284C7
+  ArrowColor #334155
+}
+
+skinparam package {
+  BackgroundColor #F8FAFC
+  BorderColor #94A3B8
+}
+
+' ------------------------------------------------------------------------------
+' ACTORS (Các tác nhân hệ thống theo ma trận RBAC)
+' ------------------------------------------------------------------------------
+actor "Khách vãng lai\n(Anonymous)" as Anonymous
+actor "Người dùng đã đăng nhập\n(Authenticated User)" as User
+actor "Quản trị viên\n(System Admin)" as Admin
+actor "Khách ngoài / Giáo viên\n(Guest via Token)" as Guest
+
+actor "Thành viên dự án\n(Project Member)" as Member
+actor "Người xem\n(Project Viewer)" as Viewer
+actor "Cộng sự\n(Collaborator)" as Collab
+actor "Quản lý\n(Project Manager)" as Manager
+actor "Chủ dự án\n(Project Owner)" as Owner
+
+' Kế thừa tác nhân nền tảng
+Admin --|> User
+Member --|> User
+
+' Kế thừa tác nhân phân cấp nội bộ dự án
+Viewer --|> Member
+Collab --|> Viewer
+Manager --|> Collab
+Owner --|> Manager
+
+' ------------------------------------------------------------------------------
+' RANH GIỚI HỆ THỐNG WPE
+' ------------------------------------------------------------------------------
+rectangle "WPE - Workflow Pipeline Engine" {
+
+  package "Phân hệ 1: Xác thực & Tài khoản (Auth Gateway)" {
+    usecase "UC1 Đăng ký tài khoản mới" as UC1
+    usecase "UC2 Đăng nhập hệ thống" as UC2
+    usecase "UC3 Xem & cập nhật hồ sơ cá nhân" as UC3
+  }
+
+  package "Phân hệ 2: Quản trị Nền tảng (Admin Portal)" {
+    usecase "UC4 Quản lý người dùng & khóa tài khoản" as UC4
+    usecase "UC5 CRUD mẫu quy trình chuẩn" as UC5
+    usecase "UC6 Giám sát hạ tầng & lưu trữ dự án rác" as UC6
+  }
+
+  package "Phân hệ 3: Dự án & Thành viên (Project Workspace)" {
+    usecase "UC7 Khởi tạo dự án mới" as UC7
+    usecase "Khởi tạo từ mẫu quy trình" as UC_Clone
+    usecase "UC8 Mời thành viên tham gia & gán vai trò" as UC8
+    usecase "UC9 Điều chỉnh vai trò & loại bỏ thành viên" as UC9
+  }
+
+  package "Phân hệ 4: Thiết kế Quy trình DAG (Workflow Graph)" {
+    usecase "UC10 Thiết kế đồ thị DAG" as UC10
+    usecase "UC11 Kiểm tra chu trình đồ thị (Kahn DAG)" as UC11
+  }
+
+  package "Phân hệ 5: Điều phối & Thực thi Công việc (Execution Engine)" {
+    usecase "UC13 Phê duyệt kết quả công việc" as UC13
+    usecase "Từ chối duyệt bài kèm lý do" as UC_Reject
+    usecase "UC14 Gia hạn hạn chót & điều chuyển công việc" as UC14
+    usecase "UC15 Xem công việc cá nhân (My Tasks)" as UC15
+    usecase "UC16 Bắt đầu thực hiện công việc" as UC16
+    usecase "UC17 Hủy nhận công việc" as UC17
+    usecase "UC18 Nộp kết quả công việc" as UC18
+    usecase "Đính kèm liên kết minh chứng (Artifact)" as UC_Attach
+  }
+
+  package "Phân hệ 6: Tổng quan, Cổng khách ngoài & AI Chẩn đoán" {
+    usecase "UC12 Sinh mới & thu hồi token chia sẻ (Guest Link)" as UC12
+    usecase "UC19 Xem đồ thị tiến độ & tài nguyên" as UC19
+    usecase "UC20 Xem Dashboard chỉ số & KPI dự án" as UC20
+    usecase "UC21 Xem báo cáo chẩn đoán sự cố AI" as UC21
+    usecase "UC22 Gửi phản hồi một chiều" as UC22
+    usecase "UC23 Xem danh sách & xử lý hàng đợi góp ý" as UC23
+  }
+}
+
+' ------------------------------------------------------------------------------
+' QUAN HỆ INCLUDE & EXTEND
+' ------------------------------------------------------------------------------
+UC10 .> UC11 : <<include>>
+UC5 .> UC11 : <<include>>
+
+UC_Clone .> UC7 : <<extend>> \n [chọn sao chép từ mẫu]
+UC_Reject .> UC13 : <<extend>> \n [kết quả chưa đạt]
+UC_Attach .> UC18 : <<extend>> \n [có đính kèm artifact]
+
+' ------------------------------------------------------------------------------
+' KẾT NỐI ACTOR VỚI USE CASE
+' ------------------------------------------------------------------------------
+' 1. Anonymous (Khách vãng lai)
+Anonymous --> UC1
+Anonymous --> UC2
+
+' 2. Authenticated User (Người dùng đã đăng nhập)
+User --> UC3
+
+' 3. System Admin (Quản trị viên)
+Admin --> UC4
+Admin --> UC5
+Admin --> UC6
+
+' 4. Guest via Token (Khách/Giáo viên qua token - độc lập)
+Guest --> UC19
+Guest --> UC20
+Guest --> UC21
+Guest --> UC22
+
+' 5. Project Viewer (Người xem - kế thừa Member & User)
+Viewer --> UC19
+Viewer --> UC20
+Viewer --> UC21
+
+' 6. Collaborator (Cộng sự - kế thừa Viewer)
+Collab --> UC15
+Collab --> UC16
+Collab --> UC17
+Collab --> UC18
+
+' 7. Project Manager (Quản lý - kế thừa Collab)
+Manager --> UC13
+Manager --> UC14
+Manager --> UC23
+
+' 8. Project Owner (Chủ dự án - kế thừa Manager)
+Owner --> UC7
+Owner --> UC8
+Owner --> UC9
+Owner --> UC10
+Owner --> UC11
+Owner --> UC12
+
+' ------------------------------------------------------------------------------
+' GHI CHÚ BẢO VỆ THIẾT KẾ
+' ------------------------------------------------------------------------------
+note bottom of Guest
+  <b>Guest (Token)</b>: Khách / Giáo viên truy cập qua URL Token tạm thời.
+  Không có tài khoản đăng nhập (không kế thừa User),
+  chỉ xem thông tin công khai (UC19-21) và gửi góp ý 1 chiều (UC22).
+end note
+
+note bottom of Manager
+  <b>Project Manager</b>: Vai trò quản lý vận hành được Owner ủy quyền.
+  Kế thừa quyền thực thi của Collaborator (UC15-18), đồng thời có thêm quyền
+  duyệt bài (UC13), điều phối hạn chót/gán việc (UC14) và đánh dấu RESOLVED góp ý (UC23).
+  Không có quyền quản trị dự án, DAG hay thành viên (UC7-12 dành riêng cho Owner).
+end note
+
+@enduml
+
+' ==============================================================================
+' SƠ ĐỒ 2: PHÂN NHÓM 1 — QUẢN TRỊ NỀN TẢNG, TÀI KHOẢN & THIẾT KẾ DỰ ÁN (UC1 - UC12)
+' ==============================================================================
+@startuml uc-tong-quat-1
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor "Khách vãng lai\n(Anonymous)" as Anonymous
+actor "Người dùng đã đăng nhập\n(Authenticated User)" as User
+actor "Quản trị viên\n(System Admin)" as Admin
+actor "Chủ dự án\n(Project Owner)" as Owner
+
+Admin --|> User
+Owner --|> User
+
+rectangle "WPE - Phân hệ Quản trị, Xác thực & Thiết kế Quy trình" {
+  package "Xác thực & Tài khoản" {
+    usecase "UC1 Đăng ký tài khoản mới" as UC1
+    usecase "UC2 Đăng nhập hệ thống" as UC2
+    usecase "UC3 Xem & cập nhật hồ sơ cá nhân" as UC3
+  }
+
+  package "Quản trị Nền tảng (Admin Portal)" {
+    usecase "UC4 Quản lý người dùng & khóa tài khoản" as UC4
+    usecase "UC5 CRUD mẫu quy trình chuẩn" as UC5
+    usecase "UC6 Giám sát hạ tầng & lưu trữ dự án rác" as UC6
+  }
+
+  package "Dự án & Thành viên" {
+    usecase "UC7 Khởi tạo dự án mới" as UC7
+    usecase "Khởi tạo từ mẫu quy trình" as UC_Clone
+    usecase "UC8 Mời thành viên tham gia & gán vai trò" as UC8
+    usecase "UC9 Điều chỉnh vai trò & loại bỏ thành viên" as UC9
+  }
+
+  package "Thiết kế Quy trình & Chia sẻ" {
+    usecase "UC10 Thiết kế đồ thị DAG" as UC10
+    usecase "UC11 Kiểm tra chu trình đồ thị (Kahn DAG)" as UC11
+    usecase "UC12 Sinh mới & thu hồi token chia sẻ (Guest Link)" as UC12
+  }
+}
+
+UC10 .> UC11 : <<include>>
+UC5 .> UC11 : <<include>>
+UC_Clone .> UC7 : <<extend>> \n [chọn sao chép từ mẫu]
+
+Anonymous --> UC1
+Anonymous --> UC2
+User --> UC3
+
+Admin --> UC4
+Admin --> UC5
+Admin --> UC6
+
+Owner --> UC7
+Owner --> UC8
+Owner --> UC9
+Owner --> UC10
+Owner --> UC11
+Owner --> UC12
+
+@enduml
+
+' ==============================================================================
+' SƠ ĐỒ 3: PHÂN NHÓM 2 — THỰC THI, ĐIỀU PHỐI, KHÁCH NGOÀI & AI CHẨN ĐOÁN (UC13 - UC23)
+' ==============================================================================
+@startuml uc-tong-quat-2
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor "Khách ngoài / Giáo viên\n(Guest via Token)" as Guest
+actor "Người dùng đã đăng nhập\n(Authenticated User)" as User
+actor "Thành viên dự án\n(Project Member)" as Member
+actor "Người xem\n(Project Viewer)" as Viewer
+actor "Cộng sự\n(Collaborator)" as Collab
+actor "Quản lý\n(Project Manager)" as Manager
+actor "Chủ dự án\n(Project Owner)" as Owner
+
+Member --|> User
+Viewer --|> Member
+Collab --|> Viewer
+Manager --|> Collab
+Owner --|> Manager
+
+rectangle "WPE - Phân hệ Thực thi, Điều phối, Khách ngoài & AI" {
+  package "Thực thi & Nghiệm thu Công việc" {
+    usecase "UC13 Phê duyệt kết quả công việc" as UC13
+    usecase "Từ chối duyệt bài kèm lý do" as UC_Reject
+    usecase "UC14 Gia hạn hạn chót & điều chuyển công việc" as UC14
+    usecase "UC15 Xem công việc cá nhân (My Tasks)" as UC15
+    usecase "UC16 Bắt đầu thực hiện công việc" as UC16
+    usecase "UC17 Hủy nhận công việc" as UC17
+    usecase "UC18 Nộp kết quả công việc" as UC18
+    usecase "Đính kèm liên kết minh chứng (Artifact)" as UC_Attach
+  }
+
+  package "Giám sát, Phản hồi & AI Chẩn đoán" {
+    usecase "UC19 Xem đồ thị tiến độ & tài nguyên" as UC19
+    usecase "UC20 Xem Dashboard chỉ số & KPI dự án" as UC20
+    usecase "UC21 Xem báo cáo chẩn đoán sự cố AI" as UC21
+    usecase "UC22 Gửi phản hồi một chiều" as UC22
+    usecase "UC23 Xem danh sách & xử lý hàng đợi góp ý" as UC23
+  }
+}
+
+UC_Reject .> UC13 : <<extend>> \n [kết quả chưa đạt]
+UC_Attach .> UC18 : <<extend>> \n [có đính kèm artifact]
+
+Guest --> UC19
+Guest --> UC20
+Guest --> UC21
+Guest --> UC22
+
+Viewer --> UC19
+Viewer --> UC20
+Viewer --> UC21
+
+Collab --> UC15
+Collab --> UC16
+Collab --> UC17
+Collab --> UC18
+
+Manager --> UC13
+Manager --> UC14
+Manager --> UC23
+
+@enduml
