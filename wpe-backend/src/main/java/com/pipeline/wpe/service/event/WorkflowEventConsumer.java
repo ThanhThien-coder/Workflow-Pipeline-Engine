@@ -4,11 +4,13 @@ import com.pipeline.wpe.config.RabbitMQConfig;
 import com.pipeline.wpe.dto.event.AiDiagnosticRequestedEvent;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.event.TaskCompletedEvent;
+import com.pipeline.wpe.dto.response.notification.NotificationResponse;
 import com.pipeline.wpe.entity.NotificationEntity;
 import com.pipeline.wpe.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 /**
@@ -33,8 +35,16 @@ public class WorkflowEventConsumer {
         log.info("Processing TaskCompletedEvent in background: Task ID={}, Code={}, Project ID={}",
                 event.taskId(), event.taskCode(), event.projectId());
 
+        // Lũy đẳng: unlockDownstreamTasks chỉ mở khóa node con đang LOCKED, nên cùng một sự kiện chạy lại
+        // (retry, hoặc RabbitMQ giao lại) không mở khóa và không gửi thông báo lần 2.
         try {
             stateMachineService.unlockDownstreamTasks(event.taskId());
+        } catch (OptimisticLockingFailureException e) {
+            // Hai task cha cùng DONE một lúc cùng sửa một node con: một bên thua @Version.
+            // Ném lại để Spring AMQP retry (spring.rabbitmq.listener.simple.retry, 3 lần); hết lượt thì vào DLQ.
+            log.warn("Xung đột version khi mở khóa task con của Task ID [{}] ({}): {}. Ném lại để RabbitMQ thử lại.",
+                    event.taskId(), event.taskCode(), e.getMessage());
+            throw e;
         } catch (Exception e) {
             log.error("Lỗi khi mở khóa downstream tasks cho Task ID [{}]: {}", event.taskId(), e.getMessage(), e);
             throw e;
@@ -61,49 +71,17 @@ public class WorkflowEventConsumer {
                 NotificationEntity saved = notificationRepository.save(notification);
                 log.info("Saved notification ID: {} for user: {}", saved.getId(), event.recipientUserId());
 
-                // Đẩy thông báo thời gian thực xuống client qua SSE
-                sseEmitterService.sendToUser(event.recipientUserId(), "NOTIFICATION_RECEIVED", saved);
+                // Đẩy thông báo thời gian thực xuống client qua SSE (payload là DTO, không đưa entity ra ngoài)
+                sseEmitterService.sendToUser(event.recipientUserId(), "NOTIFICATION_RECEIVED",
+                        NotificationResponse.from(saved));
             } catch (Exception e) {
                 log.error("Failed to persist notification in background: {}", e.getMessage(), e);
             }
         }
     }
 
-    /**
-     * Hứng sự kiện khi Lời mời được tạo -> Lưu bản ghi thông báo với deep-link open-invite-modal.
-     */
-    public void handleInvitationCreated(com.pipeline.wpe.dto.event.InvitationCreatedEvent event) {
-        log.info("Processing InvitationCreatedEvent in background: Invitation ID={}, Project={}, Invitee={}",
-                event.invitationId(), event.projectName(), event.inviteeId());
-
-        if (event.inviteeId() != null) {
-            try {
-                boolean alreadySaved = notificationRepository.findByUserIdOrderByCreatedAtDesc(event.inviteeId()).stream()
-                        .anyMatch(n -> n.getLinkUrl() != null && n.getLinkUrl().equals(event.linkUrl()));
-                if (!alreadySaved) {
-                    NotificationEntity notification = NotificationEntity.builder()
-                            .userId(event.inviteeId())
-                            .title("Lời mời tham gia dự án: " + event.projectName())
-                            .message(event.inviterName() + " đã mời bạn tham gia dự án \"" + event.projectName() + "\" với vai trò " + event.role())
-                            .linkUrl(event.linkUrl())
-                            .isRead(false)
-                            .build();
-                    notificationRepository.save(notification);
-                    log.info("Saved invitation notification ID: {} for user: {}", notification.getId(), event.inviteeId());
-                }
-            } catch (Exception e) {
-                log.error("Failed to persist invitation notification: {}", e.getMessage(), e);
-            }
-        }
-    }
-
-    /**
-     * Hứng sự kiện khi Lời mời được chấp thuận.
-     */
-    public void handleInvitationAccepted(com.pipeline.wpe.dto.event.InvitationAcceptedEvent event) {
-        log.info("Processing InvitationAcceptedEvent in background: Invitation ID={}, Project={}, Invitee={}",
-                event.invitationId(), event.projectName(), event.inviteeId());
-    }
+    // Sự kiện lời mời (InvitationCreatedEvent, InvitationAcceptedEvent) do InvitationEventConsumer xử lý,
+    // trên queue riêng wpe.invitation.queue (C2).
 
     /**
      * 3. Hứng sự kiện chẩn đoán sự cố ngầm (gọi Google Gemini API).
