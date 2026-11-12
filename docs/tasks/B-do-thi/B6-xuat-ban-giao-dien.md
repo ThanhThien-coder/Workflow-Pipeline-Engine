@@ -5,7 +5,7 @@ Người review: C
 Trạng thái: chờ kiểm
 Cần có trước: B4, B5
 Cần trước bước frontend: không
-Mở khóa: X1
+Mở khóa: X1, B9
 Nhánh git: b6-publish-ui
 Ước lượng: 1 ngày
 
