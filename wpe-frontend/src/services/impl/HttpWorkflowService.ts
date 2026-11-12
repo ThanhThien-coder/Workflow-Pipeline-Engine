@@ -2,6 +2,7 @@ import { MockWorkflowService } from '../MockWorkflowService'
 import type { CreatePhaseDto, IWorkflowService } from '../contracts/IWorkflowService'
 import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
+import * as authApi from './http/auth'
 import type {
   ArtifactItem,
   ArtifactType,
@@ -41,10 +42,6 @@ import type { MacroPhase, PhaseTreeData, BranchGraphNode, GhostGraphNode, PhaseA
  * (không còn tự chuyển sang dữ liệu giả).
  */
 export const METHODS_STILL_MOCKED = [
-  'login', // A4
-  'register', // A4
-  'getCurrentUser', // A4
-  'logout', // A4
   'updatePhasePosition', // B5 (sau B2)
   'getOverviewData', // D5 (phần AI: D6)
   'resolveFeedback', // D5
@@ -98,22 +95,28 @@ export class HttpWorkflowService implements IWorkflowService {
   private readonly mock = new MockWorkflowService()
   private taskVersionCache: Map<string, number> = new Map()
 
-  // ───────────────────────── Auth (A4) — còn mock ─────────────────────────
+  // ───────────────────────── Auth (A4) — gọi /auth/* qua impl/http/auth.ts ─────────────────────────
 
+  /** POST /auth/login */
   login(credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
-    return this.mock.login(credentials)
+    return authApi.login(credentials)
   }
 
+  /** POST /auth/register */
   register(cmd: RegisterUserCommand): Promise<AuthResponseDto> {
-    return this.mock.register(cmd)
+    return authApi.register(cmd)
   }
 
-  getCurrentUser(): Promise<UserDto> {
-    return this.mock.getCurrentUser()
+  /** User đã lưu khi đăng nhập (wpe_auth_user). Sau A5 có thể làm mới bằng GET /users/me/profile. */
+  async getCurrentUser(): Promise<UserDto> {
+    const user = authApi.getStoredUser()
+    if (!user) throw authApi.notLoggedInError()
+    return user
   }
 
+  /** POST /auth/logout kèm refresh token đang lưu. */
   logout(): Promise<void> {
-    return this.mock.logout()
+    return authApi.logout()
   }
 
   // ───────────────────────── Task (C) ─────────────────────────

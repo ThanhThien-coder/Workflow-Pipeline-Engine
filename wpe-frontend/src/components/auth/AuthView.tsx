@@ -2,6 +2,16 @@ import { useState, useEffect, useRef, type FC, type FormEvent, type ReactNode } 
 import { Logo } from '../common/Logo'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { useRouter } from '../../router/useRouter'
+import { isApiError } from '../../services/http/ApiError'
+import { getAuthErrorMessage } from '../../services/impl/http/auth'
+
+/** A4: mã lỗi của backend → ô trên form hiện câu báo lỗi. */
+const AUTH_ERROR_FIELD: Record<string, 'email' | 'pw'> = {
+  BAD_CREDENTIALS: 'pw',
+  ACCOUNT_LOCKED: 'email',
+  USERNAME_TAKEN: 'email',
+  EMAIL_TAKEN: 'email',
+}
 
 const EyeIcon: FC<{ off: boolean }> = ({ off }) => (
   <svg
@@ -281,7 +291,10 @@ export const AuthView: FC = () => {
 
       navigate('/workspaces')
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Authentication failed'
+      // A4: câu báo lỗi theo ApiError.code, hiện ngay dưới ô liên quan và trên toast.
+      const msg = getAuthErrorMessage(error, 'Authentication failed')
+      const field = isApiError(error) ? AUTH_ERROR_FIELD[error.code] : undefined
+      if (field) setErr({ [field]: msg })
       showToast(msg)
     } finally {
       setBusy(false)

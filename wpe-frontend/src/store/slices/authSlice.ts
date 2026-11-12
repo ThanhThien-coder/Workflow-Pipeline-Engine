@@ -1,13 +1,30 @@
 import type {
   AuthCredentialsDto,
+  AuthResponseDto,
   RegisterUserCommand,
   UserDto,
 } from '../../types/auth.types'
 import { workflowService } from '../../services/container'
+import {
+  clearSession,
+  saveSession,
+  installAuthRefresh,
+  getAuthErrorMessage,
+} from '../../services/impl/http/auth'
+import { useProfileStore } from '../useProfileStore'
+import { useNotificationStore } from '../useNotificationStore'
+import { createOverviewSlice } from './overviewSlice'
+import { createKanbanSlice } from './kanbanSlice'
+import { createSettingsSlice } from './settingsSlice'
+import { createDevSlice } from './devSlice'
+import { createWorkspaceSlice } from './workspaceSlice'
+import { createArtifactsSlice } from './artifactsSlice'
 
 const TOKEN_KEY = 'wpe_auth_token'
 const USER_KEY = 'wpe_auth_user'
-const STORAGE_TYPE_KEY = 'wpe_auth_storage_type'
+const AVATAR_KEY = 'wpe_user_avatar'
+
+export const SESSION_EXPIRED_MESSAGE = 'Phiên đăng nhập đã hết hạn'
 
 export interface AuthState {
   currentUser: UserDto | null
@@ -31,30 +48,47 @@ type AuthSetter = (
   partial: Record<string, unknown> | ((state: any) => Record<string, unknown>),
 ) => void
 
+/** A4: xóa toàn bộ phiên trên máy (token, user, refresh token ở cả 2 storage) và avatar của người cũ. */
 function clearStorage(): void {
+  clearSession()
   try {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-    localStorage.removeItem(STORAGE_TYPE_KEY)
-    sessionStorage.removeItem(TOKEN_KEY)
-    sessionStorage.removeItem(USER_KEY)
+    localStorage.removeItem(AVATAR_KEY)
   } catch {
     // Ignore storage errors in restricted contexts
   }
 }
 
-function saveAuthSession(token: string, user: UserDto, rememberMe: boolean): void {
-  clearStorage()
-  try {
-    const storage = rememberMe ? localStorage : sessionStorage
-    storage.setItem(TOKEN_KEY, token)
-    storage.setItem(USER_KEY, JSON.stringify(user))
-    if (rememberMe) {
-      localStorage.setItem(STORAGE_TYPE_KEY, 'local')
-    }
-  } catch {
-    // Ignore storage quota or permission errors
-  }
+/**
+ * A4: dọn dữ liệu của người vừa đăng xuất để người đăng nhập sau không thấy.
+ * Tạo lại các slice của useWorkflowStore (trừ auth và ui: toast "hết hạn" vẫn phải hiện),
+ * trả các trường gốc về giá trị ban đầu (giống useWorkflowStore.ts), và dọn useProfileStore, useNotificationStore.
+ */
+function resetUserData(set: AuthSetter, get: () => any): void {
+  const anySet = set as any
+  set({
+    ...createOverviewSlice(anySet, get),
+    ...createKanbanSlice(anySet, get),
+    ...createSettingsSlice(anySet, get),
+    ...createDevSlice(anySet, get),
+    ...createWorkspaceSlice(anySet, get),
+    ...createArtifactsSlice(anySet, get),
+    activeTab: 'workflow',
+    currentProjectId: null,
+    macroPhases: [],
+    workflowEdges: [],
+    selectedPhaseId: null,
+    trees: {},
+  })
+  useProfileStore.setState({ profile: null, loading: false, error: null })
+  useNotificationStore.setState({ items: [], unreadCount: 0, loading: false, error: false })
+}
+
+const LOGGED_OUT: AuthState = {
+  currentUser: null,
+  token: null,
+  isAuthenticated: false,
+  status: 'idle',
+  error: null,
 }
 
 function loadAuthSession(): { token: string; user: UserDto } | null {
@@ -81,6 +115,40 @@ function loadAuthSession(): { token: string; user: UserDto } | null {
 
 export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlice => {
   const initialSession = loadAuthSession()
+
+  const applySession = (response: AuthResponseDto, rememberMe: boolean) => {
+    saveSession(response, rememberMe)
+    set((state: any) => ({
+      auth: {
+        ...state.auth,
+        currentUser: response.user,
+        token: response.accessToken,
+        isAuthenticated: true,
+        status: 'idle',
+        error: null,
+      },
+      ...(state.kanban ? { kanban: { ...state.kanban, currentUserId: response.user.id } } : {}),
+    }))
+  }
+
+  const signOutLocally = () => {
+    clearStorage()
+    resetUserData(set, get)
+    set((state: any) => ({ auth: { ...state.auth, ...LOGGED_OUT } }))
+  }
+
+  // A4: gặp 401 trên request có token thì apiClient tự refresh (single-flight, xem impl/http/auth.ts).
+  installAuthRefresh(
+    () => {
+      // Refresh thất bại: xóa phiên, dọn dữ liệu, App.tsx thấy isAuthenticated = false sẽ đưa về /auth.
+      signOutLocally()
+      ;(get() as any).ui?.showToast?.(SESSION_EXPIRED_MESSAGE)
+    },
+    (response) => {
+      set((state: any) => ({ auth: { ...state.auth, token: response.accessToken, currentUser: response.user } }))
+    },
+  )
+
   return {
     auth: {
       currentUser: initialSession?.user ?? null,
@@ -181,21 +249,9 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
 
       try {
         const response = await workflowService.login(credentials)
-        saveAuthSession(response.accessToken, response.user, credentials.rememberMe)
-
-        set((state: any) => ({
-          auth: {
-            ...state.auth,
-            currentUser: response.user,
-            token: response.accessToken,
-            isAuthenticated: true,
-            status: 'idle',
-            error: null,
-          },
-          ...(state.kanban ? { kanban: { ...state.kanban, currentUserId: response.user.id } } : {}),
-        }))
+        applySession(response, credentials.rememberMe)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Login failed'
+        const message = getAuthErrorMessage(err, 'Login failed')
         set((state) => ({
           auth: { ...state.auth, status: 'idle', error: message },
         }))
@@ -210,21 +266,9 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
 
       try {
         const response = await workflowService.register(cmd)
-        saveAuthSession(response.accessToken, response.user, true)
-
-        set((state: any) => ({
-          auth: {
-            ...state.auth,
-            currentUser: response.user,
-            token: response.accessToken,
-            isAuthenticated: true,
-            status: 'idle',
-            error: null,
-          },
-          ...(state.kanban ? { kanban: { ...state.kanban, currentUserId: response.user.id } } : {}),
-        }))
+        applySession(response, true)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Registration failed'
+        const message = getAuthErrorMessage(err, 'Registration failed')
         set((state) => ({
           auth: { ...state.auth, status: 'idle', error: message },
         }))
@@ -233,23 +277,13 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
     },
 
     logout: async () => {
-      clearStorage()
+      // Gọi /auth/logout TRƯỚC khi xóa phiên: backend cần refresh token đang lưu để thu hồi.
       try {
         await workflowService.logout()
       } catch {
-        // Ignore logout errors
+        // Lỗi mạng hoặc backend lỗi: vẫn xóa phiên trên máy.
       }
-
-      set((state) => ({
-        auth: {
-          ...state.auth,
-          currentUser: null,
-          token: null,
-          isAuthenticated: false,
-          status: 'idle',
-          error: null,
-        },
-      }))
+      signOutLocally()
     },
   },
 }

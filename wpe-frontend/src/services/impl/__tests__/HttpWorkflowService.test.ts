@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { HttpWorkflowService } from '../HttpWorkflowService'
+import { HttpWorkflowService, METHODS_STILL_MOCKED } from '../HttpWorkflowService'
 
 /**
  * A2 — HttpWorkflowService không được tự chuyển sang dữ liệu giả khi backend lỗi.
@@ -104,5 +104,83 @@ describe('HttpWorkflowService: không còn fallback ngầm sang mock', () => {
     const service = new HttpWorkflowService()
 
     await expect(service.publishPipeline('1')).rejects.toMatchObject({ status: 0, code: 'NETWORK_ERROR' })
+  })
+})
+
+describe('HttpWorkflowService: auth gọi backend thật (A4)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('login, register, getCurrentUser, logout không còn nằm trong METHODS_STILL_MOCKED', () => {
+    const list: readonly string[] = METHODS_STILL_MOCKED
+    for (const name of ['login', 'register', 'getCurrentUser', 'logout']) {
+      expect(list).not.toContain(name)
+    }
+  })
+
+  it('login gọi POST /auth/login và lỗi BAD_CREDENTIALS thì ném ApiError (không trả phiên giả)', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(401, { status: 401, error: 'BAD_CREDENTIALS', message: 'Sai mật khẩu' }),
+    )
+    const service = new HttpWorkflowService()
+
+    await expect(
+      service.login({ identifier: 'alex.kim', password: 'sai', rememberMe: true }),
+    ).rejects.toMatchObject({ status: 401, code: 'BAD_CREDENTIALS' })
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:8080/api/v1/auth/login')
+  })
+
+  it('register gọi POST /auth/register', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(409, { status: 409, error: 'EMAIL_TAKEN', message: 'Email đã dùng' }),
+    )
+    const service = new HttpWorkflowService()
+
+    await expect(
+      service.register({ fullName: 'A B', email: 'ab.c@x.io', password: 'password123', workspaceName: 'W' }),
+    ).rejects.toMatchObject({ code: 'EMAIL_TAKEN' })
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:8080/api/v1/auth/register')
+  })
+
+  it('getCurrentUser trả user đã lưu khi đăng nhập (wpe_auth_user), không gọi mock', async () => {
+    sessionStorage.setItem('wpe_auth_token', 'jwt')
+    sessionStorage.setItem(
+      'wpe_auth_user',
+      JSON.stringify({ id: '2', username: 'sarah.chen', email: 's@x.io', systemRole: 'USER' }),
+    )
+    const service = new HttpWorkflowService()
+
+    await expect(service.getCurrentUser()).resolves.toMatchObject({ id: '2', username: 'sarah.chen' })
+  })
+
+  it('getCurrentUser khi chưa đăng nhập thì ném ApiError 401', async () => {
+    const service = new HttpWorkflowService()
+
+    await expect(service.getCurrentUser()).rejects.toMatchObject({ status: 401 })
+  })
+
+  it('logout gọi POST /auth/logout kèm refreshToken đang lưu', async () => {
+    localStorage.setItem('wpe_auth_token', 'jwt')
+    localStorage.setItem('wpe_refresh_token', 'rt_5')
+    fetchMock.mockResolvedValue(jsonResponse(200, { success: true }))
+    const service = new HttpWorkflowService()
+
+    await service.logout()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://localhost:8080/api/v1/auth/logout')
+    expect(JSON.parse(String(init.body))).toEqual({ refreshToken: 'rt_5' })
   })
 })

@@ -31,6 +31,11 @@ export interface UnauthorizedContext {
   error: ApiError
   method: HttpMethod
   path: string
+  /**
+   * A4: access token đã gửi kèm request bị 401. Handler so với token đang lưu:
+   * khác nhau nghĩa là đã có lần refresh khác xong rồi, chỉ cần gửi lại, không refresh nữa.
+   */
+  token: string
 }
 
 /**
@@ -146,7 +151,7 @@ function isAbortError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { name?: string }).name === 'AbortError'
 }
 
-async function send(method: HttpMethod, path: string, options: ApiRequestOptions): Promise<{ res: Response; sentToken: boolean }> {
+async function send(method: HttpMethod, path: string, options: ApiRequestOptions): Promise<{ res: Response; sentToken: string | null }> {
   const token = getStoredToken()
   const init: RequestInit = {
     method,
@@ -158,7 +163,7 @@ async function send(method: HttpMethod, path: string, options: ApiRequestOptions
   }
   try {
     const res = await fetch(buildUrl(path, options.query), init)
-    return { res, sentToken: token !== null }
+    return { res, sentToken: token }
   } catch (error) {
     // Hủy request chủ động (AbortController) không phải lỗi mạng: ném nguyên lỗi gốc.
     if (isAbortError(error)) throw error
@@ -177,7 +182,7 @@ export async function apiRequest<T>(method: HttpMethod, path: string, options: A
     const error = await toApiError(res)
     let refreshed = false
     try {
-      refreshed = await unauthorizedHandler({ error, method, path })
+      refreshed = await unauthorizedHandler({ error, method, path, token: sentToken })
     } catch {
       refreshed = false
     }
