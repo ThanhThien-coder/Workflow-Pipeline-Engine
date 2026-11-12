@@ -2,7 +2,7 @@
 
 Người làm: C
 Người review: D
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: T0
 Cần trước bước frontend: không
 Mở khóa: C2, C4, C5
@@ -88,12 +88,136 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 > Viết bằng lời của bạn. Người review đọc phần này trước khi đọc code.
 
 ### Trả lời Bước 0
+(Chế độ sprint: bỏ qua Bước 0, làm ở giai đoạn Học lại.)
 
 ### Đã làm gì (file nào, vì sao)
+Làm theo chế độ sprint ngày 12/11/2026, nhánh `c1-fsm`.
+- `BE/service/event/WorkflowEventPublisher.java`: thêm `sendAfterCommit`, mọi hàm `publish*` đi qua hàm này. Đang trong transaction thì đăng ký một `TransactionSynchronization`, chỉ `convertAndSend` ở `afterCompletion(STATUS_COMMITTED)`; rollback thì không gửi; không có transaction thì gửi ngay. Dùng `afterCompletion` chứ không dùng `afterCommit` để vẫn gửi được khi publish bị gọi từ bên trong `afterCommit` của code khác (xem kết quả test mục 6). RabbitMQ lỗi sau commit thì chỉ ghi log `ERROR`, không làm request đã commit trả lỗi. Chữ ký các hàm `publish*` giữ nguyên.
+- `BE/service/engine/StateMachineService.java`:
+  - `ensureNotArchived`: `updateStatus`, `submitTaskArtifact`, `forceUnlock` trả 409 `PROJECT_ARCHIVED` khi dự án ARCHIVED. Dùng lại `ConflictException("PROJECT_ARCHIVED", …)` giống phần đồ thị của B.
+  - Hàm `afterCommit(Runnable)`: mọi SSE (`TASK_STATUS_CHANGED`, `TASK_REJECTED`, `TASK_SUBMITTED`, `TASK_UNLOCKED`) gửi sau commit, cùng cách `afterCompletion(STATUS_COMMITTED)` như publisher.
+  - `forceUnlock`: log `info` ghi userId người mở; gửi `publishNotification` loại `FORCE_UNLOCKED` ("… được Chủ dự án mở khóa sớm") cho người phụ trách.
+- Test mới: `BE-test/service/event/WorkflowEventPublisherTest.java` (6 test), `BE-test/service/engine/StateMachineServiceMatrixTest.java` (40 test). 15 test cũ trong `StateMachineServiceTest` giữ nguyên. Test transaction chạy bằng `BE-test/service/event/NoOpTransactionManager.java`: không có DB nhưng đi đúng quy trình commit/rollback thật của Spring.
+- `docs/specs/workflow-engine.md`: mục 3.4 (force unlock), mục mới 3.6 (gửi sau commit, hạn chế khi RabbitMQ lỗi), mục 5.1 (ARCHIVED chỉ đọc).
+- Không sửa `NodeController` (không cần).
+
+**Ma trận chuyển trạng thái** (O = Owner, A = người phụ trách, M = thành viên khác; ✔ = có test):
+
+| # | Thao tác | O | A | M | Test |
+| :- | :--- | :--- | :--- | :--- | :- |
+| 1 | TODO → IN_PROGRESS | 200 | 200 | 403 | ✔ |
+| 2 | IN_PROGRESS → TODO (hủy nhận) | 200 | 200 | 403 | ✔ |
+| 3 | IN_PROGRESS → REVIEW | 200 | 200 | 403 | ✔ |
+| 4 | REVIEW → DONE (duyệt) | 200 + TaskCompletedEvent | 403 | 403 | ✔ |
+| 5 | REVIEW → IN_PROGRESS có lý do (từ chối) | 200 + SSE TASK_REJECTED | 403 | 403 | ✔ |
+| 6 | REVIEW → IN_PROGRESS không lý do | 400 | — | — | ✔ (test cũ) |
+| 7 | LOCKED → TODO / IN_PROGRESS | 400 | — | — | ✔ |
+| 8 | TODO → REVIEW / DONE / LOCKED | 400 | — | — | ✔ |
+| 9 | IN_PROGRESS → DONE / LOCKED | 400 | — | — | ✔ |
+| 10 | REVIEW → TODO / LOCKED | 400 | — | — | ✔ |
+| 11 | DONE → bất kỳ | 400 | — | — | ✔ |
+| 12 | Trạng thái đích không tồn tại | 400 | — | — | ✔ |
+| 13 | Sai `version` | (chưa test) | 409 | — | ✔ ô A (test cũ) |
+| 14 | Nộp bài khi IN_PROGRESS | (chưa test) | 200 | 403 | ✔ ô A, M |
+| 15 | Nộp bài khi không IN_PROGRESS | — | 400 | — | ✔ |
+| 16 | Force unlock khi LOCKED | 200 + thông báo | 403 | 403 | ✔ |
+| 17 | Force unlock khi không LOCKED | 400 | — | — | ✔ |
+| 18 | Mọi thao tác trên dự án ARCHIVED | 409 `PROJECT_ARCHIVED` | 409 | — | ✔ |
+
+Hàng 7–11 gồm 11 cặp (từ, đến), chạy bằng Owner để chắc chắn bị chặn vì luồng sai chứ không phải vì sai quyền. Tổng cộng **38 ô có test**. 2 ô chưa có test riêng: Owner gửi sai `version` (hàng 13) và Owner tự nộp bài (hàng 14); code xử lý Owner giống người phụ trách ở cả hai chỗ.
 
 ### Kết quả test (dán output thật, không chép tay)
+**1. Test tái hiện lỗi, chạy trước khi sửa** (`./mvnw test -Dtest='WorkflowEventPublisherTest,StateMachineServiceMatrixTest'`):
+```
+[ERROR]   StateMachineServiceMatrixTest$ArchivedProject.approve_rejected:307
+[ERROR]   StateMachineServiceMatrixTest$ArchivedProject.forceUnlock_rejected:333
+[ERROR]   StateMachineServiceMatrixTest$ArchivedProject.submit_rejected:322
+[ERROR]   StateMachineServiceMatrixTest$ArchivedProject.updateStatus_rejected:294
+[ERROR]   StateMachineServiceMatrixTest.forceUnlock_notifiesAssignee:352
+[ERROR]   StateMachineServiceMatrixTest.forceUnlock_sseWaitsForCommit:395
+[ERROR]   StateMachineServiceMatrixTest.updateStatus_sseWaitsForCommit:382
+[ERROR]   WorkflowEventPublisherTest.publishNotification_insideTransaction_waitsForCommit:108
+[ERROR]   WorkflowEventPublisherTest.publishTaskCompleted_insideTransaction_waitsForCommit:84
+[ERROR]   WorkflowEventPublisherTest.publishTaskCompleted_rolledBack_neverSends:99
+[ERROR]   WorkflowEventPublisherTest.publishTaskCompleted_brokerFailsAfterCommit_doesNotThrow:122 » Amqp broker down
+[ERROR] Tests run: 44, Failures: 10, Errors: 1, Skipped: 0
+```
+11 test fail đúng các lỗi của task; 33 ô ma trận còn lại pass vì đó là hành vi đang đúng.
+
+**2. Sau khi sửa, toàn bộ test backend** (`./mvnw test`, không còn `Thread.sleep`, trước khi rebase lên main mới — xem mục 6 cho số cuối): `Tests run=324, Failures=0, Errors=0, Skipped=1` (test skip là test có sẵn).
+```
+StateMachineServiceTest        Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
+StateMachineServiceMatrixTest  Tests run: 39, Failures: 0, Errors: 0, Skipped: 0
+WorkflowEventPublisherTest     Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+```
+
+**3. Thực nghiệm "gửi trước commit"** (kịch bản Swagger của T0 chạy bằng `curl` + header `X-Debug-User-Id`; thêm tạm `Thread.sleep(2000)` ngay sau `publishTaskCompleted`, không commit):
+```
+Trước khi sửa:
+3) alex (2) PATCH /nodes/3/status DONE version=2 -> HTTP 200 (mất 2131 ms)
+Sau 3 giây: WPE-003=DONE(v3), WPE-004=LOCKED(v0)
+  12:22:19.825 [nio-8080-exec-5] Publishing TaskCompletedEvent for Task ID: 3, Code: WPE-003
+  12:22:19.836 [ntContainer#0-1] Engine executing downstream check for parentTaskId: 3
+Sau khi sửa (vẫn sleep 2 giây):
+3) alex (2) PATCH /nodes/3/status DONE version=2 -> HTTP 200 (mất 2140 ms)
+Sau 3 giây: WPE-003=DONE(v3), WPE-004=TODO(v1)
+  12:25:32.853 [nio-8080-exec-5] Publishing TaskCompletedEvent for Task ID: 3, Code: WPE-003
+  12:25:34.882 [ntContainer#2-1] Engine executing downstream check for parentTaskId: 3
+  12:25:34.882 [ntContainer#2-1] Mở khóa thành công node con ID: 4, Code: WPE-004 từ LOCKED -> TODO
+```
+Trước khi sửa, consumer chạy sau publish 11 ms, khi transaction còn mở, nên đọc thấy WPE-003 chưa DONE. Sau khi sửa, consumer chạy sau commit (khoảng 2 giây sau) và mở khóa được.
+
+**4. Kịch bản T0 với code cuối (không sleep):** 3 bước đều HTTP 200, duyệt mất 126 ms, WPE-004 `LOCKED → TODO`, `GET /projects/1/my-tasks?userId=2` có WPE-004 ở TODO.
+
+**5. ARCHIVED qua API thật:** alex chuyển dự án 1 sang ARCHIVED → sarah `PATCH /nodes/3/status` → `409 {"error":"PROJECT_ARCHIVED",…}`; alex `POST /nodes/4/force-unlock` → `409 PROJECT_ARCHIVED`; WPE-003 không đổi. Chuyển dự án về ACTIVE thì bình thường.
+
+Sau mỗi thực nghiệm đã khôi phục DB local về đúng dữ liệu seed (WPE-003 TODO v0, WPE-004 LOCKED v0, dự án ACTIVE, xóa thông báo sinh ra trong thực nghiệm).
+
+**6. Rebase lên `main` mới (đã có B4 `publishPipeline`):** B4 gọi `eventPublisher.publishNotification` từ **bên trong** `afterCommit` của nó. Bản C1 đầu dùng `afterCommit` nên đăng ký thêm một `afterCommit` lúc Spring đã lấy xong danh sách cần gọi → thông báo `TASK_READY` khi xuất bản dự án **mất lặng lẽ**. Đã thêm test dùng quy trình commit thật của Spring (`NoOpTransactionManager`), chạy với code cũ:
+```
+[ERROR] com.pipeline.wpe.service.event.WorkflowEventPublisherTest.publishNotification_calledFromAnotherAfterCommit_stillSends -- Time elapsed: 0.033 s <<< FAILURE!
+Wanted but not invoked:
+Actually, there were zero interactions with this mock.
+[ERROR] Tests run: 6, Failures: 1, Errors: 0, Skipped: 0
+```
+Sửa: chuyển sang `afterCompletion(STATUS_COMMITTED)` (Spring cũng cài `@TransactionalEventListener(AFTER_COMMIT)` theo cách này). Sau khi sửa, toàn bộ test backend: `Tests run=335, Failures=0, Errors=0, Skipped=1`.
+```
+WorkflowEventPublisherTest     Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+StateMachineServiceMatrixTest  Tests run: 40, Failures: 0, Errors: 0, Skipped: 0
+StateMachineServiceTest        Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
+WorkflowGraphServiceTest       Tests run: 53, Failures: 0, Errors: 0, Skipped: 0
+```
+**Chạy thật lại với bản `afterCompletion` (backend bật từ code cuối, sau rebase):**
+```
+Kịch bản T0:
+Trước: WPE-003=TODO(v0), WPE-004=LOCKED(v0)
+1) sarah (3) PATCH /nodes/3/status IN_PROGRESS version=0 -> HTTP 200
+2) sarah (3) POST /nodes/3/submit version=1 -> HTTP 200
+3) alex (2) PATCH /nodes/3/status DONE version=2 -> HTTP 200 (mất 74 ms)
+Sau 3 giây: WPE-003=DONE(v3), WPE-004=TODO(v1)
+  [nio-8080-exec-7] Publishing TaskCompletedEvent for Task ID: 3, Code: WPE-003 in Project: 1
+  [ntContainer#1-1] Engine executing downstream check for parentTaskId: 3
+  [ntContainer#1-1] Mở khóa thành công node con ID: 4, Code: WPE-004 từ LOCKED -> TODO
+Bảng notification có thêm: "Tác vụ chờ nghiệm thu" (cho alex) và "Tác vụ sẵn sàng thực hiện" (WPE-004, cho alex).
+
+Xuất bản (B4): tạo tạm dự án DRAFT id 2, 1 phase, 1 node WPE-001 LOCKED giao cho alex
+POST /projects/2/publish -> {"success":true,"status":"ACTIVE",...,"unlockedTaskCount":1}
+Node: WPE-001 TODO v1
+notification mới: 9 | user 2 | Tác vụ sẵn sàng thực hiện | Dự án đã được xuất bản. Tác vụ WPE-001 (Task thu) đã mở khóa, bạn có thể bắt đầu!
+  [nio-8080-exec-4] Publishing NotificationEvent for User ID: 2, Type: TASK_READY
+  [ntContainer#3-1] Saved notification ID: 9 for user: 2
+```
+Sau đó đã xóa dự án tạm và trả DB về dữ liệu seed.
+
+**Phát hiện thêm khi chạy thật (chưa sửa, có từ trước C1):** sarah `PATCH /nodes/3/status` IN_PROGRESS với `version=0` → response trả `"version":0` trong khi DB đã là `v1`. Payload SSE `TASK_STATUS_CHANGED` dùng chính object này nên cũng mang version cũ. Lý do: response được tạo trước khi Hibernate flush (version chỉ tăng lúc flush). B đã báo cùng lỗi ở PR #31. Chờ nhóm quyết sửa trong C1 hay C2.
+
+**Dời về buổi kiểm chung (SPRINT mục 7.2 dòng 6):** alex duyệt task của sarah trên giao diện → WPE-004 tự mở khóa.
 
 ### Điều chưa chắc / cần nhóm quyết
+- **RabbitMQ lỗi đúng lúc sau commit thì sự kiện bị mất** (chỉ có log `ERROR`). Muốn không mất cần outbox pattern; chưa làm, đã ghi ở `workflow-engine.md` mục 3.6.
+- Task đã DONE trong dự án ARCHIVED vẫn trả 400 "đã hoàn tất", không phải 409, vì kiểm DONE chạy trước khi tải dự án. Vẫn bị chặn, chỉ khác mã lỗi. Giữ thứ tự này để không đổi hành vi mà test cũ đang kiểm.
+- **Cho B (B4):** `publish*` giờ tự gửi sau commit. Code B4 hiện tự bọc `publishNotification` trong `afterCommit` của nó; vẫn chạy đúng (mục 6), nhưng có thể gọi thẳng `publishNotification` cho gọn — B quyết. Ngoài ra `SseEmitterService.sendToUser` gọi trực tiếp từ `WorkflowGraphService` (B3, B4) vẫn gửi ngay lúc gọi; muốn gửi sau commit thì phía B tự bọc (C2 có thể xem xét đưa vào `SseEmitterService`).
+- Thông báo `FORCE_UNLOCKED` mới chỉ được **lưu vào bảng `notification`**, chưa hiện trên chuông: FE vẫn dùng `MockNotificationApi` (`FE/services/container.ts`) và BE chưa có API đọc thông báo. Việc nối chuông với API thật và nghe SSE `NOTIFICATION_RECEIVED` là của C3. Kiểm C1 thì xem bảng `notification` bằng SQL, không xem chuông.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
