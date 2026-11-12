@@ -441,6 +441,8 @@ public class StateMachineService {
      * Chạy action sau khi transaction hiện tại commit; không có transaction thì chạy ngay.
      * Dùng cho SSE để trình duyệt không nhận trạng thái mà DB có thể còn rollback.
      * Lỗi gửi SSE sau commit chỉ ghi log, không làm hỏng request đã commit.
+     * Dùng afterCompletion(STATUS_COMMITTED) thay vì afterCommit() để vẫn chạy khi được gọi từ bên trong
+     * afterCommit của code khác (lý do chi tiết ở WorkflowEventPublisher.sendAfterCommit).
      */
     private void afterCommit(Runnable action) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -449,7 +451,10 @@ public class StateMachineService {
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
-            public void afterCommit() {
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    return;
+                }
                 try {
                     action.run();
                 } catch (RuntimeException ex) {

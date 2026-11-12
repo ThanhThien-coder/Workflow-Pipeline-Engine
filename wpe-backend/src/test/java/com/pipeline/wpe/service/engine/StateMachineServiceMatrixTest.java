@@ -17,9 +17,9 @@ import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
+import com.pipeline.wpe.service.event.NoOpTransactionManager;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -34,8 +34,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.Map;
@@ -118,18 +117,8 @@ class StateMachineServiceMatrixTest {
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(response);
     }
 
-    @AfterEach
-    void clearTransaction() {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
-    }
-
-    private void commit() {
-        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
-            sync.afterCommit();
-        }
-    }
+    /** Chạy code trong transaction theo đúng quy trình commit/rollback thật của Spring (không có DB). */
+    private final TransactionTemplate tx = NoOpTransactionManager.template();
 
     private static UpdateNodeStatusRequest move(NodeStatus to, String rejectReason) {
         return new UpdateNodeStatusRequest(to.name(), rejectReason, 0L);
@@ -375,26 +364,39 @@ class StateMachineServiceMatrixTest {
     @Test
     @DisplayName("Trong transaction: SSE TASK_STATUS_CHANGED chưa gửi trước commit, gửi sau commit")
     void updateStatus_sseWaitsForCommit() {
-        TransactionSynchronizationManager.initSynchronization();
         node.setStatus(NodeStatus.TODO);
 
-        stateMachineService.updateStatus(TASK_ID, move(NodeStatus.IN_PROGRESS, null), Role.ASSIGNEE.userId);
-        verify(sseEmitterService, never()).sendToUser(any(), anyString(), any());
+        tx.executeWithoutResult(status -> {
+            stateMachineService.updateStatus(TASK_ID, move(NodeStatus.IN_PROGRESS, null), Role.ASSIGNEE.userId);
+            verify(sseEmitterService, never()).sendToUser(any(), anyString(), any());
+        });
 
-        commit();
         verify(sseEmitterService).sendToUser(eq(Role.ASSIGNEE.userId), eq("TASK_STATUS_CHANGED"), any());
+    }
+
+    @Test
+    @DisplayName("Transaction rollback: không gửi SSE nào")
+    void updateStatus_rolledBack_noSse() {
+        node.setStatus(NodeStatus.TODO);
+
+        tx.executeWithoutResult(status -> {
+            stateMachineService.updateStatus(TASK_ID, move(NodeStatus.IN_PROGRESS, null), Role.ASSIGNEE.userId);
+            status.setRollbackOnly();
+        });
+
+        verify(sseEmitterService, never()).sendToUser(any(), anyString(), any());
     }
 
     @Test
     @DisplayName("Trong transaction: SSE TASK_UNLOCKED của force unlock chỉ gửi sau commit")
     void forceUnlock_sseWaitsForCommit() {
-        TransactionSynchronizationManager.initSynchronization();
         node.setStatus(NodeStatus.LOCKED);
 
-        stateMachineService.forceUnlock(TASK_ID, Role.OWNER.userId);
-        verify(sseEmitterService, never()).sendToUser(any(), anyString(), any());
+        tx.executeWithoutResult(status -> {
+            stateMachineService.forceUnlock(TASK_ID, Role.OWNER.userId);
+            verify(sseEmitterService, never()).sendToUser(any(), anyString(), any());
+        });
 
-        commit();
         verify(sseEmitterService).sendToUser(eq(Role.ASSIGNEE.userId), eq("TASK_UNLOCKED"), any());
     }
 }

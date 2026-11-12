@@ -17,7 +17,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *
  * <p><b>Gửi sau commit (C1):</b> nếu hàm publish được gọi bên trong một transaction đang mở,
  * sự kiện chỉ được gửi lên RabbitMQ <i>sau khi transaction commit</i>
- * ({@link TransactionSynchronization#afterCommit()}). Transaction rollback thì sự kiện không được gửi.
+ * ({@link TransactionSynchronization#afterCompletion(int)} với {@code STATUS_COMMITTED}).
+ * Transaction rollback thì sự kiện không được gửi.
  * Không có transaction thì gửi ngay. Nhờ vậy consumer luôn đọc được dữ liệu đã lưu
  * (ví dụ task cha đã DONE khi mở khóa task con).
  */
@@ -79,9 +80,16 @@ public class WorkflowEventPublisher {
     }
 
     /**
-     * Trong transaction: đăng ký gửi ở afterCommit. Ngoài transaction: gửi ngay.
-     * Lỗi gửi ở afterCommit chỉ ghi log: dữ liệu đã commit, không còn rollback được,
-     * nên sự kiện đó bị mất (muốn không mất thì cần outbox pattern — ghi trong workflow-engine.md).
+     * Trong transaction: hẹn gửi khi transaction kết thúc với trạng thái COMMITTED. Ngoài transaction: gửi ngay.
+     *
+     * <p>Dùng {@code afterCompletion(STATUS_COMMITTED)} chứ không dùng {@code afterCommit()}: code khác (ví dụ
+     * {@code WorkflowGraphService.publishPipeline}) có thể gọi publish từ bên trong afterCommit của nó. Lúc đó
+     * Spring đã lấy xong danh sách cần gọi afterCommit, nên một afterCommit đăng ký thêm sẽ không bao giờ chạy và
+     * sự kiện mất lặng lẽ. afterCompletion được Spring lấy danh sách lại sau bước afterCommit nên vẫn chạy.
+     * Spring cũng cài {@code @TransactionalEventListener(AFTER_COMMIT)} theo đúng cách này.
+     *
+     * <p>Lỗi gửi chỉ ghi log: dữ liệu đã commit, không còn rollback được, nên sự kiện đó bị mất
+     * (muốn không mất thì cần outbox pattern — ghi trong workflow-engine.md mục 3.6).
      */
     private void sendAfterCommit(String routingKey, Object event, String description) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -90,7 +98,10 @@ public class WorkflowEventPublisher {
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
-            public void afterCommit() {
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    return;
+                }
                 try {
                     rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_WORKFLOW, routingKey, event);
                 } catch (RuntimeException ex) {
