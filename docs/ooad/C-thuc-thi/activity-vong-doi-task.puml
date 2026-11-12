@@ -1,0 +1,87 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/service/engine/StateMachineService.java, wpe-backend/src/main/java/com/pipeline/wpe/controller/NodeController.java, docs/specs/workflow-engine.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md Cụm 5
+' Sơ đồ Activity: Vòng đời một tác vụ (Task Lifecycle, FSM & Realtime) trong WPE
+
+@startuml activity-vong-doi-task
+!pragma layout smetana
+skinparam shadowing false
+
+|Cộng sự|
+start
+:Nhận tác vụ ở trạng thái sẵn sàng (TODO);
+:Chọn "Bắt đầu làm";
+
+|Hệ thống|
+:Kiểm tra trạng thái TODO và phiên bản (version);
+:Chuyển trạng thái tác vụ sang IN_PROGRESS;
+:Ghi nhận thời điểm bắt đầu làm việc (startedAt);
+
+|Cộng sự|
+repeat
+  :Thực hiện công việc được giao;
+  :Mở hộp thoại nộp bài (Submit Deliverable);
+  if (Có liên kết minh chứng ngoài?) then (có)
+    :Nhập liên kết minh chứng (PR, Figma, Docs...);
+  else (không)
+  endif
+  :Xác nhận nộp bài;
+
+  |Hệ thống|
+  :Kiểm tra trạng thái IN_PROGRESS, phiên bản (version) và link minh chứng;
+  note right
+    Link sai (javascript:, thiếu tên miền, quá 500 ký tự)
+    -> 400, task vẫn IN_PROGRESS, không lưu gì (C4).
+  end note
+  :Chuyển trạng thái tác vụ sang REVIEW;
+  :Xóa lý do từ chối cũ (nếu có);
+  if (Có gửi kèm liên kết minh chứng?) then (có)
+    :Lưu bản ghi minh chứng vào bảng ARTIFACTS;
+  else (không)
+  endif
+  :Bắn thông báo REVIEW_REQUESTED qua RabbitMQ;
+  :Đẩy sự kiện thời gian thực TASK_SUBMITTED qua SSE;
+
+  |Chủ dự án / Quản lý|
+  :Xem xét bài nộp và liên kết minh chứng;
+  if (Bài nộp đạt yêu cầu?) then (không đạt)
+    :Nhập lý do từ chối (rejectReason);
+    |Hệ thống|
+    :Kiểm tra quyền duyệt (Chủ dự án hoặc Quản lý) và lý do không rỗng;
+    :Lưu lý do từ chối vào tác vụ;
+    :Chuyển trạng thái tác vụ quay về IN_PROGRESS;
+    :Bắn thông báo REJECTED qua RabbitMQ;
+    :Đẩy sự kiện thời gian thực TASK_REJECTED qua SSE;
+    |Cộng sự|
+    :Xem lý do từ chối trên bảng My Tasks;
+    :Tiến hành sửa đổi theo yêu cầu;
+  else (đạt yêu cầu)
+  endif
+repeat while (Bị từ chối?) is (có) not (không)
+
+|Chủ dự án / Quản lý|
+:Xác nhận phê duyệt hoàn thành;
+
+|Hệ thống|
+:Kiểm tra quyền duyệt (Chủ dự án hoặc Quản lý) và trạng thái REVIEW;
+:Chuyển trạng thái tác vụ sang DONE;
+:Đóng băng tác vụ (khóa kéo thả);
+
+fork
+  :Bắn sự kiện TaskCompletedEvent qua RabbitMQ;
+  :Kiểm tra phụ thuộc đồ thị DAG của các tác vụ con;
+  if (Thỏa mãn chính sách hội tụ AND/OR Join?) then (thỏa mãn)
+    :Chuyển tác vụ con từ LOCKED sang TODO;
+    :Bắn thông báo TASK_READY qua RabbitMQ;
+    :Đẩy sự kiện thời gian thực TASK_UNLOCKED qua SSE;
+  else (chưa thỏa)
+  endif
+fork again
+  :Đẩy sự kiện thời gian thực TASK_STATUS_CHANGED qua SSE;
+  |Chủ dự án / Quản lý|
+  :Xem tác vụ đóng băng ở cột Done;
+end fork
+
+|Cộng sự|
+:Xem tác vụ hoàn thành ở cột Done;
+stop
+
+@enduml

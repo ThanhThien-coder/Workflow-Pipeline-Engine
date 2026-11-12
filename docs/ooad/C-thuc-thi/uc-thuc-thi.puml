@@ -1,0 +1,104 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/ (controller/NodeController.java, controller/ArtifactController.java,
+'        service/engine/StateMachineService.java, service/engine/TaskOverdueScanner.java, service/ArtifactService.java, service/event/),
+'        docs/specs/system-overview.md (mục 4, UC13-UC19), docs/ooad/he-thong/uc-tong-quat.puml (X3: tên actor, số UC)
+' Sơ đồ Use Case mảng C - Chạy task & Realtime (WPE)
+
+@startuml uc-thuc-thi
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+' --- Actor (cùng tên và cùng chuỗi kế thừa với X3) ---
+actor "Người xem\n(Project Viewer)" as Viewer
+actor "Cộng sự\n(Collaborator)" as Collab
+actor "Quản lý\n(Project Manager)" as Manager
+actor "Chủ dự án\n(Project Owner)" as Owner
+actor "Bộ hẹn giờ\n(actor thời gian)" as Timer
+
+Collab --|> Viewer
+Manager --|> Collab
+Owner --|> Manager
+
+rectangle "WPE - Chạy task & Realtime" {
+  usecase "Xem thông báo" as UC_Notif
+  usecase "UC19 Xem kho tài nguyên" as UC_ViewRes
+
+  usecase "UC15 Xem My Tasks" as UC15
+  usecase "UC16 Bắt đầu làm" as UC16
+  usecase "UC17 Hủy nhận việc" as UC17
+  usecase "UC18 Nộp bài" as UC18
+  usecase "Đính kèm minh chứng" as UC_Attach
+  usecase "Thêm link vào kho tài nguyên" as UC_AddRes
+
+  usecase "UC13 Duyệt bài" as UC13
+  usecase "Từ chối bài" as UC_Reject
+
+  usecase "Mở khóa cưỡng bức" as UC_Force
+
+  usecase "Quét task trễ hạn" as UC_Scan
+  usecase "Gửi cảnh báo trễ hạn" as UC_Alert
+}
+
+' --- Người xem: chỉ xem ---
+Viewer --> UC_Notif
+Viewer --> UC_ViewRes
+
+' --- Cộng sự: làm task được giao, thêm link ---
+Collab --> UC15
+Collab --> UC16
+Collab --> UC17
+Collab --> UC18
+Collab --> UC_AddRes
+
+' --- Quản lý: duyệt bài (từ #33) ---
+Manager --> UC13
+
+' --- Chủ dự án: thêm quyền mở khóa cưỡng bức ---
+Owner --> UC_Force
+
+' --- Actor thời gian ---
+Timer --> UC_Scan
+
+' --- include / extend ---
+UC_Attach .> UC18 : <<extend>>\n[có link minh chứng]
+UC_Reject .> UC13 : <<extend>>\n[kết quả chưa đạt]
+UC_Scan .> UC_Alert : <<include>>
+
+' --- Ghi chú ---
+note right of UC13
+  Duyệt được: Chủ dự án hoặc Quản lý còn hiệu lực
+  (StateMachineService.canReview). Cộng sự không tự duyệt.
+  Duyệt xong, hệ thống tự mở khóa task con theo AND/OR join.
+  Đó là việc hệ thống tự làm, không phải mục tiêu của actor,
+  nên vẽ ở sơ đồ activity, không vẽ thành use case.
+end note
+
+note right of UC_Force
+  Chỉ Chủ dự án: LOCKED -> TODO khi cần làm sớm.
+  POST /api/nodes/{id}/force-unlock
+end note
+
+note right of UC16
+  UC16-UC18: người phụ trách task hoặc Chủ dự án.
+  Quản lý làm được khi chính họ được giao task.
+end note
+
+note right of UC_AddRes
+  Thêm link, bật/tắt kho chung: Chủ dự án, Quản lý, Cộng sự.
+  Người xem gọi -> 403. Phải đăng nhập (C4).
+end note
+
+note right of UC_Notif
+  Realtime đã có: SSE NOTIFICATION_RECEIVED (C2).
+  Chưa có API đọc danh sách thông báo; chuông đang dùng
+  MockNotificationApi (C3, để sau hạn nộp).
+end note
+
+note right of UC_Scan
+  TaskOverdueScanner.scanOverdueTasks, @Scheduled 15 phút:
+  task IN_PROGRESS quá hạn -> is_overdue = true,
+  thông báo OVERDUE + SSE TASK_OVERDUE cho người phụ trách.
+end note
+
+@enduml

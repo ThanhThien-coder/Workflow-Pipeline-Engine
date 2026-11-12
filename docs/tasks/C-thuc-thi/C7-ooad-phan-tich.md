@@ -2,7 +2,7 @@
 
 Người làm: C
 Người review: D
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: T1
 Cần trước bước frontend: không
 Mở khóa: C8
@@ -80,8 +80,33 @@ Người dán file này đang **học vẽ sơ đồ OOAD** cho mảng của h�
 ### Ảnh bản vẽ tay đầu tiên
 
 ### Tự chấm theo checklist (điểm từng sơ đồ)
+Claude chấm theo `docs/ooad/CAM_NANG_VE_SO_DO.md` mục 3 (chế độ sprint, không có bản vẽ tay):
+- **Use case 10/10.** 13 use case. Ngoài ma trận RBAC có 4 use case, đều có ghi chú trên sơ đồ: Xem thông báo (C2/C3), Thêm link vào kho (C4), Mở khóa cưỡng bức (C1, chỉ Chủ dự án), Quét task trễ hạn (actor thời gian).
+- **Đặc tả 6/7.** Chưa đạt "tiền điều kiện không lặp lại thành bước": bước 7 vẫn kiểm quyền, ARCHIVED, version. Giữ lại vì đó là chỗ code thật kiểm và là điểm bắt đầu của các luồng ngoại lệ E2–E6.
+- **Activity 8/8.** 1 nút bắt đầu, 1 nút kết thúc; mọi hình thoi có điều kiện; fork sau DONE có join; mỗi hành động đúng làn.
+- **BCE:** actor chỉ nối boundary; boundary → control → entity; association giữa các entity có bội số 2 đầu. Không chấm mục visibility/kiểu (chỉ áp cho class thiết kế, C8).
 
 ### Lỗi Claude hoặc người review chỉ ra và cách mình sửa
+**Bản nháp do agy vẽ từ code thật (12/11/2026), Claude kiểm, làm TRƯỚC khi T1 xong** (người làm đồng ý làm trước). 4 file ở `docs/ooad/C-thuc-thi/`. Lần 1 Claude trả về 4 lỗi, agy đã sửa ở lần 2:
+1. Use case và BCE ghi "bộ quét trễ hạn chưa có code" → sai, đã có `TaskOverdueScanner.scanOverdueTasks` (`@Scheduled` 15 phút). Đã sửa ghi chú.
+2. Activity: các bước từ chối nằm trong thân `repeat` nên nhánh duyệt cũng chạy qua → thêm hình thoi "Bài nộp đạt yêu cầu?" sau "Xem xét bài nộp", chỉ nhánh không đạt mới có các bước từ chối.
+3. BCE: Bộ hẹn giờ nối thẳng control, trái luật cẩm nang ("actor chỉ làm việc với boundary") → thêm boundary "Bộ lập lịch hệ thống".
+4. Use case "Mở khóa công việc kế tiếp" không phải mục tiêu của actor → bỏ khỏi sơ đồ use case, ghi chú là thể hiện ở activity.
+
+Đã kiểm: mã lỗi trong `dac-ta-uc.md` khớp `GlobalExceptionHandler` (409 `OPTIMISTIC_LOCK_CONFLICT`, 403 `ACCESS_DENIED`, 400 `BAD_REQUEST`, 409 `PROJECT_ARCHIVED`, 404 `RESOURCE_NOT_FOUND`); mỗi `.puml` có `@startuml`/`@enduml`; không còn actor nối thẳng control/entity.
+
+**Lần 3 (12/11/2026 tối, Claude, theo code main sau #33 và C4 #49):**
+1. **Thêm vai trò Quản lý** (#33: `canReview` = Chủ dự án hoặc `MANAGER` còn hiệu lực). Actor và chuỗi kế thừa lấy đúng như sơ đồ tổng quát X3 (`docs/ooad/he-thong/uc-tong-quat.puml`): Chủ dự án → Quản lý → Cộng sự → Người xem. Quản lý nối "UC13 Duyệt bài"; "Mở khóa cưỡng bức" vẫn chỉ Chủ dự án (code chặn 403 người khác). Activity đổi làn thành "Chủ dự án / Quản lý". Đặc tả UC2, UC3 đổi actor chính, tiền điều kiện, E6/E5 (câu báo lỗi mới), BR.
+2. **"Từ chối bài" đổi thành `<<extend>>` "Duyệt bài"** [kết quả chưa đạt] cho khớp X3. Use case giờ có số UC13, UC15–UC19 như ma trận RBAC.
+3. **Kho tài nguyên theo C4:** use case tách "UC19 Xem kho tài nguyên" (Người xem) và "Thêm link vào kho tài nguyên" (Cộng sự trở lên, Người xem → 403). BCE thêm control "Điều khiển kho tài nguyên" (`ArtifactService`), trước đây boundary kho nối nhầm vào điều khiển trạng thái.
+4. **BCE thêm entity "Thành viên dự án"** (`ProjectMemberEntity`: vai trò, `joinedAt`, `removedAt`), vì quyền duyệt của Quản lý và quyền ghi kho đọc từ bảng này.
+5. **Nộp bài theo C4:** link minh chứng sai → 400, task vẫn `IN_PROGRESS` (đặc tả thêm E6, activity thêm ghi chú); `is_public_for_guest` theo lựa chọn người nộp, mặc định `true`.
+6. **Sửa chỗ sai so với code và checklist:** bỏ "dưới 50ms" (không có số đo); bỏ mô tả màu sắc giao diện (banner "đỏ" thật ra là vàng cam, "Toast xanh"; cẩm nang 3.2 cấm tả màu sắc); bỏ huy hiệu "Done / Approved" (không có trong code); E7 của Từ chối bài: task `TODO` nhận `status = IN_PROGRESS` là **Bắt đầu làm**, không lỗi, chỉ `LOCKED` mới 400.
+7. **Render:** dùng `plantuml.jar` có sẵn trong extension PlantUML của VS Code (`jebbs.plantuml-2.18.1`), không tải gì: `java -jar plantuml.jar -charset UTF-8 -tpng`. BCE lỗi dòng 21 vì thiếu `allowmixing` (actor chung với class) → thêm như B làm. Đã xem cả 3 ảnh: đủ chữ, không lỗi. PNG: `docs/ooad/png/C-uc-thuc-thi.png`, `C-activity-vong-doi-task.png`, `C-bce-thuc-thi.png`.
+
+**Mở PR theo yêu cầu người làm (12/11/2026). Người làm còn phải làm trước khi D merge:**
+- T1 rút gọn: đọc `docs/ooad/CAM_NANG_VE_SO_DO.md` mục 3.
+- Vòng hiểu: giải thích lại sơ đồ activity (task bị từ chối 2 lần thì luồng đi thế nào).
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
