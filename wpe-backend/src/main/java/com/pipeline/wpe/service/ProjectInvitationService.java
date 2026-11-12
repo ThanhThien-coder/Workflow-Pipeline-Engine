@@ -24,6 +24,7 @@ import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +45,9 @@ public class ProjectInvitationService {
     private final ProjectAuthorizationService projectAuthorizationService;
     private final NotificationRepository notificationRepository;
     private final WorkflowEventPublisher workflowEventPublisher;
+
+    @Value("${app.invitation.expiry-days:7}")
+    private long expiryDays = 7;
 
     /**
      * 1. Gửi Lời mời tham gia dự án (Asynchronous Invitation & Notification Deep-Link).
@@ -81,15 +85,21 @@ public class ProjectInvitationService {
         }
 
         // Kiểm tra xem đã có lời mời PENDING chưa
-        boolean alreadyPending = projectInvitationRepository.existsByProjectIdAndInviteeIdAndStatus(
-                projectId, invitee.getId(), InvitationStatus.PENDING
-        );
-        if (alreadyPending) {
-            throw new ConflictException("INVITATION_ALREADY_PENDING", 
-                    "Người dùng " + invitee.getUsername() + " đã có một lời mời đang chờ phản hồi.");
+        Optional<ProjectInvitationEntity> pendingInvitationOpt = projectInvitationRepository
+                .findByProjectIdAndInviteeIdAndStatus(projectId, invitee.getId(), InvitationStatus.PENDING);
+        if (pendingInvitationOpt.isPresent()) {
+            ProjectInvitationEntity pendingInvitation = pendingInvitationOpt.get();
+            if (pendingInvitation.getExpiresAt().isBefore(Instant.now())) {
+                pendingInvitation.setStatus(InvitationStatus.EXPIRED);
+                pendingInvitation.setRespondedAt(Instant.now());
+                projectInvitationRepository.saveAndFlush(pendingInvitation);
+            } else {
+                throw new ConflictException("INVITATION_ALREADY_PENDING",
+                        "Người dùng " + invitee.getUsername() + " đã có một lời mời đang chờ phản hồi.");
+            }
         }
 
-        Instant expiresAt = Instant.now().plus(7, ChronoUnit.DAYS);
+        Instant expiresAt = Instant.now().plus(expiryDays, ChronoUnit.DAYS);
         ProjectRole role = request.role() != null ? request.role() : ProjectRole.COLLABORATOR;
 
         ProjectInvitationEntity invitation = ProjectInvitationEntity.builder()
@@ -178,7 +188,7 @@ public class ProjectInvitationService {
     /**
      * 3. Người được mời chấp thuận lời mời (Atomic Transaction -> Kết nạp Thành viên).
      */
-    @Transactional
+    @Transactional(noRollbackFor = ConflictException.class)
     public void acceptInvitation(Long invitationId, Long currentUserId) {
         ProjectInvitationEntity invitation = projectInvitationRepository.findById(invitationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời với ID: " + invitationId));
@@ -195,7 +205,7 @@ public class ProjectInvitationService {
             invitation.setStatus(InvitationStatus.EXPIRED);
             invitation.setRespondedAt(Instant.now());
             projectInvitationRepository.save(invitation);
-            throw new IllegalArgumentException("Lời mời tham gia dự án đã hết hạn.");
+            throw new ConflictException("INVITATION_EXPIRED", "Lời mời đã hết hạn.");
         }
 
         // Cập nhật trạng thái Lời mời sang ACCEPTED
@@ -203,11 +213,11 @@ public class ProjectInvitationService {
         invitation.setRespondedAt(Instant.now());
         projectInvitationRepository.save(invitation);
 
-        // THỰC HIỆN KẾT NẠP THÀNH VIÊN: Cập nhật bản ghi cũ nếu đã bị xóa mềm, hoặc tạo mới
-        Optional<ProjectMemberEntity> existingMemberOpt = projectMemberRepository
-                .findByProjectIdAndUserId(invitation.getProjectId(), currentUserId);
+        // THỰC HIỆN KẾT NẠP THÀNH VIÊN (Cách B): nếu đã là thành viên thì giữ nguyên, ngược lại tạo dòng mới
+        boolean alreadyActiveMember = projectMemberRepository
+                .existsByProjectIdAndUserIdAndRemovedAtIsNull(invitation.getProjectId(), currentUserId);
 
-        if (existingMemberOpt.isEmpty()) {
+        if (!alreadyActiveMember) {
             ProjectMemberEntity member = ProjectMemberEntity.builder()
                     .projectId(invitation.getProjectId())
                     .userId(currentUserId)
@@ -216,14 +226,6 @@ public class ProjectInvitationService {
                     .removedAt(null)
                     .build();
             projectMemberRepository.save(member);
-        } else {
-            ProjectMemberEntity existingMember = existingMemberOpt.get();
-            if (existingMember.getRemovedAt() != null) {
-                existingMember.setRemovedAt(null);
-                existingMember.setRole(invitation.getRole());
-                existingMember.setJoinedAt(Instant.now());
-                projectMemberRepository.save(existingMember);
-            }
         }
         log.info("User id={} accepted invitation id={} and joined project={}", currentUserId, invitationId, invitation.getProjectId());
 
@@ -253,7 +255,7 @@ public class ProjectInvitationService {
     /**
      * 4. Người được mời từ chối lời mời.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ConflictException.class)
     public void rejectInvitation(Long invitationId, Long currentUserId) {
         ProjectInvitationEntity invitation = projectInvitationRepository.findById(invitationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời với ID: " + invitationId));
@@ -264,6 +266,13 @@ public class ProjectInvitationService {
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
             throw new ConflictException("INVITATION_NOT_PENDING", "Lời mời không ở trạng thái chờ phản hồi.");
+        }
+
+        if (invitation.getExpiresAt().isBefore(Instant.now())) {
+            invitation.setStatus(InvitationStatus.EXPIRED);
+            invitation.setRespondedAt(Instant.now());
+            projectInvitationRepository.save(invitation);
+            throw new ConflictException("INVITATION_EXPIRED", "Lời mời đã hết hạn.");
         }
 
         invitation.setStatus(InvitationStatus.REJECTED);

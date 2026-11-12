@@ -1,6 +1,7 @@
 package com.pipeline.wpe.controller;
 
 import com.pipeline.wpe.dto.request.project.UpdateMemberRoleRequest;
+import com.pipeline.wpe.dto.response.project.ProjectMemberHistoryResponse;
 import com.pipeline.wpe.dto.response.project.ProjectMemberResponse;
 import com.pipeline.wpe.dto.response.project.RemoveMemberResponse;
 import com.pipeline.wpe.security.CurrentUserProvider;
@@ -28,6 +29,14 @@ public class ProjectMemberController {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
         List<ProjectMemberResponse> members = projectMemberService.getMembers(projectId, currentUserId);
         return ResponseEntity.ok(members);
+    }
+
+    @Operation(summary = "Lấy lịch sử thành viên của dự án")
+    @GetMapping({"/api/v1/projects/{projectId}/members/history", "/api/projects/{projectId}/members/history"})
+    public ResponseEntity<List<ProjectMemberHistoryResponse>> getMemberHistory(@PathVariable Long projectId) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        List<ProjectMemberHistoryResponse> history = projectMemberService.getMemberHistory(projectId, currentUserId);
+        return ResponseEntity.ok(history);
     }
 
     @Operation(summary = "Cập nhật vai trò thành viên hoặc chuyển quyền sở hữu")

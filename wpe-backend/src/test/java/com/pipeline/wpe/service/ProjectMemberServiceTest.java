@@ -2,6 +2,7 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.dto.response.project.ProjectMemberHistoryResponse;
 import com.pipeline.wpe.dto.response.project.ProjectMemberResponse;
 import com.pipeline.wpe.dto.response.project.RemoveMemberResponse;
 import com.pipeline.wpe.entity.NodeEntity;
@@ -308,5 +309,71 @@ class ProjectMemberServiceTest {
 
         verify(projectMemberRepository, never()).findByProjectIdAndUserIdAndRemovedAtIsNull(any(), any());
         verify(nodeRepository, never()).findByProjectIdAndAssignedUserIdAndStatusNot(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("getMemberHistory: 1 người có 2 dòng (dòng cũ có removedAt, dòng mới active) -> 2 phần tử đúng thứ tự, active đúng")
+    void getMemberHistory_returnsOrderedHistory_withCorrectActiveStatus() {
+        Long projectId = 1L;
+        Long currentUserId = 10L;
+        Long targetUserId = 20L;
+
+        Instant t0 = Instant.now().minus(30, ChronoUnit.DAYS);
+        Instant tRemoved = Instant.now().minus(10, ChronoUnit.DAYS);
+        Instant t1 = Instant.now().minus(5, ChronoUnit.DAYS);
+
+        ProjectMemberEntity oldRecord = ProjectMemberEntity.builder()
+                .id(100L)
+                .projectId(projectId)
+                .userId(targetUserId)
+                .role(ProjectRole.VIEWER)
+                .joinedAt(t0)
+                .removedAt(tRemoved)
+                .build();
+
+        ProjectMemberEntity newRecord = ProjectMemberEntity.builder()
+                .id(101L)
+                .projectId(projectId)
+                .userId(targetUserId)
+                .role(ProjectRole.COLLABORATOR)
+                .joinedAt(t1)
+                .removedAt(null)
+                .build();
+
+        UserEntity user = UserEntity.builder()
+                .id(targetUserId)
+                .username("example-sarah")
+                .fullName("Sarah Chen")
+                .email("example-sarah@example-pipeline.org")
+                .build();
+
+        when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, currentUserId))
+                .thenReturn(ProjectEntity.builder().id(projectId).ownerId(1L).build());
+        when(projectMemberRepository.findByProjectIdOrderByJoinedAtAsc(projectId))
+                .thenReturn(List.of(oldRecord, newRecord));
+        when(userRepository.findAllById(List.of(targetUserId)))
+                .thenReturn(List.of(user));
+
+        List<ProjectMemberHistoryResponse> history = projectMemberService.getMemberHistory(projectId, currentUserId);
+
+        assertThat(history).hasSize(2);
+
+        // Phần tử 1: Dòng cũ (đã xóa)
+        assertThat(history.get(0).userId()).isEqualTo(String.valueOf(targetUserId));
+        assertThat(history.get(0).username()).isEqualTo("example-sarah");
+        assertThat(history.get(0).fullName()).isEqualTo("Sarah Chen");
+        assertThat(history.get(0).role()).isEqualTo("VIEWER");
+        assertThat(history.get(0).joinedAt()).isEqualTo(t0);
+        assertThat(history.get(0).removedAt()).isEqualTo(tRemoved);
+        assertThat(history.get(0).active()).isFalse();
+
+        // Phần tử 2: Dòng mới (đang hoạt động)
+        assertThat(history.get(1).userId()).isEqualTo(String.valueOf(targetUserId));
+        assertThat(history.get(1).username()).isEqualTo("example-sarah");
+        assertThat(history.get(1).fullName()).isEqualTo("Sarah Chen");
+        assertThat(history.get(1).role()).isEqualTo("COLLABORATOR");
+        assertThat(history.get(1).joinedAt()).isEqualTo(t1);
+        assertThat(history.get(1).removedAt()).isNull();
+        assertThat(history.get(1).active()).isTrue();
     }
 }
