@@ -109,7 +109,7 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Trả lời Bước 0
 Sprint: bỏ qua Bước 0 và sơ đồ nháp (Claude làm thay, theo `SPRINT_2_NGAY.md`).
 
-Vòng hiểu: chưa làm (A vắng, làm bù khi A quay lại).
+Vòng hiểu: đã làm (12/11/2026, qua remote). Câu bảo vệ 2 (phát hiện refresh token dùng lại): lần 1 sai (nhầm vai trò của hash SHA-256), lần 2 đúng: dựa vào cột `revoked`; phát hiện thì thu hồi mọi refresh token của user, bắt đăng nhập lại.
 
 ### Bảng test case (viết trước khi code)
 | # | Tình huống | Kết quả mong đợi | Test |

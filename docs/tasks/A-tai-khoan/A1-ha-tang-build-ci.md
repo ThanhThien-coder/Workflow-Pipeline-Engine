@@ -127,7 +127,7 @@ Không có test backend lỗi. Không test nào bị skip.
 
 **CI trên GitHub** (PR #25): `backend` pass (40s), `frontend` pass (43s). Lần chạy: https://github.com/ThanhThien-coder/Workflow-Pipeline-Engine/actions/runs/43131237327
 
-**Vòng hiểu:** Claude đã giải thích các thay đổi; người làm **chưa trả lời** câu bảo vệ 1 (vắng mặt, A cho mở PR trước). Làm bù khi A quay lại.
+**Vòng hiểu:** đã làm (12/11/2026, qua remote). Câu bảo vệ 1: lần đầu thiếu (chưa nêu `@WebMvcTest` chỉ bật tầng web, service/repository là mock) và sai (cho rằng CI không cần thêm gì); sau giải thích, trả lời lại đúng: thiếu Postgres thì job backend đỏ, phải thêm khối `services: postgres` vào `ci.yml`.
 
 **Flyway `out-of-order`:** chưa khởi động app để kiểm. Đã kiểm file YAML đúng cú pháp; Spring Boot 3.2.4 có thuộc tính `spring.flyway.out-of-order`. Không khởi động thêm một bản backend vì bản đang chạy trong IntelliJ dùng chung RabbitMQ, chạy bản thứ hai có thể lấy mất message của bản kia.
 
