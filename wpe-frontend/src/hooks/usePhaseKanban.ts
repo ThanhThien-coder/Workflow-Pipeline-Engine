@@ -192,7 +192,7 @@ export function usePhaseKanban(
 
       // Determine the acting user for transition validation
       const taskAssignee = members.find((m) => m.id === task.assignedUserId) || actor
-      const effectiveActor = actor.projectRole === 'OWNER' ? actor : taskAssignee
+      const effectiveActor = (actor.projectRole === 'OWNER' || actor.projectRole === 'MANAGER') ? actor : taskAssignee
 
       const decision = evaluateTransition(task, to, effectiveActor)
       if (decision.kind === 'deny') {

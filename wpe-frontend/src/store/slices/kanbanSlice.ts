@@ -33,9 +33,11 @@ export const createKanbanSlice = (set: (update: (state: KanbanSlice) => KanbanSl
     setSearchQuery: (searchQuery) => set((state) => ({ ...state, kanban: { ...state.kanban, searchQuery } })),
     moveTask: async (taskId, to, rejectReason) => {
       const task = k().tasks.find((item) => item.id === taskId);
-      const isOwnerReviewAction = to === 'DONE' || (task?.status === 'REVIEW' && to === 'IN_PROGRESS');
-      const actor = (isOwnerReviewAction ? k().members.find((m) => m.projectRole === 'OWNER') : null) ||
-        k().members.find((member) => member.id === k().currentUserId) ||
+      const isReviewAction = to === 'DONE' || (task?.status === 'REVIEW' && to === 'IN_PROGRESS');
+      const currentMember = k().members.find((member) => member.id === k().currentUserId);
+      const isReviewer = currentMember?.projectRole === 'OWNER' || currentMember?.projectRole === 'MANAGER';
+      const actor = (isReviewAction ? (isReviewer ? currentMember : k().members.find((m) => m.projectRole === 'OWNER')) : null) ||
+        currentMember ||
         k().members[0];
       if (!task || !actor || k().pendingTaskIds.includes(taskId)) return
       const decision = evaluateTransition(task, to, actor)
