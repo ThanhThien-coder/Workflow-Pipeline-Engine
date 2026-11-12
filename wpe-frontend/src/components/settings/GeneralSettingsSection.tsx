@@ -30,6 +30,10 @@ export function GeneralSettingsSection({
   const isOwner = myRole === 'OWNER'
   const isArchived = settings?.status === 'ARCHIVED'
   const currentProjectId = projectId || settings?.id || '1'
+  // B6: khớp backend (B4) — chỉ xuất bản được từ DRAFT hoặc PLANNING.
+  // ProjectStatus của settings.types chưa có PLANNING (file của D) dù backend có trả, nên so như chuỗi.
+  const statusText: string | undefined = settings?.status
+  const canPublish = statusText === 'DRAFT' || statusText === 'PLANNING'
   const [form, setForm] = useState({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -66,7 +70,7 @@ export function GeneralSettingsSection({
   }
 
   const handlePublish = async () => {
-    if (!isOwner || settings.status !== 'DRAFT' || publishing) return
+    if (!isOwner || !canPublish || publishing) return
     setPublishing(true)
     try {
       await onPublish()
@@ -175,7 +179,7 @@ export function GeneralSettingsSection({
               </button>
             )}
 
-            {isOwner && settings.status === 'DRAFT' && (
+            {isOwner && canPublish && (
               <button
                 type="button"
                 onClick={handlePublish}
