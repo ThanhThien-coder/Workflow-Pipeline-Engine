@@ -129,7 +129,7 @@ class FeedbackQueueServiceTest {
     @DisplayName("8.3 Resolve Feedback - Đổi trạng thái sang RESOLVED 1 chiều")
     void testResolveFeedback_Success() {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, ownerId)).thenReturn(new ProjectEntity());
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, ownerId)).thenReturn(new ProjectEntity());
 
         ProjectFeedbackEntity fb = ProjectFeedbackEntity.builder()
             .id(5L)
@@ -254,12 +254,12 @@ class FeedbackQueueServiceTest {
     }
 
     @Test
-    @DisplayName("8.3 Resolve Feedback - Không phải thành viên ném ACCESS_DENIED, không ghi repository")
+    @DisplayName("8.3 Resolve Feedback - Không có quyền ném ACCESS_DENIED từ verifyProjectOwnerOrManager, không ghi repository")
     void testResolveFeedback_AccessDenied() {
         Long strangerId = 999L;
         when(currentUserProvider.requireCurrentUserId()).thenReturn(strangerId);
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, strangerId))
-            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, strangerId))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới được thực hiện hành động này."));
 
         assertThatThrownBy(() -> feedbackQueueService.resolveFeedback(projectId, 5L))
             .isInstanceOf(ForbiddenException.class)

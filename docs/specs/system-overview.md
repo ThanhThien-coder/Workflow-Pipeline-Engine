@@ -85,10 +85,11 @@ Hệ thống được tổ chức thành 5 phân hệ chức năng độc lập 
 ### 3.1 Danh sách Tác nhân Con người (Human Actors)
 1. **Quản trị viên Hệ thống (System Admin)**: Quản trị toàn hệ thống, tài khoản và kho mẫu chung. Có thẩm quyền cao nhất ở cấp độ nền tảng nhưng độc lập với dữ liệu dự án.
 2. **Chủ dự án (Project Owner / Lead)**: Người khởi tạo dự án, nắm toàn quyền thiết kế đồ thị DAG, mời thành viên, nghiệm thu kết quả bàn giao và sinh Guest Link.
-3. **Cộng sự Thực thi (Collaborator / Member)**: Thành viên tham gia làm việc, nhận việc trên My Tasks, thực hiện công việc, nộp bài kèm link Artifact và tiếp thu phản hồi tại Feedback Queue.
-4. **Người xem Nội bộ (Project Viewer)**: Thành viên thuộc dự án được cấp quyền chỉ đọc (Read-only) đồ thị, xem danh mục Artifact và Dashboard thống kê.
-5. **Giáo viên / Khách ngoài (Guest via Token)**: Chuyên gia hoặc giáo viên truy cập qua liên kết tạm thời mang Token, xem tiến độ trực quan, để lại phản hồi 1 chiều và xem báo cáo AI.
-6. **Người dùng Vãng lai (Anonymous User)**: Người chưa đăng nhập, chỉ có thể xem trang giới thiệu, đăng ký và đăng nhập vào hệ thống.
+3. **Quản lý Dự án (Project Manager)**: Thành viên được Chủ dự án ủy quyền duyệt task, đổi người làm/hạn chót, đánh dấu góp ý; không có quyền quản trị dự án.
+4. **Cộng sự Thực thi (Collaborator / Member)**: Thành viên tham gia làm việc, nhận việc trên My Tasks, thực hiện công việc, nộp bài kèm link Artifact và tiếp thu phản hồi tại Feedback Queue.
+5. **Người xem Nội bộ (Project Viewer)**: Thành viên thuộc dự án được cấp quyền chỉ đọc (Read-only) đồ thị, xem danh mục Artifact và Dashboard thống kê.
+6. **Giáo viên / Khách ngoài (Guest via Token)**: Chuyên gia hoặc giáo viên truy cập qua liên kết tạm thời mang Token, xem tiến độ trực quan, để lại phản hồi 1 chiều và xem báo cáo AI.
+7. **Người dùng Vãng lai (Anonymous User)**: Người chưa đăng nhập, chỉ có thể xem trang giới thiệu, đăng ký và đăng nhập vào hệ thống.
 
 ### 3.2 Tác nhân Hệ thống (System Actors)
 * **Authentication Service**: Xác thực mật khẩu BCrypt, cấp phát JWT và kiểm soát phiên với `REFRESH_TOKEN`.
@@ -118,31 +119,31 @@ Hệ thống được tổ chức thành 5 phân hệ chức năng độc lập 
 
 Dưới đây là ma trận phân quyền chi tiết cho toàn bộ 23 chức năng cốt lõi của hệ thống:
 
-| STT | Use Case / Chức năng Nghiệp vụ | Anonymous | System Admin | Guest (Token) | Project Viewer | Collaborator | Project Owner |
-| :-: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **UC1** | Đăng ký tài khoản mới | ✅ | - | - | - | - | - |
-| **UC2** | Đăng nhập & Nhận Access Token / Refresh Token | ✅ | - | - | - | - | - |
-| **UC3** | Xem & Cập nhật Hồ sơ cá nhân (Profile) | - | ✅ | - | ✅ | ✅ | ✅ |
-| **UC4** | Quản lý User & Khóa/Mở tài khoản | - | ✅ | - | - | - | - |
-| **UC5** | CRUD Mẫu quy trình chuẩn (System Template Studio) | - | ✅ | - | - | - | - |
-| **UC6** | Giám sát hạ tầng & Chuyển Archive dự án rác | - | ✅ | - | - | - | - |
-| **UC7** | Khởi tạo Dự án mới & Clone Template | - | - | - | - | - | ✅ |
-| **UC8** | Mời thành viên tham gia (Invitation Flow) & Gán Role | - | - | - | - | - | ✅ |
-| **UC9** | Điều chỉnh vai trò thành viên / Loại bỏ (Soft Remove) | - | - | - | - | - | ✅ |
-| **UC10** | Thiết kế, chỉnh sửa & Lưu tọa độ đồ thị DAG Canvas | - | - | - | - | - | ✅ |
-| **UC11** | Chạy kiểm tra chu trình đồ thị (Kahn DAG Algorithm) | - | - | - | - | - | ✅ |
-| **UC12** | Sinh mới & Thu hồi Token chia sẻ (`GUEST_LINK`) | - | - | - | - | - | ✅ |
-| **UC13** | Phê duyệt bài (`REVIEW` ➔ `DONE`) hoặc Trả lại kèm lý do | - | - | - | - | - | ✅ |
-| **UC14** | Gia hạn Deadline / Điều chuyển người phụ trách Node | - | - | - | - | - | ✅ |
-| **UC15** | Xem bảng My Tasks cá nhân (`assignedUserId === me`) | - | - | - | - | ✅ | ✅ |
-| **UC16** | Chuyển trạng thái bắt đầu làm (`TODO` ➔ `IN_PROGRESS`) | - | - | - | - | ✅ | ✅ |
-| **UC17** | Hủy nhận việc (`IN_PROGRESS` ➔ `TODO`) | - | - | - | - | ✅ | ✅ |
-| **UC18** | Nộp bài (`IN_PROGRESS` ➔ `REVIEW`) kèm link Artifact | - | - | - | - | ✅ | ✅ |
-| **UC19** | Xem đồ thị tiến độ DAG & Kho tài nguyên Artifacts | - | - | ✅ | ✅ | ✅ | ✅ |
-| **UC20** | Xem Dashboard chỉ số & KPI dự án (Overview Screen) | - | - | ✅ | ✅ | ✅ | ✅ |
-| **UC21** | Xem báo cáo chẩn đoán sự cố & Đường găng AI | - | - | ✅ | ✅ | ✅ | ✅ |
-| **UC22** | Gửi phản hồi / Nhận xét 1 chiều trên Node hoặc Dự án | - | - | ✅ *(Gửi mới)* | - | - | - |
-| **UC23** | Xem danh sách & Đánh dấu RESOLVED Feedback Queue | - | - | - | - | ✅ | ✅ |
+| STT | Use Case / Chức năng Nghiệp vụ | Anonymous | System Admin | Guest (Token) | Project Viewer | Collaborator | Project Manager | Project Owner |
+| :-: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **UC1** | Đăng ký tài khoản mới | ✅ | - | - | - | - | - | - |
+| **UC2** | Đăng nhập & Nhận Access Token / Refresh Token | ✅ | - | - | - | - | - | - |
+| **UC3** | Xem & Cập nhật Hồ sơ cá nhân (Profile) | - | ✅ | - | ✅ | ✅ | ✅ | ✅ |
+| **UC4** | Quản lý User & Khóa/Mở tài khoản | - | ✅ | - | - | - | - | - |
+| **UC5** | CRUD Mẫu quy trình chuẩn (System Template Studio) | - | ✅ | - | - | - | - | - |
+| **UC6** | Giám sát hạ tầng & Chuyển Archive dự án rác | - | ✅ | - | - | - | - | - |
+| **UC7** | Khởi tạo Dự án mới & Clone Template | - | - | - | - | - | - | ✅ |
+| **UC8** | Mời thành viên tham gia (Invitation Flow) & Gán Role | - | - | - | - | - | - | ✅ |
+| **UC9** | Điều chỉnh vai trò thành viên / Loại bỏ (Soft Remove) | - | - | - | - | - | - | ✅ |
+| **UC10** | Thiết kế, chỉnh sửa & Lưu tọa độ đồ thị DAG Canvas | - | - | - | - | - | - | ✅ |
+| **UC11** | Chạy kiểm tra chu trình đồ thị (Kahn DAG Algorithm) | - | - | - | - | - | - | ✅ |
+| **UC12** | Sinh mới & Thu hồi Token chia sẻ (`GUEST_LINK`) | - | - | - | - | - | - | ✅ |
+| **UC13** | Phê duyệt bài (`REVIEW` ➔ `DONE`) hoặc Trả lại kèm lý do | - | - | - | - | - | ✅ | ✅ |
+| **UC14** | Gia hạn Deadline / Điều chuyển người phụ trách Node | - | - | - | - | - | ✅ | ✅ |
+| **UC15** | Xem bảng My Tasks cá nhân (`assignedUserId === me`) | - | - | - | - | ✅ | ✅ | ✅ |
+| **UC16** | Chuyển trạng thái bắt đầu làm (`TODO` ➔ `IN_PROGRESS`) | - | - | - | - | ✅ | ✅ | ✅ |
+| **UC17** | Hủy nhận việc (`IN_PROGRESS` ➔ `TODO`) | - | - | - | - | ✅ | ✅ | ✅ |
+| **UC18** | Nộp bài (`IN_PROGRESS` ➔ `REVIEW`) kèm link Artifact | - | - | - | - | ✅ | ✅ | ✅ |
+| **UC19** | Xem đồ thị tiến độ DAG & Kho tài nguyên Artifacts | - | - | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **UC20** | Xem Dashboard chỉ số & KPI dự án (Overview Screen) | - | - | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **UC21** | Xem báo cáo chẩn đoán sự cố & Đường găng AI | - | - | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **UC22** | Gửi phản hồi / Nhận xét 1 chiều trên Node hoặc Dự án | - | - | ✅ *(Gửi mới)* | - | - | - | - |
+| **UC23** | Xem danh sách & Đánh dấu RESOLVED Feedback Queue | - | - | - | - | - *(chỉ xem)* | ✅ | ✅ |
 
 ---
 

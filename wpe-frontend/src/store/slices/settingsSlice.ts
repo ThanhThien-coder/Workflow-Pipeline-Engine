@@ -43,7 +43,7 @@ export interface SettingsSlice {
     revokeInvitation: (invitationId: string) => Promise<boolean>
     acceptInvitation: (invitationId: string) => Promise<boolean>
     rejectInvitation: (invitationId: string) => Promise<boolean>
-    changeRole: (userId: string, role: 'COLLABORATOR' | 'VIEWER') => Promise<boolean>
+    changeRole: (userId: string, role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => Promise<boolean>
     kickMember: (userId: string) => Promise<boolean>
     demoteMember: (userId: string) => Promise<boolean>
     setAuditFilter: (scope: string) => void
@@ -368,7 +368,7 @@ export const createSettingsSlice = (
         }
       },
 
-      changeRole: async (userId: string, role: 'COLLABORATOR' | 'VIEWER') => {
+      changeRole: async (userId: string, role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => {
         const pid = currentProjectId()
         try {
           const updated = await workflowService.changeMemberRole(pid, userId, { role })

@@ -1,5 +1,6 @@
 package com.pipeline.wpe.service;
 
+import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
@@ -47,6 +48,29 @@ public class ProjectAuthorizationService {
         boolean isMember = projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, userId);
         if (!isMember) {
             throw new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này.");
+        }
+        return project;
+    }
+
+    /**
+     * Kiểm tra người dùng có phải Chủ dự án hoặc Quản lý (Manager).
+     */
+    public boolean isOwnerOrManager(ProjectEntity project, Long userId) {
+        if (project.getOwnerId().equals(userId)) {
+            return true;
+        }
+        return projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), userId)
+            .map(m -> m.getRole() == ProjectRole.MANAGER)
+            .orElse(false);
+    }
+
+    /**
+     * Thẩm định quyền Chủ dự án hoặc Quản lý (Owner hoặc Manager).
+     */
+    public ProjectEntity verifyProjectOwnerOrManager(Long projectId, Long userId) {
+        ProjectEntity project = getProjectOrThrow(projectId);
+        if (!isOwnerOrManager(project, userId)) {
+            throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới được thực hiện hành động này.");
         }
         return project;
     }

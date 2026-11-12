@@ -2,6 +2,7 @@ package com.pipeline.wpe.service.engine;
 
 import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
+import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.dto.event.TaskCompletedEvent;
 import com.pipeline.wpe.dto.request.node.SubmitTaskArtifactRequest;
 import com.pipeline.wpe.dto.request.node.UpdateNodeStatusRequest;
@@ -11,6 +12,7 @@ import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.NodeDependencyEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.mapper.NodeMapper;
@@ -164,14 +166,58 @@ class StateMachineServiceTest {
 
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, collaboratorId))
+            .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(collaboratorId).role(ProjectRole.COLLABORATOR).build()));
 
         UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("DONE", null, 0L);
 
         assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, request, collaboratorId))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("Chỉ Chủ dự án (Project Owner) mới có thẩm quyền");
+            .hasMessageContaining("Chỉ Chủ dự án hoặc Quản lý");
 
         verify(eventPublisher, never()).publishTaskCompleted(any());
+    }
+
+    @Test
+    @DisplayName("FSM 4b: REVIEW -> DONE cho phép MANAGER duyệt thành công và kích hoạt RabbitMQ")
+    void testMoveReviewToDone_byManager_success() {
+        Long managerId = 4L;
+        mockNode.setStatus(NodeStatus.REVIEW);
+
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, managerId))
+            .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(managerId).role(ProjectRole.MANAGER).build()));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
+
+        UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("DONE", null, 0L);
+        stateMachineService.updateStatus(taskId, request, managerId);
+
+        assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.DONE);
+        verify(eventPublisher).publishTaskCompleted(any(TaskCompletedEvent.class));
+    }
+
+    @Test
+    @DisplayName("FSM 6b: REVIEW -> IN_PROGRESS cho phép MANAGER trả lại kèm lý do thành công")
+    void testMoveReviewToInProgress_byManager_success() {
+        Long managerId = 4L;
+        mockNode.setStatus(NodeStatus.REVIEW);
+
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, managerId))
+            .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(managerId).role(ProjectRole.MANAGER).build()));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
+
+        UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("IN_PROGRESS", "example-reason: Cần làm lại", 0L);
+        stateMachineService.updateStatus(taskId, request, managerId);
+
+        assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
+        assertThat(mockNode.getRejectReason()).isEqualTo("example-reason: Cần làm lại");
+        verify(eventPublisher).publishNotification(any());
+        verify(sseEmitterService).sendToUser(eq(collaboratorId), eq("TASK_REJECTED"), any());
     }
 
     @Test

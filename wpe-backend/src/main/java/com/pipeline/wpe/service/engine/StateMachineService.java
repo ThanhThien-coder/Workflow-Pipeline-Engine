@@ -3,6 +3,7 @@ package com.pipeline.wpe.service.engine;
 import com.pipeline.wpe.common.enums.ArtifactType;
 import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
+import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.event.TaskCompletedEvent;
@@ -131,6 +132,9 @@ public class StateMachineService {
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
+        boolean canReview = isOwner || projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), currentUserId)
+            .map(m -> m.getRole() == ProjectRole.MANAGER)
+            .orElse(false);
 
         // 3. Strict Review Gate & Ma trận chuyển trạng thái
         if (targetStatus == NodeStatus.DONE) {
@@ -138,8 +142,8 @@ public class StateMachineService {
             if (currentStatus != NodeStatus.REVIEW) {
                 throw new IllegalArgumentException("Tác vụ bắt buộc phải qua bước REVIEW trước khi nghiệm thu.");
             }
-            if (!isOwner) {
-                throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có thẩm quyền phê duyệt hoàn thành tác vụ.");
+            if (!canReview) {
+                throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới có thẩm quyền phê duyệt hoàn thành tác vụ.");
             }
 
             node.setStatus(NodeStatus.DONE);
@@ -154,9 +158,9 @@ public class StateMachineService {
             ));
 
         } else if (targetStatus == NodeStatus.IN_PROGRESS && currentStatus == NodeStatus.REVIEW) {
-            // Owner từ chối bài nộp: REVIEW -> IN_PROGRESS
-            if (!isOwner) {
-                throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền yêu cầu làm lại tác vụ.");
+            // Owner hoặc Manager từ chối bài nộp: REVIEW -> IN_PROGRESS
+            if (!canReview) {
+                throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới có quyền yêu cầu làm lại tác vụ.");
             }
             if (request.rejectReason() == null || request.rejectReason().trim().isEmpty()) {
                 throw new IllegalArgumentException("Bắt buộc phải nhập lý do từ chối (rejectReason).");

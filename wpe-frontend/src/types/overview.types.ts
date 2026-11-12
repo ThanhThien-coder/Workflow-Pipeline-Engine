@@ -99,7 +99,7 @@ export interface OverviewData {
   project: {
     id: string
     name: string
-    role: 'OWNER' | 'COLLABORATOR' | 'VIEWER'
+    role: 'OWNER' | 'MANAGER' | 'COLLABORATOR' | 'VIEWER'
     phaseLabel: string
     lastUpdatedAt: ISODateTime
   }

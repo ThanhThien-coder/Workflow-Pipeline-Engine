@@ -8,8 +8,9 @@ import type {
 const TONES: ProjectTone[] = ['indigo', 'amber', 'sky', 'emerald', 'violet', 'slate']
 const ICONS: string[] = ['◆', '▲', '⬢', '◉', '■', '▣']
 
-const ROLE_LABELS: Record<ProjectRole, string> = {
+const ROLE_LABELS: Record<ProjectRole | 'MANAGER', string> = {
   OWNER: 'Owner',
+  MANAGER: 'Quản lý',
   COLLABORATOR: 'Collaborator',
   VIEWER: 'Viewer',
 }
