@@ -58,7 +58,7 @@
 | **`LOCKED`** | Đang chờ các nút tiền nhiệm hoàn thành. | Hiển thị biểu tượng Ổ Khóa trên Canvas; **hoàn toàn không xuất hiện trên bảng My Tasks**. | Engine tự động chuyển sang `TODO` khi thỏa mãn Join Policy, hoặc Owner bấm Force Unlock. |
 | **`TODO`** | Đã sẵn sàng thực hiện. | Tự động xuất hiện tại cột TODO trên bảng My Tasks của người phụ trách theo mô hình Direct Push. | Thành viên bấm "Bắt đầu làm" hoặc kéo sang `IN_PROGRESS`. |
 | **`IN_PROGRESS`** | Đang được thực hiện trực tiếp. | Hiển thị tại cột In Progress; nếu quá `due_date` sẽ hiển thị badge cảnh báo Đỏ (`is_overdue = TRUE`). | Thành viên nộp kết quả (`REVIEW`) hoặc hủy nhận (`TODO`). |
-| **`REVIEW`** | Đã nộp bài, đang chờ nghiệm thu. | Hiển thị tại cột In Review; chờ phê duyệt từ Chủ dự án. | Duy nhất Chủ dự án (`OWNER`) duyệt (`DONE`) hoặc từ chối (`IN_PROGRESS`). |
+| **`REVIEW`** | Đã nộp bài, đang chờ nghiệm thu. | Hiển thị tại cột In Review; chờ phê duyệt từ Chủ dự án hoặc Quản lý. | Chủ dự án (`OWNER`) hoặc thành viên `MANAGER` còn hoạt động duyệt (`DONE`) hoặc từ chối (`IN_PROGRESS`) (Manager: PR #33). |
 | **`DONE`** | Đã nghiệm thu hoàn thành. | Đóng băng (`draggable = false`); hiển thị badge xanh lá cây; kích hoạt Engine mở khóa downstream nodes. | **Trạng thái kết thúc (Terminal State)**, không cho phép kéo lùi. |
 
 ---
@@ -72,8 +72,12 @@
 | `TODO` | `IN_PROGRESS` | ✅ Trực tiếp | ✅ | Kiểm tra `version` (Optimistic Locking); bắt đầu tính thời gian làm việc. |
 | `IN_PROGRESS` | `TODO` | ✅ | ✅ | Hủy nhận việc, giải phóng task về trạng thái sẵn sàng. |
 | `IN_PROGRESS` | `REVIEW` | ✅ *(Qua Modal)* | ✅ *(Qua Modal)* | **Bắt buộc mở Modal nộp bài**; đính kèm Artifact là tùy chọn (Optional). |
-| `REVIEW` | `DONE` | ❌ *(Bị chặn)* | ✅ *(Nghiệm thu)* | **Strict Review Constraint**: Chỉ Owner được duyệt hoàn tất. |
-| `REVIEW` | `IN_PROGRESS`| ❌ | ✅ *(Yêu cầu sửa)* | Owner từ chối nghiệm thu, **bắt buộc nhập lý do vào `reject_reason`**. |
+| `REVIEW` | `DONE` | ❌ *(Bị chặn)* | ✅ *(Nghiệm thu)* | **Strict Review Constraint**: chỉ Owner hoặc `MANAGER` còn hoạt động được duyệt hoàn tất. |
+| `REVIEW` | `IN_PROGRESS`| ❌ | ✅ *(Yêu cầu sửa)* | Owner hoặc `MANAGER` từ chối nghiệm thu, **bắt buộc nhập lý do vào `reject_reason`**. |
+
+**Vai trò Manager (backend, PR #33; C1b kiểm 12/11/2026):** `MANAGER` còn hoạt động (bản ghi `project_member` có `removed_at = null`) được duyệt và từ chối như Owner. Manager **không** được bắt đầu, hủy nhận, nộp bài thay người phụ trách (403) và **không** được force unlock (403, vẫn chỉ Owner). Manager đã bị gỡ khỏi dự án thì mất quyền duyệt/từ chối (403). Manager duyệt thì `TaskCompletedEvent.completedByUserId` là id Manager, và Owner nhận SSE `TASK_STATUS_CHANGED`. Test: `StateMachineServiceMatrixTest` (cột Manager và lớp `ManagerRole`).
+
+> ⚠️ **Lệch FE/BE (chưa sửa):** `wpe-frontend/src/domain/taskTransitions.ts` (`evaluateTransition`, đoạn mẫu ở dưới) vẫn chỉ cho `OWNER` duyệt/từ chối. Backend cho Manager duyệt nhưng giao diện chặn với thông báo "Chỉ Owner mới có quyền duyệt". Cần sửa FE (ngoài phạm vi C1, báo nhóm).
 | `TODO` | `REVIEW` | ❌ | ❌ | Chặn: Phải bắt đầu làm việc trước khi nộp bài. |
 | `TODO` / `IN_PROGRESS` | `DONE` | ❌ | ❌ | Chặn: Bắt buộc phải qua bước `REVIEW` trước khi hoàn thành. |
 | `DONE` | Bất kỳ | ❌ | ❌ | Chặn: Trạng thái đóng băng, không cho phép kéo ngược lại. |

@@ -219,6 +219,31 @@ Sau đó đã xóa dự án tạm và trả DB về dữ liệu seed.
 - **Cho B (B4):** `publish*` giờ tự gửi sau commit. Code B4 hiện tự bọc `publishNotification` trong `afterCommit` của nó; vẫn chạy đúng (mục 6), nhưng có thể gọi thẳng `publishNotification` cho gọn — B quyết. Ngoài ra `SseEmitterService.sendToUser` gọi trực tiếp từ `WorkflowGraphService` (B3, B4) vẫn gửi ngay lúc gọi; muốn gửi sau commit thì phía B tự bọc (C2 có thể xem xét đưa vào `SseEmitterService`).
 - Thông báo `FORCE_UNLOCKED` mới chỉ được **lưu vào bảng `notification`**, chưa hiện trên chuông: FE vẫn dùng `MockNotificationApi` (`FE/services/container.ts`) và BE chưa có API đọc thông báo. Việc nối chuông với API thật và nghe SSE `NOTIFICATION_RECEIVED` là của C3. Kiểm C1 thì xem bảng `notification` bằng SQL, không xem chuông.
 
+## C1b — Bổ sung vai trò Manager vào ma trận (sau PR #33, 12/11/2026)
+**Vì sao:** PR #33 (D, vai trò MANAGER) cho Manager duyệt và từ chối bài. Ma trận C1 chỉ có Owner / người phụ trách / thành viên khác nên thiếu cột Manager. Nhóm yêu cầu: "C bổ sung ô Manager vào bộ test ma trận của C1". Ghi ở đây vì `tien-do.mjs` chỉ nhận mã task dạng `C1`, `C2`.
+
+**Đã làm:** chỉ thêm test và docs, không sửa code (hành vi đã có từ #33).
+- `BE-test/service/engine/StateMachineServiceMatrixTest.java`: thêm vai trò `MANAGER` (thành viên `MANAGER` còn hoạt động) và `REMOVED_MANAGER` (không còn bản ghi `project_member` hoạt động); người phụ trách và thành viên khác được giả lập là `COLLABORATOR` hoạt động. Thêm 7 ô vào ma trận tham số và lớp `@Nested ManagerRole` 7 test.
+- `docs/specs/workflow-engine.md` mục 1 và 2.1: luật duyệt/từ chối có Manager, đoạn "Vai trò Manager", cảnh báo lệch FE/BE.
+
+**Cột Manager** (M = Manager còn hoạt động, RM = Manager đã bị gỡ):
+
+| Thao tác | M | RM | Test |
+| :--- | :--- | :--- | :- |
+| REVIEW → DONE (duyệt) | 200 + `TaskCompletedEvent` (`completedByUserId` = Manager), SSE tới người phụ trách và Owner sau commit | 403 | ✔ |
+| REVIEW → IN_PROGRESS có lý do (từ chối) | 200 + thông báo `REJECTED` cho người phụ trách | 403 | ✔ |
+| REVIEW → IN_PROGRESS thiếu lý do | 400 | — | ✔ |
+| TODO → IN_PROGRESS, IN_PROGRESS → TODO, IN_PROGRESS → REVIEW | 403 (không phụ trách) | — | ✔ |
+| Nộp bài kèm minh chứng | 403 | — | ✔ |
+| Force unlock | 403 (vẫn chỉ Owner) | — | ✔ |
+| Duyệt trên dự án ARCHIVED | 409 `PROJECT_ARCHIVED` | — | ✔ |
+
+**Kết quả test:** `StateMachineServiceMatrixTest` 54 test (40 cũ + 14 mới), `StateMachineServiceTest` 17 test, đều pass. 14 test mới **pass ngay từ đầu** vì #33 đã cài đúng hành vi; vai trò của chúng là khóa hành vi đó lại.
+
+**Điều chưa chắc / cần báo nhóm:**
+- **Lệch FE/BE:** `wpe-frontend/src/domain/taskTransitions.ts` (`evaluateTransition`) vẫn chỉ cho `OWNER` duyệt/từ chối; #33 không sửa file này. Manager bấm duyệt trên giao diện sẽ bị chặn dù backend cho phép. Ngoài phạm vi C1 (FE), cần D hoặc C6 sửa.
+- Sơ đồ C7 (use case, đặc tả Duyệt/Từ chối) cũng phải thêm Manager.
+
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
