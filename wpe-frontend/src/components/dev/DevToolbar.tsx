@@ -4,6 +4,7 @@ import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../../store/slices/devSlice'
 import type { ProjectStatus } from '../../types/settings.types'
 import { useRouter } from '../../router/useRouter'
+import { isMockMode } from '../../services/env'
 
 
 const STATUSES: { id: ProjectStatus; label: string; activeClass: string }[] = [
@@ -15,7 +16,7 @@ const STATUSES: { id: ProjectStatus; label: string; activeClass: string }[] = [
 
 export function DevToolbar() {
   // Strict Production & Real Backend Guard: Only active in DEV mode with MOCK service enabled
-  if (!import.meta.env.DEV || import.meta.env.VITE_USE_MOCK !== 'true') {
+  if (!import.meta.env.DEV || !isMockMode) {
     return null
   }
 

@@ -13,6 +13,7 @@ import type { INotificationService } from './contracts/INotificationService'
 import { MockNotificationApi } from './mock/MockWorkflowService.notification'
 
 import { HttpTemplateService } from './template/HttpTemplateService'
+import { isMockMode } from './env'
 
 export interface ServiceContainer {
   workflowService: IWorkflowService
@@ -23,7 +24,7 @@ export interface ServiceContainer {
   notificationService: INotificationService
 }
 
-const isMock = import.meta.env.VITE_USE_MOCK !== 'false'
+const isMock = isMockMode
 
 export const container: ServiceContainer = {
   workflowService: isMock ? new MockWorkflowService() : new HttpWorkflowService(),
