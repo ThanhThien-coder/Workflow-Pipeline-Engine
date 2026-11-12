@@ -187,7 +187,29 @@ StateMachineServiceMatrixTest  Tests run: 40, Failures: 0, Errors: 0, Skipped: 0
 StateMachineServiceTest        Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
 WorkflowGraphServiceTest       Tests run: 53, Failures: 0, Errors: 0, Skipped: 0
 ```
-**Chưa chạy lại thực nghiệm thật (mục 3–5) với bản `afterCompletion`:** backend cũ còn giữ cổng 8080 và lệnh dừng tiến trình bị chặn. Cần chạy lại kịch bản T0 (duyệt WPE-003 → WPE-004 mở khóa) và xuất bản một dự án DRAFT (thông báo `TASK_READY` có trong bảng `notification`) trước khi chốt.
+**Chạy thật lại với bản `afterCompletion` (backend bật từ code cuối, sau rebase):**
+```
+Kịch bản T0:
+Trước: WPE-003=TODO(v0), WPE-004=LOCKED(v0)
+1) sarah (3) PATCH /nodes/3/status IN_PROGRESS version=0 -> HTTP 200
+2) sarah (3) POST /nodes/3/submit version=1 -> HTTP 200
+3) alex (2) PATCH /nodes/3/status DONE version=2 -> HTTP 200 (mất 74 ms)
+Sau 3 giây: WPE-003=DONE(v3), WPE-004=TODO(v1)
+  [nio-8080-exec-7] Publishing TaskCompletedEvent for Task ID: 3, Code: WPE-003 in Project: 1
+  [ntContainer#1-1] Engine executing downstream check for parentTaskId: 3
+  [ntContainer#1-1] Mở khóa thành công node con ID: 4, Code: WPE-004 từ LOCKED -> TODO
+Bảng notification có thêm: "Tác vụ chờ nghiệm thu" (cho alex) và "Tác vụ sẵn sàng thực hiện" (WPE-004, cho alex).
+
+Xuất bản (B4): tạo tạm dự án DRAFT id 2, 1 phase, 1 node WPE-001 LOCKED giao cho alex
+POST /projects/2/publish -> {"success":true,"status":"ACTIVE",...,"unlockedTaskCount":1}
+Node: WPE-001 TODO v1
+notification mới: 9 | user 2 | Tác vụ sẵn sàng thực hiện | Dự án đã được xuất bản. Tác vụ WPE-001 (Task thu) đã mở khóa, bạn có thể bắt đầu!
+  [nio-8080-exec-4] Publishing NotificationEvent for User ID: 2, Type: TASK_READY
+  [ntContainer#3-1] Saved notification ID: 9 for user: 2
+```
+Sau đó đã xóa dự án tạm và trả DB về dữ liệu seed.
+
+**Phát hiện thêm khi chạy thật (chưa sửa, có từ trước C1):** sarah `PATCH /nodes/3/status` IN_PROGRESS với `version=0` → response trả `"version":0` trong khi DB đã là `v1`. Payload SSE `TASK_STATUS_CHANGED` dùng chính object này nên cũng mang version cũ. Lý do: response được tạo trước khi Hibernate flush (version chỉ tăng lúc flush). B đã báo cùng lỗi ở PR #31. Chờ nhóm quyết sửa trong C1 hay C2.
 
 **Dời về buổi kiểm chung (SPRINT mục 7.2 dòng 6):** alex duyệt task của sarah trên giao diện → WPE-004 tự mở khóa.
 
