@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: T0
 Cần trước bước frontend: không
 Mở khóa: B2, B3, D3, D6
@@ -136,3 +136,6 @@ Task này không có bước Swagger, SQL hay trình duyệt.
 - **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
 - **Cần học lại:**
+
+## Review của C (12/11/2026, chế độ sprint)
+Đạt 2 tiêu chí review sprint (SPRINT_2_NGAY.md mục 5): (1) test xanh: ghi chép có output thật trước/sau khi sửa; C chạy lại `./mvnw test` trên main 77416de: 425 test pass, `KahnDagServiceTest` 31/31; (2) PR #15 sửa 4 file, đều nằm trong "Được ghi".

@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: B1
 Cần trước bước frontend: không
 Mở khóa: không
@@ -220,3 +220,6 @@ so phase project 2 truoc/sau: 0 / 0
 - **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
 - **Cần học lại:**
+
+## Review của C (12/11/2026, chế độ sprint)
+Đạt 2 tiêu chí review sprint: (1) test xanh (`./mvnw test` trên main 77416de: 425 pass, `WorkflowGraphServiceTest` 53/53); (2) PR #22 sửa 11 file, đều nằm trong "Được ghi" (`UpdatePhaseRequest.java` có trong danh sách).

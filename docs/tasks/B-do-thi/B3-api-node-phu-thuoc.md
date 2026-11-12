@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: B1
 Cần trước bước frontend: không
 Mở khóa: B4, B5
@@ -213,3 +213,6 @@ xoa Y HTTP 204
 - **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
 - **Cần học lại:**
+
+## Review của C (12/11/2026, chế độ sprint)
+Đạt 2 tiêu chí review sprint: (1) test xanh (`./mvnw test` trên main 77416de: 425 pass); (2) PR #23 tách từ nhánh B2 nên hiển thị cả 3 commit của B2; 2 commit riêng của B3 sửa 7 file, đều nằm trong "Được ghi".

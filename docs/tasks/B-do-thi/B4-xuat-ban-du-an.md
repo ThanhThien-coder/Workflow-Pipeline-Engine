@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: B3
 Cần trước bước frontend: không
 Mở khóa: B6, B8
@@ -220,3 +220,6 @@ Ghi chú môi trường: lần khởi động đầu Flyway chạy V8 theo kiể
 - **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
 - **Cần học lại:**
+
+## Review của C (12/11/2026, chế độ sprint)
+Đạt 2 tiêu chí review sprint: (1) test xanh (`./mvnw test` trên main 77416de: 425 pass); (2) PR #31 sửa 5 file, đều nằm trong "Được ghi". Ghi chú: B4 gọi `publishNotification` từ bên trong `afterCommit`; C1 (#35) đã đổi publisher sang `afterCompletion(STATUS_COMMITTED)` để thông báo `TASK_READY` không bị mất, code B4 không cần đổi.
