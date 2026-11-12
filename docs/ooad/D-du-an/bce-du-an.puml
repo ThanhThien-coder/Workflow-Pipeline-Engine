@@ -1,0 +1,161 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/ (controller, service, entity), docs/specs/system-overview.md, docs/specs/database-schema.md
+' Sơ đồ Class phân tích (Boundary - Control - Entity) mảng Dự án, Template, Khách & AI (WPE)
+
+@startuml bce-du-an
+!pragma layout smetana
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+' --- Actors ---
+actor "Chủ dự án" as Act_Owner
+actor "Thành viên" as Act_Member
+actor "Người được mời" as Act_Invitee
+actor "Khách / Giáo viên" as Act_Guest
+actor "Quản trị viên" as Act_Admin
+
+' --- Boundaries ---
+class "Màn hình Workspace" as B_Workspace <<boundary>>
+class "Màn hình Cài đặt thành viên" as B_MemberSettings <<boundary>>
+class "Trang khách" as B_GuestPortal <<boundary>>
+class "Template Studio" as B_TemplateStudio <<boundary>>
+
+' --- Controls ---
+class "Điều khiển dự án" as C_Project <<control>>
+class "Điều khiển lời mời" as C_Invitation <<control>>
+class "Điều khiển thành viên" as C_Member <<control>>
+class "Cổng khách" as C_GuestGateway <<control>>
+class "Điều khiển góp ý" as C_Feedback <<control>>
+class "Bộ chẩn đoán AI" as C_AiDiagnostic <<control>>
+class "Điều khiển template" as C_Template <<control>>
+
+' --- Entities ---
+class "Dự án" as E_Project <<entity>> {
+  mã dự án
+  tên dự án
+  mô tả
+  trạng thái
+  kết quả phân tích AI
+}
+
+class "Thành viên" as E_Member <<entity>> {
+  mã thành viên
+  vai trò
+  ngày tham gia
+  ngày xóa mềm
+}
+
+class "Lời mời" as E_Invitation <<entity>> {
+  mã lời mời
+  vai trò đề xuất
+  trạng thái
+  ngày hết hạn
+  phiên bản
+}
+
+class "Link khách" as E_GuestLink <<entity>> {
+  token bảo mật
+  trạng thái thu hồi
+  ngày hết hạn
+}
+
+class "Góp ý" as E_Feedback <<entity>> {
+  mã góp ý
+  người nhận xét
+  vai trò người nhận xét
+  nội dung
+  trạng thái
+}
+
+class "Template" as E_Template <<entity>> {
+  mã mẫu
+  tên mẫu
+  danh mục
+  dữ liệu đồ thị
+  số lượt nhân bản
+}
+
+class "Người dùng" as E_User <<entity>> {
+  mã người dùng
+  tên đăng nhập
+  email
+  họ tên
+  vai trò hệ thống
+}
+
+class "Node" as E_Node <<entity>> {
+  mã tác vụ
+  tiêu đề
+  trạng thái
+  chính sách hội tụ
+}
+
+' --- Nối Actor <--> Boundary ---
+Act_Owner --> B_Workspace
+Act_Owner --> B_MemberSettings
+Act_Member --> B_Workspace
+Act_Invitee --> B_Workspace
+Act_Guest --> B_GuestPortal
+Act_Admin --> B_TemplateStudio
+
+' --- Nối Boundary <--> Control ---
+B_Workspace --> C_Project
+B_Workspace --> C_AiDiagnostic
+B_Workspace --> C_Feedback
+B_Workspace --> C_Invitation
+
+B_MemberSettings --> C_Invitation
+B_MemberSettings --> C_Member
+
+B_GuestPortal --> C_GuestGateway
+B_GuestPortal --> C_Feedback
+
+B_TemplateStudio --> C_Template
+
+' --- Nối Control <--> Entity ---
+C_Project --> E_Project
+C_Project --> E_Member
+
+C_Invitation --> E_Invitation
+C_Invitation --> E_Project
+C_Invitation --> E_User
+C_Invitation --> E_Member
+
+C_Member --> E_Member
+C_Member --> E_Node
+
+C_GuestGateway --> E_GuestLink
+C_GuestGateway --> E_Project
+C_GuestGateway --> E_Node
+
+C_Feedback --> E_Feedback
+C_Feedback --> E_GuestLink
+C_Feedback --> E_Project
+C_Feedback --> E_Node
+
+C_AiDiagnostic --> E_Project
+C_AiDiagnostic --> E_Node
+C_AiDiagnostic --> E_Feedback
+
+C_Template --> E_Template
+
+' --- Quan hệ giữa các Entity kèm bội số ---
+E_Project "1" -- "*" E_Member : có >
+E_User "1" -- "*" E_Member : tham gia >
+
+E_Project "1" -- "*" E_Invitation : thuộc về <
+E_User "1" -- "*" E_Invitation : gửi (inviter) >
+E_User "1" -- "*" E_Invitation : nhận (invitee) >
+
+E_Project "1" -- "0..1" E_GuestLink : chia sẻ qua (còn hiệu lực) >
+
+E_Project "1" -- "*" E_Feedback : nhận >
+E_Node "0..1" -- "*" E_Feedback : gắn với <
+
+E_Project "1" -- "*" E_Node : bao gồm >
+E_User "1" -- "*" E_Template : khởi tạo >
+
+' --- Note Lớp kết hợp ---
+note "Thành viên là lớp kết hợp giữa Người dùng và Dự án\n(lưu vai trò dự án, ngày gia nhập, ngày xóa mềm)" as Note_Member
+Note_Member .. E_Member
+
+@enduml
