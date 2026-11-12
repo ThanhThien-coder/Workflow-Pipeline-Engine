@@ -5,6 +5,8 @@ import type {
   TemplateDetailDto,
   CreateTemplateRequestDto,
   UpdateTemplateRequestDto,
+  SaveProjectAsTemplateRequestDto,
+  TemplateCategory,
   GraphDataPayload,
   DagValidationResult,
 } from '../../types/template.types';
@@ -95,6 +97,8 @@ export class MockTemplateService implements ITemplateService {
       createdBy: t.createdBy,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
+      visibility: t.visibility || 'PUBLIC',
+      sourceProjectId: t.sourceProjectId || null,
     }));
   }
 
@@ -192,5 +196,41 @@ export class MockTemplateService implements ITemplateService {
   async validateGraph(graphData: GraphDataPayload): Promise<DagValidationResult> {
     await delay(100);
     return validateTemplateGraph(graphData);
+  }
+
+  async saveProjectAsTemplate(
+    projectId: string,
+    payload: SaveProjectAsTemplateRequestDto
+  ): Promise<TemplateDetailDto> {
+    await delay(150);
+    this.templates = loadPersistedTemplates();
+    const now = new Date().toISOString();
+    const newId = `tpl-custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const newTemplate: TemplateDetailDto = {
+      id: newId,
+      name: payload.name,
+      description: payload.description || null,
+      category: (payload.category as TemplateCategory) || 'General',
+      isSystemStandard: false,
+      visibility: 'PRIVATE',
+      sourceProjectId: projectId,
+      phaseCount: 0,
+      nodeCount: 0,
+      cloneCount: 0,
+      createdBy: 'You',
+      createdAt: now,
+      updatedAt: now,
+      graphData: {
+        schemaVersion: 2,
+        phases: [],
+        phaseEdges: [],
+        nodes: [],
+        edges: [],
+        metadata: { version: '1' },
+      },
+    };
+    this.templates.unshift(newTemplate);
+    persistTemplates(this.templates);
+    return structuredClone(newTemplate);
   }
 }

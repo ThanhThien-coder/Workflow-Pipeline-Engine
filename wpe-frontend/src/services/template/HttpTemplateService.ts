@@ -5,6 +5,7 @@ import type {
   TemplateDetailDto,
   CreateTemplateRequestDto,
   UpdateTemplateRequestDto,
+  SaveProjectAsTemplateRequestDto,
   GraphDataPayload,
   DagValidationResult,
 } from '../../types/template.types';
@@ -121,5 +122,22 @@ export class HttpTemplateService implements ITemplateService {
         nodeIds: v.nodeIds || (v.nodeId ? [v.nodeId] : (v.cycleNodes || [])),
       })),
     };
+  }
+
+  async saveProjectAsTemplate(
+    projectId: string,
+    payload: SaveProjectAsTemplateRequestDto
+  ): Promise<TemplateDetailDto> {
+    const res = await fetch(`${API_BASE_URL}/projects/${projectId}/save-as-template`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to save project as template: HTTP ${res.status}`);
+    }
+    return res.json();
   }
 }
