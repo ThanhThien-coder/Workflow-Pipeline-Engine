@@ -124,7 +124,7 @@ const SEED: KanbanTask[] = [
   mk('m18', 'WPE-035', 'CI Pipeline cho Backend', 'GitHub Actions: lint, test, build Docker image, push registry.', 'P1', 'DONE', '3', '2026-09-12', 'Artifact: PR Merged', [art('a-m18', 'PR', 'https://github.com/wpe/api/pull/12', 'PR #12')]),
 ]
 
-export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updateTaskStatus' | 'submitTaskArtifact' | 'getProjectMembers'> {
+export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updateTaskStatus' | 'submitTaskArtifact' | 'getProjectMembers' | 'updateTaskAssignment'> {
   private tasks = structuredClone(SEED)
 
   async getMyTasks(_projectId: string, userId: string): Promise<KanbanTask[]> {
@@ -183,6 +183,28 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updat
     task.status = 'REVIEW'
     task.version += 1
     return structuredClone({ task, artifact })
+  }
+
+  async updateTaskAssignment(
+    taskId: string,
+    cmd: { assignedUserId?: string; dueDate?: string; version: number }
+  ): Promise<Pick<KanbanTask, 'assignedUserId' | 'dueDate' | 'version'>> {
+    await mockDelay(100)
+    const task = this.tasks.find((item) => item.id === taskId)
+    if (!task) throw new Error('Không tìm thấy task')
+    if (cmd.assignedUserId !== undefined) {
+      task.assignedUserId = cmd.assignedUserId
+    }
+    if (cmd.dueDate !== undefined) {
+      task.dueDate = cmd.dueDate
+      task.isOverdue = task.status !== 'DONE' && Date.parse(task.dueDate) < MOCK_NOW
+    }
+    task.version += 1
+    return {
+      assignedUserId: task.assignedUserId,
+      dueDate: task.dueDate,
+      version: task.version,
+    }
   }
 
   reset(): void {

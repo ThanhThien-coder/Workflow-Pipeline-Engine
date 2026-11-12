@@ -349,6 +349,65 @@ export function usePhaseKanban(
     setSubmittingTaskId(null)
   }, [])
 
+  const updateAssignment = useCallback(
+    async (
+      taskId: string,
+      cmd: { assignedUserId?: string; dueDate?: string }
+    ): Promise<boolean> => {
+      const task = phaseTasks.find((t) => t.id === taskId) || allTasks.find((t) => t.id === taskId)
+      const currentVersion = task ? task.version : 0
+      try {
+        const updated = await workflowService.updateTaskAssignment(taskId, {
+          ...cmd,
+          version: currentVersion,
+        })
+
+        setAllTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  assignedUserId: updated.assignedUserId !== '' ? updated.assignedUserId : t.assignedUserId,
+                  dueDate: updated.dueDate !== '' ? updated.dueDate : t.dueDate,
+                  version: updated.version,
+                }
+              : t
+          )
+        )
+
+        const currentStoreTasks = useWorkflowStore.getState().kanban.tasks
+        if (currentStoreTasks.some((t) => t.id === taskId)) {
+          useWorkflowStore.setState((state) => ({
+            kanban: {
+              ...state.kanban,
+              tasks: state.kanban.tasks.map((t) =>
+                t.id === taskId
+                  ? {
+                      ...t,
+                      assignedUserId: updated.assignedUserId !== '' ? updated.assignedUserId : t.assignedUserId,
+                      dueDate: updated.dueDate !== '' ? updated.dueDate : t.dueDate,
+                      version: updated.version,
+                    }
+                  : t
+              ),
+            },
+          }))
+        }
+
+        showToast('Đã cập nhật phân công')
+        return true
+      } catch (err) {
+        showToast(
+          err instanceof Error
+            ? err.message
+            : 'Không thể cập nhật phân công. Vui lòng thử lại.'
+        )
+        return false
+      }
+    },
+    [phaseTasks, allTasks, showToast]
+  )
+
   return {
     allTasks,
     phaseTasks,
@@ -364,5 +423,6 @@ export function usePhaseKanban(
     openSubmitModal,
     closeSubmitModal,
     refreshTasks: loadProjectTasks,
+    updateAssignment,
   }
 }

@@ -7,6 +7,7 @@ import * as graphApi from './http/graph'
 import * as workspaceApi from './http/workspace'
 import * as membersApi from './http/members'
 import * as guestApi from './http/guest'
+import * as assignmentApi from './http/assignment'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import type {
   ArtifactItem,
@@ -166,6 +167,16 @@ export class HttpWorkflowService implements IWorkflowService {
     }
 
     return { task, artifact }
+  }
+
+  /** PATCH /nodes/{taskId}/assignment */
+  async updateTaskAssignment(
+    taskId: string,
+    cmd: { assignedUserId?: string; dueDate?: string; version: number }
+  ): Promise<Pick<KanbanTask, 'assignedUserId' | 'dueDate' | 'version'>> {
+    const res = await assignmentApi.patchAssignment(taskId, cmd)
+    this.taskVersionCache.set(String(taskId), res.version)
+    return res
   }
 
   getProjectMembers(projectId: string): Promise<UserSummary[]> {
