@@ -2,7 +2,7 @@
 
 Người làm: C
 Người review: D
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: A2, C1
 Cần trước bước frontend: không
 Mở khóa: X1
@@ -88,12 +88,68 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 > Viết bằng lời của bạn. Người review đọc phần này trước khi đọc code.
 
 ### Trả lời Bước 0
+Chế độ sprint: bỏ qua phần tự đọc. Đọc code thấy khác mô tả "Vì sao cần task này" ở 1 điểm: `CreateArtifactRequest` **đã có** `@Pattern("^https?://.+")` nên `javascript:` khi thêm link đã bị 400, nhưng regex này lọt link thiếu host (`http:///abc`), và **đường nộp bài không kiểm URL nào** (lưu được `javascript:`). Ngoài ra: `type` là enum nên giá trị lạ làm JSON lỗi (không thành `OTHER_LINK`); xóa và bật/tắt kho dùng `orElse(null)` nên không đăng nhập thì service **bỏ qua kiểm quyền**. Trang khách (`GuestGatewayService`) đã lọc đúng `findByProjectIdAndIsPublicForGuestTrue`.
 
 ### Đã làm gì (file nào, vì sao)
+Làm theo chế độ sprint ngày 12/11/2026, nhánh `c4-artifacts` từ main (đã có A2, C1, C2). Không làm phần FE (sprint).
+- `BE/dto/artifact/ArtifactUrlValidator.java` (mới): phân tích bằng `java.net.URI`, chỉ nhận `http`/`https` (không phân biệt hoa thường), bắt buộc có host, tối đa 500 ký tự. Vừa là `ConstraintValidator` vừa có hàm tĩnh `isValid` cho chỗ không có `@Valid`.
+- `BE/dto/artifact/ValidArtifactUrl.java` (mới): annotation dùng validator trên.
+- `BE/dto/artifact/CreateArtifactRequest.java`: `url` dùng `@ValidArtifactUrl` thay regex; `type` đổi từ enum sang chuỗi (JSON gửi lên không đổi).
+- `BE/controller/ArtifactController.java`: thêm, xóa, bật/tắt kho đều dùng `requireCurrentUserId()` (bỏ `orElse(1L)`, `orElse(null)`). Xem danh sách giữ nguyên.
+- `BE/service/ArtifactService.java`: `requireWriter` (thành viên dự án và là Chủ dự án hoặc OWNER/MANAGER/COLLABORATOR trong `project_member`; VIEWER → 403) cho thêm link và bật/tắt kho; `uploadedBy` = người gọi; `resolveType` (rỗng → nhận diện theo URL, đúng tên loại → loại đó, lạ → `OTHER_LINK`); xóa không còn bỏ qua kiểm quyền khi không có người gọi.
+- `BE/service/engine/StateMachineService.java` (chỉ `submitTaskArtifact` + 1 import): `isPublicForGuest` lấy từ `artifact.isPublicForGuest` (không gửi → `true`); link minh chứng sai → 400 **trước** khi đổi trạng thái, nên task không sang REVIEW. `SubmitTaskArtifactRequest` đã có sẵn trường `isPublicForGuest`, không cần sửa.
+- Test mới: `ArtifactUrlValidatorTest` (16), `ArtifactServiceTest` (19), `ArtifactControllerTest` (6), `SubmitTaskArtifactTest` (4).
 
 ### Kết quả test (dán output thật, không chép tay)
+**1. Trước khi sửa** (có khung rỗng để biên dịch được):
+```
+[ERROR]   ArtifactControllerTest.create_missingHost_validationFailed:67 Status expected:<400> but was:<201>
+[ERROR]   ArtifactControllerTest.create_unauthenticated_401:79 Status expected:<401> but was:<201>
+[ERROR]   ArtifactControllerTest.create_valid_passesCurrentUser:91        (controller truyền userId = 1)
+[ERROR]   ArtifactControllerTest.delete_unauthenticated_401:101 Status expected:<401> but was:<204>
+[ERROR]   ArtifactControllerTest.toggle_unauthenticated_401:112 Status expected:<401> but was:<200>
+[ERROR]   ArtifactUrlValidatorTest.invalidUrls:41  (x9), lengthLimit:59, nullUrl_invalid:47
+[ERROR]   ArtifactServiceTest$Create.viewer_forbidden:101
+[ERROR]   ArtifactServiceTest$Delete.nullUser_forbidden:181
+[ERROR]   ArtifactServiceTest$ToggleRepository.viewer_forbidden:198
+[ERROR]   SubmitTaskArtifactTest.javascriptUrl_rejected:111
+[ERROR]   SubmitTaskArtifactTest.respectsPrivateChoice:97
+[ERROR]   ArtifactServiceTest$Create.typeResolution:121 » IllegalArgument No enum constant ...ArtifactType.figma (x3)
+[ERROR] Tests run: 45, Failures: 21, Errors: 3, Skipped: 0
+```
+`create_javascriptUrl_validationFailed` pass ngay từ đầu (regex cũ đã chặn `javascript:`).
+
+**2. Sau khi sửa:** 45/45 pass; toàn bộ backend `./mvnw test`: `Tests run=470, Failures=0, Errors=0, Skipped=1`.
+
+**3. Tiêu chí:** `grep -n "orElse(1L)" .../ArtifactController.java` → không còn kết quả.
+
+**4. Chạy thật** (backend bật từ code C4, header `X-Debug-User-Id`; tạo tạm user 4 vai trò VIEWER trong dự án 1 bằng SQL, chạy xong đã xóa):
+```
+1) sarah thêm link GitHub -> 201 | "id":1 "uploadedBy":3 "type":"PR" "isPublicForGuest":true
+2) sarah thêm javascript:alert(1) -> 400 | "error":"VALIDATION_FAILED"
+3) sarah thêm http:///abc -> 400 | "error":"VALIDATION_FAILED"
+4) sarah thêm type lạ -> 201 | "id":2 "uploadedBy":3 "type":"OTHER_LINK"
+5) Viewer thêm link -> 403 | "error":"ACCESS_DENIED"
+6) Viewer xóa link của sarah -> 403 | "error":"ACCESS_DENIED"
+7) Viewer tắt kho chung -> 403 | "error":"ACCESS_DENIED"
+8) Viewer xem danh sách -> 200 (2 link)
+9) sarah bắt đầu WPE-003 -> 200
+10) sarah nộp bài, link javascript: -> 400 | "error":"BAD_REQUEST" | WPE-003 vẫn IN_PROGRESS
+11) sarah nộp bài, minh chứng KHÔNG công khai -> 200 | WPE-003 REVIEW
+    Bảng artifacts: 1:PR 42(public=true), 2:Loai la(public=true), 3:Tai lieu noi bo(public=false)
+12) Trang khách GET /guest/{token}/overview -> 200 | artifact khách thấy: "PR 42" "Loai la"
+13) alex (Owner) xóa link của sarah -> 204
+14) sarah xóa link của chính mình -> 204
+```
+Trang khách không thấy "Tai lieu noi bo" (không công khai). Sau đó đã trả DB về dữ liệu seed (0 artifact, WPE-003 TODO v0, 1 thông báo, 3 user, xóa user 4 và thành viên tạm).
 
 ### Điều chưa chắc / cần nhóm quyết
+- **Manager được thêm link:** đặc tả ghi "chỉ Owner và Collaborator" (viết trước khi có vai trò MANAGER ở #33). Mình cho cả MANAGER thêm, vì Manager có quyền cao hơn Collaborator. Nhóm không đồng ý thì bỏ MANAGER khỏi `requireWriter`.
+- **Admin hệ thống vẫn xóa được** link (giữ hành vi cũ và mô tả Swagger "người upload, Owner, Quản trị viên"); đặc tả chỉ ghi "người đã đăng hoặc OWNER".
+- **Bật/tắt kho chung giờ cũng chặn Viewer** (đặc tả không nhắc, nhưng là thao tác ghi; "Viewer chỉ được đọc").
+- Nộp bài với link sai trả 400 **`BAD_REQUEST`**, không phải `VALIDATION_FAILED`: `NodeController` không có `@Valid` cho request nộp bài và không thuộc "Được ghi" của C4, nên kiểm bằng code trong `submitTaskArtifact` (`IllegalArgumentException`).
+- Ở chế độ dev (`X-Debug-User-Id`), request không có header được coi là user 2, nên 401 chỉ kiểm bằng test controller; bật bảo mật thật ở X1.
+- FE chưa làm (sprint): FE cũng phải chỉ hiển thị link `http(s)` thành thẻ `<a>` có `rel="noopener noreferrer"` (câu bảo vệ 1).
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
