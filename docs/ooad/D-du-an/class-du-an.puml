@@ -1,4 +1,4 @@
-' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ (ProjectController.java, ProjectInvitationController.java, ProjectMemberController.java, PipelineTemplateController.java, GuestGatewayController.java, FeedbackQueueController.java, AiDiagnosticController.java), wpe-backend/src/main/java/com/pipeline/wpe/service/ (ProjectService.java, ProjectInvitationService.java, ProjectMemberService.java, ProjectAuthorizationService.java, PipelineTemplateService.java, TemplateCloneService.java, GuestGatewayService.java, FeedbackQueueService.java), wpe-backend/src/main/java/com/pipeline/wpe/service/ai/ (AiDiagnosticService.java, AiServiceClient.java, AiServiceClientImpl.java), wpe-backend/src/main/java/com/pipeline/wpe/entity/ (ProjectEntity.java, ProjectMemberEntity.java, ProjectInvitationEntity.java, GuestLinkEntity.java, ProjectFeedbackEntity.java, PipelineTemplateEntity.java, UserEntity.java), wpe-backend/src/main/java/com/pipeline/wpe/common/enums/ (ProjectStatus.java, ProjectRole.java, InvitationStatus.java, FeedbackStatus.java, ReviewerRole.java)
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ (ProjectController.java, ProjectInvitationController.java, ProjectMemberController.java, NodeAssignmentController.java, PipelineTemplateController.java, GuestGatewayController.java, FeedbackQueueController.java, AiDiagnosticController.java), wpe-backend/src/main/java/com/pipeline/wpe/service/ (ProjectService.java, ProjectInvitationService.java, ProjectMemberService.java, NodeAssignmentService.java, ProjectAuthorizationService.java, PipelineTemplateService.java, TemplateCloneService.java, GuestGatewayService.java, FeedbackQueueService.java, InvitationExpiryJob.java), wpe-backend/src/main/java/com/pipeline/wpe/service/ai/ (AiDiagnosticService.java, AiServiceClient.java, AiServiceClientImpl.java, HttpAiServiceClient.java, AiDiagnosisRequest.java), wpe-backend/src/main/java/com/pipeline/wpe/service/event/ (InvitationEventConsumer.java), wpe-backend/src/main/java/com/pipeline/wpe/entity/ (ProjectEntity.java, ProjectMemberEntity.java, ProjectInvitationEntity.java, GuestLinkEntity.java, ProjectFeedbackEntity.java, PipelineTemplateEntity.java, UserEntity.java), wpe-backend/src/main/java/com/pipeline/wpe/common/enums/ (ProjectStatus.java, ProjectRole.java, InvitationStatus.java, FeedbackStatus.java, ReviewerRole.java, TemplateVisibility.java)
 
 @startuml class-du-an-dich-vu
 !pragma layout smetana
@@ -28,8 +28,13 @@ package "Controller Layer" {
 
   class ProjectMemberController {
     + getMembers(projectId : Long) : ResponseEntity<List<ProjectMemberResponse>>
+    + getMemberHistory(projectId : Long) : ResponseEntity<List<ProjectMemberHistoryResponse>>
     + updateMemberRole(projectId : Long, userId : Long, request : UpdateMemberRoleRequest) : ResponseEntity<ProjectMemberResponse>
     + removeMember(projectId : Long, userId : Long) : ResponseEntity<RemoveMemberResponse>
+  }
+
+  class NodeAssignmentController {
+    + updateAssignment(id : Long, request : UpdateNodeAssignmentRequest) : ResponseEntity<GraphNodeResponse>
   }
 
   class PipelineTemplateController {
@@ -38,6 +43,7 @@ package "Controller Layer" {
     + createTemplate(request : CreateTemplateRequest, currentUserId : Long) : ResponseEntity<TemplateDetailResponse>
     + updateTemplate(id : String, request : CreateTemplateRequest, currentUserId : Long) : ResponseEntity<TemplateDetailResponse>
     + deleteTemplate(id : String, currentUserId : Long) : ResponseEntity<Void>
+    + saveProjectAsTemplate(id : Long, request : SaveProjectAsTemplateRequest) : ResponseEntity<TemplateDetailResponse>
     + validateGraph(request : ValidateTemplateGraphRequest) : ResponseEntity<DagValidationResponse>
   }
 
@@ -80,16 +86,27 @@ package "Service Layer" {
     + getProjectPendingInvitations(projectId : Long, currentUserId : Long) : List<InvitationResponse>
   }
 
+  class InvitationExpiryJob {
+    + expireOverdueInvitations() : int
+  }
+
   class ProjectMemberService {
     + getMembers(projectId : Long, currentUserId : Long) : List<ProjectMemberResponse>
+    + getMemberHistory(projectId : Long, currentUserId : Long) : List<ProjectMemberHistoryResponse>
     + updateRole(projectId : Long, targetUserId : Long, newRole : ProjectRole, currentUserId : Long) : ProjectMemberResponse
     + removeMember(projectId : Long, targetUserId : Long, currentUserId : Long) : RemoveMemberResponse
+  }
+
+  class NodeAssignmentService {
+    + updateAssignment(nodeId : Long, req : UpdateNodeAssignmentRequest, currentUserId : Long) : GraphNodeResponse
   }
 
   class ProjectAuthorizationService {
     + getProjectOrThrow(projectId : Long) : ProjectEntity
     + verifyProjectOwner(projectId : Long, userId : Long) : ProjectEntity
     + verifyProjectMemberOrOwner(projectId : Long, userId : Long) : ProjectEntity
+    + isOwnerOrManager(project : ProjectEntity, userId : Long) : boolean
+    + verifyProjectOwnerOrManager(projectId : Long, userId : Long) : ProjectEntity
   }
 
   class PipelineTemplateService {
@@ -102,6 +119,7 @@ package "Service Layer" {
     + createTemplate(request : CreateTemplateRequest, currentUserId : Long) : TemplateDetailResponse
     + updateTemplate(id : Long, request : CreateTemplateRequest, currentUserId : Long) : TemplateDetailResponse
     + deleteTemplate(id : Long, currentUserId : Long) : void
+    + saveProjectAsTemplate(projectId : Long, req : SaveProjectAsTemplateRequest, currentUserId : Long) : TemplateDetailResponse
     + validateGraph(graphData : Map<String, Object>) : DagValidationResponse
   }
 
@@ -141,33 +159,37 @@ package "Service Layer" {
     + requestDiagnosis(project : ProjectEntity, nodes : List<NodeEntity>, openFeedbacks : List<ProjectFeedbackEntity>) : Map<String, Object>
   }
   note right of HttpAiServiceClient : app.ai.mode=http: POST sang microservice AI (Python)\nxem docs/specs/ai-service-contract.md
+
+  class AiDiagnosisRequest <<record>> {
+    + {static} from(project : ProjectEntity, nodes : List<NodeEntity>, deps : List<NodeDependencyEntity>, feedbacks : List<ProjectFeedbackEntity>, now : Instant) : AiDiagnosisRequest
+  }
+
+  class InvitationEventConsumer {
+    + handleInvitationCreated(event : InvitationCreatedEvent) : void
+    + handleInvitationAccepted(event : InvitationAcceptedEvent) : void
+  }
 }
 
 ProjectController ..> ProjectService
 ProjectController ..> TemplateCloneService
 
 ProjectInvitationController ..> ProjectInvitationService
-
 ProjectMemberController ..> ProjectMemberService
-
+NodeAssignmentController ..> NodeAssignmentService
 PipelineTemplateController ..> PipelineTemplateService
 
 GuestGatewayController ..> GuestGatewayService
 GuestGatewayController ..> FeedbackQueueService
-
 FeedbackQueueController ..> FeedbackQueueService
-
 AiDiagnosticController ..> AiDiagnosticService
 
 ProjectService ..> ProjectAuthorizationService
 ProjectService ..> TemplateCloneService
-
 ProjectInvitationService ..> ProjectAuthorizationService
-
 ProjectMemberService ..> ProjectAuthorizationService
+NodeAssignmentService ..> ProjectAuthorizationService
 
 GuestGatewayService ..> ProjectAuthorizationService
-
 FeedbackQueueService ..> GuestGatewayService
 FeedbackQueueService ..> ProjectAuthorizationService
 
@@ -176,6 +198,7 @@ AiDiagnosticService ..> AiServiceClient
 
 AiServiceClientImpl ..|> AiServiceClient
 HttpAiServiceClient ..|> AiServiceClient
+HttpAiServiceClient ..> AiDiagnosisRequest
 HttpAiServiceClient ..> AiServiceClientImpl : dự phòng
 @enduml
 
@@ -249,7 +272,10 @@ package "Entities" {
     - slug : String
     - description : String
     - category : String
+    - createdBy : Long
     - isSystemStandard : Boolean
+    - visibility : TemplateVisibility
+    - sourceProjectId : Long
     - graphData : Map<String, Object>
     - cloneCount : Integer
     - createdAt : Instant
@@ -270,8 +296,14 @@ package "Enums" {
 
   enum ProjectRole <<enumeration>> {
     OWNER
+    MANAGER
     COLLABORATOR
     VIEWER
+  }
+
+  enum TemplateVisibility <<enumeration>> {
+    PUBLIC
+    PRIVATE
   }
 
   enum InvitationStatus <<enumeration>> {
@@ -306,6 +338,7 @@ ProjectEntity "1" -- "0..1" GuestLinkEntity : cấp link >
 ProjectEntity "1" -- "*" ProjectFeedbackEntity : nhận góp ý >
 
 UserEntity "1" -- "*" PipelineTemplateEntity : tạo >
+ProjectEntity "0..1" -- "*" PipelineTemplateEntity : nguồn mẫu >
 
 ' Quan hệ Entity và Enum
 ProjectEntity --> ProjectStatus
@@ -314,4 +347,5 @@ ProjectInvitationEntity --> ProjectRole
 ProjectInvitationEntity --> InvitationStatus
 ProjectFeedbackEntity --> FeedbackStatus
 ProjectFeedbackEntity --> ReviewerRole
+PipelineTemplateEntity --> TemplateVisibility
 @enduml

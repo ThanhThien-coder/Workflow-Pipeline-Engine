@@ -1,4 +1,4 @@
-' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ProjectInvitationController.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectInvitationService.java, docs/specs/system-overview.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md Cụm 3.3 & 3.4
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/controller/ProjectInvitationController.java, wpe-backend/src/main/java/com/pipeline/wpe/service/ProjectInvitationService.java, wpe-backend/src/main/java/com/pipeline/wpe/service/InvitationExpiryJob.java, docs/specs/system-overview.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md Cụm 3.3 & 3.4
 ' Sơ đồ Activity: Quy trình mời thành viên tham gia dự án (WPE)
 
 @startuml activity-moi-thanh-vien
@@ -27,52 +27,60 @@ else (phải)
       stop
     else (chưa)
       if (Đã có lời mời PENDING?) then (đúng)
-        :Báo lỗi 409 INVITATION_ALREADY_PENDING;
-        stop
+        if (Lời mời cũ đã quá hạn?) then (đúng)
+          :Đóng lời mời cũ (lưu EXPIRED);
+        else (chưa)
+          :Báo lỗi 409 INVITATION_ALREADY_PENDING;
+          stop
+        endif
       else (chưa)
-        :Tạo bản ghi lời mời PENDING với hạn 7 ngày;
-        fork
-          :Lưu thông báo cho người được mời;
-        fork again
-          :Bắn sự kiện InvitationCreatedEvent qua RabbitMQ;
-        end fork
-        |Chủ dự án|
-        :Xem lời mời trong danh sách chờ;
-        |Người được mời|
-        :Nhận thông báo mời tham gia;
-        :Mở hộp thoại xem chi tiết lời mời;
-        if (Hành động phản hồi?) then (chấp nhận)
-          :Xác nhận chấp nhận lời mời;
-          |Hệ thống|
-          if (Lời mời còn trong hạn 7 ngày?) then (hết hạn)
-            :Chuyển trạng thái sang EXPIRED;
-            note right: Lỗi code, cần nhóm sửa:\nMethod có @Transactional nên khi\nném IllegalArgumentException bị rollback,\ntrạng thái EXPIRED không được lưu
-            :Báo lỗi 400 BAD_REQUEST\n(lời mời đã hết hạn);
-            stop
-          else (còn hạn)
-            :Chuyển trạng thái sang ACCEPTED;
-            :Thêm mới hoặc khôi phục bản ghi thành viên;
-            :Đánh dấu đã đọc thông báo;
-            :Bắn sự kiện InvitationAcceptedEvent qua RabbitMQ;
-            |Chủ dự án|
-            :Nhận thông báo thành viên đã gia nhập;
-            stop
-          endif
-        else if (Hành động phản hồi?) then (từ chối)
-          :Xác nhận từ chối lời mời;
-          |Hệ thống|
+      endif
+      :Tạo bản ghi lời mời PENDING với hạn 7 ngày;
+      fork
+        :Lưu thông báo cho người được mời;
+      fork again
+        :Bắn sự kiện InvitationCreatedEvent qua RabbitMQ;
+      end fork
+      |Chủ dự án|
+      :Xem lời mời trong danh sách chờ;
+      |Người được mời|
+      :Nhận thông báo mời tham gia;
+      :Mở hộp thoại xem chi tiết lời mời;
+      if (Hành động phản hồi?) then (chấp nhận)
+        :Xác nhận chấp nhận lời mời;
+        |Hệ thống|
+        if (Lời mời còn trong hạn 7 ngày?) then (hết hạn)
+          :Lưu trạng thái EXPIRED;
+          :Báo lỗi 409 INVITATION_EXPIRED;
+          stop
+        else (còn hạn)
+          :Chuyển trạng thái sang ACCEPTED;
+          :Thêm bản ghi thành viên mới;
+          :Đánh dấu đã đọc thông báo;
+          :Bắn sự kiện InvitationAcceptedEvent qua RabbitMQ;
+          |Chủ dự án|
+          :Nhận thông báo thành viên đã gia nhập;
+          stop
+        endif
+      else if (Hành động phản hồi?) then (từ chối)
+        :Xác nhận từ chối lời mời;
+        |Hệ thống|
+        if (Lời mời còn trong hạn 7 ngày?) then (hết hạn)
+          :Lưu trạng thái EXPIRED;
+          :Báo lỗi 409 INVITATION_EXPIRED;
+          stop
+        else (còn hạn)
           :Chuyển trạng thái sang REJECTED;
           :Đánh dấu đã đọc thông báo;
           stop
-        else (không phản hồi)
-          |Người được mời|
-          :Bỏ qua lời mời;
-          |Hệ thống|
-          :Hết hạn 7 ngày\n(dự kiến, chưa có job quét);
-          note right: Sự kiện thời gian\n(dự kiến, chưa có job quét)
-          :Chuyển trạng thái sang EXPIRED\n(dự kiến, chưa có job quét);
-          stop
         endif
+      else (không phản hồi)
+        |Người được mời|
+        :Bỏ qua lời mời;
+        |Hệ thống|
+        :Mỗi giờ: quét lời mời quá hạn;
+        :Chuyển trạng thái sang EXPIRED;
+        stop
       endif
     endif
   endif
