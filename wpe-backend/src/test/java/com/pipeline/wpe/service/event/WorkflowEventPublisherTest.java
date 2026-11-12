@@ -1,6 +1,8 @@
 package com.pipeline.wpe.service.event;
 
 import com.pipeline.wpe.config.RabbitMQConfig;
+import com.pipeline.wpe.dto.event.InvitationAcceptedEvent;
+import com.pipeline.wpe.dto.event.InvitationCreatedEvent;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.event.TaskCompletedEvent;
 import org.junit.jupiter.api.DisplayName;
@@ -104,6 +106,28 @@ class WorkflowEventPublisherTest {
 
         verify(rabbitTemplate, times(1)).convertAndSend(
             RabbitMQConfig.EXCHANGE_WORKFLOW, "wpe.notification.task_ready", notification);
+    }
+
+    @Test
+    @DisplayName("C2: InvitationCreatedEvent gửi với routing key wpe.invitation.created (queue lời mời riêng)")
+    void publishInvitationCreated_usesInvitationRoutingKey() {
+        InvitationCreatedEvent event = new InvitationCreatedEvent(7L, 1L, "Core Banking Pipeline", 2L, "Alex Kim",
+            1L, "admin@pipeline.engine", "COLLABORATOR", "/workspace?action=open-invite-modal&invitationId=7", Instant.now());
+
+        publisher.publishInvitationCreated(event);
+
+        verify(rabbitTemplate).convertAndSend(RabbitMQConfig.EXCHANGE_WORKFLOW, "wpe.invitation.created", event);
+    }
+
+    @Test
+    @DisplayName("C2: InvitationAcceptedEvent gửi với routing key wpe.invitation.accepted")
+    void publishInvitationAccepted_usesInvitationRoutingKey() {
+        InvitationAcceptedEvent event = new InvitationAcceptedEvent(7L, 1L, "Core Banking Pipeline", 1L, "admin",
+            "COLLABORATOR", Instant.now());
+
+        publisher.publishInvitationAccepted(event);
+
+        verify(rabbitTemplate).convertAndSend(RabbitMQConfig.EXCHANGE_WORKFLOW, "wpe.invitation.accepted", event);
     }
 
     @Test
