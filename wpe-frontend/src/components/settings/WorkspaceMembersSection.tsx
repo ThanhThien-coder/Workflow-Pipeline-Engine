@@ -1,12 +1,19 @@
-import { Clock, Mail, Trash2, UserPlus, UserX } from 'lucide-react'
-import type { ProjectInvitationDto, ProjectMemberDetail, ProjectRole } from '../../types/settings.types'
+import { useState } from 'react'
+import { ChevronDown, ChevronRight, Clock, History, Mail, Trash2, UserPlus, UserX } from 'lucide-react'
+import type {
+  ProjectInvitationDto,
+  ProjectMemberDetail,
+  ProjectMemberHistoryItem,
+  ProjectRole,
+} from '../../types/settings.types'
 
 interface WorkspaceMembersSectionProps {
   members: ProjectMemberDetail[]
   pendingInvitations?: ProjectInvitationDto[]
+  memberHistory?: ProjectMemberHistoryItem[]
   simulatedRole: ProjectRole
   onOpenInvite: () => void
-  onRoleChange: (userId: string, role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => void
+  onRoleChange: (userId: string, role: ProjectRole) => void
   onPromptDemote: (member: ProjectMemberDetail) => void
   onPromptKick: (member: ProjectMemberDetail) => void
   onRevokeInvitation?: (invitationId: string) => void
@@ -32,6 +39,7 @@ function formatDate(iso: string): string {
 export function WorkspaceMembersSection({
   members,
   pendingInvitations = [],
+  memberHistory = [],
   simulatedRole,
   onOpenInvite,
   onRoleChange,
@@ -40,9 +48,19 @@ export function WorkspaceMembersSection({
   onRevokeInvitation,
 }: WorkspaceMembersSectionProps) {
   const isOwner = simulatedRole === 'OWNER'
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true)
 
-  const handleRoleSelect = (member: ProjectMemberDetail, targetRole: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => {
+  const handleRoleSelect = (member: ProjectMemberDetail, targetRole: ProjectRole) => {
     if (targetRole === member.role) return
+    if (targetRole === 'OWNER') {
+      const targetName = member.username || 'thành viên này'
+      const confirmed = window.confirm(
+        `Chuyển quyền chủ dự án cho ${targetName}? Bạn sẽ trở thành Cộng sự.`
+      )
+      if (!confirmed) return
+      onRoleChange(member.userId, 'OWNER')
+      return
+    }
     if (targetRole === 'VIEWER' && member.activeNodeCount > 0) {
       onPromptDemote(member)
       return
@@ -112,12 +130,13 @@ export function WorkspaceMembersSection({
                   {isOwner && member.role !== 'OWNER' ? (
                     <select
                       value={member.role}
-                      onChange={(e) => handleRoleSelect(member, e.target.value as 'MANAGER' | 'COLLABORATOR' | 'VIEWER')}
+                      onChange={(e) => handleRoleSelect(member, e.target.value as ProjectRole)}
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-xs outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     >
                       <option value="MANAGER">MANAGER</option>
                       <option value="COLLABORATOR">COLLABORATOR</option>
                       <option value="VIEWER">VIEWER</option>
+                      <option value="OWNER">Chuyển quyền sở hữu</option>
                     </select>
                   ) : (
                     <span
@@ -249,6 +268,76 @@ export function WorkspaceMembersSection({
           </div>
         </div>
       )}
+      {/* Member History Sub-Section (collapsible) */}
+      <div className="border-t border-slate-100 bg-slate-50/30 p-4">
+        <button
+          type="button"
+          onClick={() => setIsHistoryOpen((prev) => !prev)}
+          className="flex w-full items-center justify-between text-left text-xs font-bold text-slate-800 hover:text-indigo-600 transition"
+        >
+          <div className="flex items-center gap-2">
+            <History size={15} className="text-indigo-600" />
+            <span>Lịch sử thành viên</span>
+            {memberHistory.length > 0 && (
+              <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                {memberHistory.length}
+              </span>
+            )}
+          </div>
+          {isHistoryOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </button>
+
+        {isHistoryOpen && (
+          <div className="mt-3 overflow-x-auto">
+            {memberHistory.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">Chưa có lịch sử thành viên.</p>
+            ) : (
+              <table className="w-full text-left text-xs min-w-[500px]">
+                <thead>
+                  <tr className="border-b border-slate-200/80 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    <th className="px-3 py-2">Thành viên</th>
+                    <th className="px-3 py-2">Vai trò</th>
+                    <th className="px-3 py-2">Ngày vào</th>
+                    <th className="px-3 py-2">Ngày rời / Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/60">
+                  {memberHistory.map((item) => (
+                    <tr key={`${item.userId}-${item.joinedAt}`} className="transition-colors hover:bg-slate-100/60">
+                      <td className="px-3 py-2 font-medium text-slate-700">
+                        {item.fullName ? `${item.fullName} (${item.username})` : item.username}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            ROLE_BADGE[item.role] || ROLE_BADGE.VIEWER
+                          }`}
+                        >
+                          {item.role}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-500 text-[11px]">
+                        {formatDate(item.joinedAt)}
+                      </td>
+                      <td className="px-3 py-2 text-[11px]">
+                        {item.active ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">
+                            Đang tham gia
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">
+                            {item.removedAt ? formatDate(item.removedAt) : 'Đã rời'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   )
 }

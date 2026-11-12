@@ -62,7 +62,7 @@ export function selectVisibleProjects(
 
   const filtered = projects.filter((p) => {
     const matchesTab =
-      tab === 'all' ||
+      (tab === 'all' && p.status !== 'ARCHIVED') ||
       (tab === 'mine' && p.role === 'OWNER') ||
       (tab === 'shared' && p.role !== 'OWNER') ||
       (tab === 'archived' && p.status === 'ARCHIVED')
@@ -81,7 +81,7 @@ export function selectVisibleProjects(
 
 export function selectTabCounts(projects: readonly ProjectCardVm[]): WorkspaceTabCounts {
   return {
-    all: projects.length,
+    all: projects.filter((p) => p.status !== 'ARCHIVED').length,
     mine: projects.filter((p) => p.role === 'OWNER').length,
     shared: projects.filter((p) => p.role !== 'OWNER').length,
     archived: projects.filter((p) => p.status === 'ARCHIVED').length,
@@ -124,8 +124,17 @@ export const createWorkspaceSlice = (
         const getProjects = workflowService.getMyProjects
           ? workflowService.getMyProjects.bind(workflowService)
           : workflowService.getProjectsList.bind(workflowService)
-        const dtos = await getProjects()
-        const cardVms = dtos.map(mapProjectDtoToVm)
+        const sort = get().workspace.sort
+        const [allDtos, archivedDtos] = await Promise.all([
+          getProjects({ tab: 'all', sort }),
+          getProjects({ tab: 'archived', sort }),
+        ])
+        const map = new Map<string, ProjectSummaryDto>()
+        for (const item of [...allDtos, ...archivedDtos]) {
+          map.set(String(item.id), item)
+        }
+        const mergedDtos = Array.from(map.values())
+        const cardVms = mergedDtos.map(mapProjectDtoToVm)
 
         set((state) => ({
           workspace: {
