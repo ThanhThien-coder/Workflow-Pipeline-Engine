@@ -36,9 +36,11 @@ public class ArtifactService {
      */
     @Transactional(readOnly = true)
     public List<ArtifactResponse> getProjectArtifacts(Long projectId, Long nodeId, Boolean inRepoOnly, Long currentUserId) {
-        if (currentUserId != null) {
-            projectAuthorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        // C4: luôn kiểm thành viên; không có người gọi thì chặn (không còn "null thì bỏ qua kiểm").
+        if (currentUserId == null) {
+            throw new ForbiddenException("ACCESS_DENIED", "Yêu cầu đăng nhập để xem kho tài nguyên.");
         }
+        projectAuthorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
 
         List<ArtifactEntity> entities;
         if (nodeId != null) {

@@ -20,6 +20,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -89,6 +90,28 @@ class ArtifactControllerTest {
                 .content(body("https://github.com/org/repo/pull/42")))
             .andExpect(status().isCreated());
         verify(artifactService).createArtifact(eq(1L), any(), eq(3L));
+    }
+
+    @Test
+    @DisplayName("GET danh sách với token rác → 401, service không được gọi (lỗ hổng D báo ở #49)")
+    void list_invalidToken_401() throws Exception {
+        when(currentUserProvider.requireCurrentUserId())
+            .thenThrow(new UnauthorizedException("TOKEN_EXPIRED", "Access token không hợp lệ hoặc đã hết hạn."));
+        when(currentUserProvider.getCurrentUserId()).thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(get("/api/v1/projects/1/artifacts").header("Authorization", "Bearer token-rac"))
+            .andExpect(status().isUnauthorized());
+        verify(artifactService, never()).getProjectArtifacts(anyLong(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("GET danh sách khi đăng nhập: service nhận đúng id người gọi")
+    void list_authenticated_passesCurrentUser() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(4L);
+
+        mockMvc.perform(get("/api/v1/projects/1/artifacts"))
+            .andExpect(status().isOk());
+        verify(artifactService).getProjectArtifacts(eq(1L), any(), any(), eq(4L));
     }
 
     @Test

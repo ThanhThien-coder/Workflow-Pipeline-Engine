@@ -237,5 +237,24 @@ class ArtifactServiceTest {
             when(artifactRepository.findByProjectIdOrderByCreatedAtDesc(PROJECT_ID)).thenReturn(List.of());
             assertThat(artifactService.getProjectArtifacts(PROJECT_ID, null, null, VIEWER)).isEmpty();
         }
+
+        @Test
+        @DisplayName("Không có người gọi (null, ví dụ token rác) → 403, không đọc kho (lỗ hổng D báo ở #49)")
+        void nullUser_forbidden() {
+            assertThatThrownBy(() -> artifactService.getProjectArtifacts(PROJECT_ID, null, null, null))
+                .isInstanceOf(ForbiddenException.class);
+            verify(artifactRepository, never()).findByProjectIdOrderByCreatedAtDesc(any());
+        }
+
+        @Test
+        @DisplayName("Không phải thành viên → 403, không đọc kho")
+        void nonMember_forbidden() {
+            when(projectAuthorizationService.verifyProjectMemberOrOwner(PROJECT_ID, 99L))
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+
+            assertThatThrownBy(() -> artifactService.getProjectArtifacts(PROJECT_ID, null, null, 99L))
+                .isInstanceOf(ForbiddenException.class);
+            verify(artifactRepository, never()).findByProjectIdOrderByCreatedAtDesc(any());
+        }
     }
 }

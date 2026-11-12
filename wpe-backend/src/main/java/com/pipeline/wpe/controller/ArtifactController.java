@@ -36,7 +36,9 @@ public class ArtifactController {
         @Parameter(description = "Chỉ lấy tài nguyên trong Kho chung (is_in_repository = true)")
         @RequestParam(required = false) Boolean inRepo
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(null);
+        // C4 (D báo ở #49): bắt buộc đăng nhập. Trước đây token sai → user rỗng → service bỏ qua kiểm thành viên,
+        // ai cũng đọc được mọi link kể cả link không công khai. Khách xem link công khai qua /guest/{token}/overview.
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         List<ArtifactResponse> responses = artifactService.getProjectArtifacts(projectId, nodeId, inRepo, currentUserId);
         return ResponseEntity.ok(responses);
     }
