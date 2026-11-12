@@ -53,17 +53,13 @@ public class ProjectInvitationService {
         ProjectEntity project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án với ID: " + projectId));
 
-        // Kiểm tra quyền: currentUserId phải là OWNER hoặc COLLABORATOR của projectId (hoặc ADMIN)
-        boolean isOwner = project.getOwnerId().equals(currentUserId);
-        boolean isAuthorizedMember = projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, currentUserId)
-                .map(pm -> pm.getRole() == ProjectRole.OWNER || pm.getRole() == ProjectRole.COLLABORATOR)
-                .orElse(false);
-        boolean isAdmin = userRepository.findById(currentUserId)
-                .map(u -> u.getSystemRole() == SystemRole.ADMIN)
-                .orElse(false);
+        // Kiểm tra quyền: Chỉ chủ dự án (OWNER) mới được gửi lời mời
+        if (!project.getOwnerId().equals(currentUserId)) {
+            throw new ForbiddenException("ACCESS_DENIED", "Chỉ chủ dự án (OWNER) mới được gửi lời mời.");
+        }
 
-        if (!isOwner && !isAuthorizedMember && !isAdmin) {
-            throw new ForbiddenException("ACCESS_DENIED", "Chỉ chủ dự án hoặc cộng sự (COLLABORATOR) mới có quyền gửi lời mời tham gia dự án.");
+        if (request.role() == ProjectRole.OWNER) {
+            throw new IllegalArgumentException("Không thể mời với vai trò OWNER. Dùng chức năng chuyển quyền sở hữu.");
         }
 
         UserEntity inviter = userRepository.findById(currentUserId)
@@ -207,11 +203,11 @@ public class ProjectInvitationService {
         invitation.setRespondedAt(Instant.now());
         projectInvitationRepository.save(invitation);
 
-        // THỰC HIỆN KẾT NẠP THÀNH VIÊN: Chèn vào bảng PROJECT_MEMBER
-        Optional<ProjectMemberEntity> existingMember = projectMemberRepository
-                .findByProjectIdAndUserIdAndRemovedAtIsNull(invitation.getProjectId(), currentUserId);
+        // THỰC HIỆN KẾT NẠP THÀNH VIÊN: Cập nhật bản ghi cũ nếu đã bị xóa mềm, hoặc tạo mới
+        Optional<ProjectMemberEntity> existingMemberOpt = projectMemberRepository
+                .findByProjectIdAndUserId(invitation.getProjectId(), currentUserId);
 
-        if (existingMember.isEmpty()) {
+        if (existingMemberOpt.isEmpty()) {
             ProjectMemberEntity member = ProjectMemberEntity.builder()
                     .projectId(invitation.getProjectId())
                     .userId(currentUserId)
@@ -220,6 +216,14 @@ public class ProjectInvitationService {
                     .removedAt(null)
                     .build();
             projectMemberRepository.save(member);
+        } else {
+            ProjectMemberEntity existingMember = existingMemberOpt.get();
+            if (existingMember.getRemovedAt() != null) {
+                existingMember.setRemovedAt(null);
+                existingMember.setRole(invitation.getRole());
+                existingMember.setJoinedAt(Instant.now());
+                projectMemberRepository.save(existingMember);
+            }
         }
         log.info("User id={} accepted invitation id={} and joined project={}", currentUserId, invitationId, invitation.getProjectId());
 

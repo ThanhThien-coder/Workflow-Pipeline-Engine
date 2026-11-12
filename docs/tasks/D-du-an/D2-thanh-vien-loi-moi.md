@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: D1
 Cần trước bước frontend: không
 Mở khóa: D8, X1
@@ -105,13 +105,54 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Đã làm gì (file nào, vì sao)
 
 ### Kết quả test (dán output thật, không chép tay)
+Sprint 12/11/2026, Claude chạy (Antigravity viết code, Claude kiểm). Phần frontend (bước 5) chưa làm, chờ A2.
+
+**Tái hiện lỗi TRƯỚC khi sửa** (code `main`, DB Docker local):
+- Mời → từ chối → mời lại → từ chối lần 2: lần 2 trả
+```
+500 INTERNAL_SERVER_ERROR: duplicate key value violates unique constraint "uq_pending_project_invitation"
+Detail: Key (project_id, invitee_id, status)=(1, 1, REJECTED) already exists.
+```
+- Người đã bị xóa mềm (giả lập `UPDATE project_member SET removed_at=now()` vì chưa có API xóa) được mời lại rồi chấp nhận:
+```
+500 INTERNAL_SERVER_ERROR: duplicate key value violates unique constraint "uq_project_member"
+Detail: Key (project_id, user_id)=(1, 1) already exists.
+```
+- sarah (COLLABORATOR) gửi lời mời: qua được bước kiểm quyền (nhận 409 vì đã có lời mời chờ, không phải 403).
+
+Test mới chạy với `ProjectInvitationService` CŨ → fail đúng 4 chỗ:
+```
+[ERROR]   ProjectInvitationServiceTest.shouldReactivateExistingMember_whenSoftDeletedMemberAcceptsInvitation
+[ERROR]   ProjectInvitationServiceTest.shouldThrowForbidden_whenAdminNotOwnerSendsInvitation
+[ERROR]   ProjectInvitationServiceTest.shouldThrowForbidden_whenCollaboratorSendsInvitation
+[ERROR]   ProjectInvitationServiceTest.shouldThrowIllegalArgument_whenInvitingWithRoleOwner
+[ERROR] Tests run: 11, Failures: 4, Errors: 1, Skipped: 0
+```
+**Sau khi sửa:** `mvn -B clean test`
+```
+[INFO] Tests run: 174, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+Flyway: `Migrating schema "public" to version "8 - fix invitation unique"` → `Successfully applied 1 migration`.
+
+Chạy thật sau khi sửa:
+- Người từng bị xóa mềm chấp nhận lời mời → 200, `project_member` vẫn 1 dòng (id cũ), `removed_at` = NULL, role mới.
+- Mời → từ chối → mời → từ chối lần 2 → cả 2 lần 200.
+- sarah (COLLABORATOR) gửi lời mời → 403 `ACCESS_DENIED`.
+- `GET /projects/1/members` → alex OWNER đứng đầu, sarah `activeNodeCount` 2.
+- Xóa sarah (đang phụ trách WPE-002 IN_PROGRESS, WPE-003 TODO) → `{"userId":3,"unassignedTaskCount":2}`, còn 0 node giao cho sarah. Xóa owner → 400 `CANNOT_REMOVE_OWNER`.
+- Mời lại sarah → chấp nhận → vẫn 1 dòng `project_member`.
+- Hạ vai trò của owner → 400 `OWNER_ROLE_LOCKED`. Chuyển quyền cho sarah (trên dự án test) → `project.owner_id` = 3, alex thành COLLABORATOR; alex duyệt node REVIEW → 403, sarah duyệt → DONE.
 
 ### Điều chưa chắc / cần nhóm quyết
+- `OWNER_ROLE_LOCKED`, `CANNOT_REMOVE_OWNER` đang trả 400 với `error` = `BAD_REQUEST`, mã nằm ở đầu `message`. Muốn `error` đúng mã thì cần thêm exception 400 có mã vào `GlobalExceptionHandler` (file dùng chung, cần A/nhóm đồng ý).
+- Xóa thành viên chỉ gỡ node chưa DONE (node DONE giữ người làm để còn lịch sử). Node đang IN_PROGRESS bị gỡ người làm nhưng vẫn IN_PROGRESS: C có thể muốn đưa về TODO.
+- Mời với role OWNER bị chặn (400), vì OWNER chỉ có qua chuyển quyền.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
-- **Làm gì:**
-- **File chính đã sửa:**
+- **Làm gì:** V8 đổi unique lời mời thành partial index (chỉ PENDING); chỉ OWNER gửi lời mời; chấp nhận lời mời sau khi bị xóa mềm thì cập nhật bản ghi cũ; thêm API thành viên: xem danh sách, đổi vai trò, chuyển quyền sở hữu (1 transaction), xóa mềm kèm gỡ task.
+- **File chính đã sửa:** `V8__fix_invitation_unique.sql`, `ProjectInvitationService.java`, `ProjectInvitationEntity.java`, `ProjectMemberService.java` (mới), `ProjectMemberController.java` (mới), DTO `UpdateMemberRoleRequest`, `ProjectMemberResponse`, `RemoveMemberResponse`; test: `ProjectInvitationServiceTest`, `ProjectMemberServiceTest`, `ProjectMemberControllerTest`.
 - **Vì sao làm vậy** (tự viết):
-- **Cần học lại:**
+- **Cần học lại:** Partial unique index khác unique thường ở đâu; vì sao chuyển quyền phải đổi `project.owner_id` trong cùng transaction; xóa mềm và vì sao chấp nhận lời mời phải tìm cả bản ghi đã xóa.

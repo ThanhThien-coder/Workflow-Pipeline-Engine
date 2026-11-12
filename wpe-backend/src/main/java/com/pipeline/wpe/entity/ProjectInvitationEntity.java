@@ -14,9 +14,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "project_invitation", uniqueConstraints = {
-    @UniqueConstraint(name = "uq_pending_project_invitation", columnNames = {"project_id", "invitee_id", "status"})
-})
+@Table(name = "project_invitation")
 public class ProjectInvitationEntity {
 
     @Id

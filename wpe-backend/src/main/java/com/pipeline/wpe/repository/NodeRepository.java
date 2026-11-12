@@ -24,6 +24,8 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
         Long projectId, Long assignedUserId, NodeStatus status
     );
 
+    List<NodeEntity> findByProjectIdAndAssignedUserIdAndStatusNot(Long projectId, Long assignedUserId, NodeStatus status);
+
     List<NodeEntity> findByProjectIdAndStatus(Long projectId, NodeStatus status);
     long countByProjectIdAndStatus(Long projectId, NodeStatus status);
     long countByProjectId(Long projectId);
