@@ -175,7 +175,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      {
        "username": "minhdang2026",
        "email": "dang.dev@wpe.io",
-       "password": "SecurePassword123!",
+       "password": "example-StrongPass123!",
        "fullName": "Dang Minh"
      }
      ```
@@ -190,8 +190,8 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Response Body**:
      ```json
      {
-       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJtaW5oZGFuZyIsImV4cCI6MTgwMDAwMDAwMH0...",
-       "refreshToken": "rt_8f93bc10427845f9a0c7932156...",
+       "token": "example-access-token-jwt",
+       "refreshToken": "example-refresh-token",
        "user": {
          "id": "1",
          "username": "minhdang2026",
@@ -231,8 +231,8 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Response Body**:
      ```json
      {
-       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-       "refreshToken": "rt_98234abcf0912384723...",
+       "token": "example-access-token-jwt",
+       "refreshToken": "example-refresh-token",
        "user": {
          "id": "1",
          "username": "alex.kim",
@@ -252,7 +252,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 2. **Luồng Mã Nguồn**:
    - `HttpInterceptor` / `src/store/slices/authSlice.ts` (`logout`) -> `container.workflowService.logout()` -> `IWorkflowService.logout(): Promise<void>`.
 3. **Request DTO**:
-   - `POST /api/auth/refresh`: Body `{ "refreshToken": "rt_98234abcf0912384723..." }`.
+   - `POST /api/auth/refresh`: Body `{ "refreshToken": "example-refresh-token" }`.
    - `POST /api/auth/logout`: Header `Authorization: Bearer <jwt>`, Body `{ "refreshToken": "rt_..." }`.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `REFRESH_TOKEN`.
@@ -330,7 +330,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      ```json
      {
        "currentPassword": "OldPassword123!",
-       "newPassword": "NewStrongPassword2026!"
+       "newPassword": "example-NewStrongPass456!"
      }
      ```
 4. **Xử lý Backend & Bảng CSDL Tác động**:
