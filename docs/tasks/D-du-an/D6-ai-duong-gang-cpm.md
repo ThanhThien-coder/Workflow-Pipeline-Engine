@@ -11,6 +11,8 @@ Nhánh git: d6-ai-cpm
 
 > ⚡ **Chế độ sprint:** task này **để lại sau hạn nộp**, làm theo chế độ thường (xem [SPRINT_2_NGAY.md](../SPRINT_2_NGAY.md) mục 6).
 
+> ⚠️ **Cập nhật 12/11/2026:** phần AI (CPM, task ngâm, Gemini) đã tách thành **microservice Python riêng (repo riêng)**, do bạn phụ trách AI làm, không làm trong backend Java nữa. Bản Java của D6 (PR #21) đã được hoàn tác ở PR #29. Phía Java chỉ còn **cổng nối HTTP** (`HttpAiServiceClient`, bật bằng `AI_MODE=http`). Hợp đồng request/response xem [`docs/specs/ai-service-contract.md`](../../specs/ai-service-contract.md). Các mục bên dưới giữ lại để tham khảo nghiệp vụ.
+
 ## Vì sao cần task này
 `BE/service/ai/AiServiceClientImpl.java` hiện chỉ là heuristic đơn giản: `criticalPath` liệt kê mọi node, và mọi node IN_PROGRESS đều bị coi là điểm nghẽn. Đặc tả `docs/specs/ai-diagnostics.md` yêu cầu tính CPM (forward pass theo `estimated_hours`) và phát hiện node ngâm (quá 2,5 × `estimated_hours`). Endpoint AI cũng chưa chắc đã kiểm quyền thành viên.
 

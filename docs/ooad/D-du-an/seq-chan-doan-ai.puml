@@ -15,8 +15,9 @@ entity ":ProjectFeedbackRepository" as FeedbackRepo
 participant ":AiServiceClient" as AiClient
 
 note over AiClient
-  Đang được D6 thay cài đặt AiServiceClient bằng HeuristicAiClient (CPM thật);
-  Gemini: dự kiến, chưa code.
+  Cài đặt chọn bằng app.ai.mode: mock (AiServiceClientImpl, mặc định)
+  hoặc http (HttpAiServiceClient gọi microservice AI Python,
+  lỗi thì quay về dữ liệu giả). Xem docs/specs/ai-service-contract.md.
 end note
 
 User -> Ctl : POST /api/v1/projects/{id}/ai-diagnostics
