@@ -95,10 +95,10 @@ Làm theo chế độ sprint ngày 12/11/2026, nhánh `c4-artifacts` từ main (
 - `BE/dto/artifact/ArtifactUrlValidator.java` (mới): phân tích bằng `java.net.URI`, chỉ nhận `http`/`https` (không phân biệt hoa thường), bắt buộc có host, tối đa 500 ký tự. Vừa là `ConstraintValidator` vừa có hàm tĩnh `isValid` cho chỗ không có `@Valid`.
 - `BE/dto/artifact/ValidArtifactUrl.java` (mới): annotation dùng validator trên.
 - `BE/dto/artifact/CreateArtifactRequest.java`: `url` dùng `@ValidArtifactUrl` thay regex; `type` đổi từ enum sang chuỗi (JSON gửi lên không đổi).
-- `BE/controller/ArtifactController.java`: thêm, xóa, bật/tắt kho đều dùng `requireCurrentUserId()` (bỏ `orElse(1L)`, `orElse(null)`). Xem danh sách giữ nguyên.
+- `BE/controller/ArtifactController.java`: thêm, xóa, bật/tắt kho, và (sau review của D) cả xem danh sách đều dùng `requireCurrentUserId()` (bỏ `orElse(1L)`, `orElse(null)`).
 - `BE/service/ArtifactService.java`: `requireWriter` (thành viên dự án và là Chủ dự án hoặc OWNER/MANAGER/COLLABORATOR trong `project_member`; VIEWER → 403) cho thêm link và bật/tắt kho; `uploadedBy` = người gọi; `resolveType` (rỗng → nhận diện theo URL, đúng tên loại → loại đó, lạ → `OTHER_LINK`); xóa không còn bỏ qua kiểm quyền khi không có người gọi.
 - `BE/service/engine/StateMachineService.java` (chỉ `submitTaskArtifact` + 1 import): `isPublicForGuest` lấy từ `artifact.isPublicForGuest` (không gửi → `true`); link minh chứng sai → 400 **trước** khi đổi trạng thái, nên task không sang REVIEW. `SubmitTaskArtifactRequest` đã có sẵn trường `isPublicForGuest`, không cần sửa.
-- Test mới: `ArtifactUrlValidatorTest` (16), `ArtifactServiceTest` (19), `ArtifactControllerTest` (6), `SubmitTaskArtifactTest` (4).
+- Test mới: `ArtifactUrlValidatorTest` (16), `ArtifactServiceTest` (21), `ArtifactControllerTest` (8), `SubmitTaskArtifactTest` (4).
 
 ### Kết quả test (dán output thật, không chép tay)
 **1. Trước khi sửa** (có khung rỗng để biên dịch được):
@@ -142,6 +142,19 @@ Làm theo chế độ sprint ngày 12/11/2026, nhánh `c4-artifacts` từ main (
 14) sarah xóa link của chính mình -> 204
 ```
 Trang khách không thấy "Tai lieu noi bo" (không công khai). Sau đó đã trả DB về dữ liệu seed (0 artifact, WPE-003 TODO v0, 1 thông báo, 3 user, xóa user 4 và thành viên tạm).
+
+**5. Sửa theo review của D ở #49: API xem danh sách lộ link khi token sai.** D phát hiện `GET /projects/{id}/artifacts` dùng `getCurrentUserId().orElse(null)`: request có header `Authorization` mà token sai thì user rỗng, service gặp `null` thì **bỏ qua kiểm thành viên**. Bản đầu của C4 để nguyên API này vì đặc tả ghi "giữ hành vi hiện có". Tái hiện trên máy (trước khi sửa):
+```
+sarah nộp bài kèm 'Tai lieu noi bo' (không công khai) -> 200
+GET /projects/1/artifacts với token rác -> HTTP 200 | "name":"Tai lieu noi bo" "url":"https://docs.google.com/document/d/noi-bo" "isPublicForGuest":false
+```
+Sửa: controller dùng `requireCurrentUserId()`; service luôn `verifyProjectMemberOrOwner`, không có người gọi → 403. Thêm 4 test (2 controller, 2 service); trước khi sửa đỏ 3 (`list_invalidToken_401` "expected:<401> but was:<200>", `list_authenticated_passesCurrentUser`, `nullUser_forbidden`). Sau khi sửa toàn bộ backend: `Tests run=474, Failures=0, Errors=0, Skipped=1`. Chạy thật sau khi sửa:
+```
+1) GET với token rác -> HTTP 401 | "error":"TOKEN_EXPIRED"
+2) GET bằng sarah (thành viên) -> HTTP 200 | "name":"Tai lieu noi bo"
+3) GET bằng admin (không phải thành viên dự án 1) -> HTTP 403 | "error":"ACCESS_DENIED"
+```
+Khách xem link công khai qua `GET /guest/{token}/overview`, không dùng API này. DB đã trả về seed.
 
 ### Điều chưa chắc / cần nhóm quyết
 - **Manager được thêm link:** đặc tả ghi "chỉ Owner và Collaborator" (viết trước khi có vai trò MANAGER ở #33). Mình cho cả MANAGER thêm, vì Manager có quyền cao hơn Collaborator. Nhóm không đồng ý thì bỏ MANAGER khỏi `requireWriter`.
