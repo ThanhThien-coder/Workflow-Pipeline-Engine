@@ -1,0 +1,56 @@
+' Sơ đồ communication "Nộp bài kèm minh chứng" (C8), chuyển từ seq-nop-bai.puml.
+' PlantUML không có loại communication riêng: vẽ gần đúng bằng object diagram (cẩm nang 3.5), giống B.
+' Quy ước: "A -- B : n: m() →" nghĩa là A gửi m() cho B; "← n" là B gọi ngược lại A.
+' Số thứ tự theo cấp lồng nhau. [có link] là điều kiện opt trong sequence. Đối chiếu số với seq-nop-bai: nhat-quan.md mục 3.
+
+@startuml comm-nop-bai
+!pragma layout smetana
+allowmixing
+skinparam shadowing false
+
+
+actor "Cộng sự" as Collab
+object ":SubmitArtifactModal" as Modal
+object ":usePhaseKanban" as Hook
+object ":HttpWorkflowService" as Http
+object ":NodeController" as Ctl
+object ":StateMachineService" as Svc
+object ":NodeRepository" as NodeRepo
+object ":ProjectRepository" as ProjRepo
+object ":ArtifactUrlValidator" as Val
+object ":ArtifactRepository" as ArtRepo
+object ":WorkflowEventPublisher" as Pub
+object ":TransactionSynchronizationManager" as Tx
+object "RabbitMQ" as MQ
+object ":WorkflowEventConsumer" as Cons
+object ":NotificationRepository" as NotiRepo
+object ":SseEmitterService" as Sse
+object ":EventSource (trình duyệt Owner)" as ES
+
+Collab -- Modal : 1: bấm "Submit" →
+note bottom of Modal
+  1.1: isValidArtifactUrl(url) (tự gọi, kiểm phía giao diện)
+end note
+Modal -- Hook : 1.2: submitArtifact(taskId, form) →
+Hook -- Http : 1.2.1: submitTaskArtifact(dto) →
+Http -- Ctl : 1.2.1.1: POST /api/v1/nodes/{taskId}/submit →
+Ctl -- Svc : 1.2.1.1.1: submitTaskArtifact(taskId, request, actorId) →
+note bottom of Svc
+  1.2.1.1.1.3: ensureNotArchived(project) (tự gọi)
+  1.2.1.1.1.8: afterCommit(gửi SSE TASK_SUBMITTED) (tự gọi)
+end note
+Svc -- NodeRepo : 1.2.1.1.1.1: findById(taskId) →\n1.2.1.1.1.5: save(node) →
+Svc -- ProjRepo : 1.2.1.1.1.2: findById(projectId) →
+Svc -- Val : 1.2.1.1.1.4 [có link]: isValid(artifactUrl) →
+Svc -- ArtRepo : 1.2.1.1.1.6 [có link]: save(artifact) →
+Svc -- Pub : 1.2.1.1.1.7: publishNotification(NotificationEvent) →
+Pub -- Tx : 1.2.1.1.1.7.1: registerSynchronization(afterCompletion) →\n← 2: afterCompletion(STATUS_COMMITTED)
+Svc -- Tx : 1.2.1.1.1.9: registerSynchronization(afterCompletion) →\n← 3: afterCompletion(STATUS_COMMITTED)
+Pub -- MQ : 2.1: convertAndSend(exchange, "wpe.notification.review_requested", event) (bất đồng bộ) →
+Svc -- Sse : 3.1: sendToUser(ownerId, "TASK_SUBMITTED", taskResponse) →
+MQ -- Cons : 4: handleNotification(NotificationEvent) (bất đồng bộ) →
+Cons -- NotiRepo : 4.1: save(NotificationEntity) →
+Cons -- Sse : 4.2: sendToUser(ownerId, "NOTIFICATION_RECEIVED", NotificationResponse) →
+Sse -- ES : 3.1.1: event TASK_SUBMITTED (bất đồng bộ) →\n4.2.1: event NOTIFICATION_RECEIVED (bất đồng bộ) →
+
+@enduml

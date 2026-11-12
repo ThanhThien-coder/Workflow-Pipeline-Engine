@@ -1,0 +1,378 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/ — controller/(NodeController, RealtimeController, ArtifactController).java,
+'        service/engine/(StateMachineService, TaskOverdueScanner).java, service/event/(WorkflowEventPublisher, WorkflowEventConsumer,
+'        InvitationEventConsumer, SseEmitterService).java, service/ArtifactService.java, dto/artifact/ArtifactUrlValidator.java,
+'        security/CurrentUserProvider.java, entity/*.java, repository/*.java, dto/**/*.java, common/enums/*.java,
+'        resources/db/migration/V1__init_schema.sql (luật xóa khóa ngoại)
+' Class diagram thiết kế mảng C — Chạy task & Realtime (C8). Tên lớp, phương thức, kiểu giữ đúng như code
+' (ArtifactController, ArtifactService, ArtifactUrlValidator theo C4 — PR #49).
+' Không liệt kê getter/setter (Lombok sinh). Lớp bean Spring tiêm nhau qua constructor: vẽ association có bội số,
+' không ghi lại thành thuộc tính. Controller → service: dependency (cẩm nang 3.6b).
+' Tách 2 hình để ảnh không quá rộng: (1) controller + service + sự kiện, (2) repository + entity + enum + DTO.
+
+@startuml class-thuc-thi
+!pragma layout smetana
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+package "controller" {
+  class NodeController {
+    +getMyTasks(projectId: Long, userId: Long): ResponseEntity<List<KanbanTaskResponse>>
+    +updateStatus(taskId: Long, request: UpdateNodeStatusRequest, currentUserId: Long): ResponseEntity<KanbanTaskResponse>
+    +submitTask(taskId: Long, request: SubmitTaskArtifactRequest, currentUserId: Long): ResponseEntity<SubmitTaskArtifactResponse>
+    +forceUnlock(taskId: Long, currentUserId: Long): ResponseEntity<KanbanTaskResponse>
+  }
+  class RealtimeController {
+    +subscribe(userId: Long): SseEmitter
+  }
+  class ArtifactController {
+    +getProjectArtifacts(projectId: Long, nodeId: Long, inRepo: Boolean): ResponseEntity<List<ArtifactResponse>>
+    +createArtifact(projectId: Long, request: CreateArtifactRequest): ResponseEntity<ArtifactResponse>
+    +deleteArtifact(projectId: Long, artifactId: Long): ResponseEntity<Void>
+    +toggleRepository(projectId: Long, artifactId: Long, isInRepo: Boolean): ResponseEntity<ArtifactResponse>
+  }
+  class NotificationController <<dự kiến C3>> {
+    +getNotifications(limit: int): ResponseEntity<...>
+    +markRead(id: Long): ResponseEntity<NotificationResponse>
+    +markAllRead(): ResponseEntity<Void>
+  }
+}
+
+package "security" {
+  class CurrentUserProvider {
+    +getCurrentUserId(): Optional<Long>
+    +requireCurrentUserId(): Long
+  }
+}
+
+package "service.engine" {
+  class StateMachineService {
+    +getMyTasks(projectId: Long, userId: Long): List<KanbanTaskResponse>
+    +updateStatus(taskId: Long, request: UpdateNodeStatusRequest, currentUserId: Long): KanbanTaskResponse
+    +submitTaskArtifact(taskId: Long, request: SubmitTaskArtifactRequest, currentUserId: Long): SubmitTaskArtifactResponse
+    +forceUnlock(taskId: Long, currentUserId: Long): KanbanTaskResponse
+    +unlockDownstreamTasks(parentTaskId: Long): void
+    -ensureNotArchived(project: ProjectEntity): void
+    -afterCommit(action: Runnable): void
+  }
+  class TaskOverdueScanner {
+    +scanOverdueTasks(): void
+  }
+}
+
+package "service.event" {
+  class WorkflowEventPublisher {
+    +publishTaskCompleted(event: TaskCompletedEvent): void
+    +publishNotification(event: NotificationEvent): void
+    +publishAiDiagnosticRequest(event: AiDiagnosticRequestedEvent): void
+    +publishInvitationCreated(event: InvitationCreatedEvent): void
+    +publishInvitationAccepted(event: InvitationAcceptedEvent): void
+    -sendAfterCommit(routingKey: String, event: Object, description: String): void
+  }
+  class WorkflowEventConsumer {
+    +handleTaskCompleted(event: TaskCompletedEvent): void
+    +handleNotification(event: NotificationEvent): void
+    +handleAiDiagnosticRequest(event: AiDiagnosticRequestedEvent): void
+    +handleDeadLetterMessage(failedMessage: Message): void
+  }
+  class InvitationEventConsumer {
+    +handleInvitationCreated(event: InvitationCreatedEvent): void
+    +handleInvitationAccepted(event: InvitationAcceptedEvent): void
+  }
+  class SseEmitterService {
+    -userEmitters: Map<Long, Set<SseEmitter>>
+    +subscribe(userId: Long): SseEmitter
+    +sendToUser(userId: Long, eventName: String, data: Object): void
+    +broadcast(eventName: String, data: Object): void
+    +isUserConnected(userId: Long): boolean
+    +sendHeartbeat(): void
+    #createEmitter(): SseEmitter
+    -trySend(userId: Long, emitter: SseEmitter, eventName: String, data: Object): boolean
+    -removeEmitter(userId: Long, emitter: SseEmitter): void
+    -connectionCount(userId: Long): int
+  }
+}
+
+package "service" {
+  class ArtifactService {
+    +getProjectArtifacts(projectId: Long, nodeId: Long, inRepoOnly: Boolean, currentUserId: Long): List<ArtifactResponse>
+    +createArtifact(projectId: Long, req: CreateArtifactRequest, currentUserId: Long): ArtifactResponse
+    +deleteArtifact(projectId: Long, artifactId: Long, currentUserId: Long): void
+    +toggleRepositoryVisibility(projectId: Long, artifactId: Long, isInRepo: boolean, currentUserId: Long): ArtifactResponse
+    -requireWriter(projectId: Long, currentUserId: Long): void
+    -resolveType(type: String, url: String): ArtifactType
+    -detectArtifactType(url: String): ArtifactType
+  }
+}
+
+package "dto.artifact" {
+  class ArtifactUrlValidator <<final>> {
+    +{static} MAX_LENGTH: int = 500
+    +isValid(value: String, context: ConstraintValidatorContext): boolean
+    +{static} isValid(url: String): boolean
+  }
+}
+
+package "Spring / Jakarta (thư viện)" {
+  class TransactionSynchronizationManager <<Spring>> {
+    +{static} isSynchronizationActive(): boolean
+    +{static} registerSynchronization(synchronization: TransactionSynchronization): void
+  }
+  interface TransactionSynchronization <<Spring>> {
+    +afterCompletion(status: int): void
+  }
+  class RabbitTemplate <<Spring AMQP>> {
+    +convertAndSend(exchange: String, routingKey: String, object: Object): void
+  }
+  interface "ConstraintValidator<ValidArtifactUrl, String>" as ConstraintValidator <<Jakarta>> {
+    +isValid(value: String, context: ConstraintValidatorContext): boolean
+  }
+}
+
+' --- Controller dùng service (dependency) ---
+NodeController ..> StateMachineService
+NodeController ..> CurrentUserProvider
+RealtimeController ..> SseEmitterService
+RealtimeController ..> CurrentUserProvider
+ArtifactController ..> ArtifactService
+ArtifactController ..> CurrentUserProvider
+
+' --- Bean tiêm qua constructor (association, mỗi bean là singleton) ---
+StateMachineService "1" --> "1" WorkflowEventPublisher : eventPublisher
+StateMachineService "1" --> "1" SseEmitterService : sseEmitterService
+WorkflowEventConsumer "1" --> "1" StateMachineService : stateMachineService
+WorkflowEventConsumer "1" --> "1" SseEmitterService : sseEmitterService
+InvitationEventConsumer "1" --> "1" SseEmitterService : sseEmitterService
+TaskOverdueScanner "1" --> "1" WorkflowEventPublisher : eventPublisher
+TaskOverdueScanner "1" --> "1" SseEmitterService : sseEmitterService
+WorkflowEventPublisher "1" --> "1" RabbitTemplate : rabbitTemplate
+
+' --- Dùng tạm ---
+StateMachineService ..> ArtifactUrlValidator : isValid(url)
+StateMachineService ..> TransactionSynchronizationManager
+StateMachineService ..> TransactionSynchronization : <<create>> lớp vô danh
+WorkflowEventPublisher ..> TransactionSynchronizationManager
+WorkflowEventPublisher ..> TransactionSynchronization : <<create>> lớp vô danh
+ArtifactUrlValidator ..|> ConstraintValidator
+
+note bottom of WorkflowEventPublisher
+  Mẫu Publish–Subscribe: publisher gửi lên exchange "wpe.workflow.exchange",
+  RabbitMQ chia theo routing key vào queue; consumer (@RabbitListener)
+  nhận mà không biết ai gửi.
+end note
+
+note bottom of SseEmitterService
+  Mẫu Observer: mỗi tab trình duyệt đăng ký (subscribe) một SseEmitter;
+  sendToUser báo cho mọi emitter của user. TransactionSynchronization
+  cũng là Observer: Spring gọi lại afterCompletion khi transaction xong.
+end note
+
+@enduml
+
+@startuml class-thuc-thi-du-lieu
+!pragma layout smetana
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+
+' Service: xem chi tiết ở hình class-thuc-thi; ở đây chỉ hiện tên
+class StateMachineService
+class TaskOverdueScanner
+class WorkflowEventConsumer
+class ArtifactService
+
+package "repository" {
+  interface "JpaRepository<T, Long>" as JpaRepository <<Spring Data>> {
+    +findById(id: Long): Optional<T>
+    +save(entity: T): T
+    +delete(entity: T): void
+  }
+  interface NodeRepository {
+    +findByProjectIdAndAssignedUserIdAndStatusNotOrderByDueDateAsc(projectId: Long, assignedUserId: Long, status: NodeStatus): List<NodeEntity>
+    +findByStatusAndDueDateBeforeAndIsOverdueFalse(status: NodeStatus, now: Instant): List<NodeEntity>
+  }
+  interface NodeDependencyRepository {
+    +findByParentNodeId(parentNodeId: Long): List<NodeDependencyEntity>
+    +findByChildNodeId(childNodeId: Long): List<NodeDependencyEntity>
+  }
+  interface ArtifactRepository {
+    +findByProjectIdOrderByCreatedAtDesc(projectId: Long): List<ArtifactEntity>
+    +findByProjectIdAndNodeIdOrderByCreatedAtDesc(projectId: Long, nodeId: Long): List<ArtifactEntity>
+    +findByProjectIdAndIsInRepositoryTrueOrderByCreatedAtDesc(projectId: Long): List<ArtifactEntity>
+  }
+  interface NotificationRepository {
+    +findByUserIdOrderByCreatedAtDesc(userId: Long): List<NotificationEntity>
+    +countByUserIdAndIsReadFalse(userId: Long): long
+  }
+  interface ProjectMemberRepository {
+    +findByProjectIdAndUserIdAndRemovedAtIsNull(projectId: Long, userId: Long): Optional<ProjectMemberEntity>
+  }
+  interface ProjectRepository
+
+  NodeRepository --|> JpaRepository : <<bind>> T = NodeEntity
+  NodeDependencyRepository --|> JpaRepository : <<bind>> T = NodeDependencyEntity
+  ArtifactRepository --|> JpaRepository : <<bind>> T = ArtifactEntity
+  NotificationRepository --|> JpaRepository : <<bind>> T = NotificationEntity
+  ProjectMemberRepository --|> JpaRepository : <<bind>> T = ProjectMemberEntity
+  ProjectRepository --|> JpaRepository : <<bind>> T = ProjectEntity
+}
+
+package "entity" {
+  class NodeEntity {
+    -id: Long
+    -code: String
+    -title: String
+    -description: String
+    -status: NodeStatus = LOCKED
+    -joinPolicy: JoinPolicy = ALL_COMPLETED
+    -rejectReason: String
+    -dueDate: Instant
+    -isOverdue: Boolean = false
+    -estimatedHours: Integer = 8
+    -startedAt: Instant
+    -version: Long = 0 {@Version}
+    -createdAt: Instant
+    -updatedAt: Instant
+  }
+  class ArtifactEntity {
+    -id: Long
+    -name: String
+    -type: ArtifactType
+    -url: String
+    -isInRepository: Boolean = false
+    -isPublicForGuest: Boolean = true
+    -createdAt: Instant
+  }
+  class NotificationEntity {
+    -id: Long
+    -title: String
+    -message: String
+    -linkUrl: String
+    -isRead: Boolean = false
+    -createdAt: Instant
+  }
+  class NodeDependencyEntity {
+    -id: Long
+  }
+  class ProjectMemberEntity {
+    -id: Long
+    -role: ProjectRole
+    -joinedAt: Instant
+    -removedAt: Instant
+  }
+  class ProjectEntity
+  class UserEntity
+}
+
+package "common.enums" {
+  enum NodeStatus {
+    LOCKED
+    TODO
+    IN_PROGRESS
+    REVIEW
+    DONE
+  }
+  enum JoinPolicy {
+    ALL_COMPLETED
+    ANY_COMPLETED
+  }
+  enum ArtifactType {
+    PR
+    FIGMA
+    DOCS
+    SWAGGER
+    OTHER_LINK
+  }
+  enum ProjectRole {
+    OWNER
+    MANAGER
+    COLLABORATOR
+    VIEWER
+  }
+}
+
+package "dto" {
+  class TaskCompletedEvent <<record>> {
+    taskId: Long
+    projectId: Long
+    taskCode: String
+    completedByUserId: Long
+    completedAt: Instant
+  }
+  class NotificationEvent <<record>> {
+    recipientUserId: Long
+    projectId: Long
+    title: String
+    message: String
+    type: String
+    targetUrl: String
+    createdAt: Instant
+  }
+  class UpdateNodeStatusRequest <<record>> {
+    status: String
+    rejectReason: String
+    version: Long
+  }
+  class SubmitTaskArtifactRequest <<record>> {
+    taskId: String
+    type: String
+    url: String
+    note: String
+    title: String
+    artifact: ArtifactPayload
+    version: Long
+  }
+  class SubmitTaskArtifactResponse <<record>> {
+    task: KanbanTaskResponse
+    artifact: NodeArtifactResponse
+  }
+  class NotificationResponse <<record>> {
+    id: String
+    title: String
+    message: String
+    linkUrl: String
+    isRead: Boolean
+    createdAt: Instant
+    +{static} from(n: NotificationEntity): NotificationResponse
+  }
+}
+
+' --- Service giữ repository (bean tiêm qua constructor) ---
+StateMachineService "1" --> "1" NodeRepository
+StateMachineService "1" --> "1" NodeDependencyRepository
+StateMachineService "1" --> "1" ProjectRepository
+StateMachineService "1" --> "1" ProjectMemberRepository
+StateMachineService "1" --> "1" ArtifactRepository
+TaskOverdueScanner "1" --> "1" NodeRepository
+WorkflowEventConsumer "1" --> "1" NotificationRepository
+ArtifactService "1" --> "1" ArtifactRepository
+ArtifactService "1" --> "1" ProjectMemberRepository
+
+' --- Tạo sự kiện / DTO ---
+StateMachineService ..> TaskCompletedEvent : <<create>>
+StateMachineService ..> NotificationEvent : <<create>>
+TaskOverdueScanner ..> NotificationEvent : <<create>>
+WorkflowEventConsumer ..> NotificationEntity : <<create>>
+WorkflowEventConsumer ..> NotificationResponse : <<create>>
+
+' --- Quan hệ giữa entity (theo khóa ngoại và luật xóa trong V1__init_schema.sql) ---
+' Composition: xóa bên "1" thì bên kia bị xóa theo (ON DELETE CASCADE).
+' Aggregation: xóa bên "0..1" thì bên kia còn lại, cột khóa ngoại thành NULL (ON DELETE SET NULL).
+ProjectEntity "1" *-- "0..*" NodeEntity : chứa
+UserEntity "0..1" o-- "0..*" NodeEntity : phụ trách
+NodeEntity "1" *-- "0..*" NodeDependencyEntity : là cha
+NodeEntity "1" *-- "0..*" NodeDependencyEntity : là con
+ProjectEntity "1" *-- "0..*" ArtifactEntity : có
+NodeEntity "0..1" o-- "0..*" ArtifactEntity : minh chứng của
+UserEntity "1" -- "0..*" ArtifactEntity : tải lên
+UserEntity "1" *-- "0..*" NotificationEntity : nhận
+ProjectEntity "1" *-- "0..*" ProjectMemberEntity : có
+UserEntity "1" *-- "0..*" ProjectMemberEntity : tham gia
+
+note bottom of NodeEntity
+  Cột khóa ngoại projectId, phaseId, assignedUserId không ghi lại
+  thành thuộc tính vì đã vẽ bằng association (tránh vẽ trùng).
+  version: khóa lạc quan, JPA tự tăng mỗi lần save.
+end note
+
+@enduml
