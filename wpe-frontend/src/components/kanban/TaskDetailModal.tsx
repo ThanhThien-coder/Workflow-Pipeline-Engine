@@ -11,6 +11,7 @@ import {
   Send,
   Undo2,
   Upload,
+  User,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -54,6 +55,7 @@ export interface TaskDetailModalProps {
   onClose: () => void
   onMove: (to: TaskStatus, rejectReason?: string) => void
   onSubmitArtifact?: (form: { type: ArtifactType; url: string; note: string }) => Promise<boolean>
+  onUpdateAssignment?: (cmd: { assignedUserId?: string; dueDate?: string }) => Promise<boolean>
 }
 
 export function TaskDetailModal({
@@ -64,6 +66,7 @@ export function TaskDetailModal({
   onClose,
   onMove,
   onSubmitArtifact,
+  onUpdateAssignment,
 }: TaskDetailModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const rejectModalRef = useRef<HTMLDivElement>(null)
@@ -96,10 +99,48 @@ export function TaskDetailModal({
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [showRejectModal])
 
-  const isOwner = actor.projectRole === 'OWNER'
+  const canReview = actor.projectRole === 'OWNER' || actor.projectRole === 'MANAGER'
   const assignee = members.find((member) => member.id === task.assignedUserId) || actor
   const assigneeAvatar = assignee.avatarUrl || getSavedAvatar(assignee.name || assignee.id)
   const statusCfg = statusConfigs[task.status]
+
+  const toDateInput = (iso?: string): string => {
+    if (!iso) return ''
+    const match = iso.match(/^\d{4}-\d{2}-\d{2}/)
+    return match ? match[0] : ''
+  }
+
+  const [assignedUserId, setAssignedUserId] = useState(task.assignedUserId ?? '')
+  const [dueDateInput, setDueDateInput] = useState(toDateInput(task.dueDate))
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false)
+
+  useEffect(() => {
+    setAssignedUserId(task.assignedUserId ?? '')
+    setDueDateInput(toDateInput(task.dueDate))
+  }, [task.id, task.assignedUserId, task.dueDate])
+
+  const initialDateStr = toDateInput(task.dueDate)
+  const isAssigneeChanged = assignedUserId !== (task.assignedUserId ?? '')
+  const isDueDateChanged = dueDateInput !== initialDateStr
+  const hasAssignmentChanges = isAssigneeChanged || isDueDateChanged
+
+  const handleSaveAssignment = async () => {
+    if (!onUpdateAssignment || !hasAssignmentChanges) return
+    setIsSavingAssignment(true)
+    try {
+      const cmd: { assignedUserId?: string; dueDate?: string } = {}
+      if (isAssigneeChanged) {
+        cmd.assignedUserId = assignedUserId
+      }
+      if (isDueDateChanged) {
+        const d = new Date(`${dueDateInput}T23:59:59`)
+        cmd.dueDate = isNaN(d.getTime()) ? `${dueDateInput}T23:59:59.000Z` : d.toISOString()
+      }
+      await onUpdateAssignment(cmd)
+    } finally {
+      setIsSavingAssignment(false)
+    }
+  }
 
   const handleConfirmReject = () => {
     const trimmed = rejectReasonInput.trim()
@@ -258,6 +299,67 @@ export function TaskDetailModal({
               </div>
             </div>
           </div>
+
+          {/* Assignment Section for Owner/Manager */}
+          {canReview && task.status !== 'DONE' && Boolean(onUpdateAssignment) && (
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <User size={14} className="text-indigo-600" />
+                  Phân công
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="assignment-assignee-select" className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Người làm
+                  </label>
+                  <select
+                    id="assignment-assignee-select"
+                    aria-label="Người làm"
+                    value={assignedUserId}
+                    onChange={(e) => setAssignedUserId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
+                  >
+                    {members.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} ({member.roleTitle || member.projectRole})
+                      </option>
+                    ))}
+                    {task.assignedUserId && !members.some((m) => m.id === task.assignedUserId) && (
+                      <option value={task.assignedUserId}>
+                        {assignee.name || task.assignedUserId}
+                      </option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="assignment-due-date-input" className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Hạn chót
+                  </label>
+                  <input
+                    id="assignment-due-date-input"
+                    aria-label="Hạn chót"
+                    type="date"
+                    value={dueDateInput}
+                    onChange={(e) => setDueDateInput(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  disabled={!hasAssignmentChanges || isSavingAssignment || pending}
+                  onClick={() => void handleSaveAssignment()}
+                  className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Check size={13} />
+                  {isSavingAssignment ? 'Đang lưu…' : 'Lưu phân công'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           <div>
@@ -471,7 +573,7 @@ export function TaskDetailModal({
 
             {/* REVIEW Actions */}
             {task.status === 'REVIEW' &&
-              (isOwner ? (
+              (canReview ? (
                 <>
                   <button
                     type="button"
@@ -502,7 +604,7 @@ export function TaskDetailModal({
               ) : (
                 <span className="flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-1.5 text-xs font-medium text-violet-700">
                   <Clock size={13} />
-                  Pending Review (Awaiting Owner)
+                  Pending Review (Awaiting Owner/Quản lý)
                 </span>
               ))}
 

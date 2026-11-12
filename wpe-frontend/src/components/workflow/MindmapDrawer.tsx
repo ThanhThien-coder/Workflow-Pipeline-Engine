@@ -95,6 +95,7 @@ export function MindmapDrawer() {
     moveTask,
     submitArtifact,
     closeSubmitModal,
+    updateAssignment,
   } = usePhaseKanban(phase)
 
   // Active selected task kept up to date with updates
@@ -466,6 +467,7 @@ export function MindmapDrawer() {
             onClose={() => setSelectedTask(null)}
             onMove={(to, rejectReason) => void moveTask(activeSelectedTask.id, to, rejectReason)}
             onSubmitArtifact={(dto) => submitArtifact(activeSelectedTask.id, dto)}
+            onUpdateAssignment={(cmd) => updateAssignment(activeSelectedTask.id, cmd)}
           />
         )}
       </AnimatePresence>
