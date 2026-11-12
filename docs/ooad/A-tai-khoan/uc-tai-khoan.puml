@@ -1,0 +1,56 @@
+' Nguồn: docs/specs/system-overview.md (Phân hệ 1, 5; ma trận RBAC UC1-UC4, UC6),
+'        docs/tasks/A-tai-khoan/A3, A5, A6 (đặc tả đã chốt), code AuthService/AuthController.
+' Sơ đồ use case mảng Tài khoản & Bảo mật (A7, giai đoạn phân tích)
+
+@startuml uc-tai-khoan
+!pragma layout smetana
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+actor "Khách vãng lai" as Guest
+actor "Người dùng" as User
+actor "Quản trị viên" as Admin
+
+' Tổng quát hóa: con -> cha. Quản trị viên kế thừa mọi use case của Người dùng.
+Admin --|> User
+
+rectangle "Workflow Pipeline Engine — Tài khoản & Bảo mật" {
+  usecase "Đăng ký tài khoản\n(UC1)" as UC_Register
+  usecase "Đăng nhập\n(UC2)" as UC_Login
+  usecase "Đăng xuất\n(UC2)" as UC_Logout
+
+  usecase "Xem hồ sơ\n(UC3)" as UC_ViewProfile
+  usecase "Cập nhật hồ sơ\n(UC3)" as UC_UpdateProfile
+  usecase "Đổi ảnh đại diện\n(UC3)" as UC_Avatar
+  usecase "Đổi mật khẩu\n(UC3)" as UC_ChangePwd
+
+  usecase "Thu hồi mọi phiên đăng nhập" as UC_RevokeAll
+  usecase "Khóa tài khoản\n(UC4)" as UC_Lock
+  usecase "Quản lý người dùng\n(UC4)" as UC_ManageUsers
+  usecase "Mở khóa tài khoản\n(UC4)" as UC_Unlock
+  usecase "Lưu trữ workspace\n(UC6)" as UC_Archive
+}
+
+Guest --> UC_Register
+Guest --> UC_Login
+
+User --> UC_Logout
+User --> UC_ViewProfile
+User --> UC_UpdateProfile
+User --> UC_ChangePwd
+
+Admin --> UC_ManageUsers
+Admin --> UC_Archive
+
+' include: mũi tên từ use case gốc tới use case được include (luôn xảy ra)
+UC_ChangePwd .> UC_RevokeAll : <<include>>
+' Viết "A <. B" = mũi tên từ B tới A (chỉ để bố cục đỡ cắt nét, chiều không đổi)
+UC_RevokeAll <. UC_Lock : <<include>>
+
+' extend: mũi tên từ use case mở rộng tới use case gốc, có điều kiện
+UC_Avatar .> UC_UpdateProfile : <<extend>>\n[người dùng chọn ảnh mới]
+UC_Lock .> UC_ManageUsers : <<extend>>\n[chọn người dùng đang hoạt động\nvà bấm "Khóa"]
+UC_ManageUsers <. UC_Unlock : <<extend>>\n[chọn người dùng đang bị khóa\nvà bấm "Mở khóa"]
+
+@enduml

@@ -1,0 +1,75 @@
+' Nguồn: wpe-backend/src/main/resources/db/migration/V1__init_schema.sql (bảng users, refresh_token, project),
+'        docs/tasks/A-tai-khoan/A3, A5, A6 (đặc tả đã chốt), docs/specs/system-overview.md.
+' Sơ đồ class phân tích (Boundary - Control - Entity) mảng Tài khoản & Bảo mật (A7)
+' Giai đoạn phân tích: tên nghiệp vụ tiếng Việt, chưa có kiểu dữ liệu, chưa có framework.
+
+@startuml bce-tai-khoan
+!pragma layout smetana
+allowmixing
+skinparam shadowing false
+
+actor "Khách vãng lai" as Act_Guest
+actor "Người dùng" as Act_User
+actor "Quản trị viên" as Act_Admin
+
+' --- Boundary ---
+class "Màn hình đăng nhập / đăng ký" as B_Auth <<boundary>>
+class "Màn hình hồ sơ" as B_Profile <<boundary>>
+class "Màn hình quản trị người dùng" as B_Admin <<boundary>>
+
+' --- Control ---
+class "Điều khiển xác thực" as C_Auth <<control>>
+class "Điều khiển hồ sơ" as C_Profile <<control>>
+class "Điều khiển quản trị" as C_Admin <<control>>
+
+' --- Entity ---
+class "Người dùng" as E_User <<entity>> {
+  tên đăng nhập
+  email
+  họ tên
+  mật khẩu đã băm
+  ảnh đại diện
+  vai trò hệ thống
+  bị khóa
+  phiên bản token
+  ngày tạo
+}
+
+class "Phiên làm mới" as E_Session <<entity>> {
+  mã băm token
+  hạn dùng
+  đã thu hồi
+  ngày tạo
+}
+
+class "Dự án" as E_Project <<entity>> {
+  tên dự án
+  trạng thái
+  ngày cập nhật
+}
+
+' Actor chỉ làm việc với boundary
+Act_Guest --> B_Auth
+Act_User --> B_Auth
+Act_User --> B_Profile
+Act_Admin --> B_Admin
+
+' Boundary gọi control
+B_Auth --> C_Auth
+B_Profile --> C_Profile
+B_Admin --> C_Admin
+
+' Control làm việc với entity
+C_Auth "1" --> "1" E_User : xác thực
+C_Auth "1" --> "0..*" E_Session : cấp / xoay vòng / thu hồi
+C_Profile "1" --> "1" E_User : đọc / cập nhật
+C_Profile "1" --> "0..*" E_Session : thu hồi khi đổi mật khẩu
+C_Admin "1" --> "0..*" E_User : khóa / mở khóa
+C_Admin "1" --> "0..*" E_Session : thu hồi khi khóa
+C_Admin "1" --> "0..*" E_Project : lưu trữ
+
+' Quan hệ giữa các entity
+E_User "1" -- "0..*" E_Session : sở hữu >
+E_User "1" -- "0..*" E_Project : làm chủ >
+
+@enduml
