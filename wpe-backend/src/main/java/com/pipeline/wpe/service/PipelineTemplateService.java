@@ -1,12 +1,15 @@
 package com.pipeline.wpe.service;
 
+import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.request.template.CreateTemplateRequest;
 import com.pipeline.wpe.dto.response.template.DagValidationResponse;
 import com.pipeline.wpe.dto.response.template.TemplateDetailResponse;
 import com.pipeline.wpe.dto.response.template.TemplateSummaryResponse;
 import com.pipeline.wpe.entity.PipelineTemplateEntity;
 import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.CycleDetectedException;
+import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.PipelineTemplateRepository;
 import com.pipeline.wpe.repository.UserRepository;
@@ -74,12 +77,14 @@ public class PipelineTemplateService {
 
     @Transactional
     public TemplateDetailResponse updateTemplateBySlugOrId(String idOrSlug, CreateTemplateRequest request, Long currentUserId) {
+        requireAdmin(currentUserId);
         PipelineTemplateEntity template = findTemplateEntity(idOrSlug);
         return updateTemplate(template.getId(), request, currentUserId);
     }
 
     @Transactional
     public void deleteTemplateBySlugOrId(String idOrSlug, Long currentUserId) {
+        requireAdmin(currentUserId);
         PipelineTemplateEntity template = findTemplateEntity(idOrSlug);
         deleteTemplate(template.getId(), currentUserId);
     }
@@ -104,6 +109,8 @@ public class PipelineTemplateService {
      */
     @Transactional
     public TemplateDetailResponse createTemplate(CreateTemplateRequest request, Long currentUserId) {
+        requireAdmin(currentUserId);
+
         // Thẩm định Kahn 2 tầng
         DagValidationResponse validation = kahnDagService.validateTemplateGraph(request.graphData());
         if (!validation.valid()) {
@@ -113,20 +120,18 @@ public class PipelineTemplateService {
             throw new CycleDetectedException("Phát hiện chu trình lặp trong đồ thị Template mẫu.", cycleNodes);
         }
 
-        Long creatorId = currentUserId != null ? currentUserId : 1L;
-
         PipelineTemplateEntity entity = PipelineTemplateEntity.builder()
             .name(request.name().trim())
             .description(request.description())
             .category(request.category().trim())
-            .createdBy(creatorId)
+            .createdBy(currentUserId)
             .isSystemStandard(request.isSystemStandard() != null ? request.isSystemStandard() : false)
             .graphData(request.graphData())
             .cloneCount(0)
             .build();
 
         PipelineTemplateEntity saved = templateRepository.save(entity);
-        log.info("Template #{} ('{}') created by user #{}", saved.getId(), saved.getName(), creatorId);
+        log.info("Template #{} ('{}') created by user #{}", saved.getId(), saved.getName(), currentUserId);
         return mapToDetailResponse(saved);
     }
 
@@ -135,6 +140,8 @@ public class PipelineTemplateService {
      */
     @Transactional
     public TemplateDetailResponse updateTemplate(Long id, CreateTemplateRequest request, Long currentUserId) {
+        requireAdmin(currentUserId);
+
         PipelineTemplateEntity template = templateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với ID: " + id));
 
@@ -164,11 +171,28 @@ public class PipelineTemplateService {
      */
     @Transactional
     public void deleteTemplate(Long id, Long currentUserId) {
+        requireAdmin(currentUserId);
+
         PipelineTemplateEntity template = templateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với ID: " + id));
 
+        if (Boolean.TRUE.equals(template.getIsSystemStandard())) {
+            throw new ConflictException("SYSTEM_TEMPLATE_LOCKED", "Không thể xóa template chuẩn của hệ thống.");
+        }
+
         templateRepository.delete(template);
         log.info("Template #{} deleted by user #{}", id, currentUserId);
+    }
+
+    private void requireAdmin(Long currentUserId) {
+        if (currentUserId == null) {
+            throw new ForbiddenException("ACCESS_DENIED", "Chỉ quản trị viên hệ thống mới được quản lý template.");
+        }
+        UserEntity user = userRepository.findById(currentUserId)
+            .orElseThrow(() -> new ForbiddenException("ACCESS_DENIED", "Chỉ quản trị viên hệ thống mới được quản lý template."));
+        if (user.getSystemRole() != SystemRole.ADMIN) {
+            throw new ForbiddenException("ACCESS_DENIED", "Chỉ quản trị viên hệ thống mới được quản lý template.");
+        }
     }
 
     /**
