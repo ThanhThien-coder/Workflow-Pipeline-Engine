@@ -92,6 +92,20 @@ Người dán file này là **một trong các người làm** của task chung.
 
 ### Kết quả rà soát của từng mảng (A, B, C, D)
 
+**C — làm trước phần `NodeController` (12/11/2026, chế độ sprint, nhánh `c-fix-node-auth`).** Lý do làm sớm: khi vẽ C8 thấy Cộng sự gửi `?currentUserId=<id Owner>` là tự duyệt được bài của mình. X1 vẫn để sau hạn nộp; phần C còn lại (`RealtimeController` nhận `?userId=`, `realtime.ts`) chờ A làm SSE nhận token qua query ở bước 2.
+- `NodeController`: bỏ `@RequestParam currentUserId` ở `updateStatus`, `submitTask`, `forceUnlock`; người thực hiện lấy từ `currentUserProvider.requireCurrentUserId()` (token sai → 401 `TOKEN_EXPIRED`, không còn rơi về user 2). `getMyTasks` giữ `?userId=` (bảng Kanban theo phase tải task từng thành viên) nhưng người gọi phải đăng nhập và là thành viên dự án (`verifyProjectMemberOrOwner` → 403).
+- Header `X-Debug-User-Id` của chế độ dev vẫn dùng được như cũ (thay cho `?currentUserId=` khi thử bằng Swagger).
+- Test: `NodeControllerTest` thêm 9 test (giả danh qua `?currentUserId=1`, token rác → 401, không phải thành viên → 403, xem task đồng đội được); trước khi sửa đỏ cả 9. Sau khi sửa toàn bộ backend: `Tests run=434, Failures=0, Errors=0, Skipped=1`.
+- Chạy thật trên dữ liệu seed:
+```
+1) sarah force-unlock WPE-004 kèm ?currentUserId=2 (giả alex) -> HTTP 403 | "error":"ACCESS_DENIED"
+2) token rác force-unlock -> HTTP 401 | "error":"TOKEN_EXPIRED"
+3) token rác PATCH status DONE kèm ?currentUserId=2 -> HTTP 401 | "error":"TOKEN_EXPIRED"
+4) admin (không phải thành viên) xem my-tasks dự án 1 -> HTTP 403 | "error":"ACCESS_DENIED"
+5) sarah xem my-tasks dự án 1 -> HTTP 200
+```
+  Dữ liệu không đổi (WPE-004 vẫn LOCKED v0).
+
 ### Kết quả test (dán output thật)
 
 ### Điều chưa chắc / cần nhóm quyết
