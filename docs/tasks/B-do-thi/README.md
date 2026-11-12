@@ -16,4 +16,5 @@ Làm theo thứ tự (T0, T1 nằm ở [../chung/](../chung/README.md)):
 | 6 | [B5 — Canvas gọi API thật](B5-canvas-goi-api-that.md) | A2, B3 | |
 | 7 | [B6 — Xuất bản trên giao diện](B6-xuat-ban-giao-dien.md) | B4, B5 | |
 | 8 | [B8 — OOAD thiết kế](B8-ooad-thiet-ke.md) | B7, B4 | |
+| 9 | [B9 — Settings gọi API thật](B9-settings-goi-api-that.md) | B6 | Thêm ngày 12/11/2026: `getProjectSettings` trước đó chưa ai nhận |
 | cuối kỳ | [X1](../chung/X1-bat-bao-mat-that.md) (rà controller mảng B), [X2](../chung/X2-kiem-thu-cheo.md) (chạy kịch bản của D), [X3](../chung/X3-rap-bo-so-do-ooad.md) (class miền, ERD, object), [X4](../chung/X4-bao-ve-va-luyen-ve.md) (trình bày mảng A) | | |
