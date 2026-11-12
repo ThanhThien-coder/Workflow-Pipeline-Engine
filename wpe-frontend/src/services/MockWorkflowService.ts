@@ -24,6 +24,7 @@ import {
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
+  ProjectMemberHistoryItem,
   ProjectInvitationDto,
   AuditLogItem,
   UpdateProjectCommand,
@@ -147,8 +148,8 @@ export class MockWorkflowService implements IWorkflowService {
   }
 
   // Workspace contracts
-  getMyProjects(): Promise<readonly ProjectSummaryDto[]> {
-    return this.workspaceApi.getMyProjects()
+  getMyProjects(params?: { tab?: 'all' | 'mine' | 'shared' | 'archived'; sort?: 'ts' | 'done' | 'nodes' }): Promise<readonly ProjectSummaryDto[]> {
+    return this.workspaceApi.getMyProjects(params)
   }
 
   getProjectsList(): Promise<readonly ProjectSummaryDto[]> {
@@ -279,6 +280,7 @@ export class MockWorkflowService implements IWorkflowService {
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto> { return this.settingsApi.updateProjectSettings(projectId, cmd) }
   publishPipeline(projectId: string): Promise<PublishPipelineResult> { return this.settingsApi.publishPipeline(projectId) }
   getProjectMembersDetailed(projectId: string): Promise<ProjectMemberDetail[]> { return this.settingsApi.getProjectMembersDetailed(projectId) }
+  getProjectMemberHistory(projectId: string): Promise<ProjectMemberHistoryItem[]> { return this.settingsApi.getProjectMemberHistory(projectId) }
   inviteProjectMember(projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> { return this.settingsApi.inviteProjectMember(projectId, cmd) }
   changeMemberRole(projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail> { return this.settingsApi.changeMemberRole(projectId, userId, cmd) }
   removeProjectMember(projectId: string, userId: string): Promise<{ unassignedTaskCount: number }> { return this.settingsApi.removeProjectMember(projectId, userId) }

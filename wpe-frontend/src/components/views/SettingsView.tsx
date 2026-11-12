@@ -21,6 +21,7 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
   const {
     settings,
     members,
+    memberHistory,
     pendingInvitations,
     auditLogs,
     simulatedRole,
@@ -111,6 +112,7 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
 
         <WorkspaceMembersSection
           members={members}
+          memberHistory={memberHistory}
           pendingInvitations={pendingInvitations}
           simulatedRole={effectiveRole}
           onOpenInvite={openInviteModal}

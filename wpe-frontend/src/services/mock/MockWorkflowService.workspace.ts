@@ -138,7 +138,7 @@ export class MockWorkspaceApi {
     return [...this.projects]
   }
 
-  async getMyProjects(): Promise<readonly ProjectSummaryDto[]> {
+  async getMyProjects(_params?: { tab?: 'all' | 'mine' | 'shared' | 'archived'; sort?: 'ts' | 'done' | 'nodes' }): Promise<readonly ProjectSummaryDto[]> {
     return this.getProjectsList()
   }
 

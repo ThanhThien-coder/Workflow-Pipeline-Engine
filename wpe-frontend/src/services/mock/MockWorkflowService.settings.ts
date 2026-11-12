@@ -2,6 +2,7 @@ import type { IWorkflowService } from '../contracts/IWorkflowService'
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
+  ProjectMemberHistoryItem,
   ProjectInvitationDto,
   AuditLogItem,
   UpdateProjectCommand,
@@ -380,11 +381,62 @@ export class MockSettingsApi implements Pick<
     return true
   }
 
+  async getProjectMemberHistory(_projectId: string): Promise<ProjectMemberHistoryItem[]> {
+    await mockDelay(60)
+    return [
+      {
+        userId: '1',
+        username: 'Alex Kim',
+        fullName: 'Alex Kim',
+        role: 'OWNER',
+        joinedAt: '2026-09-02T10:00:00+07:00',
+        removedAt: null,
+        active: true,
+      },
+      {
+        userId: '2',
+        username: 'Sarah Chen',
+        fullName: 'Sarah Chen',
+        role: 'COLLABORATOR',
+        joinedAt: '2026-09-04T10:00:00+07:00',
+        removedAt: null,
+        active: true,
+      },
+      {
+        userId: '3',
+        username: 'Marcus Liu',
+        fullName: 'Marcus Liu',
+        role: 'COLLABORATOR',
+        joinedAt: '2026-09-09T10:00:00+07:00',
+        removedAt: null,
+        active: true,
+      },
+      {
+        userId: '4',
+        username: 'Jamie Doe',
+        fullName: 'Jamie Doe',
+        role: 'VIEWER',
+        joinedAt: '2026-09-15T10:00:00+07:00',
+        removedAt: null,
+        active: true,
+      },
+    ]
+  }
+
   async changeMemberRole(_projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail> {
     await mockDelay(120)
     const member = this.members.find((m) => m.userId === userId)
     if (!member) throw new Error('Member not found')
     if (member.role === 'OWNER') throw new Error('Cannot change OWNER role')
+
+    if (cmd.role === 'OWNER') {
+      const oldOwner = this.members.find((m) => m.role === 'OWNER')
+      if (oldOwner) oldOwner.role = 'COLLABORATOR'
+      member.role = 'OWNER'
+      this.project.ownerId = member.userId
+      this.recordLog('ROLE_CHANGED', `Transferred project ownership to ${member.username}.`, 'Governance')
+      return structuredClone(member)
+    }
 
     const prevRole = member.role
     member.role = cmd.role

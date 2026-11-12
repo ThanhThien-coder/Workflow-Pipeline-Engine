@@ -4,12 +4,14 @@ import type {
   ChangeMemberRoleCommand,
   InviteMemberCommand,
   ProjectMemberDetail,
+  ProjectMemberHistoryItem,
   ProjectInvitationDto,
   ProjectRole,
   ProjectSettingsDto,
   UpdateProjectCommand,
 } from '../../types/settings.types'
 import { workflowService } from '../../services/container'
+import { isApiError } from '../../services/http/ApiError'
 
 export type SettingsLoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -17,6 +19,7 @@ export interface SettingsSlice {
   settings: {
     settings: ProjectSettingsDto | null
     members: ProjectMemberDetail[]
+    memberHistory: ProjectMemberHistoryItem[]
     pendingInvitations: ProjectInvitationDto[]
     auditLogs: AuditLogItem[]
     simulatedRole: ProjectRole
@@ -43,7 +46,7 @@ export interface SettingsSlice {
     revokeInvitation: (invitationId: string) => Promise<boolean>
     acceptInvitation: (invitationId: string) => Promise<boolean>
     rejectInvitation: (invitationId: string) => Promise<boolean>
-    changeRole: (userId: string, role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => Promise<boolean>
+    changeRole: (userId: string, role: ProjectRole) => Promise<boolean>
     kickMember: (userId: string) => Promise<boolean>
     demoteMember: (userId: string) => Promise<boolean>
     setAuditFilter: (scope: string) => void
@@ -83,6 +86,7 @@ export const createSettingsSlice = (
     settings: {
       settings: null,
       members: [],
+      memberHistory: [],
       pendingInvitations: [],
       auditLogs: [],
       simulatedRole: 'OWNER',
@@ -106,24 +110,26 @@ export const createSettingsSlice = (
         )
 
         try {
-          const [settingsData, membersData, logsData, pendingData] = await Promise.all([
+          const [settingsData, membersData, logsData, pendingData, historyData] = await Promise.all([
             workflowService.getProjectSettings(projectId),
             workflowService.getProjectMembersDetailed(projectId),
             workflowService.getProjectAuditLogs(projectId),
             workflowService.getProjectPendingInvitations ? workflowService.getProjectPendingInvitations(projectId) : Promise.resolve([]),
+            workflowService.getProjectMemberHistory ? workflowService.getProjectMemberHistory(projectId) : Promise.resolve([]),
           ])
 
           set((state) =>
             produce(state, (draft) => {
               draft.settings.settings = settingsData
               draft.settings.members = membersData
+              draft.settings.memberHistory = historyData || []
               draft.settings.pendingInvitations = pendingData || []
               draft.settings.auditLogs = logsData
               draft.settings.status = 'ready'
             }),
           )
         } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Failed to load project settings'
+          const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to load project settings')
           set((state) =>
             produce(state, (draft) => {
               draft.settings.status = 'error'
@@ -218,7 +224,7 @@ export const createSettingsSlice = (
           get().settings.showToast('Project has been archived and is now read-only.')
           return true
         } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Failed to archive project'
+          const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to archive project')
           get().settings.showToast(msg)
           return false
         }
@@ -242,7 +248,7 @@ export const createSettingsSlice = (
           get().settings.showToast('Project restored to ACTIVE.')
           return true
         } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Failed to restore project'
+          const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to restore project')
           get().settings.showToast(msg)
           return false
         }
@@ -293,8 +299,21 @@ export const createSettingsSlice = (
           let inviteDto: ProjectInvitationDto | null = null
           if (workflowService.createProjectInvitation) {
             inviteDto = await workflowService.createProjectInvitation(pid, cmd)
+          } else {
+            const newMember = await workflowService.inviteProjectMember(pid, cmd)
+            inviteDto = {
+              id: `inv-${Date.now()}`,
+              projectId: pid,
+              projectName: get().settings.settings?.name || 'Project',
+              inviterId: '1',
+              inviterName: 'Owner',
+              inviteeEmail: newMember.email,
+              role: newMember.role as any,
+              status: 'PENDING',
+              createdAt: new Date().toISOString(),
+              expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+            }
           }
-          const newMember = await workflowService.inviteProjectMember(pid, cmd)
           set((state) =>
             produce(state, (draft) => {
               if (inviteDto) {
@@ -304,10 +323,10 @@ export const createSettingsSlice = (
             }),
           )
           await refreshLogs(pid)
-          get().settings.showToast(`Invitation sent to ${newMember.email || cmd.usernameOrEmail}.`)
+          get().settings.showToast(`Invitation sent to ${cmd.usernameOrEmail}.`)
           return true
         } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Failed to invite member'
+          const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to invite member')
           get().settings.showToast(msg)
           return false
         }
@@ -368,10 +387,15 @@ export const createSettingsSlice = (
         }
       },
 
-      changeRole: async (userId: string, role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER') => {
+      changeRole: async (userId: string, role: ProjectRole) => {
         const pid = currentProjectId()
         try {
           const updated = await workflowService.changeMemberRole(pid, userId, { role })
+          if (role === 'OWNER') {
+            await get().settings.loadSettings(pid)
+            get().settings.showToast(`Chuyển quyền chủ dự án cho ${updated.username} thành công.`)
+            return true
+          }
           set((state) =>
             produce(state, (draft) => {
               const idx = draft.settings.members.findIndex((m) => m.userId === userId)
@@ -385,7 +409,7 @@ export const createSettingsSlice = (
           get().settings.showToast(`${updated.username} is now ${role}.`)
           return true
         } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Failed to change role'
+          const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to change role')
           get().settings.showToast(msg)
           return false
         }
@@ -410,7 +434,7 @@ export const createSettingsSlice = (
           get().settings.showToast(toastMsg)
           return true
         } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Failed to remove member'
+          const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to remove member')
           get().settings.showToast(msg)
           return false
         }

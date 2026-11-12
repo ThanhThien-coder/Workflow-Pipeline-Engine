@@ -27,7 +27,8 @@ describe('Workspace Module (workspaceSlice)', () => {
     expect(stats.runningInProduction).toBe(4)
 
     const counts = selectTabCounts(projects)
-    expect(counts.all).toBe(6)
+    // Sửa theo SSOT backend / TASK_15: tab 'all' không gồm dự án ARCHIVED
+    expect(counts.all).toBe(5)
     expect(counts.mine).toBe(4) // Owner: 1, 2, 4, 6
     expect(counts.shared).toBe(2) // 3 (Collaborator), 5 (Viewer)
     expect(counts.archived).toBe(1) // 6 (Archived)
@@ -63,12 +64,28 @@ describe('Workspace Module (workspaceSlice)', () => {
     await store.getState().workspace.loadProjects()
     const projects = store.getState().workspace.projects
 
+    // Sửa theo SSOT backend / TASK_15: Legacy CRM Cleanup (100%) bị loại khỏi tab 'all' vì có status ARCHIVED;
+    // dự án có completion cao nhất tiếp theo trong tab 'all' là Data Pipeline ETL (88%).
     const sortedByDone = selectVisibleProjects(projects, 'all', '', 'done')
-    expect(sortedByDone[0].done).toBe(100) // Legacy CRM Cleanup (100%)
+    expect(sortedByDone[0].done).toBe(88) // Data Pipeline ETL (88%)
     expect(sortedByDone[sortedByDone.length - 1].done).toBe(0) // Product Redesign 2026 (0%)
 
     const sortedByNodes = selectVisibleProjects(projects, 'all', '', 'nodes')
     expect(sortedByNodes[0].nodes).toBe(32) // Backend API Migration (32 nodes)
+  })
+
+  it('selectVisibleProjects: tab all loại bỏ ARCHIVED, tab archived chỉ hiển thị ARCHIVED', async () => {
+    await store.getState().workspace.loadProjects()
+    const projects = store.getState().workspace.projects
+
+    const allVisible = selectVisibleProjects(projects, 'all', '', 'ts')
+    expect(allVisible.every((p) => p.status !== 'ARCHIVED')).toBe(true)
+    expect(allVisible).toHaveLength(5)
+
+    const archivedVisible = selectVisibleProjects(projects, 'archived', '', 'ts')
+    expect(archivedVisible.every((p) => p.status === 'ARCHIVED')).toBe(true)
+    expect(archivedVisible).toHaveLength(1)
+    expect(archivedVisible[0].name).toBe('Legacy CRM Cleanup')
   })
 
   it('creates a new pipeline and updates store state', async () => {

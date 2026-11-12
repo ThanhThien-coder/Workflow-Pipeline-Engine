@@ -1,6 +1,13 @@
 export type ISODateTime = string;
 export type ProjectRole = 'OWNER' | 'MANAGER' | 'COLLABORATOR' | 'VIEWER';
-export type ProjectStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+export type ProjectStatus =
+  | 'DRAFT'
+  | 'PLANNING'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'COMPLETED'
+  | 'INACTIVE'
+  | 'ARCHIVED';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
 
 export interface ProjectInvitationDto {
@@ -57,6 +64,16 @@ export interface ProjectMemberDetail {
   avatarUrl?: string | null;
 }
 
+export interface ProjectMemberHistoryItem {
+  userId: string;
+  username: string;
+  fullName: string | null;
+  role: ProjectRole;
+  joinedAt: string;
+  removedAt: string | null;
+  active: boolean;
+}
+
 export interface ProjectSettingsDto {
   id: string;
   name: string;
@@ -80,7 +97,7 @@ export interface InviteMemberCommand {
 }
 
 export interface ChangeMemberRoleCommand {
-  role: 'MANAGER' | 'COLLABORATOR' | 'VIEWER';
+  role: ProjectRole;
 }
 
 export interface PublishPipelineResult {

@@ -4,6 +4,7 @@ import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSumma
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
+  ProjectMemberHistoryItem,
   ProjectInvitationDto,
   AuditLogItem,
   UpdateProjectCommand,
@@ -47,7 +48,7 @@ export interface IWorkflowService {
   logout(): Promise<void>
 
   // Workspace contracts
-  getMyProjects(): Promise<readonly ProjectSummaryDto[]>
+  getMyProjects(params?: { tab?: 'all' | 'mine' | 'shared' | 'archived'; sort?: 'ts' | 'done' | 'nodes' }): Promise<readonly ProjectSummaryDto[]>
   getProjectsList(): Promise<readonly ProjectSummaryDto[]>
   createProject(cmd: CreateProjectCommand): Promise<ProjectSummaryDto>
   cloneTemplate(req: CloneTemplateCommand | { templateId: string | number; projectName: string; description?: string; visibility?: string }): Promise<ProjectDetailDto>
@@ -83,6 +84,7 @@ export interface IWorkflowService {
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto>
   publishPipeline(projectId: string): Promise<PublishPipelineResult>
   getProjectMembersDetailed(projectId: string): Promise<ProjectMemberDetail[]>
+  getProjectMemberHistory(projectId: string): Promise<ProjectMemberHistoryItem[]>
   inviteProjectMember(projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail>
   changeMemberRole(projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail>
   removeProjectMember(projectId: string, userId: string): Promise<{ unassignedTaskCount: number }>

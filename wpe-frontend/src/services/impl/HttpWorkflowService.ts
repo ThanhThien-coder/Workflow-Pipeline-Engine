@@ -4,6 +4,8 @@ import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
 import * as authApi from './http/auth'
 import * as graphApi from './http/graph'
+import * as workspaceApi from './http/workspace'
+import * as membersApi from './http/members'
 import * as projectSettingsApi from './http/projectSettings'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import type {
@@ -21,7 +23,6 @@ import type {
   CreateProjectCommand,
   ProjectDetailDto,
   ProjectRole,
-  ProjectStatus,
   ProjectSummaryDto,
 } from '../../types/workspace.types'
 import type {
@@ -30,7 +31,9 @@ import type {
   InviteMemberCommand,
   ProjectInvitationDto,
   ProjectMemberDetail,
+  ProjectMemberHistoryItem,
   ProjectSettingsDto,
+  ProjectStatus,
   PublishPipelineResult,
   UpdateProjectCommand,
 } from '../../types/settings.types'
@@ -54,16 +57,7 @@ export const METHODS_STILL_MOCKED = [
   'getProjectMembers', // C6
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
   'getProjectAuditLogs', // chưa có task: cần nhóm quyết
-  'archiveProject', // D1 (PATCH /projects/{id}/status)
-  'restoreProject', // D1 (PATCH /projects/{id}/status)
   'deleteProject', // D1
-  'getProjectMembersDetailed', // D2
-  'inviteProjectMember', // D2
-  'changeMemberRole', // D2
-  'removeProjectMember', // D2
-  'createProjectInvitation', // D2
-  'getProjectPendingInvitations', // D2
-  'revokeInvitation', // D2
 ] as const satisfies readonly (keyof IWorkflowService)[]
 
 interface BackendTaskResponse {
@@ -260,37 +254,8 @@ export class HttpWorkflowService implements IWorkflowService {
   // ───────────────────────── Workspace (D) ─────────────────────────
 
   /** GET /projects */
-  async getMyProjects(): Promise<readonly ProjectSummaryDto[]> {
-    const data = await apiRequest<any[]>('GET', '/projects')
-    const currentUserId = getStoredUserId()
-    return (data || []).map((item) => {
-      const itemOwnerId = item.ownerId != null ? String(item.ownerId) : undefined
-      const computedRole: ProjectRole = item.role
-        ? (item.role as ProjectRole)
-        : (currentUserId && itemOwnerId && currentUserId === itemOwnerId ? 'OWNER' : 'COLLABORATOR')
-      return {
-        id: String(item.id),
-        name: item.name,
-        description: item.description || '',
-        status: (item.status || 'ACTIVE') as ProjectStatus,
-        ownerId: itemOwnerId,
-        ownerName: item.ownerName || '',
-        role: computedRole,
-        nodeCount: item.totalNodes ?? item.nodeCount ?? 0,
-        totalNodes: item.totalNodes ?? item.nodeCount ?? 0,
-        completedNodes: item.completedNodes ?? 0,
-        inProgressNodes: item.inProgressNodes ?? 0,
-        completionPercent: item.progressPercentage != null ? Math.round(item.progressPercentage) : (item.completionPercent ?? 0),
-        progressPercentage: item.progressPercentage ?? item.completionPercent ?? 0,
-        criticalPathLength: item.criticalPathLength ?? 0,
-        createdAt: item.createdAt || new Date().toISOString(),
-        updatedAt: item.updatedAt || new Date().toISOString(),
-        members: (item.members || (item.ownerName ? [{ id: String(item.ownerId || '1'), displayName: item.ownerName }] : [])).map((m: any) => ({
-          id: String(m.id),
-          displayName: m.displayName || m.username || 'Member',
-        })),
-      }
-    })
+  async getMyProjects(params?: workspaceApi.FetchProjectsParams): Promise<readonly ProjectSummaryDto[]> {
+    return workspaceApi.fetchProjects(params)
   }
 
   async getProjectsList(): Promise<readonly ProjectSummaryDto[]> {
@@ -377,9 +342,7 @@ export class HttpWorkflowService implements IWorkflowService {
 
   /** PATCH /projects/{id}/status */
   async updateProjectStatus(projectId: string, status: ProjectStatus | string): Promise<ProjectSummaryDto> {
-    const item = await apiRequest<any>('PATCH', `/projects/${projectId}/status`, {
-      body: { status },
-    })
+    const item = await workspaceApi.setProjectStatus(projectId, status)
     return {
       id: String(item.id),
       name: item.name,
@@ -388,10 +351,10 @@ export class HttpWorkflowService implements IWorkflowService {
       ownerId: item.ownerId != null ? String(item.ownerId) : undefined,
       ownerName: item.ownerName || '',
       role: 'OWNER',
-      nodeCount: item.totalNodes ?? 0,
-      totalNodes: item.totalNodes ?? 0,
-      completedNodes: item.completedNodes ?? 0,
-      inProgressNodes: item.inProgressNodes ?? 0,
+      nodeCount: item.nodeCount ?? item.totalNodes ?? 0,
+      totalNodes: item.totalNodes ?? item.nodeCount ?? 0,
+      completedNodes: item.doneNodes ?? item.completedNodes ?? 0,
+      inProgressNodes: item.activeNodes ?? item.inProgressNodes ?? 0,
       criticalPathLength: 0,
       completionPercent: item.progressPercentage != null ? Math.round(item.progressPercentage) : 0,
       progressPercentage: item.progressPercentage ?? 0,
@@ -419,7 +382,7 @@ export class HttpWorkflowService implements IWorkflowService {
     return this.mock.generateGuestToken(projectId) // D5
   }
 
-  // ───────────────────────── Cài đặt, thành viên (D1/D2) — còn mock ─────────────────────────
+  // ───────────────────────── Cài đặt, thành viên (D1/D2) ─────────────────────────
 
   /** GET /projects/{id} (+ GET /projects/{id}/members nếu không phải owner) — xem impl/http/projectSettings.ts */
   getProjectSettings(projectId: string): Promise<ProjectSettingsDto> {
@@ -434,12 +397,32 @@ export class HttpWorkflowService implements IWorkflowService {
     return this.mock.getProjectAuditLogs(projectId) // chưa có task
   }
 
-  archiveProject(projectId: string): Promise<ProjectSettingsDto> {
-    return this.mock.archiveProject(projectId) // D1
+  async archiveProject(projectId: string): Promise<ProjectSettingsDto> {
+    const item = await workspaceApi.setProjectStatus(projectId, 'ARCHIVED')
+    return {
+      id: String(item.id),
+      name: item.name,
+      description: item.description || '',
+      status: (item.status || 'ARCHIVED') as ProjectStatus,
+      ownerId: item.ownerId != null ? String(item.ownerId) : '',
+      myRole: 'OWNER',
+      createdAt: item.createdAt || new Date().toISOString(),
+      updatedAt: item.updatedAt || new Date().toISOString(),
+    }
   }
 
-  restoreProject(projectId: string): Promise<ProjectSettingsDto> {
-    return this.mock.restoreProject(projectId) // D1
+  async restoreProject(projectId: string): Promise<ProjectSettingsDto> {
+    const item = await workspaceApi.setProjectStatus(projectId, 'ACTIVE')
+    return {
+      id: String(item.id),
+      name: item.name,
+      description: item.description || '',
+      status: (item.status || 'ACTIVE') as ProjectStatus,
+      ownerId: item.ownerId != null ? String(item.ownerId) : '',
+      myRole: 'OWNER',
+      createdAt: item.createdAt || new Date().toISOString(),
+      updatedAt: item.updatedAt || new Date().toISOString(),
+    }
   }
 
   deleteProject(projectId: string): Promise<void> {
@@ -447,33 +430,48 @@ export class HttpWorkflowService implements IWorkflowService {
   }
 
   getProjectMembersDetailed(projectId: string): Promise<ProjectMemberDetail[]> {
-    return this.mock.getProjectMembersDetailed(projectId) // D2
+    return membersApi.listMembers(projectId)
   }
 
-  inviteProjectMember(projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> {
-    return this.mock.inviteProjectMember(projectId, cmd) // D2
+  getProjectMemberHistory(projectId: string): Promise<ProjectMemberHistoryItem[]> {
+    return membersApi.listMemberHistory(projectId)
+  }
+
+  async inviteProjectMember(projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> {
+    const inv = await membersApi.createInvitation(projectId, cmd)
+    return {
+      userId: inv.inviteeId || `inv-${inv.id}`,
+      username: inv.inviteeEmail.split('@')[0],
+      email: inv.inviteeEmail,
+      role: inv.role,
+      joinedAt: inv.createdAt,
+      activeNodeCount: 0,
+      avatarClass: membersApi.getStableAvatarClass(inv.inviteeId || inv.id),
+      initials: (inv.inviteeEmail[0] || 'U').toUpperCase(),
+    }
   }
 
   changeMemberRole(projectId: string, userId: string, cmd: ChangeMemberRoleCommand): Promise<ProjectMemberDetail> {
-    return this.mock.changeMemberRole(projectId, userId, cmd) // D2
+    return membersApi.changeRole(projectId, userId, cmd.role)
   }
 
-  removeProjectMember(projectId: string, userId: string): Promise<{ unassignedTaskCount: number }> {
-    return this.mock.removeProjectMember(projectId, userId) // D2
+  async removeProjectMember(projectId: string, userId: string): Promise<{ unassignedTaskCount: number }> {
+    const res = await membersApi.removeMember(projectId, userId)
+    return { unassignedTaskCount: res.unassignedTaskCount }
   }
 
   // ───────────────────────── Lời mời (D) ─────────────────────────
 
   createProjectInvitation(projectId: string, cmd: InviteMemberCommand): Promise<ProjectInvitationDto> {
-    return this.mock.createProjectInvitation(projectId, cmd) // D2
+    return membersApi.createInvitation(projectId, cmd)
   }
 
   getProjectPendingInvitations(projectId: string): Promise<ProjectInvitationDto[]> {
-    return this.mock.getProjectPendingInvitations(projectId) // D2
+    return membersApi.listPendingInvitations(projectId)
   }
 
   revokeInvitation(projectId: string, invitationId: string): Promise<boolean> {
-    return this.mock.revokeInvitation(projectId, invitationId) // D2
+    return membersApi.revokeInvitation(projectId, invitationId)
   }
 
   /** GET /invitations/{id} — 404 trả null (giữ hành vi cũ). */

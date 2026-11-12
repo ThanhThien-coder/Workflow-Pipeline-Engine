@@ -117,6 +117,13 @@ describe('Project Settings & Governance Module', () => {
     expect(updatedSarah?.role).toBe('VIEWER')
     expect(updatedSarah?.activeNodeCount).toBe(0) // unassigned
 
+    // Transfer ownership to Marcus Liu
+    const marcus = store.getState().settings.members.find((m) => m.username === 'Marcus Liu')
+    expect(marcus).toBeDefined()
+    const transferOk = await store.getState().settings.changeRole(marcus!.userId, 'OWNER')
+    expect(transferOk).toBe(true)
+    expect(store.getState().settings.settings?.ownerId).toBe(marcus!.userId)
+
     // Kick Jamie Doe
     const jamie = store.getState().settings.members.find((m) => m.username === 'Jamie Doe')
     expect(jamie).toBeDefined()
