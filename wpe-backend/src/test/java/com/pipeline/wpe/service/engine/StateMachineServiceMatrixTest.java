@@ -2,13 +2,16 @@ package com.pipeline.wpe.service.engine;
 
 import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
+import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.event.NotificationEvent;
+import com.pipeline.wpe.dto.event.TaskCompletedEvent;
 import com.pipeline.wpe.dto.request.node.SubmitTaskArtifactRequest;
 import com.pipeline.wpe.dto.request.node.UpdateNodeStatusRequest;
 import com.pipeline.wpe.dto.response.node.KanbanTaskResponse;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.mapper.NodeMapper;
@@ -72,11 +75,19 @@ class StateMachineServiceMatrixTest {
     @InjectMocks
     private StateMachineService stateMachineService;
 
-    /** Vai trò của người gọi đối với task đang xét. */
+    /**
+     * Vai trò của người gọi đối với task đang xét.
+     * C1b (sau PR #33): MANAGER còn hoạt động được duyệt/từ chối bài; REMOVED_MANAGER là Manager đã bị gỡ khỏi dự án
+     * (không còn bản ghi project_member với removed_at = null).
+     */
     enum Role {
-        OWNER(2L), ASSIGNEE(3L), OTHER_MEMBER(4L);
+        OWNER(2L), ASSIGNEE(3L), OTHER_MEMBER(4L), MANAGER(5L), REMOVED_MANAGER(6L);
         final Long userId;
         Role(Long userId) { this.userId = userId; }
+    }
+
+    private static ProjectMemberEntity activeMember(Role role, ProjectRole projectRole) {
+        return ProjectMemberEntity.builder().projectId(PROJECT_ID).userId(role.userId).role(projectRole).build();
     }
 
     private static final Long PROJECT_ID = 1L;
@@ -115,6 +126,14 @@ class StateMachineServiceMatrixTest {
         when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
         when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(response);
+
+        // Thành viên đang hoạt động của dự án. REMOVED_MANAGER không có bản ghi nào → Optional.empty().
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(PROJECT_ID, Role.ASSIGNEE.userId))
+            .thenReturn(Optional.of(activeMember(Role.ASSIGNEE, ProjectRole.COLLABORATOR)));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(PROJECT_ID, Role.OTHER_MEMBER.userId))
+            .thenReturn(Optional.of(activeMember(Role.OTHER_MEMBER, ProjectRole.COLLABORATOR)));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(PROJECT_ID, Role.MANAGER.userId))
+            .thenReturn(Optional.of(activeMember(Role.MANAGER, ProjectRole.MANAGER)));
     }
 
     /** Chạy code trong transaction theo đúng quy trình commit/rollback thật của Spring (không có DB). */
@@ -137,7 +156,10 @@ class StateMachineServiceMatrixTest {
             arguments(NodeStatus.IN_PROGRESS, NodeStatus.REVIEW, Role.ASSIGNEE, null),
             arguments(NodeStatus.IN_PROGRESS, NodeStatus.REVIEW, Role.OWNER, null),
             arguments(NodeStatus.REVIEW, NodeStatus.DONE, Role.OWNER, null),
-            arguments(NodeStatus.REVIEW, NodeStatus.IN_PROGRESS, Role.OWNER, "Thiếu test case")
+            arguments(NodeStatus.REVIEW, NodeStatus.IN_PROGRESS, Role.OWNER, "Thiếu test case"),
+            // C1b: Manager duyệt và từ chối được (PR #33)
+            arguments(NodeStatus.REVIEW, NodeStatus.DONE, Role.MANAGER, null),
+            arguments(NodeStatus.REVIEW, NodeStatus.IN_PROGRESS, Role.MANAGER, "Thiếu test case")
         );
     }
 
@@ -161,7 +183,14 @@ class StateMachineServiceMatrixTest {
             arguments(NodeStatus.REVIEW, NodeStatus.DONE, Role.ASSIGNEE, null),
             arguments(NodeStatus.REVIEW, NodeStatus.DONE, Role.OTHER_MEMBER, null),
             arguments(NodeStatus.REVIEW, NodeStatus.IN_PROGRESS, Role.ASSIGNEE, "Lý do"),
-            arguments(NodeStatus.REVIEW, NodeStatus.IN_PROGRESS, Role.OTHER_MEMBER, "Lý do")
+            arguments(NodeStatus.REVIEW, NodeStatus.IN_PROGRESS, Role.OTHER_MEMBER, "Lý do"),
+            // C1b: Manager không phụ trách task thì không bắt đầu, hủy nhận, nộp thay được
+            arguments(NodeStatus.TODO, NodeStatus.IN_PROGRESS, Role.MANAGER, null),
+            arguments(NodeStatus.IN_PROGRESS, NodeStatus.TODO, Role.MANAGER, null),
+            arguments(NodeStatus.IN_PROGRESS, NodeStatus.REVIEW, Role.MANAGER, null),
+            // C1b: Manager đã bị gỡ khỏi dự án mất quyền duyệt/từ chối
+            arguments(NodeStatus.REVIEW, NodeStatus.DONE, Role.REMOVED_MANAGER, null),
+            arguments(NodeStatus.REVIEW, NodeStatus.IN_PROGRESS, Role.REMOVED_MANAGER, "Lý do")
         );
     }
 
@@ -265,6 +294,98 @@ class StateMachineServiceMatrixTest {
     // ------------------------------------------------------------------
     // 3. Dự án ARCHIVED là chỉ đọc (workflow-engine.md 5.1)
     // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("C1b: vai trò Manager (PR #33)")
+    class ManagerRole {
+
+        @Test
+        @DisplayName("Manager duyệt: bắn TaskCompletedEvent ghi người duyệt là Manager")
+        void approve_publishesTaskCompletedByManager() {
+            node.setStatus(NodeStatus.REVIEW);
+
+            stateMachineService.updateStatus(TASK_ID, move(NodeStatus.DONE, null), Role.MANAGER.userId);
+
+            ArgumentCaptor<TaskCompletedEvent> event = ArgumentCaptor.forClass(TaskCompletedEvent.class);
+            verify(eventPublisher).publishTaskCompleted(event.capture());
+            assertThat(event.getValue().taskId()).isEqualTo(TASK_ID);
+            assertThat(event.getValue().completedByUserId()).isEqualTo(Role.MANAGER.userId);
+        }
+
+        @Test
+        @DisplayName("Manager duyệt: sau commit SSE TASK_STATUS_CHANGED tới người phụ trách và Owner (Manager không phải Owner)")
+        void approve_notifiesAssigneeAndOwnerAfterCommit() {
+            node.setStatus(NodeStatus.REVIEW);
+
+            tx.executeWithoutResult(status -> {
+                stateMachineService.updateStatus(TASK_ID, move(NodeStatus.DONE, null), Role.MANAGER.userId);
+                verify(sseEmitterService, never()).sendToUser(any(), anyString(), any());
+            });
+
+            verify(sseEmitterService).sendToUser(eq(Role.ASSIGNEE.userId), eq("TASK_STATUS_CHANGED"), any());
+            verify(sseEmitterService).sendToUser(eq(Role.OWNER.userId), eq("TASK_STATUS_CHANGED"), any());
+        }
+
+        @Test
+        @DisplayName("Manager từ chối có lý do: lưu lý do, thông báo REJECTED cho người phụ trách")
+        void reject_notifiesAssignee() {
+            node.setStatus(NodeStatus.REVIEW);
+
+            stateMachineService.updateStatus(TASK_ID, move(NodeStatus.IN_PROGRESS, "Thiếu test case"), Role.MANAGER.userId);
+
+            assertThat(node.getRejectReason()).isEqualTo("Thiếu test case");
+            ArgumentCaptor<NotificationEvent> notification = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(eventPublisher).publishNotification(notification.capture());
+            assertThat(notification.getValue().recipientUserId()).isEqualTo(Role.ASSIGNEE.userId);
+            assertThat(notification.getValue().type()).isEqualTo("REJECTED");
+        }
+
+        @Test
+        @DisplayName("Manager từ chối thiếu lý do → 400, không đổi trạng thái")
+        void reject_withoutReason_badRequest() {
+            node.setStatus(NodeStatus.REVIEW);
+
+            assertThatThrownBy(() -> stateMachineService.updateStatus(
+                    TASK_ID, move(NodeStatus.IN_PROGRESS, "  "), Role.MANAGER.userId))
+                .isInstanceOf(IllegalArgumentException.class);
+            assertThat(node.getStatus()).isEqualTo(NodeStatus.REVIEW);
+            verify(nodeRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Manager nộp bài thay người phụ trách → 403")
+        void submit_byManager_forbidden() {
+            node.setStatus(NodeStatus.IN_PROGRESS);
+            SubmitTaskArtifactRequest request = new SubmitTaskArtifactRequest(null, null, null, null, null, null, 0L);
+
+            assertThatThrownBy(() -> stateMachineService.submitTaskArtifact(TASK_ID, request, Role.MANAGER.userId))
+                .isInstanceOf(ForbiddenException.class);
+            assertThat(node.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
+        }
+
+        @Test
+        @DisplayName("Manager mở khóa sớm → 403 (force unlock vẫn chỉ Owner)")
+        void forceUnlock_byManager_forbidden() {
+            node.setStatus(NodeStatus.LOCKED);
+
+            assertThatThrownBy(() -> stateMachineService.forceUnlock(TASK_ID, Role.MANAGER.userId))
+                .isInstanceOf(ForbiddenException.class);
+            assertThat(node.getStatus()).isEqualTo(NodeStatus.LOCKED);
+        }
+
+        @Test
+        @DisplayName("Manager duyệt bài trên dự án ARCHIVED → 409 PROJECT_ARCHIVED")
+        void approve_archived_conflict() {
+            project.setStatus(ProjectStatus.ARCHIVED);
+            node.setStatus(NodeStatus.REVIEW);
+
+            assertThatThrownBy(() -> stateMachineService.updateStatus(
+                    TASK_ID, move(NodeStatus.DONE, null), Role.MANAGER.userId))
+                .isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo("PROJECT_ARCHIVED");
+            verify(eventPublisher, never()).publishTaskCompleted(any());
+        }
+    }
 
     @Nested
     @DisplayName("Dự án ARCHIVED → 409 PROJECT_ARCHIVED")
