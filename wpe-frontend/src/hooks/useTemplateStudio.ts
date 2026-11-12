@@ -832,18 +832,15 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       throw new Error('Vui lòng nhập tên template');
     }
 
-    // Mandatory DAG Validation before save
-    const validationResult = await container.templateService.validateGraph(
-      currentDraft.graphData
-    );
-    setValidation(validationResult);
-
-    if (!validationResult.valid) {
-      throw new Error('Không thể lưu: phát hiện chu trình lặp trong đồ thị template');
-    }
-
     setStatus('saving');
     try {
+      // Mandatory DAG Validation before save
+      const validationRes = await container.templateService.validateGraph(currentDraft.graphData);
+      setValidation(validationRes);
+      if (!validationRes.valid) {
+        throw new Error('Không thể lưu: phát hiện chu trình lặp trong đồ thị template');
+      }
+
       let saved: TemplateDetailDto;
       const requestDto: CreateTemplateRequestDto = {
         name: trimmedName,
@@ -882,7 +879,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       setErrorMessage(msg);
       throw err;
     }
-  }, []);
+  }, [status]);
 
   return {
     draft,

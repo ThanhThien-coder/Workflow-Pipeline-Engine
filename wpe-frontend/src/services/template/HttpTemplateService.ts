@@ -9,42 +9,24 @@ import type {
   GraphDataPayload,
   DagValidationResult,
 } from '../../types/template.types';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-
-function getAuthHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined'
-    ? (localStorage.getItem('wpe_auth_token') || sessionStorage.getItem('wpe_auth_token'))
-    : null;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
+import { apiRequest } from '../http/apiClient';
 
 export class HttpTemplateService implements ITemplateService {
   async getTemplates(filter?: TemplateFilter): Promise<TemplateSummaryDto[]> {
-    let url = `${API_BASE_URL}/templates`;
-    const params = new URLSearchParams();
+    const query: Record<string, string | boolean> = {};
     if (filter?.category && filter.category !== 'All') {
-      params.append('category', filter.category);
+      query.category = filter.category;
     }
     if (filter?.search) {
-      params.append('search', filter.search);
+      query.search = filter.search;
     }
-    const query = params.toString();
-    if (query) {
-      url += `?${query}`;
+    if (filter?.isSystemStandard !== undefined) {
+      query.isSystemStandard = filter.isSystemStandard;
     }
 
-    const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch templates: HTTP ${res.status}`);
-    }
-    return res.json();
+    return apiRequest<TemplateSummaryDto[]>('GET', '/templates', {
+      query: Object.keys(query).length > 0 ? query : undefined,
+    });
   }
 
   async getAllTemplates(filter?: TemplateFilter): Promise<TemplateSummaryDto[]> {
@@ -52,71 +34,43 @@ export class HttpTemplateService implements ITemplateService {
   }
 
   async getTemplateById(id: string): Promise<TemplateDetailDto> {
-    const res = await fetch(`${API_BASE_URL}/templates/${id}`, {
-      credentials: 'include',
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch template #${id}: HTTP ${res.status}`);
-    }
-    return res.json();
+    return apiRequest<TemplateDetailDto>('GET', `/templates/${id}`);
   }
 
   async createTemplate(dto: CreateTemplateRequestDto): Promise<TemplateDetailDto> {
-    const res = await fetch(`${API_BASE_URL}/templates`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(dto),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Failed to create template: HTTP ${res.status}`);
-    }
-    return res.json();
+    return apiRequest<TemplateDetailDto>('POST', '/templates', { body: dto });
   }
 
   async updateTemplate(id: string, dto: UpdateTemplateRequestDto): Promise<TemplateDetailDto> {
-    const res = await fetch(`${API_BASE_URL}/templates/${id}`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(dto),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Failed to update template #${id}: HTTP ${res.status}`);
-    }
-    return res.json();
+    return apiRequest<TemplateDetailDto>('PUT', `/templates/${id}`, { body: dto });
   }
 
   async deleteTemplate(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/templates/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to delete template #${id}: HTTP ${res.status}`);
-    }
+    await apiRequest<void>('DELETE', `/templates/${id}`);
   }
 
   async validateGraph(graphData: GraphDataPayload): Promise<DagValidationResult> {
-    const res = await fetch(`${API_BASE_URL}/templates/validate`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ graphData, ...graphData }),
+    const data = await apiRequest<{
+      valid?: boolean;
+      isValid?: boolean;
+      visitedCount?: number;
+      totalCount?: number;
+      violations?: Array<{
+        scope?: string;
+        phaseId?: string;
+        nodeIds?: string[];
+        nodeId?: string;
+        cycleNodes?: string[];
+      }>;
+    }>('POST', '/templates/validate', {
+      body: { graphData, ...graphData },
     });
-    if (!res.ok) {
-      throw new Error(`Graph validation failed: HTTP ${res.status}`);
-    }
-    const data = await res.json();
+
     return {
       valid: data.valid ?? data.isValid ?? (data.violations?.length === 0),
       visitedCount: data.visitedCount ?? 0,
       totalCount: data.totalCount ?? 0,
-      violations: (data.violations || []).map((v: any) => ({
+      violations: (data.violations || []).map((v) => ({
         scope: (v.scope || (v.nodeId ? 'NODE' : 'PHASE')) as 'PHASE' | 'NODE',
         phaseId: v.phaseId,
         nodeIds: v.nodeIds || (v.nodeId ? [v.nodeId] : (v.cycleNodes || [])),
@@ -128,16 +82,8 @@ export class HttpTemplateService implements ITemplateService {
     projectId: string,
     payload: SaveProjectAsTemplateRequestDto
   ): Promise<TemplateDetailDto> {
-    const res = await fetch(`${API_BASE_URL}/projects/${projectId}/save-as-template`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload),
+    return apiRequest<TemplateDetailDto>('POST', `/projects/${projectId}/save-as-template`, {
+      body: payload,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Failed to save project as template: HTTP ${res.status}`);
-    }
-    return res.json();
   }
 }
