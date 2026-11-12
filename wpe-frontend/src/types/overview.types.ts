@@ -78,7 +78,7 @@ export interface FeedbackItem {
   id: string
   reviewerName: string
   reviewerRole: ReviewerRole
-  nodeRef: { nodeId: string; code: string; title: string }
+  nodeRef: { nodeId: string; code: string; title: string } | null
   content: string
   status: FeedbackStatus
   replyContent?: string | null

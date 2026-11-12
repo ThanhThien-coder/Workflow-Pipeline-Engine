@@ -23,7 +23,7 @@ export interface GuestVelocityPoint {
   value: number
 }
 
-export type GuestStatusKey = 'done' | 'inProgress' | 'todo' | 'blocked'
+export type GuestStatusKey = 'done' | 'inProgress' | 'todo' | 'blocked' | 'review' | 'locked'
 
 export interface GuestStatusSlice {
   key: GuestStatusKey
@@ -63,8 +63,12 @@ export interface GuestAiSummaryDto {
 }
 
 export interface SubmitGuestFeedbackCommand {
-  sessionId: string
+  sessionId?: string
   message: string
+  reviewerName?: string
+  reviewerRole?: 'TEACHER' | 'GUEST'
+  content?: string
+  nodeId?: number | string | null
 }
 
 export interface GuestFeedbackDto {

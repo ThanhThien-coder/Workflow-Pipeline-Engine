@@ -6,6 +6,7 @@ import * as authApi from './http/auth'
 import * as graphApi from './http/graph'
 import * as workspaceApi from './http/workspace'
 import * as membersApi from './http/members'
+import * as guestApi from './http/guest'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import type {
   ArtifactItem,
@@ -49,10 +50,7 @@ import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '..
  * (không còn tự chuyển sang dữ liệu giả).
  */
 export const METHODS_STILL_MOCKED = [
-  'getOverviewData', // D5 (phần AI: D6)
-  'resolveFeedback', // D5
-  'toggleGuestAccess', // D5
-  'generateGuestToken', // D5
+  'getOverviewData', // D5 (chỉ phần KPI/AI còn mock; góp ý và link khách đã thật)
   'getProjectMembers', // C6
   'getProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
@@ -364,22 +362,53 @@ export class HttpWorkflowService implements IWorkflowService {
     }
   }
 
-  // ───────────────────────── Overview, khách, góp ý (D5) — còn mock ─────────────────────────
+  // ───────────────────────── Overview, khách, góp ý (D5) ─────────────────────────
 
-  getOverviewData(projectId: string): Promise<OverviewData> {
-    return this.mock.getOverviewData(projectId) // D5 (AI: D6)
+  async getOverviewData(projectId: string): Promise<OverviewData> {
+    const base = await this.mock.getOverviewData(projectId)
+    let guestAccess: GuestAccessState = {
+      isActive: false,
+      token: '',
+      expiresAt: '',
+      expiresLabel: 'Đã thu hồi',
+    }
+    try {
+      guestAccess = await guestApi.getGuestAccess(projectId)
+    } catch (error) {
+      if (isApiError(error) && error.status === 403) {
+        guestAccess = {
+          isActive: false,
+          token: '',
+          expiresAt: '',
+          expiresLabel: 'Chỉ chủ dự án mới có quyền quản lý link',
+        }
+      } else {
+        throw error
+      }
+    }
+
+    const feedbackQueue = await guestApi.listFeedbacks(projectId)
+
+    return {
+      ...base,
+      guestAccess,
+      feedbackQueue,
+    }
   }
 
-  resolveFeedback(projectId: string, feedbackId: string): Promise<void> {
-    return this.mock.resolveFeedback(projectId, feedbackId) // D5
+  async resolveFeedback(projectId: string, feedbackId: string): Promise<void> {
+    await guestApi.resolveFeedback(projectId, feedbackId)
   }
 
-  toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState> {
-    return this.mock.toggleGuestAccess(projectId, active) // D5
+  async toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState> {
+    if (active) {
+      return guestApi.createOrRenewGuestToken(projectId)
+    }
+    return guestApi.revokeGuestToken(projectId)
   }
 
-  generateGuestToken(projectId: string): Promise<GuestAccessState> {
-    return this.mock.generateGuestToken(projectId) // D5
+  async generateGuestToken(projectId: string): Promise<GuestAccessState> {
+    return guestApi.createOrRenewGuestToken(projectId)
   }
 
   // ───────────────────────── Cài đặt, thành viên (D1/D2) ─────────────────────────

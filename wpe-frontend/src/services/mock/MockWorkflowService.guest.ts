@@ -121,13 +121,15 @@ export class MockGuestApi implements IGuestService {
   async submitFeedback(token: string, cmd: SubmitGuestFeedbackCommand): Promise<GuestFeedbackDto> {
     await this.guard(token)
     const d = this.data()
+    // sessionId tuy chon (HttpGuestService gui reviewerName thay cho session); mock dung khoa mac dinh
+    const sid = cmd.sessionId ?? 'anonymous'
     const item: GuestFeedbackDto = {
       id: `fb_${Date.now()}`,
-      author: d.names[cmd.sessionId] ?? 'Anonymous',
+      author: d.names[sid] ?? cmd.reviewerName ?? 'Anonymous',
       message: cmd.message,
       createdAt: new Date().toISOString(),
     }
-    d.feedback[cmd.sessionId] = [item, ...(d.feedback[cmd.sessionId] ?? [])]
+    d.feedback[sid] = [item, ...(d.feedback[sid] ?? [])]
     this.save(d)
     return item
   }
