@@ -1,0 +1,121 @@
+[
+  {
+    "name": "tuyen-tinh: WPE-001 -> WPE-002 -> WPE-003",
+    "nodes": ["WPE-001", "WPE-002", "WPE-003"],
+    "edges": [["WPE-001", "WPE-002"], ["WPE-002", "WPE-003"]],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "kim-cuong: A -> B, A -> C, B -> D, C -> D",
+    "nodes": ["A", "B", "C", "D"],
+    "edges": [["A", "B"], ["A", "C"], ["B", "D"], ["C", "D"]],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "vong-3-node: WPE-001 -> WPE-002 -> WPE-003 -> WPE-001",
+    "nodes": ["WPE-001", "WPE-002", "WPE-003"],
+    "edges": [["WPE-001", "WPE-002"], ["WPE-002", "WPE-003"], ["WPE-003", "WPE-001"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["WPE-001", "WPE-002", "WPE-003"]
+  },
+  {
+    "name": "do-thi-rong",
+    "nodes": [],
+    "edges": [],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "vong-kem-duoi: A -> B -> C -> A, C -> D -> E (D, E chi dung sau vong)",
+    "nodes": ["A", "B", "C", "D", "E"],
+    "edges": [["A", "B"], ["B", "C"], ["C", "A"], ["C", "D"], ["D", "E"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B", "C"]
+  },
+  {
+    "name": "canh-tro-toi-node-khong-co-trong-do-thi: bo qua canh X -> B",
+    "nodes": ["A", "B"],
+    "edges": [["A", "B"], ["X", "B"]],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "mot-node-khong-canh",
+    "nodes": ["ONLY"],
+    "edges": [],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "seed: WPE-001 -> WPE-002 -> WPE-003 -> WPE-004",
+    "nodes": ["WPE-001", "WPE-002", "WPE-003", "WPE-004"],
+    "edges": [["WPE-001", "WPE-002"], ["WPE-002", "WPE-003"], ["WPE-003", "WPE-004"]],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "kim-cuong-dua-node-theo-thu-tu-nguoc",
+    "nodes": ["D", "C", "B", "A"],
+    "edges": [["C", "D"], ["B", "D"], ["A", "C"], ["A", "B"]],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "hai-thanh-phan-roi: A -> B va C -> D",
+    "nodes": ["A", "B", "C", "D"],
+    "edges": [["A", "B"], ["C", "D"]],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "vong-kem-duoi-va-node-dung-truoc: ROOT -> A, A -> B -> C -> A, C -> D -> E",
+    "nodes": ["ROOT", "A", "B", "C", "D", "E"],
+    "edges": [["ROOT", "A"], ["A", "B"], ["B", "C"], ["C", "A"], ["C", "D"], ["D", "E"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B", "C"]
+  },
+  {
+    "name": "hai-vong-roi: A <-> B va C -> D -> E -> C, E -> F",
+    "nodes": ["A", "B", "C", "D", "E", "F"],
+    "edges": [["A", "B"], ["B", "A"], ["C", "D"], ["D", "E"], ["E", "C"], ["E", "F"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B", "C", "D", "E"]
+  },
+  {
+    "name": "node-nam-giua-hai-vong (han che da biet cua B1): A <-> B, B -> MID -> D, D <-> E",
+    "nodes": ["A", "B", "MID", "D", "E"],
+    "edges": [["A", "B"], ["B", "A"], ["B", "MID"], ["MID", "D"], ["D", "E"], ["E", "D"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B", "MID", "D", "E"]
+  },
+  {
+    "name": "canh-trung: A -> B xuat hien 2 lan",
+    "nodes": ["A", "B", "C"],
+    "edges": [["A", "B"], ["A", "B"], ["B", "C"]],
+    "expectedValid": true,
+    "expectedCycleNodes": []
+  },
+  {
+    "name": "vong-2-node: A <-> B",
+    "nodes": ["A", "B"],
+    "edges": [["A", "B"], ["B", "A"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B"]
+  },
+  {
+    "name": "vong-giua-co-dau-va-duoi: A -> B <-> C -> D",
+    "nodes": ["A", "B", "C", "D"],
+    "edges": [["A", "B"], ["B", "C"], ["C", "B"], ["C", "D"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["B", "C"]
+  },
+  {
+    "name": "tu-noi-chinh-no: A -> A",
+    "nodes": ["A", "B"],
+    "edges": [["A", "A"], ["A", "B"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A"]
+  }
+]
