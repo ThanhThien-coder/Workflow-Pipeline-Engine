@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chờ kiểm
+Trạng thái: chưa làm
 Cần có trước: B1
 Cần trước bước frontend: không
 Mở khóa: X1
@@ -91,36 +91,13 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 ### Đã làm gì (file nào, vì sao)
 
 ### Kết quả test (dán output thật, không chép tay)
-Sprint 12/11/2026 (Antigravity viết code, Claude kiểm). Phạm vi: CPM thật, node ngâm, tách `HeuristicAiClient`. **Chưa làm**: `GeminiAiClient`, phần frontend (bước 4, 5).
-
-**Trước khi sửa** (code `main`, backend local):
-- Dự án 1 (chuỗi WPE-001→002→003→004): `criticalPath` = `['WPE-001','WPE-004','WPE-002','WPE-003']` (sai thứ tự, chỉ liệt kê mọi node), WPE-002 bị coi là điểm nghẽn HIGH chỉ vì đang IN_PROGRESS.
-- Dự án 5 (clone `tpl-sdlc`, 7 node 8h, cạnh 001→002, 003→004, 005→006): `criticalPath` = cả 7 node, kể cả WPE-007 đứng riêng.
-
-**Sau khi sửa:** `mvn -B clean test`
-```
-[INFO] Tests run: 173, Failures: 0, Errors: 0, Skipped: 0
-[INFO] BUILD SUCCESS
-```
-`CpmCalculatorTest` dùng đúng số tính tay A(8)→B(4), A→C(10), B→D(2), C→D(3): A(0,8,0,8,0), B(8,12,14,18,6), C(8,18,8,18,0), D(18,21,18,21,0), đường găng A-C-D, tổng 21h.
-
-Chạy thật:
-- Dự án 5: `criticalPath` = WPE-001..006, `projectDurationHours` 16, WPE-007 slack 8 không còn trên đường găng; `source` = HEURISTIC.
-- Dự án 1, đặt `started_at` WPE-002 = 25 giờ trước (ước lượng 8h, ngưỡng 20h): `criticalPath` = WPE-001→004 đúng thứ tự topo, `stalledCount` 1, WPE-002 HIGH (ngâm + nằm trên đường găng). Đã trả `started_at` về NULL như seed.
-- Bấm lại ngay → 429 `COOLDOWN_ACTIVE`, `retryAfterSeconds` 180.
-- Không phải thành viên GET `ai-analysis` / POST `ai-diagnostics` → 403 `ACCESS_DENIED`.
-- `git grep -n "AIza"` chỉ ra dòng tiêu chí trong chính file task này, không có key.
 
 ### Điều chưa chắc / cần nhóm quyết
-- Output AI giữ nguyên các key cũ (`criticalPath`, `bottlenecks`...) để frontend không vỡ, thêm `source`, `cpm`, `metrics.projectDurationHours`, `metrics.stalledCount`. Chưa chuyển sang đúng schema `AiAnalysisResult` trong `ai-diagnostics.md`.
-- Ngưỡng ngâm dùng `>` 2,5 × ước lượng theo đặc tả task; `ai-diagnostics.md` ghi `≥`. Nhóm thống nhất một bên.
-- `GeminiAiClient` chưa làm (cần kiểm model còn hỗ trợ và cần key, không làm được trong đêm).
-- Phát hiện phụ: gọi sai method HTTP (GET vào endpoint chỉ có POST) trả 500 thay vì 405, vì `GlobalExceptionHandler` bắt mọi `Exception` thành 500. Thuộc file dùng chung, báo A.
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
 
-- **Làm gì:** Tính đường găng CPM thật (forward/backward pass, slack) theo thứ tự topo của `KahnDagService`, phát hiện node ngâm quá 2,5 × ước lượng, tách cài đặt AI thành `HeuristicAiClient`.
-- **File chính đã sửa:** `CpmCalculator.java`, `StalledNodeDetector.java`, `HeuristicAiClient.java` (thay `AiServiceClientImpl.java`, đã xóa); test: `CpmCalculatorTest`, `StalledNodeDetectorTest`, `HeuristicAiClientTest`, `AiDiagnosticControllerTest`.
+- **Làm gì:**
+- **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
-- **Cần học lại:** Tự tính lại CPM bằng tay (ES, EF, LS, LF, slack); vì sao phải có thứ tự topo trước forward pass; mẫu Strategy (`AiServiceClient` có nhiều cài đặt).
+- **Cần học lại:**
