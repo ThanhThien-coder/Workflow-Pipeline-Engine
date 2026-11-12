@@ -174,7 +174,7 @@ public class FeedbackQueueService {
     @Transactional
     public ResolveFeedbackResponse resolveFeedback(Long projectId, Long feedbackId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
 
         ProjectFeedbackEntity feedback = feedbackRepository.findById(feedbackId)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản ghi góp ý với ID: " + feedbackId));
