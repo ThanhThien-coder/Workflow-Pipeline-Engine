@@ -84,12 +84,15 @@ public class AdminAuditService {
 
     @Transactional(readOnly = true)
     public AdminAuditLogPageResponse search(String group, String action, Instant from, Instant to, int page, int size) {
+        final List<String> groupActions = (group != null && !group.isBlank() && !"ALL".equalsIgnoreCase(group.trim()))
+            ? AdminAuditAction.actionsOfGroup(group.trim())
+            : null;
+
         Specification<AdminAuditLogEntity> spec = (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
 
-            if (group != null && !group.isBlank() && !"ALL".equalsIgnoreCase(group.trim())) {
-                List<String> actions = AdminAuditAction.actionsOfGroup(group.trim());
-                predicates.add(root.get("action").in(actions));
+            if (groupActions != null) {
+                predicates.add(root.get("action").in(groupActions));
             }
 
             if (action != null && !action.isBlank()) {

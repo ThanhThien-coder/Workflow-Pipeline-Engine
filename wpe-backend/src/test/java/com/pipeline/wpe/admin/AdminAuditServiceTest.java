@@ -134,4 +134,14 @@ class AdminAuditServiceTest {
         assertThat(AdminAuditService.maskIp("")).isEqualTo("—");
         assertThat(AdminAuditService.maskIp("   ")).isEqualTo("—");
     }
+
+    @Test
+    @DisplayName("search: group không hợp lệ ('XYZ') -> ném IllegalArgumentException và không truy vấn repository")
+    void search_invalidGroup_throwsIllegalArgumentExceptionAndNoRepositoryInteraction() {
+        assertThatThrownBy(() -> auditService.search("XYZ", null, null, null, 0, 50))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Nhóm audit không hợp lệ");
+
+        verifyNoInteractions(auditLogRepository);
+    }
 }
