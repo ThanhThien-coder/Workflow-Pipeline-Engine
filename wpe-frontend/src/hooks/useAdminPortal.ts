@@ -4,10 +4,10 @@ import type { IAdminService } from '../services/admin/IAdminService';
 import type {
   AdminUserDto,
   SuspendUserRequestDto,
-  SystemKpiDto,
-  AnalyticsTrendPointDto,
-  RoleDistributionDto,
-  WorkspaceOverviewDto,
+  AdminStatsDto,
+  AdminTrendPointDto,
+  AdminWorkspaceDto,
+  AdminWorkspaceDetailDto,
   SecurityAuditLogDto,
   AuditLogGroup,
   AdminTabId,
@@ -25,11 +25,11 @@ export type AdminPortalTab = 'overview' | 'users' | 'workspaces' | 'audit' | 'te
 export function useAdminPortal(service: IAdminService = adminService) {
   const [currentTab, setCurrentTabState] = useState<AdminPortalTab>('overview');
   const [users, setUsers] = useState<AdminUserDto[]>([]);
-  const [kpis, setKpis] = useState<SystemKpiDto | null>(null);
-  const [trends, setTrends] = useState<AnalyticsTrendPointDto[]>([]);
+  const [stats, setStats] = useState<AdminStatsDto | null>(null);
+  const [trends, setTrends] = useState<AdminTrendPointDto[]>([]);
   const [trendRange, setTrendRangeState] = useState<'7D' | '30D'>('7D');
-  const [roleDistribution, setRoleDistribution] = useState<RoleDistributionDto | null>(null);
-  const [workspaces, setWorkspaces] = useState<WorkspaceOverviewDto[]>([]);
+  const [workspaces, setWorkspaces] = useState<AdminWorkspaceDto[]>([]);
+  const [workspaceDetail, setWorkspaceDetail] = useState<AdminWorkspaceDetailDto | null>(null);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLogDto[]>([]);
   const [auditGroup, setAuditGroupState] = useState<AuditLogGroup | 'ALL'>('ALL');
   const [loadErrors, setLoadErrors] = useState<Partial<Record<'overview' | 'users' | 'workspaces' | 'audit', string>>>({});
@@ -74,10 +74,9 @@ export function useAdminPortal(service: IAdminService = adminService) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [kpiRes, trendsRes, rolesRes, usersRes, wsRes, logsRes] = await Promise.allSettled([
-        service.getSystemKpis(),
-        service.getAnalyticsTrends(trendRange),
-        service.getRoleDistribution(),
+      const [statsRes, trendsRes, usersRes, wsRes, logsRes] = await Promise.allSettled([
+        service.getStats(),
+        service.getTrends(trendRange),
         service.getUsers(),
         service.getWorkspaces(),
         service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup),
@@ -85,10 +84,10 @@ export function useAdminPortal(service: IAdminService = adminService) {
 
       const errors: Partial<Record<'overview' | 'users' | 'workspaces' | 'audit', string>> = {};
 
-      if (kpiRes.status === 'fulfilled') {
-        setKpis(kpiRes.value);
+      if (statsRes.status === 'fulfilled') {
+        setStats(statsRes.value);
       } else {
-        setKpis(null);
+        setStats(null);
       }
 
       if (trendsRes.status === 'fulfilled') {
@@ -97,19 +96,11 @@ export function useAdminPortal(service: IAdminService = adminService) {
         setTrends([]);
       }
 
-      if (rolesRes.status === 'fulfilled') {
-        setRoleDistribution(rolesRes.value);
-      } else {
-        setRoleDistribution(null);
-      }
-
-      // lỗi của kpi/trend/role gộp vào overview
-      if (kpiRes.status === 'rejected') {
-        errors.overview = kpiRes.reason instanceof Error ? kpiRes.reason.message : String(kpiRes.reason);
+      // lỗi của stats hoặc trends gộp vào overview
+      if (statsRes.status === 'rejected') {
+        errors.overview = statsRes.reason instanceof Error ? statsRes.reason.message : String(statsRes.reason);
       } else if (trendsRes.status === 'rejected') {
         errors.overview = trendsRes.reason instanceof Error ? trendsRes.reason.message : String(trendsRes.reason);
-      } else if (rolesRes.status === 'rejected') {
-        errors.overview = rolesRes.reason instanceof Error ? rolesRes.reason.message : String(rolesRes.reason);
       }
 
       if (usersRes.status === 'fulfilled') {
@@ -165,18 +156,35 @@ export function useAdminPortal(service: IAdminService = adminService) {
     [service]
   );
 
-  // Range switch for Analytics Chart
+  // Range switch for Trends
   const handleTrendRangeChange = useCallback(
     async (range: '7D' | '30D') => {
       setTrendRangeState(range);
       try {
-        const trendData = await service.getAnalyticsTrends(range);
+        const trendData = await service.getTrends(range);
         setTrends(trendData);
       } catch (err) {
         console.error('Failed to update trend range:', err);
       }
     },
     [service]
+  );
+
+  // Workspace detail
+  const loadWorkspaceDetail = useCallback(
+    async (id: string): Promise<AdminWorkspaceDetailDto | null> => {
+      try {
+        const detail = await service.getWorkspaceDetail(id);
+        setWorkspaceDetail(detail);
+        return detail;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Lỗi khi tải chi tiết dự án';
+        showToast(message, 'rose');
+        setWorkspaceDetail(null);
+        return null;
+      }
+    },
+    [service, showToast]
   );
 
   // Modal actions
@@ -208,7 +216,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
         showToast(message, 'rose');
       }
     },
-    [service, banReason, closeBanModal, showToast]
+    [service, banReason, closeBanModal, showToast, auditGroup]
   );
 
   // Unban user
@@ -226,7 +234,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
         showToast(message, 'rose');
       }
     },
-    [service, showToast]
+    [service, showToast, auditGroup]
   );
 
   // Change user role
@@ -299,6 +307,12 @@ export function useAdminPortal(service: IAdminService = adminService) {
         } catch {
           // ignore error fetching users
         }
+        try {
+          const freshWorkspaces = await service.getWorkspaces();
+          setWorkspaces(freshWorkspaces);
+        } catch {
+          // ignore error fetching workspaces
+        }
         service
           .getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup)
           .then(setAuditLogs)
@@ -329,13 +343,16 @@ export function useAdminPortal(service: IAdminService = adminService) {
     try {
       const updated = await service.archiveWorkspace(workspaceId);
       setWorkspaces((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
+      setWorkspaceDetail((prev) => (prev && prev.id === updated.id ? { ...prev, status: updated.status } : prev));
       showToast(`Đã lưu trữ dự án "${updated.name}" thành công (ARCHIVED)`, 'emerald');
-      service.getSecurityAuditLogs().then(setAuditLogs).catch(() => {});
+      // tải lại stats ngầm và nhật ký ngầm
+      service.getStats().then(setStats).catch(() => {});
+      service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup).then(setAuditLogs).catch(() => {});
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Lỗi khi lưu trữ dự án';
       showToast(message, 'rose');
     }
-  }, [service, showToast]);
+  }, [service, auditGroup, showToast]);
 
   // Filtered users for UserManagementTab
   const filteredUsers = useMemo(() => {
@@ -356,12 +373,14 @@ export function useAdminPortal(service: IAdminService = adminService) {
     setCurrentTab,
     users,
     filteredUsers,
-    kpis,
+    stats,
     trends,
     trendRange,
     handleTrendRangeChange,
-    roleDistribution,
     workspaces,
+    workspaceDetail,
+    loadWorkspaceDetail,
+    setWorkspaceDetail,
     auditLogs,
     auditGroup,
     setAuditGroup,

@@ -198,7 +198,6 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
             <tbody id="userTableBody" className="divide-y divide-slate-100">
               {users.map((user) => {
                 const initials = getInitials(user.name);
-                const isSuperAdmin = user.role === 'SUPER_ADMIN';
 
                 return (
                   <tr key={user.id} className="transition hover:bg-blue-50/30">
@@ -285,10 +284,10 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
 
                             {/* Suspend / Unban */}
                             {!isCurrent && (
-                              isSuperAdmin ? (
+                              user.role === 'ADMIN' ? (
                                 <button
                                   disabled
-                                  title="Không thể khóa Root Admin"
+                                  title="Không thể khóa quản trị viên. Hạ về người dùng trước."
                                   className="cursor-not-allowed rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-300"
                                 >
                                   Suspend

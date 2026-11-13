@@ -151,4 +151,28 @@ describe('UserManagementTab Component', () => {
     expect(onDeleteUser).toHaveBeenCalledTimes(1);
     expect(onDeleteUser).toHaveBeenCalledWith('3');
   });
+
+  it('dòng của admin khác có nút Suspend bị disabled kèm title giải thích', () => {
+    render(
+      <UserManagementTab
+        users={mockUsers}
+        searchQuery=""
+        onSearchChange={onSearchChange}
+        statusFilter="ALL"
+        onStatusFilterChange={onStatusFilterChange}
+        onOpenBanModal={onOpenBanModal}
+        onUnban={onUnban}
+        currentUserId="1"
+        onChangeRole={onChangeRole}
+        onDeleteUser={onDeleteUser}
+        onOpenOwnedProjects={onOpenOwnedProjects}
+      />
+    );
+
+    const otherAdminRow = screen.getByText('Other Admin').closest('tr')!;
+    const suspendBtn = within(otherAdminRow).getByText('Suspend');
+    expect(suspendBtn).toBeTruthy();
+    expect((suspendBtn as HTMLButtonElement).disabled).toBe(true);
+    expect(suspendBtn.getAttribute('title')).toBe('Không thể khóa quản trị viên. Hạ về người dùng trước.');
+  });
 });

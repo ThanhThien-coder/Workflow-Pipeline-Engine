@@ -20,29 +20,6 @@ export interface SuspendUserRequestDto {
   durationDays?: number;
 }
 
-export interface SystemKpiDto {
-  totalUsers: number;
-  userGrowthRate: number;
-  activeWorkspaces: number;
-  newWorkspacesThisWeek: number;
-  dagExecutions: number;
-  throughputPerMinute: number;
-  systemUptimePercentage: number;
-  errorRatePercentage: number;
-}
-
-export interface AnalyticsTrendPointDto {
-  label: string;             // e.g. "Week 1", "Week 2"
-  dagExecutions: number;
-  activeUsers: number;
-}
-
-export interface RoleDistributionDto {
-  ownerCount: number;
-  collaboratorCount: number;
-  viewerCount: number;
-}
-
 export interface OwnerCandidateDto {
   userId: string;
   name: string;
@@ -57,14 +34,92 @@ export interface OwnedProjectDto {
   candidates: OwnerCandidateDto[];
 }
 
-export interface WorkspaceOverviewDto {
+export interface AdminWorkspaceDto {
   id: string;
   name: string;
+  ownerId: string;
   ownerName: string;
+  ownerMaskedEmail: string;
+  status: string;
+  memberCount: number;
+  phaseCount: number;
   nodeCount: number;
-  criticalPathCount: number;
+  doneNodeCount: number;
   progressPercentage: number;
-  status: 'RUNNING' | 'IDLE' | 'FAILED' | 'ARCHIVED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminWorkspaceOwnerDto {
+  ownerId: string;
+  ownerName: string;
+  ownerMaskedEmail: string;
+}
+
+export interface AdminWorkspaceDetailDto {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  owner: AdminWorkspaceOwnerDto;
+  membersByRole: Record<string, number>;
+  pendingInvitationCount: number;
+  phaseCount: number;
+  nodeCount: number;
+  nodesByStatus: Record<string, number>;
+  progressPercentage: number;
+  overdueCount: number;
+  guestLinkActive: boolean;
+  guestLinkExpiresAt: string | null;
+  lastActivityAt: string | null;
+  ownerCandidates: OwnerCandidateDto[];
+}
+
+export interface AdminUserStatsDto {
+  total: number;
+  active: number;
+  suspended: number;
+  newLast7Days: number;
+}
+
+export interface AdminProjectStatsDto {
+  total: number;
+  byStatus: Record<string, number>;
+  newLast7Days: number;
+}
+
+export interface AdminTaskStatsDto {
+  total: number;
+  byStatus: Record<string, number>;
+  overdue: number;
+}
+
+export interface AdminTemplateStatsDto {
+  publicCount: number;
+  privateCount: number;
+  totalClones: number;
+}
+
+export interface AdminRoleStatsDto {
+  systemRoles: Record<string, number>;
+  projectRoles: Record<string, number>;
+}
+
+export interface AdminStatsDto {
+  users: AdminUserStatsDto;
+  projects: AdminProjectStatsDto;
+  tasks: AdminTaskStatsDto;
+  templates: AdminTemplateStatsDto;
+  roles: AdminRoleStatsDto;
+}
+
+export interface AdminTrendPointDto {
+  date: string;
+  newUsers: number;
+  newProjects: number;
+  tasksDone: number;
 }
 
 export type AuditLogGroup = 'LOGIN' | 'ADMIN' | 'TEMPLATE';

@@ -121,12 +121,148 @@ describe('HttpAdminService', () => {
     expect(result.status).toBe('ACTIVE');
   });
 
-  it('getSystemKpis và các phương thức chưa hỗ trợ reject với "Chưa nối API"', async () => {
-    await expect(service.getSystemKpis()).rejects.toThrow('Chưa nối API');
-    await expect(service.getAnalyticsTrends('7D')).rejects.toThrow('Chưa nối API');
-    await expect(service.getRoleDistribution()).rejects.toThrow('Chưa nối API');
-    await expect(service.getWorkspaces()).rejects.toThrow('Chưa nối API');
-    await expect(service.archiveWorkspace('ws_1')).rejects.toThrow('Chưa nối API');
+  it('getWorkspaces gọi đúng GET /admin/workspaces và map dữ liệu', async () => {
+    mockApiRequest.mockResolvedValueOnce([
+      {
+        id: 10,
+        name: 'Project Alpha',
+        ownerId: 2,
+        ownerName: 'Sarah Chen',
+        ownerMaskedEmail: 's***@pipeline.engine',
+        status: 'ACTIVE',
+        memberCount: 4,
+        phaseCount: 3,
+        nodeCount: 10,
+        doneNodeCount: 5,
+        progressPercentage: 50,
+        createdAt: '2026-10-01T10:00:00Z',
+        updatedAt: '2026-10-05T12:00:00Z',
+      },
+    ]);
+
+    const result = await service.getWorkspaces('alpha', 'ACTIVE');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('GET', '/admin/workspaces', {
+      query: { query: 'alpha', status: 'ACTIVE' },
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      id: '10',
+      name: 'Project Alpha',
+      ownerId: '2',
+      ownerName: 'Sarah Chen',
+      ownerMaskedEmail: 's***@pipeline.engine',
+      status: 'ACTIVE',
+      memberCount: 4,
+      phaseCount: 3,
+      nodeCount: 10,
+      doneNodeCount: 5,
+      progressPercentage: 50,
+      createdAt: '2026-10-01T10:00:00Z',
+      updatedAt: '2026-10-05T12:00:00Z',
+    });
+  });
+
+  it('archiveWorkspace("1") gọi POST /admin/workspaces/1/archive và map dữ liệu', async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      id: 1,
+      name: 'Project Alpha',
+      ownerId: 2,
+      ownerName: 'Sarah Chen',
+      ownerMaskedEmail: 's***@pipeline.engine',
+      status: 'ARCHIVED',
+      memberCount: 4,
+      phaseCount: 3,
+      nodeCount: 10,
+      doneNodeCount: 5,
+      progressPercentage: 50,
+      createdAt: '2026-10-01T10:00:00Z',
+      updatedAt: '2026-10-05T12:00:00Z',
+    });
+
+    const result = await service.archiveWorkspace('1');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('POST', '/admin/workspaces/1/archive');
+    expect(result.id).toBe('1');
+    expect(result.status).toBe('ARCHIVED');
+  });
+
+  it('getWorkspaceDetail("1") gọi GET /admin/workspaces/1 và map dữ liệu', async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      id: 1,
+      name: 'Project Alpha',
+      description: 'Test description',
+      status: 'ACTIVE',
+      createdAt: '2026-10-01T10:00:00Z',
+      updatedAt: '2026-10-05T12:00:00Z',
+      owner: {
+        ownerId: 2,
+        ownerName: 'Sarah Chen',
+        ownerMaskedEmail: 's***@pipeline.engine',
+      },
+      membersByRole: { OWNER: 1, MANAGER: 1, COLLABORATOR: 2, VIEWER: 0 },
+      pendingInvitationCount: 2,
+      phaseCount: 3,
+      nodeCount: 12,
+      nodesByStatus: { LOCKED: 2, TODO: 3, IN_PROGRESS: 4, REVIEW: 1, DONE: 2 },
+      progressPercentage: 17,
+      overdueCount: 1,
+      guestLinkActive: true,
+      guestLinkExpiresAt: '2026-11-01T00:00:00Z',
+      lastActivityAt: '2026-10-05T12:00:00Z',
+      ownerCandidates: [{ userId: 3, name: 'Marcus Liu', username: 'marcus.liu' }],
+    });
+
+    const detail = await service.getWorkspaceDetail('1');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('GET', '/admin/workspaces/1');
+    expect(detail.id).toBe('1');
+    expect(detail.owner.ownerId).toBe('2');
+    expect(detail.membersByRole.OWNER).toBe(1);
+    expect(detail.nodesByStatus.DONE).toBe(2);
+    expect(detail.guestLinkActive).toBe(true);
+    expect(detail.ownerCandidates[0].userId).toBe('3');
+  });
+
+  it('getStats gọi GET /admin/stats và map dữ liệu', async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      users: { total: 10, active: 8, suspended: 2, newLast7Days: 3 },
+      projects: { total: 5, byStatus: { ACTIVE: 3, ARCHIVED: 2 }, newLast7Days: 1 },
+      tasks: { total: 25, byStatus: { DONE: 10, IN_PROGRESS: 15 }, overdue: 2 },
+      templates: { publicCount: 4, privateCount: 1, totalClones: 20 },
+      roles: {
+        systemRoles: { ADMIN: 2, USER: 8 },
+        projectRoles: { OWNER: 5, COLLABORATOR: 10 },
+      },
+    });
+
+    const stats = await service.getStats();
+
+    expect(mockApiRequest).toHaveBeenCalledWith('GET', '/admin/stats');
+    expect(stats.users.total).toBe(10);
+    expect(stats.projects.byStatus.ACTIVE).toBe(3);
+    expect(stats.tasks.overdue).toBe(2);
+    expect(stats.templates.publicCount).toBe(4);
+    expect(stats.roles.systemRoles.ADMIN).toBe(2);
+  });
+
+  it('getTrends("30D") gọi GET /admin/stats/trends?range=30D và map dữ liệu', async () => {
+    mockApiRequest.mockResolvedValueOnce([
+      { date: '2026-10-01', newUsers: 2, newProjects: 1, tasksDone: 5 },
+    ]);
+
+    const trends = await service.getTrends('30D');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('GET', '/admin/stats/trends', {
+      query: { range: '30D' },
+    });
+    expect(trends).toHaveLength(1);
+    expect(trends[0]).toEqual({
+      date: '2026-10-01',
+      newUsers: 2,
+      newProjects: 1,
+      tasksDone: 5,
+    });
   });
 
   it('getSecurityAuditLogs("LOGIN") gọi đúng path, query và map createdAt -> timestamp', async () => {
