@@ -9,6 +9,8 @@ import * as membersApi from './http/members'
 import * as projectSettingsApi from './http/projectSettings'
 import * as guestApi from './http/guest'
 import * as assignmentApi from './http/assignment'
+import * as activityApi from './http/activity'
+import * as overviewApi from './http/overview'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import type {
   ArtifactItem,
@@ -52,10 +54,8 @@ import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '..
  * (không còn tự chuyển sang dữ liệu giả).
  */
 export const METHODS_STILL_MOCKED = [
-  'getOverviewData', // D5 (chỉ phần KPI/AI còn mock; góp ý và link khách đã thật)
   'getProjectMembers', // C6
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
-  'getProjectAuditLogs', // chưa có task: cần nhóm quyết
 ] as const satisfies readonly (keyof IWorkflowService)[]
 
 interface BackendTaskResponse {
@@ -375,7 +375,14 @@ export class HttpWorkflowService implements IWorkflowService {
   // ───────────────────────── Overview, khách, góp ý (D5) ─────────────────────────
 
   async getOverviewData(projectId: string): Promise<OverviewData> {
-    const base = await this.mock.getOverviewData(projectId)
+    const [settings, graph, activities, feedbackQueue, aiRaw] = await Promise.all([
+      projectSettingsApi.fetchProjectSettings(projectId),
+      graphApi.fetchGraph(projectId),
+      activityApi.fetchProjectActivity(projectId, 10),
+      guestApi.listFeedbacks(projectId),
+      overviewApi.safeFetchAiAnalysis(projectId),
+    ])
+
     let guestAccess: GuestAccessState = {
       isActive: false,
       token: '',
@@ -397,13 +404,14 @@ export class HttpWorkflowService implements IWorkflowService {
       }
     }
 
-    const feedbackQueue = await guestApi.listFeedbacks(projectId)
-
-    return {
-      ...base,
-      guestAccess,
+    return overviewApi.buildOverviewData({
+      settings,
+      graph,
+      activities,
       feedbackQueue,
-    }
+      aiRaw,
+      guestAccess,
+    })
   }
 
   async resolveFeedback(projectId: string, feedbackId: string): Promise<void> {
@@ -432,8 +440,9 @@ export class HttpWorkflowService implements IWorkflowService {
     return this.mock.updateProjectSettings(projectId, cmd) // chưa có task
   }
 
-  getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]> {
-    return this.mock.getProjectAuditLogs(projectId) // chưa có task
+  async getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]> {
+    const items = await activityApi.fetchProjectActivity(projectId, 50)
+    return items.map(activityApi.mapActivityToAuditLog)
   }
 
   async archiveProject(projectId: string): Promise<ProjectSettingsDto> {
