@@ -10,6 +10,7 @@ import java.util.Optional;
 
 @Repository
 public interface ProjectMemberRepository extends JpaRepository<ProjectMemberEntity, Long> {
+    long countByUserId(Long userId);
     long countByUserIdAndRemovedAtIsNullAndRoleNot(Long userId, ProjectRole role);
     List<ProjectMemberEntity> findByProjectIdAndRemovedAtIsNull(Long projectId);
     List<ProjectMemberEntity> findByUserIdAndRemovedAtIsNull(Long userId);

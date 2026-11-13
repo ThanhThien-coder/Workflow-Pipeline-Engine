@@ -19,6 +19,7 @@ public final class AdminAuditAction {
     public static final String USER_ROLE_CHANGED = "USER_ROLE_CHANGED";
     public static final String USER_DELETED = "USER_DELETED";
     public static final String PROJECT_OWNER_TRANSFERRED = "PROJECT_OWNER_TRANSFERRED";
+    public static final String WORKSPACE_ARCHIVED = "WORKSPACE_ARCHIVED";
 
     public static final String TEMPLATE_CREATED = "TEMPLATE_CREATED";
     public static final String TEMPLATE_UPDATED = "TEMPLATE_UPDATED";
@@ -38,7 +39,8 @@ public final class AdminAuditAction {
         ADMIN_ACCESS_DENIED,
         USER_ROLE_CHANGED,
         USER_DELETED,
-        PROJECT_OWNER_TRANSFERRED
+        PROJECT_OWNER_TRANSFERRED,
+        WORKSPACE_ARCHIVED
     );
 
     public static final List<String> TEMPLATE_ACTIONS = List.of(

@@ -9,6 +9,7 @@ import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ArtifactRepository;
+import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.PipelineTemplateRepository;
 import com.pipeline.wpe.repository.ProjectInvitationRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
@@ -35,6 +36,7 @@ public class AdminUserService {
     private final PipelineTemplateRepository pipelineTemplateRepository;
     private final ArtifactRepository artifactRepository;
     private final ProjectInvitationRepository projectInvitationRepository;
+    private final NodeRepository nodeRepository;
     private final RefreshTokenService refreshTokenService;
     private final AdminAuditService adminAuditService;
 
@@ -185,8 +187,10 @@ public class AdminUserService {
         long templates = pipelineTemplateRepository.countByCreatedBy(userId);
         long artifacts = artifactRepository.countByUploadedBy(userId);
         long invitations = projectInvitationRepository.countByInviterIdOrInviteeId(userId, userId);
+        long memberships = projectMemberRepository.countByUserId(userId);
+        long assignedTasks = nodeRepository.countByAssignedUserId(userId);
 
-        long total = ownedProjects + templates + artifacts + invitations;
+        long total = ownedProjects + templates + artifacts + invitations + memberships + assignedTasks;
         if (total > 0) {
             List<String> details = new ArrayList<>();
             if (ownedProjects > 0) {
@@ -200,6 +204,12 @@ public class AdminUserService {
             }
             if (invitations > 0) {
                 details.add(invitations + " lời mời");
+            }
+            if (memberships > 0) {
+                details.add(memberships + " lần tham gia dự án");
+            }
+            if (assignedTasks > 0) {
+                details.add(assignedTasks + " task được giao");
             }
             String detailMsg = String.join(", ", details);
             throw new ConflictException("USER_HAS_DATA", "Tài khoản đã có dữ liệu (" + detailMsg + "). Hãy khóa tài khoản thay vì xóa.");

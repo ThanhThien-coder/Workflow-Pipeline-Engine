@@ -70,18 +70,19 @@ class AdminAuditServiceTest {
     }
 
     @Test
-    @DisplayName("actionsOfGroup: nhóm ADMIN trả về đúng 6 action quản trị hệ thống")
-    void actionsOfGroup_adminGroup_returns6Actions() {
+    @DisplayName("actionsOfGroup: nhóm ADMIN trả về đúng 7 action quản trị hệ thống")
+    void actionsOfGroup_adminGroup_returns7Actions() {
         List<String> actions = AdminAuditAction.actionsOfGroup("ADMIN");
 
-        assertThat(actions).hasSize(6);
+        assertThat(actions).hasSize(7);
         assertThat(actions).containsExactly(
             AdminAuditAction.USER_SUSPENDED,
             AdminAuditAction.USER_UNBANNED,
             AdminAuditAction.ADMIN_ACCESS_DENIED,
             AdminAuditAction.USER_ROLE_CHANGED,
             AdminAuditAction.USER_DELETED,
-            AdminAuditAction.PROJECT_OWNER_TRANSFERRED
+            AdminAuditAction.PROJECT_OWNER_TRANSFERRED,
+            AdminAuditAction.WORKSPACE_ARCHIVED
         );
     }
 

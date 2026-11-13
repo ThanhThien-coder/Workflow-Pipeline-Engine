@@ -9,6 +9,7 @@ import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ArtifactRepository;
+import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.PipelineTemplateRepository;
 import com.pipeline.wpe.repository.ProjectInvitationRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
@@ -54,6 +55,9 @@ class AdminUserServiceTest {
 
     @Mock
     private ProjectInvitationRepository projectInvitationRepository;
+
+    @Mock
+    private NodeRepository nodeRepository;
 
     @Mock
     private RefreshTokenService refreshTokenService;
@@ -444,6 +448,8 @@ class AdminUserServiceTest {
         when(pipelineTemplateRepository.countByCreatedBy(2L)).thenReturn(0L);
         when(artifactRepository.countByUploadedBy(2L)).thenReturn(0L);
         when(projectInvitationRepository.countByInviterIdOrInviteeId(2L, 2L)).thenReturn(0L);
+        when(projectMemberRepository.countByUserId(2L)).thenReturn(0L);
+        when(nodeRepository.countByAssignedUserId(2L)).thenReturn(0L);
 
         adminUserService.deleteUser(2L, 1L);
 
@@ -465,6 +471,8 @@ class AdminUserServiceTest {
         when(pipelineTemplateRepository.countByCreatedBy(2L)).thenReturn(0L);
         when(artifactRepository.countByUploadedBy(2L)).thenReturn(0L);
         when(projectInvitationRepository.countByInviterIdOrInviteeId(2L, 2L)).thenReturn(0L);
+        when(projectMemberRepository.countByUserId(2L)).thenReturn(0L);
+        when(nodeRepository.countByAssignedUserId(2L)).thenReturn(0L);
 
         assertThatThrownBy(() -> adminUserService.deleteUser(2L, 1L))
             .isInstanceOf(ConflictException.class)
@@ -472,6 +480,62 @@ class AdminUserServiceTest {
                 ConflictException ce = (ConflictException) ex;
                 assertThat(ce.getErrorCode()).isEqualTo("USER_HAS_DATA");
                 assertThat(ce.getMessage()).contains("1 dự án sở hữu");
+            });
+
+        verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Xóa user có 1 dòng member -> ném ConflictException mã USER_HAS_DATA và KHÔNG xóa")
+    void testDeleteUser_hasMembership_throwsUserHasData() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .systemRole(SystemRole.USER)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(0L);
+        when(pipelineTemplateRepository.countByCreatedBy(2L)).thenReturn(0L);
+        when(artifactRepository.countByUploadedBy(2L)).thenReturn(0L);
+        when(projectInvitationRepository.countByInviterIdOrInviteeId(2L, 2L)).thenReturn(0L);
+        when(projectMemberRepository.countByUserId(2L)).thenReturn(1L);
+        when(nodeRepository.countByAssignedUserId(2L)).thenReturn(0L);
+
+        assertThatThrownBy(() -> adminUserService.deleteUser(2L, 1L))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> {
+                ConflictException ce = (ConflictException) ex;
+                assertThat(ce.getErrorCode()).isEqualTo("USER_HAS_DATA");
+                assertThat(ce.getMessage()).contains("1 lần tham gia dự án");
+            });
+
+        verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Xóa user chỉ được giao 1 task -> ném ConflictException mã USER_HAS_DATA và KHÔNG xóa")
+    void testDeleteUser_hasAssignedTask_throwsUserHasData() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .systemRole(SystemRole.USER)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(0L);
+        when(pipelineTemplateRepository.countByCreatedBy(2L)).thenReturn(0L);
+        when(artifactRepository.countByUploadedBy(2L)).thenReturn(0L);
+        when(projectInvitationRepository.countByInviterIdOrInviteeId(2L, 2L)).thenReturn(0L);
+        when(projectMemberRepository.countByUserId(2L)).thenReturn(0L);
+        when(nodeRepository.countByAssignedUserId(2L)).thenReturn(1L);
+
+        assertThatThrownBy(() -> adminUserService.deleteUser(2L, 1L))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> {
+                ConflictException ce = (ConflictException) ex;
+                assertThat(ce.getErrorCode()).isEqualTo("USER_HAS_DATA");
+                assertThat(ce.getMessage()).contains("1 task được giao");
             });
 
         verify(userRepository, never()).delete(any());

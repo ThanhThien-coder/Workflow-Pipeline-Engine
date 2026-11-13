@@ -7,14 +7,20 @@ import com.pipeline.wpe.dto.request.admin.SuspendUserRequest;
 import com.pipeline.wpe.dto.request.admin.TransferProjectOwnerRequest;
 import com.pipeline.wpe.dto.response.admin.AdminAuditLogPageResponse;
 import com.pipeline.wpe.dto.response.admin.AdminAuditLogResponse;
+import com.pipeline.wpe.dto.response.admin.AdminStatsResponse;
 import com.pipeline.wpe.dto.response.admin.AdminUserResponse;
+import com.pipeline.wpe.dto.response.admin.AdminWorkspaceDetailResponse;
+import com.pipeline.wpe.dto.response.admin.AdminWorkspaceOwnerResponse;
 import com.pipeline.wpe.dto.response.admin.OwnedProjectResponse;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
+import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.admin.AdminProjectOwnerService;
+import com.pipeline.wpe.service.admin.AdminStatsService;
 import com.pipeline.wpe.service.admin.AdminUserService;
+import com.pipeline.wpe.service.admin.AdminWorkspaceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,6 +72,12 @@ class AdminControllerTest {
 
     @MockBean
     private AdminAuditService adminAuditService;
+
+    @MockBean
+    private AdminWorkspaceService adminWorkspaceService;
+
+    @MockBean
+    private AdminStatsService adminStatsService;
 
     @MockBean
     private CurrentUserProvider currentUserProvider;
@@ -286,5 +299,60 @@ class AdminControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectId").value("1"))
             .andExpect(jsonPath("$.name").value("Dự án mẫu"));
+    }
+
+    @Test
+    @DisplayName("USER thường gọi GET /api/v1/admin/stats -> 403 Forbidden")
+    void testGetStats_asUser_returns403() throws Exception {
+        loginAs(2L, "USER");
+
+        mockMvc.perform(get("/api/v1/admin/stats"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("ADMIN gọi GET /api/v1/admin/workspaces/1 -> 200 OK")
+    void testGetWorkspaceDetail_asAdmin_returns200() throws Exception {
+        loginAs(1L, "ADMIN");
+        AdminWorkspaceDetailResponse detail = new AdminWorkspaceDetailResponse(
+            "1",
+            "Project Alpha",
+            "Description Alpha",
+            "ACTIVE",
+            Instant.now(),
+            Instant.now(),
+            new AdminWorkspaceOwnerResponse("10", "Alex Kim", "a***@pipeline.engine"),
+            Map.of("OWNER", 1, "MANAGER", 0, "COLLABORATOR", 1, "VIEWER", 0),
+            0,
+            2,
+            5,
+            Map.of("LOCKED", 1, "TODO", 1, "IN_PROGRESS", 1, "REVIEW", 1, "DONE", 1),
+            20,
+            0,
+            false,
+            null,
+            Instant.now(),
+            List.of()
+        );
+        when(adminWorkspaceService.getWorkspaceDetail(1L)).thenReturn(detail);
+
+        mockMvc.perform(get("/api/v1/admin/workspaces/1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value("1"))
+            .andExpect(jsonPath("$.name").value("Project Alpha"))
+            .andExpect(jsonPath("$.owner.ownerName").value("Alex Kim"));
+    }
+
+    @Test
+    @DisplayName("Service ném ResourceNotFoundException -> 404 Not Found")
+    void testGetWorkspaceDetail_notFound_returns404() throws Exception {
+        loginAs(1L, "ADMIN");
+        when(adminWorkspaceService.getWorkspaceDetail(999L))
+            .thenThrow(new ResourceNotFoundException("Dự án không tồn tại: 999"));
+
+        mockMvc.perform(get("/api/v1/admin/workspaces/999"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("RESOURCE_NOT_FOUND"));
     }
 }

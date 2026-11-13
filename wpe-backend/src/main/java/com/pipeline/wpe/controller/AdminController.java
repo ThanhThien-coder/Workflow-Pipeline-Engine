@@ -4,12 +4,18 @@ import com.pipeline.wpe.dto.request.admin.ChangeUserRoleRequest;
 import com.pipeline.wpe.dto.request.admin.SuspendUserRequest;
 import com.pipeline.wpe.dto.request.admin.TransferProjectOwnerRequest;
 import com.pipeline.wpe.dto.response.admin.AdminAuditLogPageResponse;
+import com.pipeline.wpe.dto.response.admin.AdminStatsResponse;
+import com.pipeline.wpe.dto.response.admin.AdminTrendPointResponse;
 import com.pipeline.wpe.dto.response.admin.AdminUserResponse;
+import com.pipeline.wpe.dto.response.admin.AdminWorkspaceDetailResponse;
+import com.pipeline.wpe.dto.response.admin.AdminWorkspaceResponse;
 import com.pipeline.wpe.dto.response.admin.OwnedProjectResponse;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.admin.AdminProjectOwnerService;
+import com.pipeline.wpe.service.admin.AdminStatsService;
 import com.pipeline.wpe.service.admin.AdminUserService;
+import com.pipeline.wpe.service.admin.AdminWorkspaceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +34,8 @@ public class AdminController {
     private final AdminUserService adminUserService;
     private final AdminProjectOwnerService adminProjectOwnerService;
     private final AdminAuditService adminAuditService;
+    private final AdminWorkspaceService adminWorkspaceService;
+    private final AdminStatsService adminStatsService;
     private final CurrentUserProvider currentUserProvider;
 
     @GetMapping("/users")
@@ -103,5 +111,41 @@ public class AdminController {
     ) {
         AdminAuditLogPageResponse response = adminAuditService.search(group, action, from, to, page, size);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/workspaces")
+    public ResponseEntity<List<AdminWorkspaceResponse>> listWorkspaces(
+        @RequestParam(name = "query", required = false) String query,
+        @RequestParam(name = "status", required = false) String status
+    ) {
+        List<AdminWorkspaceResponse> responses = adminWorkspaceService.listWorkspaces(query, status);
+        return ResponseEntity.ok(responses);
+    }
+
+    @PostMapping("/workspaces/{id}/archive")
+    public ResponseEntity<AdminWorkspaceResponse> archiveWorkspace(@PathVariable("id") Long id) {
+        Long actorUserId = currentUserProvider.requireCurrentUserId();
+        AdminWorkspaceResponse response = adminWorkspaceService.archiveWorkspace(id, actorUserId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/workspaces/{id}")
+    public ResponseEntity<AdminWorkspaceDetailResponse> getWorkspaceDetail(@PathVariable("id") Long id) {
+        AdminWorkspaceDetailResponse response = adminWorkspaceService.getWorkspaceDetail(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<AdminStatsResponse> getStats() {
+        AdminStatsResponse response = adminStatsService.getStats();
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/stats/trends")
+    public ResponseEntity<List<AdminTrendPointResponse>> getTrends(
+        @RequestParam(name = "range", required = false, defaultValue = "7D") String range
+    ) {
+        List<AdminTrendPointResponse> responses = adminStatsService.getTrends(range);
+        return ResponseEntity.ok(responses);
     }
 }

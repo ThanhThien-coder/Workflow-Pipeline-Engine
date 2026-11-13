@@ -112,15 +112,17 @@ public class AdminProjectOwnerService {
         return toOwnedProjectResponse(project);
     }
 
-    private OwnedProjectResponse toOwnedProjectResponse(ProjectEntity project) {
-        List<ProjectMemberEntity> activeMembers = projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId())
+    public List<OwnerCandidateResponse> findOwnerCandidates(Long projectId, Long ownerId) {
+        if (projectId == null) {
+            return List.of();
+        }
+        List<ProjectMemberEntity> activeMembers = projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId)
             .stream()
             .filter(m -> m.getRemovedAt() == null)
             .toList();
-        int memberCount = activeMembers.size();
 
-        List<OwnerCandidateResponse> candidates = activeMembers.stream()
-            .filter(m -> !m.getUserId().equals(project.getOwnerId()))
+        return activeMembers.stream()
+            .filter(m -> ownerId == null || !m.getUserId().equals(ownerId))
             .map(m -> userRepository.findById(m.getUserId()).orElse(null))
             .filter(u -> u != null && !Boolean.TRUE.equals(u.getIsLocked()))
             .map(u -> {
@@ -128,6 +130,16 @@ public class AdminProjectOwnerService {
                 return new OwnerCandidateResponse(String.valueOf(u.getId()), name, u.getUsername());
             })
             .toList();
+    }
+
+    private OwnedProjectResponse toOwnedProjectResponse(ProjectEntity project) {
+        List<ProjectMemberEntity> activeMembers = projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId())
+            .stream()
+            .filter(m -> m.getRemovedAt() == null)
+            .toList();
+        int memberCount = activeMembers.size();
+
+        List<OwnerCandidateResponse> candidates = findOwnerCandidates(project.getId(), project.getOwnerId());
 
         return new OwnedProjectResponse(
             String.valueOf(project.getId()),
