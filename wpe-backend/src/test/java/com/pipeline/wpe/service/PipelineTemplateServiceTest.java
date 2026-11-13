@@ -15,6 +15,7 @@ import com.pipeline.wpe.exception.CycleDetectedException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.engine.KahnDagService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,6 +57,9 @@ class PipelineTemplateServiceTest {
 
     @Mock
     private PhaseDependencyRepository phaseDependencyRepository;
+
+    @Mock
+    private AdminAuditService adminAuditService;
 
     @Spy
     private KahnDagService kahnDagService = new KahnDagService();
@@ -373,6 +377,26 @@ class PipelineTemplateServiceTest {
         verify(templateRepository).save(captor.capture());
         assertEquals(adminId, captor.getValue().getCreatedBy());
         assertEquals(TemplateVisibility.PUBLIC, captor.getValue().getVisibility());
+    }
+
+    @Test
+    @DisplayName("createTemplate: Admin tạo template thành công -> gọi adminAuditService.record với TEMPLATE_CREATED và TEMPLATE")
+    void testCreateTemplateRecordsAuditLog() {
+        Long adminId = 1L;
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(adminUser));
+
+        CreateTemplateRequest req = new CreateTemplateRequest("New Pipeline Template", "Desc", "General", false, validGraphData);
+        PipelineTemplateEntity saved = PipelineTemplateEntity.builder()
+            .id(888L)
+            .name("New Pipeline Template")
+            .createdBy(adminId)
+            .visibility(TemplateVisibility.PUBLIC)
+            .build();
+        when(templateRepository.save(any(PipelineTemplateEntity.class))).thenReturn(saved);
+
+        templateService.createTemplate(req, adminId);
+
+        verify(adminAuditService).record(eq(adminId), isNull(), eq("TEMPLATE_CREATED"), eq("TEMPLATE"), eq("888"), eq("New Pipeline Template"));
     }
 
     @Test

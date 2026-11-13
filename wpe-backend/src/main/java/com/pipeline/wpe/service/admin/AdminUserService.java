@@ -28,7 +28,11 @@ public class AdminUserService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final RefreshTokenService refreshTokenService;
+    private final AdminAuditService adminAuditService;
 
+    /**
+     * Không tìm theo email: email trả cho admin đã che, tìm theo email thật sẽ làm lộ email.
+     */
     @Transactional(readOnly = true)
     public List<AdminUserResponse> listUsers(String query, String status) {
         List<UserEntity> users = userRepository.findAll().stream()
@@ -38,8 +42,7 @@ public class AdminUserService {
                     String q = query.trim().toLowerCase();
                     boolean matchUsername = user.getUsername() != null && user.getUsername().toLowerCase().contains(q);
                     boolean matchFullName = user.getFullName() != null && user.getFullName().toLowerCase().contains(q);
-                    boolean matchEmail = user.getEmail() != null && user.getEmail().toLowerCase().contains(q);
-                    if (!matchUsername && !matchFullName && !matchEmail) {
+                    if (!matchUsername && !matchFullName) {
                         return false;
                     }
                 }
@@ -81,6 +84,13 @@ public class AdminUserService {
             request != null ? request.note() : null
         );
 
+        String detail = String.format("reason=%s, durationDays=%s, note=%s",
+            request != null && request.reason() != null ? request.reason() : "",
+            request != null && request.durationDays() != null ? request.durationDays() : "",
+            request != null && request.note() != null ? request.note() : ""
+        );
+        adminAuditService.record(actorUserId, null, AdminAuditAction.USER_SUSPENDED, "USER", String.valueOf(userId), detail);
+
         return toResponse(saved);
     }
 
@@ -93,6 +103,8 @@ public class AdminUserService {
         UserEntity saved = userRepository.save(user);
 
         log.info("Actor {} unbanned user {}", actorUserId, userId);
+
+        adminAuditService.record(actorUserId, null, AdminAuditAction.USER_UNBANNED, "USER", String.valueOf(userId), null);
 
         return toResponse(saved);
     }

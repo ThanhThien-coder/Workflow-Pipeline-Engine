@@ -10,6 +10,7 @@ import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.repository.UserRepository;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.admin.AdminUserService;
 import com.pipeline.wpe.service.auth.RefreshTokenService;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,9 @@ class AdminUserServiceTest {
 
     @Mock
     private RefreshTokenService refreshTokenService;
+
+    @Mock
+    private AdminAuditService adminAuditService;
 
     @InjectMocks
     private AdminUserService adminUserService;
@@ -211,5 +215,57 @@ class AdminUserServiceTest {
         assertThat(allSorted.get(0).id()).isEqualTo("1");
         assertThat(allSorted.get(1).id()).isEqualTo("2");
         assertThat(allSorted.get(2).id()).isEqualTo("3");
+    }
+
+    @Test
+    @DisplayName("Khóa/mở khóa user -> gọi adminAuditService.record với USER_SUSPENDED/USER_UNBANNED và targetId đúng")
+    void testSuspendAndUnban_recordsAuditLogs() {
+        UserEntity user = UserEntity.builder()
+            .id(5L)
+            .username("sarah.chen")
+            .fullName("Sarah Chen")
+            .email("sarah.chen@pipeline.engine")
+            .systemRole(SystemRole.USER)
+            .isLocked(false)
+            .tokenVersion(1)
+            .createdAt(Instant.now())
+            .build();
+
+        when(userRepository.findById(5L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        adminUserService.suspendUser(5L, new SuspendUserRequest("TERMS_VIOLATION", 7, "Spamming"), 10L);
+        verify(adminAuditService).record(eq(10L), isNull(), eq("USER_SUSPENDED"), eq("USER"), eq("5"), contains("TERMS_VIOLATION"));
+
+        adminUserService.unbanUser(5L, 10L);
+        verify(adminAuditService).record(eq(10L), isNull(), eq("USER_UNBANNED"), eq("USER"), eq("5"), isNull());
+    }
+
+    @Test
+    @DisplayName("listUsers không tìm theo email: tìm theo email hoặc domain trả về danh sách rỗng, tìm theo họ tên vẫn ra 1 user")
+    void testListUsers_doesNotSearchByEmail() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .fullName("Alex Kim")
+            .email("alex.kim@pipeline.engine")
+            .systemRole(SystemRole.USER)
+            .isLocked(false)
+            .createdAt(Instant.now())
+            .build();
+
+        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(projectRepository.countByOwnerId(anyLong())).thenReturn(0L);
+        when(projectMemberRepository.countByUserIdAndRemovedAtIsNullAndRoleNot(anyLong(), eq(ProjectRole.OWNER))).thenReturn(0L);
+
+        List<AdminUserResponse> byFullEmail = adminUserService.listUsers("alex.kim@pipeline.engine", null);
+        assertThat(byFullEmail).isEmpty();
+
+        List<AdminUserResponse> byDomain = adminUserService.listUsers("pipeline.engine", null);
+        assertThat(byDomain).isEmpty();
+
+        List<AdminUserResponse> byFullName = adminUserService.listUsers("Alex Kim", null);
+        assertThat(byFullName).hasSize(1);
+        assertThat(byFullName.get(0).username()).isEqualTo("alex.kim");
     }
 }

@@ -14,6 +14,8 @@ import com.pipeline.wpe.exception.CycleDetectedException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
+import com.pipeline.wpe.service.admin.AdminAuditAction;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.engine.KahnDagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +38,7 @@ public class PipelineTemplateService {
     private final NodeRepository nodeRepository;
     private final NodeDependencyRepository nodeDependencyRepository;
     private final PhaseDependencyRepository phaseDependencyRepository;
+    private final AdminAuditService adminAuditService;
 
     /**
      * 10.3.1 Lấy danh mục quy trình mẫu
@@ -188,6 +191,7 @@ public class PipelineTemplateService {
 
         PipelineTemplateEntity saved = templateRepository.save(entity);
         log.info("Template #{} ('{}') created by user #{}", saved.getId(), saved.getName(), currentUserId);
+        adminAuditService.record(currentUserId, null, AdminAuditAction.TEMPLATE_CREATED, "TEMPLATE", String.valueOf(saved.getId()), saved.getName());
         return mapToDetailResponse(saved);
     }
 
@@ -221,6 +225,7 @@ public class PipelineTemplateService {
         template.setUpdatedAt(Instant.now());
 
         PipelineTemplateEntity saved = templateRepository.save(template);
+        adminAuditService.record(currentUserId, null, AdminAuditAction.TEMPLATE_UPDATED, "TEMPLATE", String.valueOf(saved.getId()), saved.getName());
         return mapToDetailResponse(saved);
     }
 
@@ -240,6 +245,7 @@ public class PipelineTemplateService {
 
         templateRepository.delete(template);
         log.info("Template #{} deleted by user #{}", id, currentUserId);
+        adminAuditService.record(currentUserId, null, AdminAuditAction.TEMPLATE_DELETED, "TEMPLATE", String.valueOf(id), template.getName());
     }
 
     /**
