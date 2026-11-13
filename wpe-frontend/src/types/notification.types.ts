@@ -12,6 +12,10 @@ export interface NotificationDto {
   isRead: boolean
   /** In-app route to open when the notification is clicked */
   targetPath: string
+  /** Optional raw fields from backend NotificationResponse */
+  title?: string
+  message?: string
+  linkUrl?: string | null
 }
 
 export interface NotificationListDto {

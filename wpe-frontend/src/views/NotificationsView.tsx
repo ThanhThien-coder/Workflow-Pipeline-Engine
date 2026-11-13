@@ -15,7 +15,10 @@ export default function NotificationsView() {
 
   const openNotification = (notification: NotificationDto) => {
     void markRead(notification.id)
-    navigate(notification.targetPath)
+    const path = notification.linkUrl || notification.targetPath || ''
+    if (path) {
+      navigate(path)
+    }
   }
 
   const handleBack = () => {
@@ -108,7 +111,7 @@ export default function NotificationsView() {
                         {notification.actorName && notification.kind !== 'overdue' && (
                           <strong className="font-semibold text-slate-900">{notification.actorName} </strong>
                         )}
-                        {notification.text}
+                        {notification.text || notification.message || notification.title}
                       </span>
                       <span className="mt-1 block text-xs text-slate-400">
                         {formatNotificationTime(notification.createdAt)}

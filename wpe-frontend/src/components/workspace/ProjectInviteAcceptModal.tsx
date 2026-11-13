@@ -12,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { workflowService } from '../../services'
+import { useNotificationStore } from '../../store/useNotificationStore'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import type { ProjectInvitationDto } from '../../types/settings.types'
 
@@ -36,7 +37,8 @@ export function ProjectInviteAcceptModal({
   const [error, setError] = useState<string | null>(null)
 
   const isExpired = invitation
-    ? invitation.status !== 'PENDING' || new Date(invitation.expiresAt).getTime() <= Date.now()
+    ? invitation.status !== 'PENDING' ||
+      (Boolean(invitation.expiresAt) && new Date(invitation.expiresAt).getTime() <= Date.now())
     : false
 
   const getExpiredStatusLabel = () => {
@@ -44,21 +46,36 @@ export function ProjectInviteAcceptModal({
     if (invitation.status === 'ACCEPTED') return 'Lời mời đã được chấp nhận'
     if (invitation.status === 'REJECTED') return 'Lời mời đã bị từ chối'
     if (invitation.status === 'REVOKED') return 'Lời mời đã bị thu hồi'
+    if (invitation.status === 'EXPIRED') return 'Lời mời đã hết hạn'
     return 'Lời mời đã hết hạn'
   }
 
   const extractErrorMessage = (err: unknown, defaultMsg: string): string => {
     if (!err) return defaultMsg
     const anyErr = err as any
-    const errCode = anyErr?.response?.data?.error || anyErr?.error || anyErr?.errorCode
-    if (errCode === 'INVITATION_EXPIRED') {
+    const errCode = anyErr?.code || anyErr?.response?.data?.error || anyErr?.error || anyErr?.errorCode
+    const rawMsg = typeof anyErr?.message === 'string' && anyErr.message ? anyErr.message : ''
+    if (errCode === 'INVITATION_EXPIRED' || rawMsg.includes('INVITATION_EXPIRED')) {
       return 'Lời mời đã hết hạn.'
     }
-    const msg = err instanceof Error ? err.message : defaultMsg
-    if (typeof msg === 'string' && msg.includes('INVITATION_EXPIRED')) {
-      return 'Lời mời đã hết hạn.'
+    if (errCode === 'INVITATION_NOT_PENDING') {
+      if (rawMsg.toUpperCase().includes('REVOKED') || rawMsg.includes('thu hồi')) {
+        return 'Lời mời đã bị thu hồi.'
+      }
+      return rawMsg || 'Lời mời không còn ở trạng thái chờ phản hồi.'
     }
-    return msg
+    return rawMsg || defaultMsg
+  }
+
+  const syncStatusFromError = (err: unknown) => {
+    const anyErr = err as any
+    const errCode = anyErr?.code || anyErr?.response?.data?.error || anyErr?.error || anyErr?.errorCode
+    const rawMsg = typeof anyErr?.message === 'string' ? anyErr.message : ''
+    if (errCode === 'INVITATION_EXPIRED' || rawMsg.includes('INVITATION_EXPIRED')) {
+      setInvitation((prev) => (prev ? { ...prev, status: 'EXPIRED' } : prev))
+    } else if (errCode === 'INVITATION_NOT_PENDING' && rawMsg.toUpperCase().includes('REVOKED')) {
+      setInvitation((prev) => (prev ? { ...prev, status: 'REVOKED' } : prev))
+    }
   }
 
   const showToast = useWorkflowStore((state) => state.ui.showToast)
@@ -123,9 +140,11 @@ export function ProjectInviteAcceptModal({
       if (fetchProjects) {
         await fetchProjects()
       }
+      void useNotificationStore.getState().load()
       onAccepted?.(invitationId)
       onClose()
     } catch (err: unknown) {
+      syncStatusFromError(err)
       const msg = extractErrorMessage(err, 'Chấp nhận lời mời thất bại.')
       setError(msg)
       showToast(msg)
@@ -145,9 +164,11 @@ export function ProjectInviteAcceptModal({
         await rejectInvitationStore(invitationId)
       }
       showToast('Đã từ chối lời mời tham gia dự án.')
+      void useNotificationStore.getState().load()
       onDeclined?.(invitationId)
       onClose()
     } catch (err: unknown) {
+      syncStatusFromError(err)
       const msg = extractErrorMessage(err, 'Từ chối lời mời thất bại.')
       setError(msg)
       showToast(msg)

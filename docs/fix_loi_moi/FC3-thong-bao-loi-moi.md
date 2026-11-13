@@ -1,7 +1,7 @@
 # FC3 — Mời người vào dự án: người được mời không nhận thông báo, không có chỗ chấp nhận
 
 Người làm: C
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L10
 Nhánh git: fix-fc3-thong-bao
 Làm trước: không
@@ -45,3 +45,22 @@ alex mời meomeo vào dự án. meomeo đăng nhập: chuông không có thông
 3. Nếu meomeo đang mở app sẵn lúc alex mời → chuông tăng ngay (SSE) hoặc khi mở chuông.
 
 ## Kết quả (Claude ghi, dán output thật)
+
+**File đã sửa**
+- BE (mới): `BE/controller/NotificationController.java` (`GET /api/v1/notifications?unreadOnly&limit`, `GET /unread-count`, `PATCH /{id}/read`, `PATCH /read-all`; user lấy từ `CurrentUserProvider.requireCurrentUserId()`), `BE/service/NotificationService.java` (limit mặc định 30, tối đa 200; đọc thông báo của người khác → `ResourceNotFoundException` 404), `BE/dto/response/notification/UnreadCountResponse.java`.
+- BE: `BE/repository/NotificationRepository.java` (thêm `findByIdAndUserId`).
+- FE (mới): `FE/services/impl/HttpNotificationService.ts` (list/markAsRead/markAllAsRead, đổi `linkUrl` thành `targetPath`).
+- FE: `FE/services/container.ts` (chỉ dòng `notificationService`), `FE/store/useNotificationStore.ts` (thêm `receiveRealtime`), `FE/components/common/NotificationBell.tsx` (tải khi đăng nhập, nghe SSE `NOTIFICATION_RECEIVED`, vẫn giữ tải lại 60 giây/lần; bấm → `markRead` rồi `navigate(linkUrl)`), `FE/views/NotificationsView.tsx`, `FE/types/notification.types.ts` (thêm `title`, `message`, `linkUrl` tùy chọn), `FE/components/workspace/ProjectInviteAcceptModal.tsx` (chấp nhận/từ chối xong tải lại thông báo; lời mời hết hạn/thu hồi hiện lý do).
+
+**Test đã thêm**
+- BE: `NotificationServiceTest` (4 test; alex mời meomeo qua `ProjectInvitationService` thật → meomeo có 1 thông báo chứa `invitationId`, sarah không thấy; đánh dấu đọc của người khác → 404…), `NotificationControllerTest` (5 test).
+- FE: `components/common/__tests__/NotificationBell.test.tsx` (bấm thông báo lời mời → `markRead` rồi điều hướng tới `linkUrl`; SSE tới thì tải lại), `services/impl/__tests__/HttpNotificationService.test.ts` (3 test), thêm 1 test "lời mời bị thu hồi" trong `ProjectInviteAcceptModal.test.tsx`.
+
+**Output test thật** (13/11/2026)
+- Trước khi sửa (hoàn lại 6 file FE nguồn): `NotificationBell.test.tsx` 2 failed. BE: lớp mới nên test không biên dịch được trên code cũ.
+- Sau khi sửa:
+```text
+./mvnw test   → 443 test, Failures 0, Errors 0, Skipped 1 (NotificationControllerTest 5/5, NotificationServiceTest 4/4)
+npm run typecheck → tsc -b, exit 0
+npm test      → Test Files 49 passed (49) | Tests 367 passed (367)
+```

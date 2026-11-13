@@ -13,6 +13,7 @@ import type { ITemplateService } from './template/ITemplateService'
 import { MockTemplateService } from './template/MockTemplateService'
 import type { INotificationService } from './contracts/INotificationService'
 import { MockNotificationApi } from './mock/MockWorkflowService.notification'
+import { HttpNotificationService } from './impl/HttpNotificationService'
 
 import { HttpTemplateService } from './template/HttpTemplateService'
 import { isMockMode } from './env'
@@ -34,7 +35,7 @@ export const container: ServiceContainer = {
   profileService: isMock ? new MockProfileApi() : new HttpProfileService(),
   adminService: new MockAdminService(),
   templateService: isMock ? new MockTemplateService() : new HttpTemplateService(),
-  notificationService: new MockNotificationApi(),
+  notificationService: isMock ? new MockNotificationApi() : new HttpNotificationService(),
 }
 
 export const workflowService = container.workflowService
