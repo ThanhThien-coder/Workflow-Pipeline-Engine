@@ -472,6 +472,28 @@ Lưu trữ thông báo in-app phục vụ icon quả chuông trên thanh Topbar 
 
 ---
 
+### 3.13 Bảng `ADMIN_AUDIT_LOG` (Nhật ký Hệ thống Admin)
+Lưu vết các thao tác quản trị và sự kiện bảo mật cấp hệ thống (đăng nhập, quản trị tài khoản, template).
+Ghi chú: V13 migration, không đặt FK tới `users` để log vẫn còn khi user bị xóa.
+
+| Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mặc Định | Ý Nghĩa Nghiệp Vụ |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `bigint` | PK, Auto Increment | | Khóa chính nhật ký hệ thống. |
+| `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm phát sinh sự kiện. |
+| `actor_user_id` | `bigint` | NULLABLE | `NULL` | ID người thực hiện (`NULL` khi đăng nhập sai user không tồn tại). |
+| `actor_username` | `varchar(100)` | NULLABLE | | Tên tài khoản người thực hiện. |
+| `action` | `varchar(50)` | NOT NULL | | Mã hành vi (`LOGIN_SUCCESS`, `LOGIN_FAILED`, `USER_SUSPENDED`, v.v.). |
+| `target_type` | `varchar(30)` | NULLABLE | | Loại đối tượng chịu tác động (`USER`, `TEMPLATE`). |
+| `target_id` | `varchar(50)` | NULLABLE | | Định danh đối tượng chịu tác động. |
+| `detail` | `text` | NULLABLE | | Chi tiết sự kiện (lý do khóa, ghi chú, tên template, v.v.). |
+| `ip_address` | `varchar(64)` | NULLABLE | | Địa chỉ IP của client gửi request. |
+
+* **Chỉ mục (Indexes)**:
+  - `idx_admin_audit_log_created_at`: `CREATE INDEX idx_admin_audit_log_created_at ON admin_audit_log (created_at DESC);`
+  - `idx_admin_audit_log_action`: `CREATE INDEX idx_admin_audit_log_action ON admin_audit_log (action);`
+
+---
+
 ## 4. Bảng Tổng hợp Quyết định Kỹ thuật Cơ sở Dữ liệu
 
 Dưới đây là 12 quyết định thiết kế CSDL đã thống nhất và chốt 100%:

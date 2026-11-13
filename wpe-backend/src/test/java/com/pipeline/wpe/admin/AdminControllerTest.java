@@ -3,9 +3,12 @@ package com.pipeline.wpe.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pipeline.wpe.controller.AdminController;
 import com.pipeline.wpe.dto.request.admin.SuspendUserRequest;
+import com.pipeline.wpe.dto.response.admin.AdminAuditLogPageResponse;
+import com.pipeline.wpe.dto.response.admin.AdminAuditLogResponse;
 import com.pipeline.wpe.dto.response.admin.AdminUserResponse;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.security.CurrentUserProvider;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.admin.AdminUserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +55,9 @@ class AdminControllerTest {
 
     @MockBean
     private AdminUserService adminUserService;
+
+    @MockBean
+    private AdminAuditService adminAuditService;
 
     @MockBean
     private CurrentUserProvider currentUserProvider;
@@ -166,5 +172,31 @@ class AdminControllerTest {
         mockMvc.perform(post("/api/v1/admin/users/2/unban"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("USER thường gọi GET /api/v1/admin/audit-logs -> 403 Forbidden")
+    void testSearchAuditLogs_asUser_returns403() throws Exception {
+        loginAs(2L, "USER");
+
+        mockMvc.perform(get("/api/v1/admin/audit-logs"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("ADMIN gọi GET /api/v1/admin/audit-logs?group=LOGIN -> 200 OK và service được gọi với LOGIN")
+    void testSearchAuditLogs_asAdmin_returns200() throws Exception {
+        loginAs(1L, "ADMIN");
+        when(adminAuditService.search(eq("LOGIN"), any(), any(), any(), eq(0), eq(50)))
+            .thenReturn(new AdminAuditLogPageResponse(List.of(), 0, 50, 0));
+
+        mockMvc.perform(get("/api/v1/admin/audit-logs").param("group", "LOGIN"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.size").value(50))
+            .andExpect(jsonPath("$.totalElements").value(0));
+
+        org.mockito.Mockito.verify(adminAuditService).search(eq("LOGIN"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), eq(0), eq(50));
     }
 }
