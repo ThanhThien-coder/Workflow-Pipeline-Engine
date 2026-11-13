@@ -101,6 +101,7 @@ export interface TemplateFilter {
   search?: string;
   category?: TemplateCategory | 'All';
   isSystemStandard?: boolean;
+  visibility?: 'PUBLIC' | 'PRIVATE';
 }
 
 export interface DagViolation {

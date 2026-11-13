@@ -23,6 +23,9 @@ export class HttpTemplateService implements ITemplateService {
     if (filter?.isSystemStandard !== undefined) {
       query.isSystemStandard = filter.isSystemStandard;
     }
+    if (filter?.visibility) {
+      query.visibility = filter.visibility;
+    }
 
     return apiRequest<TemplateSummaryDto[]>('GET', '/templates', {
       query: Object.keys(query).length > 0 ? query : undefined,

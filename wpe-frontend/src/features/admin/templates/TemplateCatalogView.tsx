@@ -43,7 +43,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const data = await container.templateService.getTemplates();
+      const data = await container.templateService.getTemplates({ visibility: 'PUBLIC' });
       setTemplates(data);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể tải danh sách template';
@@ -143,6 +143,9 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
           <p className="text-sm text-slate-500 mt-1 leading-relaxed">
             Quản lý kho mẫu quy trình chuẩn toàn hệ thống. Người dùng có thể clone các mẫu
             công khai khi khởi tạo dự án.
+          </p>
+          <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+            Chỉ hiện template công khai. Template riêng của người dùng chỉ hiện ở màn tạo dự án của chính họ.
           </p>
         </div>
 

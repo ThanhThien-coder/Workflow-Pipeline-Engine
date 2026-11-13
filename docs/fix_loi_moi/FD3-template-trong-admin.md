@@ -1,7 +1,7 @@
 # FD3 — Template trong admin: chỉ hiện template công khai, admin lưu được, template mẫu sửa được
 
 Người làm: D
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L23, L24
 Nhánh git: fix-fd3-template-admin
 Làm trước: FA1 (đăng nhập admin, chặn `/admin`)
@@ -37,4 +37,19 @@ Làm trước: FA1 (đăng nhập admin, chặn `/admin`)
 1. Đăng nhập meo, lưu một dự án thành template. Vào màn tạo dự án của meo → thấy template đó.
 2. Đăng nhập admin → Templates: không thấy template của meo; thấy 3 template mẫu; sửa tên `tpl-sdlc` rồi lưu → thành công; tạo template mới → thành công.
 
-## Kết quả (Claude ghi, dán output thật)
+## Kết quả (ThanhThien-coder ghi)
+- Đã hoàn tất sửa đổi các file theo yêu cầu:
+  + `wpe-backend/src/main/java/com/pipeline/wpe/service/PipelineTemplateService.java`: Thêm overload `getTemplates(..., visibility)`. Hỗ trợ lọc PUBLIC/PRIVATE, ném `IllegalArgumentException` khi giá trị không hợp lệ. Giữ nguyên overload 4 và 3 tham số.
+  + `wpe-backend/src/main/java/com/pipeline/wpe/controller/PipelineTemplateController.java`: Thêm query parameter `visibility` cho endpoint `GET /templates`.
+  + `wpe-backend/src/test/java/com/pipeline/wpe/service/PipelineTemplateServiceTest.java`: Bổ sung 3 unit tests kiểm tra lọc visibility PUBLIC/PRIVATE, ngoại lệ khi visibility sai và kiểm tra admin cập nhật theo slug `tpl-sdlc` thành công (user thường nhận 403 Forbidden).
+  + `wpe-frontend/src/types/template.types.ts`: Bổ sung `visibility?: 'PUBLIC' | 'PRIVATE'` vào `TemplateFilter`.
+  + `wpe-frontend/src/services/template/HttpTemplateService.ts`: Bổ sung gửi `query.visibility` khi có `filter.visibility`.
+  + `wpe-frontend/src/services/template/MockTemplateService.ts`: Bổ sung lọc trong bộ nhớ `(t.visibility ?? 'PUBLIC') === filter.visibility`.
+  + `wpe-frontend/src/features/admin/templates/TemplateCatalogView.tsx`: Gọi `getTemplates({ visibility: 'PUBLIC' })` và thêm dòng mô tả dưới tiêu đề.
+  + `wpe-frontend/src/features/admin/templates/TemplateStudioView.tsx`: Cập nhật `describeSaveError` với thông báo 403 "Chỉ quản trị viên mới lưu được template", 422 hiển thị danh sách tên phase/node bị lặp từ `nameOf`.
+  + `wpe-frontend/src/services/template/__tests__/HttpTemplateService.test.ts`: Bổ sung test gửi query `visibility=PUBLIC`.
+  + `wpe-frontend/src/services/template/__tests__/MockTemplateService.test.ts`: Bổ sung test lọc `visibility: 'PUBLIC'` loại bỏ template PRIVATE.
+  + `wpe-frontend/src/features/admin/templates/__tests__/TemplateStudioView.test.tsx`: Cập nhật kiểm tra message 403 mới và test 422 với `nameOf`.
+  + `wpe-frontend/src/features/admin/templates/__tests__/TemplateCatalogView.test.tsx`: Tạo mới test xác nhận gọi `getTemplates({ visibility: 'PUBLIC' })` và hiển thị template PUBLIC.
+- Ghi chú: Mục 4 (nhật ký template) làm ở FA3.
+- Ghi chú: Template chuẩn hệ thống (`isSystemStandard = true`) vẫn không xóa được (409 SYSTEM_TEMPLATE_LOCKED) theo đúng quyết định đã chốt ở TASK_03.

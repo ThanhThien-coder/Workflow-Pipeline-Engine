@@ -118,4 +118,15 @@ describe('Service Layer DI: MockTemplateService Unit Tests', () => {
     expect(updatedList).toHaveLength(2);
     expect(updatedList.some((t) => t.id === idToDelete)).toBe(false);
   });
+
+  it("should filter templates by visibility: 'PUBLIC' excluding PRIVATE templates", async () => {
+    await service.saveProjectAsTemplate('proj-1', { name: 'Private Exported Template' });
+    const all = await service.getTemplates();
+    expect(all.some((t) => t.visibility === 'PRIVATE')).toBe(true);
+
+    const publicOnly = await service.getTemplates({ visibility: 'PUBLIC' });
+    expect(publicOnly.length).toBeGreaterThan(0);
+    expect(publicOnly.some((t) => t.visibility === 'PRIVATE')).toBe(false);
+    expect(publicOnly.every((t) => (t.visibility ?? 'PUBLIC') === 'PUBLIC')).toBe(true);
+  });
 });

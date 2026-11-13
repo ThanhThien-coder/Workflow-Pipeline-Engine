@@ -74,6 +74,9 @@ export class MockTemplateService implements ITemplateService {
       if (filter.isSystemStandard !== undefined) {
         list = list.filter((t) => t.isSystemStandard === filter.isSystemStandard);
       }
+      if (filter.visibility) {
+        list = list.filter((t) => (t.visibility ?? 'PUBLIC') === filter.visibility);
+      }
       if (filter.search && filter.search.trim().length > 0) {
         const q = filter.search.toLowerCase().trim();
         list = list.filter(

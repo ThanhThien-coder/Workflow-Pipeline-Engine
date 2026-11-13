@@ -71,6 +71,26 @@ describe('HttpTemplateService unit tests', () => {
     expect(calls[0].url).toContain('search=ci');
   });
 
+  it("getTemplates({ visibility: 'PUBLIC' }) gửi query.visibility = 'PUBLIC'", async () => {
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return jsonResponse(200, []);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await service.getTemplates({ visibility: 'PUBLIC' });
+
+    expect(result).toEqual([]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('GET');
+    expect(calls[0].url).toContain('/templates?');
+    expect(calls[0].url).toContain('visibility=PUBLIC');
+  });
+
   it("createTemplate khi server trả 422 {error:'CYCLE_DETECTED', cycleNodes:['n1','n2']} → ném ApiError có status 422 và cycleNodes ['n1','n2']", async () => {
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({
