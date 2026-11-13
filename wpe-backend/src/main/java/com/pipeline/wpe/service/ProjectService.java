@@ -38,10 +38,13 @@ public class ProjectService {
     private final TemplateCloneService templateCloneService;
 
     private static final Map<ProjectStatus, Set<ProjectStatus>> ALLOWED_TRANSITIONS = Map.of(
+        ProjectStatus.DRAFT, Set.of(ProjectStatus.ARCHIVED),
+        ProjectStatus.PLANNING, Set.of(ProjectStatus.ARCHIVED),
         ProjectStatus.ACTIVE, Set.of(ProjectStatus.PAUSED, ProjectStatus.ARCHIVED, ProjectStatus.COMPLETED),
         ProjectStatus.PAUSED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED),
+        ProjectStatus.COMPLETED, Set.of(ProjectStatus.ARCHIVED),
         ProjectStatus.INACTIVE, Set.of(ProjectStatus.ARCHIVED),
-        ProjectStatus.ARCHIVED, Set.of(ProjectStatus.ACTIVE)
+        ProjectStatus.ARCHIVED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.DRAFT)
     );
 
     public List<ProjectSummaryResponse> getMyProjects(Long currentUserId) {
@@ -257,12 +260,25 @@ public class ProjectService {
                 "Không thể chuyển dự án từ " + currentStatus + " sang " + newStatus);
         }
 
+        Map<Long, NodeStats> statsMap = countNodesByProjectIds(List.of(projectId));
+        NodeStats stats = statsMap.getOrDefault(projectId, NodeStats.EMPTY);
+
+        // Khi khôi phục dự án từ ARCHIVED (FE gửi ACTIVE):
+        // Nếu dự án chưa từng xuất bản (không có node nào hoặc mọi node đều đang ở trạng thái LOCKED),
+        // bắt buộc khôi phục về DRAFT thay vì ACTIVE để không cho phép bỏ qua bước xuất bản (publish).
+        if (currentStatus == ProjectStatus.ARCHIVED && newStatus == ProjectStatus.ACTIVE) {
+            boolean hasUnlockedInStats = (stats.activeNodes() + stats.doneNodes()) > 0;
+            boolean hasUnlockedInList = nodeRepository.findByProjectId(projectId).stream()
+                .anyMatch(n -> n.getStatus() != null && n.getStatus() != NodeStatus.LOCKED);
+            if (!hasUnlockedInStats && !hasUnlockedInList) {
+                newStatus = ProjectStatus.DRAFT;
+            }
+        }
+
         project.setStatus(newStatus);
         project.setUpdatedAt(Instant.now());
         ProjectEntity saved = projectRepository.save(project);
 
-        Map<Long, NodeStats> statsMap = countNodesByProjectIds(List.of(projectId));
-        NodeStats stats = statsMap.getOrDefault(projectId, NodeStats.EMPTY);
         String ownerName = getOwnerDisplayName(saved.getOwnerId());
 
         return ProjectSummaryResponse.withNodeStats(
@@ -273,6 +289,19 @@ public class ProjectService {
             stats.doneNodes(),
             stats.inProgressNodes()
         );
+    }
+
+    @Transactional
+    public void deleteProject(Long projectId, Long currentUserId) {
+        ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
+        nodeRepository.deleteByProjectId(projectId);
+        workPhaseRepository.deleteByProjectId(projectId);
+        projectMemberRepository.deleteByProjectId(projectId);
+        if (project != null) {
+            projectRepository.delete(project);
+        } else {
+            projectRepository.deleteById(projectId);
+        }
     }
 
     private record NodeStats(int nodeCount, int activeNodes, int doneNodes, int inProgressNodes) {

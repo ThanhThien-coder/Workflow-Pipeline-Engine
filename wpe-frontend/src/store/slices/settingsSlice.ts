@@ -210,12 +210,13 @@ export const createSettingsSlice = (
         const pid = currentProjectId()
         try {
           const updated = await workflowService.archiveProject(pid)
+          const archivedStatus = updated.status || 'ARCHIVED'
           set((state) =>
             produce(state, (draft: any) => {
               draft.settings.settings = updated
               if (draft.workspace?.projects) {
                 draft.workspace.projects = draft.workspace.projects.map((p: any) =>
-                  String(p.id) === String(pid) ? { ...p, status: 'ARCHIVED' } : p,
+                  String(p.id) === String(pid) ? { ...p, status: archivedStatus } : p,
                 )
               }
             }),
@@ -234,18 +235,19 @@ export const createSettingsSlice = (
         const pid = currentProjectId()
         try {
           const updated = await workflowService.restoreProject(pid)
+          const restoredStatus = updated.status
           set((state) =>
             produce(state, (draft: any) => {
               draft.settings.settings = updated
               if (draft.workspace?.projects) {
                 draft.workspace.projects = draft.workspace.projects.map((p: any) =>
-                  String(p.id) === String(pid) ? { ...p, status: 'ACTIVE' } : p,
+                  String(p.id) === String(pid) ? { ...p, status: restoredStatus } : p,
                 )
               }
             }),
           )
           await refreshLogs(pid)
-          get().settings.showToast('Project restored to ACTIVE.')
+          get().settings.showToast(`Project restored to ${restoredStatus}.`)
           return true
         } catch (error) {
           const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to restore project')
@@ -260,6 +262,7 @@ export const createSettingsSlice = (
           await workflowService.deleteProject(pid)
           set((state) =>
             produce(state, (draft: any) => {
+              draft.settings.error = null
               draft.settings.isDeleteModalOpen = false
               if (draft.workspace?.projects) {
                 draft.workspace.projects = draft.workspace.projects.filter(
@@ -268,12 +271,19 @@ export const createSettingsSlice = (
               }
             }),
           )
-          get().settings.showToast('Project deleted successfully.')
+          get().settings.showToast('Đã xóa dự án')
+          ;(get() as any).ui?.showToast?.('Đã xóa dự án')
           return true
         } catch (error) {
-          const msg = error instanceof Error ? error.message : 'Failed to delete project'
-          get().settings.showToast(msg)
-          return false
+          const msg = isApiError(error)
+            ? error.message
+            : (error instanceof Error ? error.message : 'Failed to delete project')
+          set((state) =>
+            produce(state, (draft) => {
+              draft.settings.error = msg
+            }),
+          )
+          throw error instanceof Error ? error : new Error(msg)
         }
       },
 

@@ -60,6 +60,9 @@ describe('D1: workspace API (impl/http/workspace.ts)', () => {
           completedNodes: 10,
         })
       }
+      if (method === 'DELETE' && /\/projects\/\d+$/.test(String(url))) {
+        return jsonResponse(204)
+      }
       return jsonResponse(404, { status: 404, error: 'NOT_FOUND', message: 'Not found' })
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -71,9 +74,10 @@ describe('D1: workspace API (impl/http/workspace.ts)', () => {
     vi.restoreAllMocks()
   })
 
-  it('archiveProject, restoreProject không còn nằm trong METHODS_STILL_MOCKED', () => {
+  it('archiveProject, restoreProject, deleteProject không còn nằm trong METHODS_STILL_MOCKED', () => {
     expect(METHODS_STILL_MOCKED).not.toContain('archiveProject')
     expect(METHODS_STILL_MOCKED).not.toContain('restoreProject')
+    expect(METHODS_STILL_MOCKED).not.toContain('deleteProject')
   })
 
   it('fetchProjects({tab:\'archived\',sort:\'done\'}) gọi đúng URL /projects?tab=archived&sort=done', async () => {
@@ -108,5 +112,37 @@ describe('D1: workspace API (impl/http/workspace.ts)', () => {
     const restored = await svc.restoreProject('1')
     expect(calls.some((c) => c.method === 'PATCH' && c.body && (c.body as any).status === 'ACTIVE')).toBe(true)
     expect(restored.status).toBe('ACTIVE')
+  })
+
+  it('HttpWorkflowService.deleteProject gọi DELETE /projects/{id}', async () => {
+    const svc = new HttpWorkflowService()
+
+    await svc.deleteProject('42')
+
+    expect(calls.some((c) => c.method === 'DELETE' && /\/projects\/42$/.test(c.url))).toBe(true)
+  })
+
+  it('HttpWorkflowService.restoreProject giữ nguyên status DRAFT nếu backend trả DRAFT', async () => {
+    fetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      return jsonResponse(200, {
+        id: 1,
+        name: 'Draft Pipeline',
+        status: 'DRAFT',
+        ownerId: 1,
+        ownerName: 'Alex Kim',
+        totalNodes: 0,
+        completedNodes: 0,
+      })
+    })
+    const svc = new HttpWorkflowService()
+
+    const restored = await svc.restoreProject('1')
+    expect(calls.some((c) => c.method === 'PATCH' && c.body && (c.body as any).status === 'ACTIVE')).toBe(true)
+    expect(restored.status).toBe('DRAFT')
   })
 })

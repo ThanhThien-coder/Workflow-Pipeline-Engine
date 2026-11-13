@@ -62,7 +62,7 @@ export function DangerZoneSection({
             </h3>
             <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">
               {isArchived
-                ? 'This project is currently archived and locked in read-only mode. Restoring it will reactivate the pipeline and allow members to resume work.'
+                ? 'This project is currently archived and locked in read-only mode. Restoring it will return the project to its active or draft state.'
                 : 'Mark this project as archived and read-only. Members will not be able to move tasks, edit nodes, or submit deliverables.'}
             </p>
           </div>
@@ -82,7 +82,7 @@ export function DangerZoneSection({
               {isArchived
                 ? restoring
                   ? 'Restoring...'
-                  : 'Restore to Active'
+                  : 'Restore Project'
                 : archiving
                   ? 'Archiving...'
                   : 'Archive Project'}

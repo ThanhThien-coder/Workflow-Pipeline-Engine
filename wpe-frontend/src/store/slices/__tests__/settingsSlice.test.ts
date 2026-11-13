@@ -1,13 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createWorkflowStore } from '../../useWorkflowStore'
 import { MockWorkflowService } from '../../../services/MockWorkflowService'
 import { MockConfig } from '../../../services/mock/MockConfig'
+import { workflowService } from '../../../services/container'
+import { ApiError } from '../../../services/http/ApiError'
 
 describe('Project Settings & Governance Module', () => {
   let store: ReturnType<typeof createWorkflowStore>
 
   beforeEach(() => {
     store = createWorkflowStore(new MockWorkflowService())
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('loads project settings, members, and initial audit logs', async () => {
@@ -192,5 +198,131 @@ describe('Project Settings & Governance Module', () => {
     const acceptOk = await store.getState().settings.acceptInvitation('inv-101')
     expect(acceptOk).toBe(true)
     expect(store.getState().settings.pendingInvitations.find((i) => i.id === 'inv-101')).toBeUndefined()
+  })
+
+  it('FC4: restoreProject dùng đúng status backend trả về (DRAFT cho dự án chưa xuất bản)', async () => {
+    vi.spyOn(workflowService, 'getMyProjects').mockResolvedValue([
+      {
+        id: '1',
+        name: 'Marketing Campaign Q4',
+        description: '',
+        status: 'ARCHIVED',
+        ownerId: '1',
+        ownerName: 'Alex Kim',
+        role: 'OWNER',
+        nodeCount: 0,
+        totalNodes: 0,
+        completedNodes: 0,
+        inProgressNodes: 0,
+        criticalPathLength: 0,
+        completionPercent: 0,
+        progressPercentage: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        members: [],
+      },
+    ])
+    await store.getState().workspace.loadProjects()
+    await store.getState().settings.loadSettings('1')
+
+    vi.spyOn(workflowService, 'restoreProject').mockResolvedValue({
+      id: '1',
+      name: 'Marketing Campaign Q4',
+      description: '',
+      status: 'DRAFT',
+      ownerId: '1',
+      myRole: 'OWNER',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+
+    const ok = await store.getState().settings.restoreProject()
+
+    expect(ok).toBe(true)
+    expect(store.getState().settings.settings?.status).toBe('DRAFT')
+    const restoredInWorkspace = store.getState().workspace.projects.find((p) => String(p.id) === '1')
+    expect(restoredInWorkspace?.status).toBe('DRAFT')
+    expect(store.getState().settings.toast).toContain('DRAFT')
+  })
+
+  it('FC4: deleteProject gọi service, xóa dự án khỏi danh sách workspace và toast "Đã xóa dự án"', async () => {
+    vi.spyOn(workflowService, 'getMyProjects').mockResolvedValue([
+      {
+        id: '1',
+        name: 'Marketing Campaign Q4',
+        description: '',
+        status: 'DRAFT',
+        ownerId: '1',
+        ownerName: 'Alex Kim',
+        role: 'OWNER',
+        nodeCount: 0,
+        totalNodes: 0,
+        completedNodes: 0,
+        inProgressNodes: 0,
+        criticalPathLength: 0,
+        completionPercent: 0,
+        progressPercentage: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        members: [],
+      },
+    ])
+    await store.getState().workspace.loadProjects()
+    await store.getState().settings.loadSettings('1')
+    const deleteSpy = vi.spyOn(workflowService, 'deleteProject').mockResolvedValue(undefined)
+
+    store.getState().settings.openDeleteModal()
+    const ok = await store.getState().settings.deleteProject()
+
+    expect(deleteSpy).toHaveBeenCalledWith('1')
+    expect(ok).toBe(true)
+    expect(store.getState().settings.isDeleteModalOpen).toBe(false)
+    expect(store.getState().workspace.projects.find((p) => String(p.id) === '1')).toBeUndefined()
+    expect(store.getState().settings.toast).toBe('Đã xóa dự án')
+    expect(store.getState().ui.toast?.message).toBe('Đã xóa dự án')
+  })
+
+  it('FC4: deleteProject khi lỗi thì ném lỗi, giữ message backend và không xóa dự án khỏi danh sách', async () => {
+    vi.spyOn(workflowService, 'getMyProjects').mockResolvedValue([
+      {
+        id: '1',
+        name: 'Marketing Campaign Q4',
+        description: '',
+        status: 'DRAFT',
+        ownerId: '1',
+        ownerName: 'Alex Kim',
+        role: 'OWNER',
+        nodeCount: 0,
+        totalNodes: 0,
+        completedNodes: 0,
+        inProgressNodes: 0,
+        criticalPathLength: 0,
+        completionPercent: 0,
+        progressPercentage: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        members: [],
+      },
+    ])
+    await store.getState().workspace.loadProjects()
+    await store.getState().settings.loadSettings('1')
+    const backendError = new ApiError({
+      status: 403,
+      code: 'ACCESS_DENIED',
+      message: 'Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này.',
+    })
+    vi.spyOn(workflowService, 'deleteProject').mockRejectedValue(backendError)
+
+    store.getState().settings.openDeleteModal()
+
+    await expect(store.getState().settings.deleteProject()).rejects.toThrow(
+      'Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này.',
+    )
+
+    expect(store.getState().settings.error).toBe(
+      'Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này.',
+    )
+    expect(store.getState().settings.isDeleteModalOpen).toBe(true)
+    expect(store.getState().workspace.projects.find((p) => String(p.id) === '1')).toBeDefined()
   })
 })
