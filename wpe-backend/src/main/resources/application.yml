@@ -31,6 +31,14 @@ spring:
     # triển khai thật phải tắt (false) và chốt lại thứ tự migration.
     out-of-order: true
 
+  # A5: ảnh đại diện tối đa 2MB. resolve-lazily: true để lỗi quá cỡ (MaxUploadSizeExceededException)
+  # được ném khi controller đọc tham số file, nhờ đó UserProfileController trả 400 FILE_TOO_LARGE.
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
+      resolve-lazily: true
+
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -70,6 +78,9 @@ app:
     diagnose-path: ${AI_DIAGNOSE_PATH:/api/ai/diagnose}
     connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:3}
     read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:30}
+  # A5: thư mục lưu file tải lên (ảnh đại diện ở <dir>/avatars), phục vụ tại /uploads/**
+  upload:
+    dir: ${APP_UPLOAD_DIR:uploads}
   invitation:
     expiry-days: ${INVITATION_EXPIRY_DAYS:7}
     expiry-scan-ms: ${INVITATION_EXPIRY_SCAN_MS:3600000}

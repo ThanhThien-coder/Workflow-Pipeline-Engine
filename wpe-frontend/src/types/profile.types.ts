@@ -6,6 +6,8 @@ export type ProfileErrorCode =
   | 'WEAK_PASSWORD'
   | 'INVALID_LINK'
   | 'CONFIRMATION_MISMATCH'
+  /** A5: email đã thuộc tài khoản khác (backend 409 EMAIL_TAKEN) */
+  | 'EMAIL_TAKEN'
 
 export class ProfileError extends Error {
   constructor(public readonly code: ProfileErrorCode) {

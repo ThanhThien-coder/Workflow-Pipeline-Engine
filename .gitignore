@@ -16,6 +16,9 @@ wpe-backend/target/
 *.class
 *.jar
 
+# File người dùng tải lên khi chạy backend (ảnh đại diện A5) - không đưa vào git
+wpe-backend/uploads/
+
 # Environment variables
 .env
 .env.local

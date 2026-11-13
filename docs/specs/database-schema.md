@@ -72,6 +72,11 @@ erDiagram
         boolean is_locked "DEFAULT FALSE"
         int token_version "DEFAULT 0"
         timestamp created_at
+        varchar avatar_url "nullable, V7"
+        varchar title "nullable, V7"
+        text bio "nullable, V7"
+        jsonb skills "DEFAULT [], V7"
+        jsonb links "DEFAULT {}, V7"
     }
 
     REFRESH_TOKEN {
@@ -239,6 +244,11 @@ Quản lý danh tính, phân quyền hệ thống và phiên bảo mật của n
 | `is_locked` | `boolean` | NOT NULL | `FALSE` | Cờ khóa tài khoản do Admin quản lý. |
 | `token_version` | `int` | NOT NULL | `0` | Quản lý vô hiệu hóa phiên tức thời (khi đổi mật khẩu / khóa tài khoản). |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm tạo tài khoản. |
+| `avatar_url` | `varchar(500)` | NULLABLE | | (V7, A5) Đường dẫn ảnh đại diện dạng `/uploads/avatars/<userId>-<ngẫu nhiên>.<png\|jpg\|webp>`. `NULL` = chưa có ảnh, giao diện hiện chữ viết tắt. File nằm ở `${app.upload.dir}/avatars/`, không lưu trong DB. |
+| `title` | `varchar(150)` | NULLABLE | | (V7, A5) Chức danh hiển thị trên hồ sơ. |
+| `bio` | `text` | NULLABLE | | (V7, A5) Tiểu sử ngắn. |
+| `skills` | `jsonb` | NOT NULL | `'[]'::jsonb` | (V7, A5) Mảng kỹ năng, VD `["React", "Spring Boot"]`. Để JSONB vì chỉ đọc/ghi cả cụm theo user, không truy vấn hay nối bảng theo từng kỹ năng. |
+| `links` | `jsonb` | NOT NULL | `'{}'::jsonb` | (V7, A5) Liên kết ngoài, VD `{"github": "...", "linkedin": "...", "website": "..."}`; chuỗi rỗng = chưa đặt. |
 
 ---
 

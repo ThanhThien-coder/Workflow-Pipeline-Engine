@@ -6,6 +6,7 @@ import { navigate } from '../router/useRouter'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { useProfileStore } from '../store/useProfileStore'
 import { ProfileError } from '../types/profile.types'
+import { isApiError } from '../services/http/ApiError'
 import type { ProfileDto, ProfileErrorCode, ProfileVisibility } from '../types/profile.types'
 
 const ERR: Record<ProfileErrorCode, string> = {
@@ -16,6 +17,7 @@ const ERR: Record<ProfileErrorCode, string> = {
   WEAK_PASSWORD: 'New password needs at least 8 characters and a number.',
   INVALID_LINK: 'Please provide valid URLs. GitHub and LinkedIn must use their respective domains.',
   CONFIRMATION_MISMATCH: 'Confirmation text does not match.',
+  EMAIL_TAKEN: 'This email is already used by another account.',
 }
 const VIS: { value: ProfileVisibility; label: string; hint: string }[] = [
   { value: 'private', label: 'Only me', hint: 'Nobody else can open your profile' },
@@ -24,7 +26,12 @@ const VIS: { value: ProfileVisibility; label: string; hint: string }[] = [
 ]
 const inputCls = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?'
-const errText = (e: unknown) => (e instanceof ProfileError ? ERR[e.code] : 'Something went wrong. Please try again.')
+// A5: lỗi nghiệp vụ -> ProfileError (câu riêng); lỗi khác từ backend thật (mạng, 401, 500) -> message của ApiError
+const errText = (e: unknown) => {
+  if (e instanceof ProfileError) return ERR[e.code] ?? 'Something went wrong. Please try again.'
+  if (isApiError(e) && e.message) return e.message
+  return 'Something went wrong. Please try again.'
+}
 
 function Card({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
