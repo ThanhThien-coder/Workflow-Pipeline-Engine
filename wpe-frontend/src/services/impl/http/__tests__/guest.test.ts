@@ -164,6 +164,39 @@ describe('D5: guest & feedback HTTP API (impl/http/guest.ts)', () => {
         })
       }
 
+      // GET /projects/7
+      if (method === 'GET' && urlStr.endsWith('/projects/7')) {
+        return jsonResponse(200, {
+          id: 7,
+          name: 'Pipeline Engine Demo',
+          description: '',
+          status: 'ACTIVE',
+          ownerId: 1,
+          createdAt: '2026-11-10T00:00:00Z',
+          updatedAt: '2026-11-12T05:00:00Z',
+        })
+      }
+
+      // GET /projects/7/members
+      if (method === 'GET' && urlStr.endsWith('/projects/7/members')) {
+        return jsonResponse(200, [{ userId: 1, role: 'OWNER' }])
+      }
+
+      // GET /projects/7/graph
+      if (method === 'GET' && urlStr.endsWith('/projects/7/graph')) {
+        return jsonResponse(200, { phases: [], phaseEdges: [], nodes: [], dependencies: [] })
+      }
+
+      // GET /projects/7/activity
+      if (method === 'GET' && urlStr.includes('/projects/7/activity')) {
+        return jsonResponse(200, [])
+      }
+
+      // GET /projects/7/ai-analysis
+      if (method === 'GET' && urlStr.endsWith('/projects/7/ai-analysis')) {
+        return jsonResponse(200, { hasAnalysis: false })
+      }
+
       return jsonResponse(404, { status: 404, error: 'NOT_FOUND', message: 'Not found' })
     })
 
@@ -340,6 +373,26 @@ describe('D5: guest & feedback HTTP API (impl/http/guest.ts)', () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET'
       const urlStr = String(url)
+      if (method === 'GET' && urlStr.endsWith('/projects/7')) {
+        return jsonResponse(200, {
+          id: 7,
+          name: 'Pipeline Engine Demo',
+          description: '',
+          status: 'ACTIVE',
+          ownerId: 1,
+          createdAt: '2026-11-10T00:00:00Z',
+          updatedAt: '2026-11-12T05:00:00Z',
+        })
+      }
+      if (method === 'GET' && urlStr.endsWith('/projects/7/graph')) {
+        return jsonResponse(200, { phases: [], phaseEdges: [], nodes: [], dependencies: [] })
+      }
+      if (method === 'GET' && urlStr.includes('/projects/7/activity')) {
+        return jsonResponse(200, [])
+      }
+      if (method === 'GET' && urlStr.endsWith('/projects/7/ai-analysis')) {
+        return jsonResponse(200, { hasAnalysis: false })
+      }
       if (method === 'GET' && urlStr.endsWith('/projects/7/guest-token')) {
         return jsonResponse(403, { status: 403, error: 'ACCESS_DENIED', message: 'Chỉ Owner được xem link' })
       }
@@ -356,10 +409,10 @@ describe('D5: guest & feedback HTTP API (impl/http/guest.ts)', () => {
     expect(overview.feedbackQueue).toHaveLength(0)
   })
 
-  it('METHODS_STILL_MOCKED không còn chứa resolveFeedback, toggleGuestAccess, generateGuestToken', () => {
+  it('METHODS_STILL_MOCKED không còn chứa resolveFeedback, toggleGuestAccess, generateGuestToken, getOverviewData', () => {
     expect(METHODS_STILL_MOCKED).not.toContain('resolveFeedback')
     expect(METHODS_STILL_MOCKED).not.toContain('toggleGuestAccess')
     expect(METHODS_STILL_MOCKED).not.toContain('generateGuestToken')
-    expect(METHODS_STILL_MOCKED).toContain('getOverviewData')
+    expect(METHODS_STILL_MOCKED).not.toContain('getOverviewData')
   })
 })
