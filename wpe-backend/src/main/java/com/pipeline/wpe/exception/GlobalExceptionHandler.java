@@ -140,4 +140,43 @@ public class GlobalExceptionHandler {
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleSpringAccessDenied(
+        org.springframework.security.access.AccessDeniedException ex,
+        HttpServletRequest request
+    ) {
+        org.springframework.security.core.Authentication auth =
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+            ErrorResponse error = ErrorResponse.of(
+                HttpStatus.UNAUTHORIZED.value(),
+                "UNAUTHORIZED",
+                "Yêu cầu đăng nhập để thực hiện hành động này.",
+                request.getRequestURI()
+            );
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.FORBIDDEN.value(),
+            "ACCESS_DENIED",
+            "Bạn không có quyền thực hiện hành động này.",
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(org.springframework.security.authentication.AuthenticationCredentialsNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationCredentialsNotFound(
+        org.springframework.security.authentication.AuthenticationCredentialsNotFoundException ex,
+        HttpServletRequest request
+    ) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.UNAUTHORIZED.value(),
+            "UNAUTHORIZED",
+            "Yêu cầu đăng nhập để thực hiện hành động này.",
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
 }
