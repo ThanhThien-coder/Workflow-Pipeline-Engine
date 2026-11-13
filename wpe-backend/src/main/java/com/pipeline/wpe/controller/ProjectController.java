@@ -96,4 +96,17 @@ public class ProjectController {
         ProjectDetailResponse cloned = templateCloneService.cloneTemplate(req, currentUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(cloned);
     }
+
+    @DeleteMapping("/{id}")
+    @Operation(
+        summary = "Xóa vĩnh viễn dự án",
+        description = "Chỉ chủ dự án (OWNER) mới có quyền xóa vĩnh viễn dự án và toàn bộ dữ liệu liên quan"
+    )
+    public ResponseEntity<Void> deleteProject(
+        @Parameter(description = "ID của dự án") @PathVariable Long id
+    ) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        projectService.deleteProject(id, currentUserId);
+        return ResponseEntity.noContent().build();
+    }
 }

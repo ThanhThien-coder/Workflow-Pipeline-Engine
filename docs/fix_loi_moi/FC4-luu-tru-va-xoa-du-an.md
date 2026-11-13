@@ -1,7 +1,7 @@
 # FC4 — Lưu trữ (archive) và xóa dự án không làm được
 
 Người làm: C
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L17, L18
 Nhánh git: fix-fc4-archive-delete
 Làm trước: không
@@ -47,3 +47,31 @@ Làm trước: không
 2. Xóa dự án → không phải gõ tên; dự án biến mất khỏi Workspace, F5 vẫn không còn.
 
 ## Kết quả (Claude ghi, dán output thật)
+
+**File đã sửa**
+- `BE/service/ProjectService.java`:
+  - `ALLOWED_TRANSITIONS` thêm DRAFT/PLANNING/COMPLETED → ARCHIVED và ARCHIVED → DRAFT.
+  - Khôi phục (ARCHIVED → ACTIVE) mà dự án chưa xuất bản (không có node, hoặc mọi node LOCKED) thì về DRAFT; luật này có ghi comment trong code.
+  - Thêm `deleteProject` (chỉ OWNER qua `verifyProjectOwner`, `@Transactional`): xóa node, work_phase, project_member rồi xóa project; các bảng con khác đã `ON DELETE CASCADE`.
+- `BE/controller/ProjectController.java`: `DELETE /api/v1/projects/{id}` → 204.
+- `BE/repository/NodeRepository.java`, `WorkPhaseRepository.java`, `ProjectMemberRepository.java`: thêm `deleteByProjectId`.
+- `FE/services/impl/http/workspace.ts`: thêm `deleteProject` (DELETE). `FE/services/impl/HttpWorkflowService.ts`: `deleteProject` gọi API thật, xóa dòng `deleteProject` khỏi `METHODS_STILL_MOCKED`.
+- `FE/components/settings/DeleteProjectModal.tsx`: bỏ ô gõ tên; tên dự án in đậm, cảnh báo "Không thể hoàn tác", nút "Hủy" và nút đỏ "Xóa vĩnh viễn"; khóa nút khi đang xóa; lỗi backend hiện trong modal (`role="alert"`).
+- `FE/store/slices/settingsSlice.ts`: `restoreProject` dùng status backend trả về (DRAFT hoặc ACTIVE); `deleteProject` xóa dự án khỏi danh sách workspace, toast "Đã xóa dự án", lỗi thì giữ message và ném lại cho modal. `SettingsView` (không đổi) chuyển về `/workspaces` khi xóa xong.
+- `FE/components/settings/DangerZoneSection.tsx`: nút "Restore to Active" đổi thành "Restore Project".
+
+**Test đã thêm**
+- BE `ProjectServiceTest`: archive DRAFT/PLANNING/COMPLETED; khôi phục dự án chưa xuất bản → DRAFT, đã xuất bản → ACTIVE; người không phải owner → 403; DELETE bởi owner, người khác → 403, không tồn tại → 404.
+- BE `ProjectControllerTest`: DELETE → 204 / 403 / 404.
+- FE: `components/settings/__tests__/DeleteProjectModal.test.tsx` (không còn ô nhập; bấm "Xóa vĩnh viễn" gọi xóa ngay; lỗi hiện trong modal), 3 test FC4 trong `settingsSlice.test.ts`, 2 test trong `workspace.test.ts` (DELETE thật, restore giữ DRAFT).
+
+**Output test thật** (13/11/2026)
+- Trước khi sửa (chỉ có test mới):
+  - BE `ProjectServiceTest`: `Tests run: 27, Failures: 1, Errors: 5` ("Không thể chuyển dự án từ DRAFT sang ARCHIVED"…).
+  - FE: `DeleteProjectModal.test.tsx` 3 fail, `workspace.test.ts` 2 fail.
+- Sau khi sửa:
+```text
+./mvnw test       → 448 test, Failures 0, Errors 0, Skipped 1
+npm run typecheck → tsc -b, exit 0
+npm test          → Test Files 48 passed (48) | Tests 369 passed (369)
+```
