@@ -1074,6 +1074,13 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `AdminUserDto`.
    - **UI Mutation**: Cập nhật badge trạng thái người dùng (Active / Suspended), hiển thị Toast thông báo.
+6. **Trạng thái hiện thực (A6)**:
+   - Backend: `AdminController` (`/api/v1/admin/**`, alias `/api/admin/**`) → `AdminService`. Mọi endpoint gắn `@PreAuthorize("hasRole('ADMIN')")`, chỉ nhận JWT thật (request chỉ có `X-Debug-User-Id` → 401).
+   - `GET /api/v1/admin/users?query=&status=ACTIVE|SUSPENDED|ALL` → `AdminUserResponse[]`: `{ id, username, name, maskedEmail, role: ADMIN|USER, workspaceCount, lastLoginAt: null, maskedIp: null, status: ACTIVE|SUSPENDED }`. `query` tìm theo username/họ tên (không tìm theo email). Email che ở backend: ký tự đầu + `***@` + tên miền (`EmailMasker`). `lastLoginAt`, `maskedIp` luôn null vì DB chưa lưu.
+   - Suspend: body `{ reason (bắt buộc, ≤255), durationDays? }`. `is_locked = true`, `token_version += 1`, `REFRESH_TOKEN.revoked = true` cho mọi token của user. `durationDays` **chỉ ghi log** (chưa có cột lưu hạn, khóa tới khi unban). User `system_role = ADMIN` → `403 CANNOT_SUSPEND_ADMIN`.
+   - Unban: `is_locked = false`. Không đổi `token_version`; phiên cũ đã bị thu hồi lúc khóa nên user phải đăng nhập lại.
+   - Lỗi quyền: không đăng nhập → `401 UNAUTHORIZED`; có Authorization nhưng token sai/hết hạn → `401 TOKEN_EXPIRED`; không phải ADMIN → `403 ACCESS_DENIED`. Do handler `AccessDeniedException` cục bộ trong `AdminController` (GlobalExceptionHandler chưa xử lý, sẽ ra 500).
+   - Frontend: `HttpAdminService` (dùng khi `VITE_USE_MOCK=false`) map `role` USER → `STANDARD_USER`, `null` → `—`. `getSystemKpis`, `getAnalyticsTrends`, `getRoleDistribution`, `getSecurityAuditLogs` vẫn dùng mock (chưa có API).
 
 ---
 
@@ -1090,6 +1097,10 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `WorkspaceOverviewDto`.
    - **UI Mutation**: Cập nhật trạng thái workspace thành ARCHIVED, cập nhật số liệu KPI hệ thống.
+6. **Trạng thái hiện thực (A6)**:
+   - `GET /api/v1/admin/workspaces` → `WorkspaceOverviewResponse[]`: `{ id, name, ownerId, ownerName, status (ProjectStatus), memberCount, nodeCount, updatedAt }`, sắp theo `updatedAt` giảm dần. **Chỉ metadata**: không có mô tả dự án, tiêu đề hay nội dung task. `AdminService` chỉ ĐẾM node/thành viên bằng truy vấn `COUNT ... GROUP BY`, không phụ thuộc `NodeRepository`/`ArtifactRepository`.
+   - `POST /api/v1/admin/workspaces/{id}/archive` → `status = ARCHIVED` (`updated_at` do `@UpdateTimestamp`). Trả `WorkspaceOverviewResponse`. Dự án không tồn tại → 404.
+   - Frontend: `HttpAdminService` map `ACTIVE` → `RUNNING`, `ARCHIVED` → `ARCHIVED`, còn lại → `IDLE`. `criticalPathCount`, `progressPercentage` đặt 0 vì backend không trả (không đọc task).
 
 ---
 
