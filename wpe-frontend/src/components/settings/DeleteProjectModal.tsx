@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { AlertTriangle, Trash2, X } from 'lucide-react'
 import { useDismiss } from '../../hooks/useDismiss'
 
@@ -6,7 +6,8 @@ interface DeleteProjectModalProps {
   isOpen: boolean
   projectName: string
   onClose: () => void
-  onConfirmDelete: () => Promise<boolean>
+  onConfirmDelete: () => Promise<boolean | void>
+  errorMessage?: string | null
 }
 
 export function DeleteProjectModal({
@@ -14,31 +15,42 @@ export function DeleteProjectModal({
   projectName,
   onClose,
   onConfirmDelete,
+  errorMessage,
 }: DeleteProjectModalProps) {
-  const [confirmText, setConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
   const modalRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setLocalError(null)
+      setDeleting(false)
+    }
+  }, [isOpen])
 
   useDismiss(isOpen, () => {
     if (!deleting) {
-      setConfirmText('')
+      setLocalError(null)
       onClose()
     }
   }, [modalRef])
 
   if (!isOpen) return null
 
-  const isMatch = confirmText.trim() === projectName.trim()
+  const displayError = localError || errorMessage
 
   const handleDelete = async () => {
-    if (!isMatch || deleting) return
+    if (deleting) return
     setDeleting(true)
+    setLocalError(null)
     try {
       const ok = await onConfirmDelete()
-      if (ok) {
-        setConfirmText('')
+      if (ok !== false) {
         onClose()
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Không thể xóa dự án'
+      setLocalError(msg)
     } finally {
       setDeleting(false)
     }
@@ -46,7 +58,7 @@ export function DeleteProjectModal({
 
   const handleCancel = () => {
     if (deleting) return
-    setConfirmText('')
+    setLocalError(null)
     onClose()
   }
 
@@ -66,9 +78,9 @@ export function DeleteProjectModal({
             </div>
             <div>
               <h3 id="delete-project-title" className="text-base font-bold text-slate-900">
-                Delete Project
+                Xóa dự án
               </h3>
-              <p className="text-xs text-slate-500">Irreversible destructive action</p>
+              <p className="text-xs text-slate-500">Hành động xóa vĩnh viễn</p>
             </div>
           </div>
 
@@ -83,25 +95,20 @@ export function DeleteProjectModal({
         </div>
 
         <div className="mt-4 rounded-xl border border-red-200/80 bg-red-50/60 p-3.5 text-xs text-red-800 leading-relaxed">
-          This action <b>cannot be undone</b>. This will permanently delete the{' '}
-          <span className="font-bold underline">{projectName}</span> pipeline, including all DAG nodes,
-          Kanban task cards, uploaded artifacts, and access permissions.
+          Hành động này <b>Không thể hoàn tác</b>. Dự án{' '}
+          <strong className="font-bold text-slate-900 underline">{projectName}</strong> cùng toàn bộ
+          giai đoạn, công việc (DAG nodes), tài nguyên minh chứng và phân quyền thành viên sẽ bị xóa
+          vĩnh viễn.
         </div>
 
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-slate-600">
-            To confirm, type <span className="font-bold text-slate-900 select-all">{projectName}</span> below:
-          </label>
-          <input
-            type="text"
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            disabled={deleting}
-            placeholder={projectName}
-            className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-2xs outline-none transition focus:border-red-500 focus:ring-1 focus:ring-red-500"
-            autoFocus
-          />
-        </div>
+        {displayError && (
+          <div
+            role="alert"
+            className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
+          >
+            {displayError}
+          </div>
+        )}
 
         <div className="mt-6 flex items-center justify-end gap-2.5">
           <button
@@ -110,21 +117,20 @@ export function DeleteProjectModal({
             disabled={deleting}
             className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-2xs transition hover:bg-slate-50 disabled:opacity-40"
           >
-            Cancel
+            Hủy
           </button>
 
           <button
             type="button"
             onClick={handleDelete}
-            disabled={!isMatch || deleting}
-            className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+            disabled={deleting}
+            className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={13} />
-            <span>{deleting ? 'Deleting Project...' : 'I understand, delete this project'}</span>
+            <span>{deleting ? 'Đang xóa...' : 'Xóa vĩnh viễn'}</span>
           </button>
         </div>
       </div>
     </div>
   )
 }
-

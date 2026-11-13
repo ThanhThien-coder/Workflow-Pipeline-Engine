@@ -42,4 +42,8 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
 
     @Query("SELECT n.projectId, n.status, COUNT(n) FROM NodeEntity n WHERE n.projectId IN :projectIds GROUP BY n.projectId, n.status")
     List<Object[]> countByProjectIdsGroupByStatus(@Param("projectIds") Collection<Long> projectIds);
+
+    @Modifying
+    @Query("DELETE FROM NodeEntity n WHERE n.projectId = :projectId")
+    void deleteByProjectId(@Param("projectId") Long projectId);
 }

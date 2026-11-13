@@ -56,7 +56,6 @@ import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '..
 export const METHODS_STILL_MOCKED = [
   'getProjectMembers', // C6
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
-  'deleteProject', // D1
 ] as const satisfies readonly (keyof IWorkflowService)[]
 
 interface BackendTaskResponse {
@@ -474,8 +473,8 @@ export class HttpWorkflowService implements IWorkflowService {
     }
   }
 
-  deleteProject(projectId: string): Promise<void> {
-    return this.mock.deleteProject(projectId) // D1
+  async deleteProject(projectId: string): Promise<void> {
+    await workspaceApi.deleteProject(projectId)
   }
 
   getProjectMembersDetailed(projectId: string): Promise<ProjectMemberDetail[]> {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, LogOut, UserRound } from 'lucide-react'
 import { navigate } from '../../router/useRouter'
 import { useProfileStore } from '../../store/useProfileStore'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
 
 interface GlobalProfileMenuProps {
   displayName?: string
@@ -27,8 +28,10 @@ export function GlobalProfileMenu({
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const currentUserId = useWorkflowStore((state) => state.auth.currentUser?.id)
   const profile = useProfileStore((state) => state.profile)
   const loadProfile = useProfileStore((state) => state.loadProfile)
+  const lastLoadedUserIdRef = useRef<string | number | null | undefined>(undefined)
   const displayName = profile?.displayName || fallbackDisplayName
   const currentAvatarUrl = profile ? profile.avatarUrl : avatarUrl
   const currentEmail = profile?.email || email
@@ -37,12 +40,14 @@ export function GlobalProfileMenu({
     : avatarInitials || fallbackDisplayName.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 
   useEffect(() => {
-    if (!profile) {
+    const userChanged = lastLoadedUserIdRef.current !== currentUserId
+    if (!profile || userChanged) {
+      lastLoadedUserIdRef.current = currentUserId
       void loadProfile().catch((error: unknown) => {
         console.error('Failed to load profile for the header', error)
       })
     }
-  }, [loadProfile, profile])
+  }, [currentUserId, loadProfile, profile])
 
   useEffect(() => {
     if (!open) return
