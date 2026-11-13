@@ -5,8 +5,12 @@ import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.request.admin.SuspendUserRequest;
 import com.pipeline.wpe.dto.response.admin.AdminUserResponse;
 import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
+import com.pipeline.wpe.repository.ArtifactRepository;
+import com.pipeline.wpe.repository.PipelineTemplateRepository;
+import com.pipeline.wpe.repository.ProjectInvitationRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.repository.UserRepository;
@@ -41,6 +45,15 @@ class AdminUserServiceTest {
 
     @Mock
     private ProjectMemberRepository projectMemberRepository;
+
+    @Mock
+    private PipelineTemplateRepository pipelineTemplateRepository;
+
+    @Mock
+    private ArtifactRepository artifactRepository;
+
+    @Mock
+    private ProjectInvitationRepository projectInvitationRepository;
 
     @Mock
     private RefreshTokenService refreshTokenService;
@@ -267,5 +280,236 @@ class AdminUserServiceTest {
         List<AdminUserResponse> byFullName = adminUserService.listUsers("Alex Kim", null);
         assertThat(byFullName).hasSize(1);
         assertThat(byFullName.get(0).username()).isEqualTo("alex.kim");
+    }
+
+    @Test
+    @DisplayName("Nâng USER -> ADMIN thành công, ghi log USER -> ADMIN")
+    void testChangeRole_userToAdmin_success() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .fullName("Alex Kim")
+            .email("alex.kim@pipeline.engine")
+            .systemRole(SystemRole.USER)
+            .isLocked(false)
+            .tokenVersion(0)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(0L);
+        when(projectMemberRepository.countByUserIdAndRemovedAtIsNullAndRoleNot(2L, ProjectRole.OWNER)).thenReturn(0L);
+
+        AdminUserResponse response = adminUserService.changeRole(2L, "ADMIN", 1L);
+
+        assertThat(response.role()).isEqualTo("ADMIN");
+        assertThat(user.getSystemRole()).isEqualTo(SystemRole.ADMIN);
+        verify(userRepository).save(user);
+        verify(adminAuditService).record(eq(1L), isNull(), eq("USER_ROLE_CHANGED"), eq("USER"), eq("2"), eq("USER -> ADMIN"));
+    }
+
+    @Test
+    @DisplayName("Nâng user đang bị khóa -> ném ConflictException mã USER_LOCKED")
+    void testChangeRole_userToAdmin_whenLocked_throwsUserLocked() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .systemRole(SystemRole.USER)
+            .isLocked(true)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> adminUserService.changeRole(2L, "ADMIN", 1L))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> assertThat(((ConflictException) ex).getErrorCode()).isEqualTo("USER_LOCKED"));
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tự hạ quyền chính mình -> ném ForbiddenException mã CANNOT_DEMOTE_SELF")
+    void testChangeRole_adminToUser_selfDemotion_throwsCannotDemoteSelf() {
+        UserEntity admin = UserEntity.builder()
+            .id(1L)
+            .username("admin")
+            .systemRole(SystemRole.ADMIN)
+            .isLocked(false)
+            .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> adminUserService.changeRole(1L, "USER", 1L))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("CANNOT_DEMOTE_SELF"));
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Hạ admin cuối cùng -> ném ConflictException mã LAST_ADMIN")
+    void testChangeRole_adminToUser_lastAdmin_throwsLastAdmin() {
+        UserEntity admin = UserEntity.builder()
+            .id(2L)
+            .username("admin2")
+            .systemRole(SystemRole.ADMIN)
+            .isLocked(false)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+        when(userRepository.lockActiveAdmins()).thenReturn(List.of(admin));
+
+        assertThatThrownBy(() -> adminUserService.changeRole(2L, "USER", 99L))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> assertThat(((ConflictException) ex).getErrorCode()).isEqualTo("LAST_ADMIN"));
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Hạ admin khi có >= 2 admin -> role USER, tokenVersion + 1, thu hồi refresh token và ghi log")
+    void testChangeRole_adminToUser_withMultipleAdmins_success() {
+        UserEntity admin1 = UserEntity.builder()
+            .id(1L)
+            .username("admin1")
+            .systemRole(SystemRole.ADMIN)
+            .isLocked(false)
+            .build();
+
+        UserEntity admin2 = UserEntity.builder()
+            .id(2L)
+            .username("admin2")
+            .fullName("Admin Two")
+            .email("admin2@pipeline.engine")
+            .systemRole(SystemRole.ADMIN)
+            .isLocked(false)
+            .tokenVersion(2)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin2));
+        when(userRepository.lockActiveAdmins()).thenReturn(List.of(admin1, admin2));
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(0L);
+        when(projectMemberRepository.countByUserIdAndRemovedAtIsNullAndRoleNot(2L, ProjectRole.OWNER)).thenReturn(0L);
+
+        AdminUserResponse response = adminUserService.changeRole(2L, "USER", 1L);
+
+        assertThat(response.role()).isEqualTo("USER");
+        assertThat(admin2.getSystemRole()).isEqualTo(SystemRole.USER);
+        assertThat(admin2.getTokenVersion()).isEqualTo(3);
+        verify(refreshTokenService).revokeAllForUser(2L);
+        verify(userRepository).save(admin2);
+        verify(adminAuditService).record(eq(1L), isNull(), eq("USER_ROLE_CHANGED"), eq("USER"), eq("2"), eq("ADMIN -> USER"));
+    }
+
+    @Test
+    @DisplayName("Role không hợp lệ ('abc') -> ném IllegalArgumentException")
+    void testChangeRole_invalidRole_throwsIllegalArgumentException() {
+        assertThatThrownBy(() -> adminUserService.changeRole(2L, "abc", 1L))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("Role mới bằng role hiện tại -> không làm gì, trả response, không ghi log")
+    void testChangeRole_sameRole_returnsResponseWithoutAction() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .systemRole(SystemRole.USER)
+            .isLocked(false)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(0L);
+        when(projectMemberRepository.countByUserIdAndRemovedAtIsNullAndRoleNot(2L, ProjectRole.OWNER)).thenReturn(0L);
+
+        AdminUserResponse response = adminUserService.changeRole(2L, "USER", 1L);
+
+        assertThat(response.role()).isEqualTo("USER");
+        verify(userRepository, never()).save(any());
+        verify(adminAuditService, never()).record(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Xóa user trắng dữ liệu -> gọi userRepository.delete và ghi log USER_DELETED trước")
+    void testDeleteUser_emptyUser_success() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .systemRole(SystemRole.USER)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(0L);
+        when(pipelineTemplateRepository.countByCreatedBy(2L)).thenReturn(0L);
+        when(artifactRepository.countByUploadedBy(2L)).thenReturn(0L);
+        when(projectInvitationRepository.countByInviterIdOrInviteeId(2L, 2L)).thenReturn(0L);
+
+        adminUserService.deleteUser(2L, 1L);
+
+        verify(adminAuditService).record(eq(1L), isNull(), eq("USER_DELETED"), eq("USER"), eq("2"), eq("alex.kim"));
+        verify(userRepository).delete(user);
+    }
+
+    @Test
+    @DisplayName("Xóa user có 1 dự án sở hữu -> ném ConflictException mã USER_HAS_DATA và KHÔNG xóa")
+    void testDeleteUser_hasOwnedProject_throwsUserHasData() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .systemRole(SystemRole.USER)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(1L);
+        when(pipelineTemplateRepository.countByCreatedBy(2L)).thenReturn(0L);
+        when(artifactRepository.countByUploadedBy(2L)).thenReturn(0L);
+        when(projectInvitationRepository.countByInviterIdOrInviteeId(2L, 2L)).thenReturn(0L);
+
+        assertThatThrownBy(() -> adminUserService.deleteUser(2L, 1L))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> {
+                ConflictException ce = (ConflictException) ex;
+                assertThat(ce.getErrorCode()).isEqualTo("USER_HAS_DATA");
+                assertThat(ce.getMessage()).contains("1 dự án sở hữu");
+            });
+
+        verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Xóa chính mình -> ném ForbiddenException mã CANNOT_DELETE_SELF")
+    void testDeleteUser_selfDeletion_throwsCannotDeleteSelf() {
+        UserEntity user = UserEntity.builder()
+            .id(1L)
+            .username("admin")
+            .systemRole(SystemRole.USER)
+            .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> adminUserService.deleteUser(1L, 1L))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("CANNOT_DELETE_SELF"));
+
+        verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Xóa user là ADMIN -> ném ForbiddenException mã CANNOT_DELETE_ADMIN")
+    void testDeleteUser_adminUser_throwsCannotDeleteAdmin() {
+        UserEntity admin = UserEntity.builder()
+            .id(2L)
+            .username("admin2")
+            .systemRole(SystemRole.ADMIN)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> adminUserService.deleteUser(2L, 1L))
+            .isInstanceOf(ForbiddenException.class)
+            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("CANNOT_DELETE_ADMIN"));
+
+        verify(userRepository, never()).delete(any());
     }
 }

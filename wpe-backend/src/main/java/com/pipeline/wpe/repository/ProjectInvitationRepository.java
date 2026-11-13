@@ -22,4 +22,6 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
     @Modifying
     @Query("UPDATE ProjectInvitationEntity i SET i.status = :expired, i.respondedAt = :now, i.version = i.version + 1 WHERE i.status = :pending AND i.expiresAt < :now")
     int expireOverdue(@Param("pending") InvitationStatus pending, @Param("expired") InvitationStatus expired, @Param("now") Instant now);
+
+    long countByInviterIdOrInviteeId(Long inviterId, Long inviteeId);
 }

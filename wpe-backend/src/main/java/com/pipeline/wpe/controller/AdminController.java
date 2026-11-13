@@ -1,10 +1,14 @@
 package com.pipeline.wpe.controller;
 
+import com.pipeline.wpe.dto.request.admin.ChangeUserRoleRequest;
 import com.pipeline.wpe.dto.request.admin.SuspendUserRequest;
+import com.pipeline.wpe.dto.request.admin.TransferProjectOwnerRequest;
 import com.pipeline.wpe.dto.response.admin.AdminAuditLogPageResponse;
 import com.pipeline.wpe.dto.response.admin.AdminUserResponse;
+import com.pipeline.wpe.dto.response.admin.OwnedProjectResponse;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.admin.AdminAuditService;
+import com.pipeline.wpe.service.admin.AdminProjectOwnerService;
 import com.pipeline.wpe.service.admin.AdminUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,6 +26,7 @@ import java.util.List;
 public class AdminController {
 
     private final AdminUserService adminUserService;
+    private final AdminProjectOwnerService adminProjectOwnerService;
     private final AdminAuditService adminAuditService;
     private final CurrentUserProvider currentUserProvider;
 
@@ -49,6 +54,41 @@ public class AdminController {
     public ResponseEntity<AdminUserResponse> unbanUser(@PathVariable("id") Long id) {
         Long actorUserId = currentUserProvider.requireCurrentUserId();
         AdminUserResponse response = adminUserService.unbanUser(id, actorUserId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/users/{id}/role")
+    public ResponseEntity<AdminUserResponse> changeUserRole(
+        @PathVariable("id") Long id,
+        @RequestBody ChangeUserRoleRequest request
+    ) {
+        Long actorUserId = currentUserProvider.requireCurrentUserId();
+        String role = request != null ? request.role() : null;
+        AdminUserResponse response = adminUserService.changeRole(id, role, actorUserId);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable("id") Long id) {
+        Long actorUserId = currentUserProvider.requireCurrentUserId();
+        adminUserService.deleteUser(id, actorUserId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/users/{id}/owned-projects")
+    public ResponseEntity<List<OwnedProjectResponse>> listOwnedProjects(@PathVariable("id") Long id) {
+        List<OwnedProjectResponse> responses = adminProjectOwnerService.listOwnedProjects(id);
+        return ResponseEntity.ok(responses);
+    }
+
+    @PostMapping("/projects/{projectId}/transfer-owner")
+    public ResponseEntity<OwnedProjectResponse> transferProjectOwner(
+        @PathVariable("projectId") Long projectId,
+        @RequestBody TransferProjectOwnerRequest request
+    ) {
+        Long actorUserId = currentUserProvider.requireCurrentUserId();
+        Long newOwnerId = request != null ? request.newOwnerId() : null;
+        OwnedProjectResponse response = adminProjectOwnerService.transferOwner(projectId, newOwnerId, actorUserId);
         return ResponseEntity.ok(response);
     }
 

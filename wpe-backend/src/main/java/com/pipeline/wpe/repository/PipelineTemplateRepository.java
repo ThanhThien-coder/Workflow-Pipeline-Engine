@@ -12,4 +12,5 @@ public interface PipelineTemplateRepository extends JpaRepository<PipelineTempla
     Optional<PipelineTemplateEntity> findBySlug(String slug);
     List<PipelineTemplateEntity> findByIsSystemStandardTrue();
     List<PipelineTemplateEntity> findByCategory(String category);
+    long countByCreatedBy(Long createdBy);
 }

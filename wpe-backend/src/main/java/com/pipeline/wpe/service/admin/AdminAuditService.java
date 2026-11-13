@@ -44,6 +44,13 @@ public class AdminAuditService {
         this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
+    private static String truncate(String val, int maxLen) {
+        if (val == null) {
+            return null;
+        }
+        return val.length() > maxLen ? val.substring(0, maxLen) : val;
+    }
+
     public void record(Long actorUserId, String actorUsername, String action, String targetType, String targetId, String detail) {
         try {
             String resolvedUsername = actorUsername;
@@ -59,19 +66,14 @@ public class AdminAuditService {
 
             String ip = extractClientIp();
 
-            String truncatedDetail = detail;
-            if (truncatedDetail != null && truncatedDetail.length() > 1000) {
-                truncatedDetail = truncatedDetail.substring(0, 1000);
-            }
-
             AdminAuditLogEntity entity = AdminAuditLogEntity.builder()
                 .actorUserId(actorUserId)
-                .actorUsername(resolvedUsername)
-                .action(action)
-                .targetType(targetType)
-                .targetId(targetId)
-                .detail(truncatedDetail)
-                .ipAddress(ip)
+                .actorUsername(truncate(resolvedUsername, 100))
+                .action(truncate(action, 50))
+                .targetType(truncate(targetType, 30))
+                .targetId(truncate(targetId, 50))
+                .detail(truncate(detail, 1000))
+                .ipAddress(truncate(ip, 64))
                 .build();
 
             transactionTemplate.executeWithoutResult(status -> auditLogRepository.save(entity));

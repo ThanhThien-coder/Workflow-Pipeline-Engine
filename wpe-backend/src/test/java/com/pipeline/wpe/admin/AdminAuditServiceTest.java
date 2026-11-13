@@ -1,5 +1,6 @@
 package com.pipeline.wpe.admin;
 
+import com.pipeline.wpe.entity.AdminAuditLogEntity;
 import com.pipeline.wpe.repository.AdminAuditLogRepository;
 import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.service.admin.AdminAuditAction;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -19,8 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AdminAuditServiceTest {
@@ -69,16 +70,35 @@ class AdminAuditServiceTest {
     }
 
     @Test
-    @DisplayName("actionsOfGroup: nhóm ADMIN trả về đúng 3 action quản trị hệ thống")
-    void actionsOfGroup_adminGroup_returns3Actions() {
+    @DisplayName("actionsOfGroup: nhóm ADMIN trả về đúng 6 action quản trị hệ thống")
+    void actionsOfGroup_adminGroup_returns6Actions() {
         List<String> actions = AdminAuditAction.actionsOfGroup("ADMIN");
 
-        assertThat(actions).hasSize(3);
+        assertThat(actions).hasSize(6);
         assertThat(actions).containsExactly(
             AdminAuditAction.USER_SUSPENDED,
             AdminAuditAction.USER_UNBANNED,
-            AdminAuditAction.ADMIN_ACCESS_DENIED
+            AdminAuditAction.ADMIN_ACCESS_DENIED,
+            AdminAuditAction.USER_ROLE_CHANGED,
+            AdminAuditAction.USER_DELETED,
+            AdminAuditAction.PROJECT_OWNER_TRANSFERRED
         );
+    }
+
+    @Test
+    @DisplayName("record: targetId dài 80 ký tự -> entity được save có targetId dài đúng 50")
+    void record_targetIdLongerThan50_truncatedTo50() {
+        TransactionStatus status = mock(TransactionStatus.class);
+        when(transactionManager.getTransaction(any())).thenReturn(status);
+        ArgumentCaptor<AdminAuditLogEntity> captor = ArgumentCaptor.forClass(AdminAuditLogEntity.class);
+
+        String longTargetId = "A".repeat(80);
+        auditService.record(1L, "admin", AdminAuditAction.PROJECT_OWNER_TRANSFERRED, "PROJECT", longTargetId, null);
+
+        verify(auditLogRepository).save(captor.capture());
+        AdminAuditLogEntity saved = captor.getValue();
+        assertThat(saved.getTargetId()).hasSize(50);
+        assertThat(saved.getTargetId()).isEqualTo("A".repeat(50));
     }
 
     @Test

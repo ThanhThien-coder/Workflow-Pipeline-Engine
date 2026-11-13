@@ -2,13 +2,18 @@ package com.pipeline.wpe.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pipeline.wpe.controller.AdminController;
+import com.pipeline.wpe.dto.request.admin.ChangeUserRoleRequest;
 import com.pipeline.wpe.dto.request.admin.SuspendUserRequest;
+import com.pipeline.wpe.dto.request.admin.TransferProjectOwnerRequest;
 import com.pipeline.wpe.dto.response.admin.AdminAuditLogPageResponse;
 import com.pipeline.wpe.dto.response.admin.AdminAuditLogResponse;
 import com.pipeline.wpe.dto.response.admin.AdminUserResponse;
+import com.pipeline.wpe.dto.response.admin.OwnedProjectResponse;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.admin.AdminAuditService;
+import com.pipeline.wpe.service.admin.AdminProjectOwnerService;
 import com.pipeline.wpe.service.admin.AdminUserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,9 +36,8 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -55,6 +59,9 @@ class AdminControllerTest {
 
     @MockBean
     private AdminUserService adminUserService;
+
+    @MockBean
+    private AdminProjectOwnerService adminProjectOwnerService;
 
     @MockBean
     private AdminAuditService adminAuditService;
@@ -198,5 +205,86 @@ class AdminControllerTest {
             .andExpect(jsonPath("$.totalElements").value(0));
 
         org.mockito.Mockito.verify(adminAuditService).search(eq("LOGIN"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), eq(0), eq(50));
+    }
+
+    @Test
+    @DisplayName("USER thường gọi PATCH /api/v1/admin/users/2/role -> 403 Forbidden")
+    void testChangeRole_asUser_returns403() throws Exception {
+        loginAs(2L, "USER");
+
+        mockMvc.perform(patch("/api/v1/admin/users/2/role")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ChangeUserRoleRequest("ADMIN"))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("ADMIN gọi PATCH /api/v1/admin/users/2/role -> 200 OK")
+    void testChangeRole_asAdmin_returns200() throws Exception {
+        loginAs(1L, "ADMIN");
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(1L);
+        when(adminUserService.changeRole(eq(2L), eq("ADMIN"), eq(1L))).thenReturn(sampleUser);
+
+        mockMvc.perform(patch("/api/v1/admin/users/2/role")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ChangeUserRoleRequest("ADMIN"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value("2"))
+            .andExpect(jsonPath("$.username").value("alex.kim"));
+    }
+
+    @Test
+    @DisplayName("ADMIN gọi DELETE /api/v1/admin/users/5 -> 204 No Content")
+    void testDeleteUser_asAdmin_returns204() throws Exception {
+        loginAs(1L, "ADMIN");
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(1L);
+
+        mockMvc.perform(delete("/api/v1/admin/users/5"))
+            .andExpect(status().isNoContent());
+
+        verify(adminUserService).deleteUser(5L, 1L);
+    }
+
+    @Test
+    @DisplayName("Service ném ConflictException mã USER_HAS_DATA -> 409 Conflict và $.error == USER_HAS_DATA")
+    void testDeleteUser_hasData_returns409() throws Exception {
+        loginAs(1L, "ADMIN");
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(1L);
+        doThrow(new ConflictException("USER_HAS_DATA", "Tài khoản đã có dữ liệu (1 dự án sở hữu). Hãy khóa tài khoản thay vì xóa."))
+            .when(adminUserService).deleteUser(5L, 1L);
+
+        mockMvc.perform(delete("/api/v1/admin/users/5"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").value("USER_HAS_DATA"));
+    }
+
+    @Test
+    @DisplayName("ADMIN gọi GET /api/v1/admin/users/2/owned-projects -> 200 OK")
+    void testListOwnedProjects_asAdmin_returns200() throws Exception {
+        loginAs(1L, "ADMIN");
+        OwnedProjectResponse projectResponse = new OwnedProjectResponse("1", "Dự án mẫu", "ACTIVE", 2, List.of());
+        when(adminProjectOwnerService.listOwnedProjects(2L)).thenReturn(List.of(projectResponse));
+
+        mockMvc.perform(get("/api/v1/admin/users/2/owned-projects"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].projectId").value("1"))
+            .andExpect(jsonPath("$[0].name").value("Dự án mẫu"));
+    }
+
+    @Test
+    @DisplayName("ADMIN gọi POST /api/v1/admin/projects/1/transfer-owner -> 200 OK")
+    void testTransferOwner_asAdmin_returns200() throws Exception {
+        loginAs(1L, "ADMIN");
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(1L);
+        OwnedProjectResponse response = new OwnedProjectResponse("1", "Dự án mẫu", "ACTIVE", 2, List.of());
+        when(adminProjectOwnerService.transferOwner(eq(1L), eq(2L), eq(1L))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/admin/projects/1/transfer-owner")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new TransferProjectOwnerRequest(2L))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.projectId").value("1"))
+            .andExpect(jsonPath("$.name").value("Dự án mẫu"));
     }
 }
