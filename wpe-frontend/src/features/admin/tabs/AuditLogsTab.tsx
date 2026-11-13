@@ -18,6 +18,7 @@ const ACTION_LABELS: Record<string, string> = {
   ACCOUNT_LOCKED_LOGIN: 'Tài khoản khóa cố đăng nhập',
   USER_SUSPENDED: 'Khóa tài khoản',
   USER_UNBANNED: 'Mở khóa tài khoản',
+  ADMIN_ACCESS_DENIED: 'Bị chặn vào API quản trị',
   TEMPLATE_CREATED: 'Tạo template',
   TEMPLATE_UPDATED: 'Sửa template',
   TEMPLATE_DELETED: 'Xóa template',
@@ -27,6 +28,7 @@ const DANGER_ACTIONS = new Set([
   'LOGIN_FAILED',
   'ACCOUNT_LOCKED_LOGIN',
   'USER_SUSPENDED',
+  'ADMIN_ACCESS_DENIED',
   'TEMPLATE_DELETED',
 ]);
 

@@ -69,6 +69,19 @@ class AdminAuditServiceTest {
     }
 
     @Test
+    @DisplayName("actionsOfGroup: nhóm ADMIN trả về đúng 3 action quản trị hệ thống")
+    void actionsOfGroup_adminGroup_returns3Actions() {
+        List<String> actions = AdminAuditAction.actionsOfGroup("ADMIN");
+
+        assertThat(actions).hasSize(3);
+        assertThat(actions).containsExactly(
+            AdminAuditAction.USER_SUSPENDED,
+            AdminAuditAction.USER_UNBANNED,
+            AdminAuditAction.ADMIN_ACCESS_DENIED
+        );
+    }
+
+    @Test
     @DisplayName("actionsOfGroup: group không hợp lệ -> ném IllegalArgumentException")
     void actionsOfGroup_invalidGroup_throwsIllegalArgumentException() {
         assertThatThrownBy(() -> AdminAuditAction.actionsOfGroup("UNKNOWN_GROUP"))

@@ -69,3 +69,4 @@ Tab System log của admin hiện dữ liệu giả, không rõ dòng nào nói 
     - Viết đầy đủ unit tests: `HttpAdminService.test.ts`, `MockAdminService.test.ts`, `AuditLogsTab.test.tsx` (dùng `toBeTruthy()` / `queryByText(...).toBeNull()`, không dùng jest-dom).
   + Tài liệu:
     - Cập nhật mục 3.13 bảng `ADMIN_AUDIT_LOG` trong `docs/specs/database-schema.md`.
+- Bổ sung theo de-xuat-lam-lai-admin.md: ghi ADMIN_ACCESS_DENIED cho request 403 vào /api/v1/admin/**; LOGIN_SUCCESS đã ghi cho mọi tài khoản, gồm admin.

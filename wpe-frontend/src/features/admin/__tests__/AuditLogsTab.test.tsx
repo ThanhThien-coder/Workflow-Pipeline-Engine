@@ -64,4 +64,23 @@ describe('AuditLogsTab Component', () => {
     render(<AuditLogsTab auditLogs={[]} group="ALL" />);
     expect(screen.getByText('Chưa có nhật ký nào')).toBeTruthy();
   });
+
+  it('render 1 log ADMIN_ACCESS_DENIED -> thấy nhãn "Bị chặn vào API quản trị"', () => {
+    const mockLogs: SecurityAuditLogDto[] = [
+      {
+        id: '3',
+        timestamp: '2026-10-06T12:10:00Z',
+        actorName: 'alex.kim',
+        action: 'ADMIN_ACCESS_DENIED',
+        targetType: 'API',
+        targetId: 'GET /api/v1/admin/users',
+        detail: 'Không có quyền ADMIN',
+        maskedIp: '192.168.1.***',
+      },
+    ];
+
+    render(<AuditLogsTab auditLogs={mockLogs} group="ALL" />);
+
+    expect(screen.getByText('Bị chặn vào API quản trị')).toBeTruthy();
+  });
 });

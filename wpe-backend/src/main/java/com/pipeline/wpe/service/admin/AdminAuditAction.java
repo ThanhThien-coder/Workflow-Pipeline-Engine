@@ -15,6 +15,7 @@ public final class AdminAuditAction {
 
     public static final String USER_SUSPENDED = "USER_SUSPENDED";
     public static final String USER_UNBANNED = "USER_UNBANNED";
+    public static final String ADMIN_ACCESS_DENIED = "ADMIN_ACCESS_DENIED";
 
     public static final String TEMPLATE_CREATED = "TEMPLATE_CREATED";
     public static final String TEMPLATE_UPDATED = "TEMPLATE_UPDATED";
@@ -30,7 +31,8 @@ public final class AdminAuditAction {
 
     public static final List<String> ADMIN_ACTIONS = List.of(
         USER_SUSPENDED,
-        USER_UNBANNED
+        USER_UNBANNED,
+        ADMIN_ACCESS_DENIED
     );
 
     public static final List<String> TEMPLATE_ACTIONS = List.of(
