@@ -260,4 +260,39 @@ describe('ProjectInviteAcceptModal Component', () => {
     const declineBtn = screen.getByRole('button', { name: /Từ chối/i }) as HTMLButtonElement
     expect(declineBtn.disabled).toBe(false)
   })
+
+  it('shows revoked reason and disables buttons when invitation was revoked', async () => {
+    vi.spyOn(workflowService as any, 'getInvitationDetail').mockResolvedValueOnce({
+      id: 'inv-revoked',
+      projectId: '1',
+      projectName: 'Revoked Pipeline',
+      inviterId: 'usr-1',
+      inviterName: 'Lead Architect',
+      inviteeEmail: 'tester@pipeline.org',
+      role: 'COLLABORATOR',
+      status: 'REVOKED',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    })
+
+    render(
+      <ProjectInviteAcceptModal
+        isOpen={true}
+        invitationId="inv-revoked"
+        onClose={mockClose}
+        onAccepted={mockAccepted}
+        onDeclined={mockDeclined}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Revoked Pipeline')).toBeDefined()
+    })
+
+    expect(screen.getByText(/đã bị thu hồi/i)).toBeDefined()
+    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i }) as HTMLButtonElement
+    const declineBtn = screen.getByRole('button', { name: /Từ chối/i }) as HTMLButtonElement
+    expect(acceptBtn.disabled).toBe(true)
+    expect(declineBtn.disabled).toBe(true)
+  })
 })
