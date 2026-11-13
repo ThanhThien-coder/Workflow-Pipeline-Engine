@@ -6,6 +6,7 @@ import type {
   RoleDistributionDto,
   WorkspaceOverviewDto,
   SecurityAuditLogDto,
+  AuditLogGroup,
 } from '../../types/admin.types';
 
 export interface IAdminService {
@@ -17,5 +18,5 @@ export interface IAdminService {
   unbanUser(userId: string): Promise<AdminUserDto>;
   getWorkspaces(): Promise<WorkspaceOverviewDto[]>;
   archiveWorkspace(workspaceId: string): Promise<WorkspaceOverviewDto>;
-  getSecurityAuditLogs(): Promise<SecurityAuditLogDto[]>;
+  getSecurityAuditLogs(group?: AuditLogGroup): Promise<SecurityAuditLogDto[]>;
 }

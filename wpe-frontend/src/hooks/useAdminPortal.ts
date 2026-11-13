@@ -9,6 +9,7 @@ import type {
   RoleDistributionDto,
   WorkspaceOverviewDto,
   SecurityAuditLogDto,
+  AuditLogGroup,
   AdminTabId,
 } from '../types/admin.types';
 
@@ -29,6 +30,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
   const [roleDistribution, setRoleDistribution] = useState<RoleDistributionDto | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceOverviewDto[]>([]);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLogDto[]>([]);
+  const [auditGroup, setAuditGroupState] = useState<AuditLogGroup | 'ALL'>('ALL');
   const [loadErrors, setLoadErrors] = useState<Partial<Record<'overview' | 'users' | 'workspaces' | 'audit', string>>>({});
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -77,7 +79,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
         service.getRoleDistribution(),
         service.getUsers(),
         service.getWorkspaces(),
-        service.getSecurityAuditLogs(),
+        service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup),
       ]);
 
       const errors: Partial<Record<'overview' | 'users' | 'workspaces' | 'audit', string>> = {};
@@ -137,11 +139,30 @@ export function useAdminPortal(service: IAdminService = adminService) {
     } finally {
       setLoading(false);
     }
-  }, [service, trendRange, showToast]);
+  }, [service, trendRange, showToast, auditGroup]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const setAuditGroup = useCallback(
+    async (group: AuditLogGroup | 'ALL') => {
+      setAuditGroupState(group);
+      try {
+        const logs = await service.getSecurityAuditLogs(group === 'ALL' ? undefined : group);
+        setAuditLogs(logs);
+        setLoadErrors((prev) => {
+          const next = { ...prev };
+          delete next.audit;
+          return next;
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setLoadErrors((prev) => ({ ...prev, audit: message }));
+      }
+    },
+    [service]
+  );
 
   // Range switch for Analytics Chart
   const handleTrendRangeChange = useCallback(
@@ -257,6 +278,8 @@ export function useAdminPortal(service: IAdminService = adminService) {
     roleDistribution,
     workspaces,
     auditLogs,
+    auditGroup,
+    setAuditGroup,
     loadErrors,
     loading,
     searchQuery,

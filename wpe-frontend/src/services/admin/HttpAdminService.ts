@@ -7,6 +7,7 @@ import type {
   RoleDistributionDto,
   WorkspaceOverviewDto,
   SecurityAuditLogDto,
+  AuditLogGroup,
   UserAccountStatus,
 } from '../../types/admin.types';
 import { apiRequest } from '../http/apiClient';
@@ -21,6 +22,24 @@ interface RawAdminUser {
   ownedProjectCount?: number | string;
   joinedProjectCount?: number | string;
   createdAt?: string;
+}
+
+interface RawAuditLogItem {
+  id: string | number;
+  createdAt?: string;
+  actorUsername?: string | null;
+  action: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  detail?: string | null;
+  maskedIp?: string;
+}
+
+interface RawAuditLogPage {
+  items?: RawAuditLogItem[];
+  page: number;
+  size: number;
+  totalElements: number;
 }
 
 function mapAdminUser(raw: RawAdminUser): AdminUserDto {
@@ -90,7 +109,25 @@ export class HttpAdminService implements IAdminService {
     throw new Error('Chưa nối API');
   }
 
-  async getSecurityAuditLogs(): Promise<SecurityAuditLogDto[]> {
-    throw new Error('Chưa nối API');
+  async getSecurityAuditLogs(group?: AuditLogGroup): Promise<SecurityAuditLogDto[]> {
+    const query: Record<string, string | number> = { size: 100 };
+    if (group) {
+      query.group = group;
+    }
+
+    const data = await apiRequest<RawAuditLogPage>('GET', '/admin/audit-logs', {
+      query,
+    });
+
+    return (data?.items || []).map((item) => ({
+      id: String(item.id),
+      timestamp: item.createdAt ?? '',
+      actorName: item.actorUsername ?? 'Không rõ',
+      action: item.action,
+      targetType: item.targetType ?? null,
+      targetId: item.targetId ?? null,
+      detail: item.detail ?? null,
+      maskedIp: item.maskedIp ?? '—',
+    }));
   }
 }

@@ -80,4 +80,18 @@ describe('Clean Architecture DI: MockAdminService Unit Tests', () => {
     const logs = await service.getSecurityAuditLogs();
     expect(logs.length).toBeGreaterThan(0);
   });
+
+  it('should filter audit logs by group', async () => {
+    const loginLogs = await service.getSecurityAuditLogs('LOGIN');
+    expect(loginLogs.length).toBeGreaterThan(0);
+    expect(loginLogs.every((l) => ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'REGISTER', 'ACCOUNT_LOCKED_LOGIN'].includes(l.action))).toBe(true);
+
+    const adminLogs = await service.getSecurityAuditLogs('ADMIN');
+    expect(adminLogs.length).toBeGreaterThan(0);
+    expect(adminLogs.every((l) => ['USER_SUSPENDED', 'USER_UNBANNED'].includes(l.action))).toBe(true);
+
+    const templateLogs = await service.getSecurityAuditLogs('TEMPLATE');
+    expect(templateLogs.length).toBeGreaterThan(0);
+    expect(templateLogs.every((l) => ['TEMPLATE_CREATED', 'TEMPLATE_UPDATED', 'TEMPLATE_DELETED'].includes(l.action))).toBe(true);
+  });
 });

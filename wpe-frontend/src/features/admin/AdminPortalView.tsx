@@ -28,6 +28,8 @@ export const AdminPortalView: FC = () => {
     roleDistribution,
     workspaces,
     auditLogs,
+    auditGroup,
+    setAuditGroup,
     loadErrors,
     searchQuery,
     setSearchQuery,
@@ -218,6 +220,9 @@ export const AdminPortalView: FC = () => {
                   <AuditLogsTab
                     auditLogs={auditLogs}
                     onExportAudit={handleExportAudit}
+                    group={auditGroup}
+                    onGroupChange={setAuditGroup}
+                    errorMessage={loadErrors.audit}
                   />
                 )}
               </ErrorBoundary>

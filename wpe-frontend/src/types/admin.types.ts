@@ -53,12 +53,16 @@ export interface WorkspaceOverviewDto {
   status: 'RUNNING' | 'IDLE' | 'FAILED' | 'ARCHIVED';
 }
 
+export type AuditLogGroup = 'LOGIN' | 'ADMIN' | 'TEMPLATE';
+
 export interface SecurityAuditLogDto {
   id: string;
-  timestamp: string;         // ISO 8601 string
+  timestamp: string;
   actorName: string;
-  action: 'USER_SUSPENDED' | 'USER_UNBANNED' | 'ROLE_UPDATED' | 'FAILED_LOGIN';
-  status: 'SUCCESS' | 'WARNING' | 'BLOCKED';
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  detail: string | null;
   maskedIp: string;
 }
 

@@ -7,6 +7,7 @@ import type {
   RoleDistributionDto,
   WorkspaceOverviewDto,
   SecurityAuditLogDto,
+  AuditLogGroup,
 } from '../../types/admin.types';
 
 export class MockAdminService implements IAdminService {
@@ -168,65 +169,81 @@ export class MockAdminService implements IAdminService {
     {
       id: 'log_01',
       timestamp: '2026-10-06T20:42:18+07:00',
-      actorName: 'Alex Kim',
-      action: 'ROLE_UPDATED',
-      status: 'SUCCESS',
+      actorName: 'admin',
+      action: 'USER_SUSPENDED',
+      targetType: 'USER',
+      targetId: '3',
+      detail: 'reason=TERMS_VIOLATION, durationDays=7, note=Spamming',
       maskedIp: '192.168.1.***',
     },
     {
       id: 'log_02',
       timestamp: '2026-10-06T19:14:03+07:00',
-      actorName: 'Alex Kim',
-      action: 'USER_SUSPENDED',
-      status: 'SUCCESS',
+      actorName: 'alex.kim',
+      action: 'LOGIN_SUCCESS',
+      targetType: 'USER',
+      targetId: '2',
+      detail: 'Đăng nhập thành công',
       maskedIp: '192.168.1.***',
     },
     {
       id: 'log_03',
       timestamp: '2026-10-06T18:20:44+07:00',
-      actorName: 'Sarah Chen',
-      action: 'ROLE_UPDATED',
-      status: 'SUCCESS',
+      actorName: 'admin',
+      action: 'TEMPLATE_CREATED',
+      targetType: 'TEMPLATE',
+      targetId: '1',
+      detail: 'Standard Software Development (SDLC)',
       maskedIp: '10.0.4.***',
     },
     {
       id: 'log_04',
       timestamp: '2026-10-06T16:55:12+07:00',
-      actorName: 'System Guard',
-      action: 'FAILED_LOGIN',
-      status: 'BLOCKED',
+      actorName: 'unknown_user',
+      action: 'LOGIN_FAILED',
+      targetType: 'USER',
+      targetId: null,
+      detail: 'Không tồn tại tài khoản',
       maskedIp: '203.0.113.***',
     },
     {
       id: 'log_05',
       timestamp: '2026-10-06T15:31:09+07:00',
-      actorName: 'Alex Kim',
-      action: 'ROLE_UPDATED',
-      status: 'SUCCESS',
+      actorName: 'admin',
+      action: 'USER_UNBANNED',
+      targetType: 'USER',
+      targetId: '3',
+      detail: 'Mở khóa tài khoản',
       maskedIp: '192.168.1.***',
     },
     {
       id: 'log_06',
       timestamp: '2026-10-06T13:08:51+07:00',
-      actorName: 'Diego Santos',
-      action: 'ROLE_UPDATED',
-      status: 'SUCCESS',
+      actorName: 'admin',
+      action: 'TEMPLATE_UPDATED',
+      targetType: 'TEMPLATE',
+      targetId: '1',
+      detail: 'Cập nhật template SDLC',
       maskedIp: '192.168.5.***',
     },
     {
       id: 'log_07',
       timestamp: '2026-10-06T10:44:27+07:00',
-      actorName: 'System Guard',
-      action: 'FAILED_LOGIN',
-      status: 'WARNING',
+      actorName: 'marcus.liu',
+      action: 'ACCOUNT_LOCKED_LOGIN',
+      targetType: 'USER',
+      targetId: '3',
+      detail: 'Tài khoản bị khóa',
       maskedIp: '198.51.100.***',
     },
     {
       id: 'log_08',
       timestamp: '2026-10-06T08:02:16+07:00',
-      actorName: 'Priya Nair',
-      action: 'ROLE_UPDATED',
-      status: 'SUCCESS',
+      actorName: 'priya.nair',
+      action: 'LOGOUT',
+      targetType: 'USER',
+      targetId: '4',
+      detail: 'Đăng xuất',
       maskedIp: '10.2.8.***',
     },
   ];
@@ -287,7 +304,9 @@ export class MockAdminService implements IAdminService {
       timestamp: new Date().toISOString(),
       actorName: 'Alex Kim',
       action: 'USER_SUSPENDED',
-      status: 'SUCCESS',
+      targetType: 'USER',
+      targetId: payload.userId,
+      detail: `reason=${payload.reason}`,
       maskedIp: '192.168.1.***',
     });
 
@@ -309,7 +328,9 @@ export class MockAdminService implements IAdminService {
       timestamp: new Date().toISOString(),
       actorName: 'Alex Kim',
       action: 'USER_UNBANNED',
-      status: 'SUCCESS',
+      targetType: 'USER',
+      targetId: userId,
+      detail: null,
       maskedIp: '192.168.1.***',
     });
 
@@ -334,16 +355,29 @@ export class MockAdminService implements IAdminService {
       id: `log_${Date.now()}`,
       timestamp: new Date().toISOString(),
       actorName: 'Alex Kim',
-      action: 'ROLE_UPDATED',
-      status: 'SUCCESS',
+      action: 'WORKSPACE_ARCHIVED',
+      targetType: 'WORKSPACE',
+      targetId: workspaceId,
+      detail: null,
       maskedIp: '192.168.1.***',
     });
 
     return { ...workspace };
   }
 
-  async getSecurityAuditLogs(): Promise<SecurityAuditLogDto[]> {
+  async getSecurityAuditLogs(group?: AuditLogGroup): Promise<SecurityAuditLogDto[]> {
     await this.delay(150);
-    return [...this.auditLogs];
+    let result = [...this.auditLogs];
+    if (group === 'LOGIN') {
+      const loginActions = ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'REGISTER', 'ACCOUNT_LOCKED_LOGIN'];
+      result = result.filter((l) => loginActions.includes(l.action));
+    } else if (group === 'ADMIN') {
+      const adminActions = ['USER_SUSPENDED', 'USER_UNBANNED'];
+      result = result.filter((l) => adminActions.includes(l.action));
+    } else if (group === 'TEMPLATE') {
+      const templateActions = ['TEMPLATE_CREATED', 'TEMPLATE_UPDATED', 'TEMPLATE_DELETED'];
+      result = result.filter((l) => templateActions.includes(l.action));
+    }
+    return result;
   }
 }

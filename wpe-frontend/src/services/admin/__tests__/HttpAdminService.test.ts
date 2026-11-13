@@ -127,6 +127,55 @@ describe('HttpAdminService', () => {
     await expect(service.getRoleDistribution()).rejects.toThrow('Chưa nối API');
     await expect(service.getWorkspaces()).rejects.toThrow('Chưa nối API');
     await expect(service.archiveWorkspace('ws_1')).rejects.toThrow('Chưa nối API');
-    await expect(service.getSecurityAuditLogs()).rejects.toThrow('Chưa nối API');
+  });
+
+  it('getSecurityAuditLogs("LOGIN") gọi đúng path, query và map createdAt -> timestamp', async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      items: [
+        {
+          id: 101,
+          createdAt: '2026-10-06T12:00:00Z',
+          actorUsername: 'alex.kim',
+          action: 'LOGIN_SUCCESS',
+          targetType: 'USER',
+          targetId: '2',
+          detail: 'Đăng nhập thành công',
+          maskedIp: '192.168.1.***',
+        },
+        {
+          id: 102,
+          createdAt: '2026-10-06T12:05:00Z',
+          actorUsername: null,
+          action: 'LOGIN_FAILED',
+          targetType: 'USER',
+          targetId: null,
+          detail: 'Sai mật khẩu',
+          maskedIp: '10.0.0.***',
+        },
+      ],
+      page: 0,
+      size: 100,
+      totalElements: 2,
+    });
+
+    const logs = await service.getSecurityAuditLogs('LOGIN');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('GET', '/admin/audit-logs', {
+      query: { group: 'LOGIN', size: 100 },
+    });
+
+    expect(logs).toHaveLength(2);
+    expect(logs[0]).toEqual({
+      id: '101',
+      timestamp: '2026-10-06T12:00:00Z',
+      actorName: 'alex.kim',
+      action: 'LOGIN_SUCCESS',
+      targetType: 'USER',
+      targetId: '2',
+      detail: 'Đăng nhập thành công',
+      maskedIp: '192.168.1.***',
+    });
+    expect(logs[1].actorName).toBe('Không rõ');
+    expect(logs[1].timestamp).toBe('2026-10-06T12:05:00Z');
   });
 });
