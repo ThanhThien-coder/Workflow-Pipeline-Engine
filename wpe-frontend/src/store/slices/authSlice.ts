@@ -79,7 +79,7 @@ function resetUserData(set: AuthSetter, get: () => any): void {
     selectedPhaseId: null,
     trees: {},
   })
-  useProfileStore.setState({ profile: null, loading: false, error: null })
+  useProfileStore.getState().reset()
   useNotificationStore.setState({ items: [], unreadCount: 0, loading: false, error: false })
 }
 
@@ -118,6 +118,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
 
   const applySession = (response: AuthResponseDto, rememberMe: boolean) => {
     saveSession(response, rememberMe)
+    useProfileStore.getState().reset()
     set((state: any) => ({
       auth: {
         ...state.auth,

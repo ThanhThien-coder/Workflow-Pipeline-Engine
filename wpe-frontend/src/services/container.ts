@@ -6,6 +6,7 @@ import { HttpGuestService } from './impl/HttpGuestService'
 import type { IGuestService } from './contracts/IGuestService'
 import type { IProfileService } from './contracts/IProfileService'
 import { MockProfileApi } from './mock/MockWorkflowService.profile'
+import { HttpProfileService } from './impl/HttpProfileService'
 import type { IAdminService } from './admin/IAdminService'
 import { MockAdminService } from './admin/MockAdminService'
 import type { ITemplateService } from './template/ITemplateService'
@@ -30,7 +31,7 @@ const isMock = isMockMode
 export const container: ServiceContainer = {
   workflowService: isMock ? new MockWorkflowService() : new HttpWorkflowService(),
   guestService: isMock ? new MockGuestApi() : new HttpGuestService(),
-  profileService: new MockProfileApi(),
+  profileService: isMock ? new MockProfileApi() : new HttpProfileService(),
   adminService: new MockAdminService(),
   templateService: isMock ? new MockTemplateService() : new HttpTemplateService(),
   notificationService: new MockNotificationApi(),
