@@ -8,6 +8,7 @@ import type {
   WorkspaceOverviewDto,
   SecurityAuditLogDto,
   AuditLogGroup,
+  OwnedProjectDto,
 } from '../../types/admin.types';
 
 export class MockAdminService implements IAdminService {
@@ -335,6 +336,38 @@ export class MockAdminService implements IAdminService {
     });
 
     return { ...user };
+  }
+
+  async changeUserRole(userId: string, role: 'ADMIN' | 'USER'): Promise<AdminUserDto> {
+    await this.delay(100);
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    user.role = role === 'ADMIN' ? 'ADMIN' : 'STANDARD_USER';
+    return { ...user };
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await this.delay(100);
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    if ((user.ownedProjectCount ?? 0) + (user.joinedProjectCount ?? 0) > 0) {
+      throw new Error('Tài khoản đã có dữ liệu. Hãy khóa tài khoản thay vì xóa.');
+    }
+    this.users = this.users.filter((u) => u.id !== userId);
+  }
+
+  async getOwnedProjects(_userId: string): Promise<OwnedProjectDto[]> {
+    await this.delay(100);
+    return [];
+  }
+
+  async transferProjectOwner(_projectId: string, _newOwnerId: string): Promise<OwnedProjectDto> {
+    await this.delay(100);
+    throw new Error('Chưa có dữ liệu giả cho chuyển chủ dự án');
   }
 
   async getWorkspaces(): Promise<WorkspaceOverviewDto[]> {

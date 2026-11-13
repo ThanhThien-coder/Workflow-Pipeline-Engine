@@ -11,6 +11,7 @@ import type {
   SecurityAuditLogDto,
   AuditLogGroup,
   AdminTabId,
+  OwnedProjectDto,
 } from '../types/admin.types';
 
 export interface AdminToastItem {
@@ -201,7 +202,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
         showToast(`Đã khóa tài khoản ${updated.name} thành công`, 'rose');
 
         // Refresh audit logs in background
-        service.getSecurityAuditLogs().then(setAuditLogs).catch(() => {});
+        service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup).then(setAuditLogs).catch(() => {});
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Lỗi khi khóa tài khoản';
         showToast(message, 'rose');
@@ -219,13 +220,97 @@ export function useAdminPortal(service: IAdminService = adminService) {
         showToast(`Đã mở khóa tài khoản ${updated.name} thành công`, 'emerald');
 
         // Refresh audit logs in background
-        service.getSecurityAuditLogs().then(setAuditLogs).catch(() => {});
+        service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup).then(setAuditLogs).catch(() => {});
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Lỗi khi mở khóa tài khoản';
         showToast(message, 'rose');
       }
     },
     [service, showToast]
+  );
+
+  // Change user role
+  const handleChangeRole = useCallback(
+    async (userId: string, role: 'ADMIN' | 'USER'): Promise<boolean> => {
+      try {
+        const updated = await service.changeUserRole(userId, role);
+        setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+        const name = updated.name || users.find((u) => u.id === userId)?.name || '';
+        const roleLabel = role === 'ADMIN' ? 'Quản trị viên' : 'Người dùng';
+        showToast(`Đã đổi vai trò của ${name} thành ${roleLabel}`, 'emerald');
+        service
+          .getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup)
+          .then(setAuditLogs)
+          .catch(() => {});
+        return true;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Lỗi khi đổi vai trò';
+        showToast(message, 'rose');
+        return false;
+      }
+    },
+    [service, auditGroup, showToast, users]
+  );
+
+  // Delete user
+  const handleDeleteUser = useCallback(
+    async (userId: string): Promise<boolean> => {
+      try {
+        await service.deleteUser(userId);
+        setUsers((prev) => prev.filter((u) => u.id !== userId));
+        showToast('Đã xóa tài khoản', 'emerald');
+        service
+          .getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup)
+          .then(setAuditLogs)
+          .catch(() => {});
+        return true;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Lỗi khi xóa tài khoản';
+        showToast(message, 'rose');
+        return false;
+      }
+    },
+    [service, auditGroup, showToast]
+  );
+
+  // Load owned projects
+  const loadOwnedProjects = useCallback(
+    async (userId: string): Promise<OwnedProjectDto[]> => {
+      try {
+        return await service.getOwnedProjects(userId);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Lỗi khi tải danh sách dự án sở hữu';
+        showToast(message, 'rose');
+        return [];
+      }
+    },
+    [service, showToast]
+  );
+
+  // Transfer project owner
+  const handleTransferOwner = useCallback(
+    async (projectId: string, newOwnerId: string): Promise<OwnedProjectDto | null> => {
+      try {
+        const updated = await service.transferProjectOwner(projectId, newOwnerId);
+        showToast('Đã chuyển chủ dự án', 'emerald');
+        try {
+          const freshUsers = await service.getUsers();
+          setUsers(freshUsers);
+        } catch {
+          // ignore error fetching users
+        }
+        service
+          .getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup)
+          .then(setAuditLogs)
+          .catch(() => {});
+        return updated;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Lỗi khi chuyển chủ dự án';
+        showToast(message, 'rose');
+        return null;
+      }
+    },
+    [service, auditGroup, showToast]
   );
 
   // Refresh pipelines/workspaces
@@ -295,6 +380,10 @@ export function useAdminPortal(service: IAdminService = adminService) {
     closeBanModal,
     handleSuspendUser,
     handleUnbanUser,
+    handleChangeRole,
+    handleDeleteUser,
+    loadOwnedProjects,
+    handleTransferOwner,
     // Workspaces
     handleRefreshWorkspaces,
     handleArchiveWorkspace,

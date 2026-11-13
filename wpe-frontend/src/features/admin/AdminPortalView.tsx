@@ -6,7 +6,9 @@ import { useRouter } from '../../router/useRouter';
 import { AdminSidebar } from './components/AdminSidebar';
 import { AdminTopbar } from './components/AdminTopbar';
 import { BanConfirmModal } from './components/BanConfirmModal';
+import { OwnedProjectsDrawer } from './components/OwnedProjectsDrawer';
 import { AdminToast } from './components/AdminToast';
+import type { AdminUserDto } from '../../types/admin.types';
 import { AnalyticsTab } from './tabs/AnalyticsTab';
 import { UserManagementTab } from './tabs/UserManagementTab';
 import { WorkspacesTab } from './tabs/WorkspacesTab';
@@ -44,6 +46,10 @@ export const AdminPortalView: FC = () => {
     closeBanModal,
     handleSuspendUser,
     handleUnbanUser,
+    handleChangeRole,
+    handleDeleteUser,
+    loadOwnedProjects,
+    handleTransferOwner,
     // Workspaces
     handleRefreshWorkspaces,
     handleArchiveWorkspace,
@@ -54,6 +60,8 @@ export const AdminPortalView: FC = () => {
   } = useAdminPortal();
 
   const { pathname, navigate } = useRouter();
+  const currentUserId = String(useWorkflowStore((s) => s.auth.currentUser?.id ?? ''));
+  const [ownedProjectsUser, setOwnedProjectsUser] = useState<AdminUserDto | null>(null);
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
@@ -196,6 +204,10 @@ export const AdminPortalView: FC = () => {
                     onStatusFilterChange={setStatusFilter}
                     onOpenBanModal={openBanModal}
                     onUnban={handleUnbanUser}
+                    currentUserId={currentUserId}
+                    onChangeRole={handleChangeRole}
+                    onDeleteUser={handleDeleteUser}
+                    onOpenOwnedProjects={setOwnedProjectsUser}
                   />
                 )}
 
@@ -290,6 +302,14 @@ export const AdminPortalView: FC = () => {
 
       {/* 4. Floating Toast Host */}
       <AdminToast toasts={toasts} onDismiss={dismissToast} />
+
+      {/* 5. Owned Projects Drawer */}
+      <OwnedProjectsDrawer
+        user={ownedProjectsUser}
+        onClose={() => setOwnedProjectsUser(null)}
+        loadOwnedProjects={loadOwnedProjects}
+        onTransfer={handleTransferOwner}
+      />
     </div>
   );
 };

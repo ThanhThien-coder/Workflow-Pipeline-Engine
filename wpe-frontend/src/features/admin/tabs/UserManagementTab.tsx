@@ -1,6 +1,7 @@
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 import type { AdminUserDto, AdminRole, UserAccountStatus } from '../../../types/admin.types';
 import { Search, ShieldAlert, Shield } from 'lucide-react';
+import { ConfirmActionModal } from '../components/ConfirmActionModal';
 
 interface UserManagementTabProps {
   users: AdminUserDto[];
@@ -10,6 +11,10 @@ interface UserManagementTabProps {
   onStatusFilterChange: (status: 'ALL' | 'ACTIVE' | 'SUSPENDED') => void;
   onOpenBanModal: (user: AdminUserDto) => void;
   onUnban: (userId: string) => void;
+  currentUserId?: string;
+  onChangeRole: (userId: string, role: 'ADMIN' | 'USER') => Promise<boolean>;
+  onDeleteUser: (userId: string) => Promise<boolean>;
+  onOpenOwnedProjects: (user: AdminUserDto) => void;
 }
 
 function getInitials(name: string): string {
@@ -72,7 +77,63 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
   onStatusFilterChange,
   onOpenBanModal,
   onUnban,
+  currentUserId,
+  onChangeRole,
+  onDeleteUser,
+  onOpenOwnedProjects,
 }) => {
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    tone: 'rose' | 'blue';
+    onConfirm: () => Promise<unknown> | unknown;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Xác nhận',
+    tone: 'rose',
+    onConfirm: () => {},
+  });
+
+  const closeConfirmModal = () => {
+    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  const handlePromoteClick = (user: AdminUserDto) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Nâng quyền quản trị viên',
+      message: `Cấp quyền quản trị viên cho ${user.name}?`,
+      confirmLabel: 'Xác nhận',
+      tone: 'blue',
+      onConfirm: () => onChangeRole(user.id, 'ADMIN'),
+    });
+  };
+
+  const handleDemoteClick = (user: AdminUserDto) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hạ quyền người dùng',
+      message: `Hạ ${user.name} về người dùng thường? Phiên đăng nhập hiện tại của họ sẽ bị đăng xuất.`,
+      confirmLabel: 'Xác nhận',
+      tone: 'rose',
+      onConfirm: () => onChangeRole(user.id, 'USER'),
+    });
+  };
+
+  const handleDeleteClick = (user: AdminUserDto) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Xóa tài khoản',
+      message: `Xóa vĩnh viễn tài khoản ${user.name}? Chỉ xóa được tài khoản chưa có dữ liệu.`,
+      confirmLabel: 'Xác nhận',
+      tone: 'rose',
+      onConfirm: () => onDeleteUser(user.id),
+    });
+  };
   return (
     <section id="tab-users" className="tab-panel active animate-fade">
       {/* Header */}
@@ -179,29 +240,96 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
 
                     {/* Actions */}
                     <td className="px-5 py-4 text-right">
-                      {isSuperAdmin ? (
-                        <button
-                          disabled
-                          title="Không thể khóa Root Admin"
-                          className="cursor-not-allowed rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-300"
-                        >
-                          Suspend
-                        </button>
-                      ) : user.status === 'ACTIVE' ? (
-                        <button
-                          onClick={() => onOpenBanModal(user)}
-                          className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
-                        >
-                          Suspend / Ban
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onUnban(user.id)}
-                          className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
-                        >
-                          Unban
-                        </button>
-                      )}
+                      {(() => {
+                        const isCurrent =
+                          currentUserId !== undefined &&
+                          currentUserId !== '' &&
+                          String(user.id) === String(currentUserId);
+                        const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+                        const hasOwnedProjects = user.ownedProjectCount > 0;
+                        const hasAnyData = user.ownedProjectCount + user.joinedProjectCount > 0;
+                        const canDelete = !isAdmin && !isCurrent;
+
+                        return (
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            {/* Change Role: Nâng quản trị / Hạ về người dùng */}
+                            {!isCurrent && user.role === 'STANDARD_USER' && (
+                              <button
+                                type="button"
+                                onClick={() => handlePromoteClick(user)}
+                                className="rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                              >
+                                Nâng quản trị
+                              </button>
+                            )}
+                            {!isCurrent && user.role === 'ADMIN' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDemoteClick(user)}
+                                className="rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
+                              >
+                                Hạ về người dùng
+                              </button>
+                            )}
+
+                            {/* Owned Projects */}
+                            {hasOwnedProjects && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenOwnedProjects(user)}
+                                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                              >
+                                Dự án sở hữu
+                              </button>
+                            )}
+
+                            {/* Suspend / Unban */}
+                            {!isCurrent && (
+                              isSuperAdmin ? (
+                                <button
+                                  disabled
+                                  title="Không thể khóa Root Admin"
+                                  className="cursor-not-allowed rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-300"
+                                >
+                                  Suspend
+                                </button>
+                              ) : user.status === 'ACTIVE' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenBanModal(user)}
+                                  className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                                >
+                                  Suspend
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => onUnban(user.id)}
+                                  className="rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                                >
+                                  Unban
+                                </button>
+                              )
+                            )}
+
+                            {/* Delete */}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteClick(user)}
+                                title={
+                                  hasAnyData
+                                    ? 'Tài khoản đã có dữ liệu, nên khóa thay vì xóa'
+                                    : undefined
+                                }
+                                className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                              >
+                                Xóa
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );
@@ -224,6 +352,17 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal for Role change and Delete */}
+      <ConfirmActionModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmLabel={confirmModal.confirmLabel}
+        tone={confirmModal.tone}
+        onConfirm={confirmModal.onConfirm}
+        onClose={closeConfirmModal}
+      />
     </section>
   );
 };

@@ -43,6 +43,20 @@ export interface RoleDistributionDto {
   viewerCount: number;
 }
 
+export interface OwnerCandidateDto {
+  userId: string;
+  name: string;
+  username: string;
+}
+
+export interface OwnedProjectDto {
+  projectId: string;
+  name: string;
+  status: string;
+  memberCount: number;
+  candidates: OwnerCandidateDto[];
+}
+
 export interface WorkspaceOverviewDto {
   id: string;
   name: string;

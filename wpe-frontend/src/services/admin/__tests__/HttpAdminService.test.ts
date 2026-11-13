@@ -178,4 +178,76 @@ describe('HttpAdminService', () => {
     expect(logs[1].actorName).toBe('Không rõ');
     expect(logs[1].timestamp).toBe('2026-10-06T12:05:00Z');
   });
+
+  it('changeUserRole("2", "ADMIN") gọi PATCH /admin/users/2/role với body { role: "ADMIN" }', async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      id: 2,
+      name: 'Test User',
+      username: 'test.user',
+      maskedEmail: 't***@test.com',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      ownedProjectCount: 0,
+      joinedProjectCount: 0,
+      createdAt: '2026-10-01T10:00:00Z',
+    });
+
+    const updated = await service.changeUserRole('2', 'ADMIN');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('PATCH', '/admin/users/2/role', {
+      body: { role: 'ADMIN' },
+    });
+    expect(updated.id).toBe('2');
+    expect(updated.role).toBe('ADMIN');
+  });
+
+  it('deleteUser("5") gọi DELETE /admin/users/5', async () => {
+    mockApiRequest.mockResolvedValueOnce(undefined);
+
+    await service.deleteUser('5');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('DELETE', '/admin/users/5');
+  });
+
+  it('transferProjectOwner("1", "3") gọi POST /admin/projects/1/transfer-owner với body { newOwnerId: 3 }', async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      projectId: 1,
+      name: 'Project Alpha',
+      status: 'ACTIVE',
+      memberCount: 5,
+      candidates: [{ userId: 3, name: 'Candidate 3', username: 'cand3' }],
+    });
+
+    const result = await service.transferProjectOwner('1', '3');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('POST', '/admin/projects/1/transfer-owner', {
+      body: { newOwnerId: 3 },
+    });
+    expect(result.projectId).toBe('1');
+    expect(result.candidates[0].userId).toBe('3');
+  });
+
+  it('getOwnedProjects("2") gọi GET /admin/users/2/owned-projects và map id sang string', async () => {
+    mockApiRequest.mockResolvedValueOnce([
+      {
+        projectId: 10,
+        name: 'Project 10',
+        status: 'ACTIVE',
+        memberCount: 3,
+        candidates: [
+          { userId: 20, name: 'User 20', username: 'usr20' },
+          { userId: 30, name: 'User 30', username: 'usr30' },
+        ],
+      },
+    ]);
+
+    const projects = await service.getOwnedProjects('2');
+
+    expect(mockApiRequest).toHaveBeenCalledWith('GET', '/admin/users/2/owned-projects');
+    expect(projects).toHaveLength(1);
+    expect(projects[0].projectId).toBe('10');
+    expect(projects[0].memberCount).toBe(3);
+    expect(projects[0].candidates[0].userId).toBe('20');
+    expect(projects[0].candidates[1].userId).toBe('30');
+  });
 });

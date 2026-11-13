@@ -9,6 +9,7 @@ import type {
   SecurityAuditLogDto,
   AuditLogGroup,
   UserAccountStatus,
+  OwnedProjectDto,
 } from '../../types/admin.types';
 import { apiRequest } from '../http/apiClient';
 
@@ -42,7 +43,21 @@ interface RawAuditLogPage {
   totalElements: number;
 }
 
-function mapAdminUser(raw: RawAdminUser): AdminUserDto {
+interface RawOwnerCandidate {
+  userId: string | number;
+  name?: string;
+  username?: string;
+}
+
+interface RawOwnedProject {
+  projectId: string | number;
+  name?: string;
+  status?: string;
+  memberCount?: string | number;
+  candidates?: RawOwnerCandidate[];
+}
+
+export function mapAdminUser(raw: RawAdminUser): AdminUserDto {
   return {
     id: String(raw.id),
     name: raw.name ?? '',
@@ -53,6 +68,20 @@ function mapAdminUser(raw: RawAdminUser): AdminUserDto {
     ownedProjectCount: Number(raw.ownedProjectCount ?? 0),
     joinedProjectCount: Number(raw.joinedProjectCount ?? 0),
     createdAt: raw.createdAt ?? '',
+  };
+}
+
+export function mapOwnedProject(raw: RawOwnedProject): OwnedProjectDto {
+  return {
+    projectId: String(raw.projectId),
+    name: raw.name ?? '',
+    status: raw.status ?? '',
+    memberCount: Number(raw.memberCount ?? 0),
+    candidates: (raw.candidates || []).map((c) => ({
+      userId: String(c.userId),
+      name: c.name ?? '',
+      username: c.username ?? '',
+    })),
   };
 }
 
@@ -87,6 +116,29 @@ export class HttpAdminService implements IAdminService {
   async unbanUser(userId: string): Promise<AdminUserDto> {
     const raw = await apiRequest<RawAdminUser>('POST', `/admin/users/${userId}/unban`);
     return mapAdminUser(raw);
+  }
+
+  async changeUserRole(userId: string, role: 'ADMIN' | 'USER'): Promise<AdminUserDto> {
+    const raw = await apiRequest<RawAdminUser>('PATCH', `/admin/users/${userId}/role`, {
+      body: { role },
+    });
+    return mapAdminUser(raw);
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await apiRequest<void>('DELETE', `/admin/users/${userId}`);
+  }
+
+  async getOwnedProjects(userId: string): Promise<OwnedProjectDto[]> {
+    const data = await apiRequest<RawOwnedProject[]>('GET', `/admin/users/${userId}/owned-projects`);
+    return (data || []).map(mapOwnedProject);
+  }
+
+  async transferProjectOwner(projectId: string, newOwnerId: string): Promise<OwnedProjectDto> {
+    const raw = await apiRequest<RawOwnedProject>('POST', `/admin/projects/${projectId}/transfer-owner`, {
+      body: { newOwnerId: Number(newOwnerId) },
+    });
+    return mapOwnedProject(raw);
   }
 
   async getSystemKpis(): Promise<SystemKpiDto> {

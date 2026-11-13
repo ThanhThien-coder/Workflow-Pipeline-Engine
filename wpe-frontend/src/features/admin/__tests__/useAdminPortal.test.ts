@@ -31,6 +31,10 @@ describe('useAdminPortal hook', () => {
       suspendUser: vi.fn(),
       unbanUser: vi.fn(),
       archiveWorkspace: vi.fn(),
+      changeUserRole: vi.fn(),
+      deleteUser: vi.fn(),
+      getOwnedProjects: vi.fn().mockResolvedValue([]),
+      transferProjectOwner: vi.fn(),
     };
 
     const { result } = renderHook(() => useAdminPortal(mockService));
@@ -71,6 +75,10 @@ describe('useAdminPortal hook', () => {
       suspendUser: vi.fn(),
       unbanUser: vi.fn(),
       archiveWorkspace: vi.fn(),
+      changeUserRole: vi.fn(),
+      deleteUser: vi.fn(),
+      getOwnedProjects: vi.fn().mockResolvedValue([]),
+      transferProjectOwner: vi.fn(),
     };
 
     const { result } = renderHook(() => useAdminPortal(mockService));
@@ -91,5 +99,81 @@ describe('useAdminPortal hook', () => {
     });
     expect(result.current.filteredUsers).toHaveLength(1);
     expect(result.current.filteredUsers[0].name).toBe('Alex Kim');
+  });
+
+  it('handleDeleteUser thành công bỏ user khỏi users; service ném lỗi thì users giữ nguyên và trả false', async () => {
+    const mockUsers: AdminUserDto[] = [
+      {
+        id: '1',
+        name: 'Alex Kim',
+        username: 'alex.kim',
+        maskedEmail: 'a***@pipeline.engine',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+        ownedProjectCount: 2,
+        joinedProjectCount: 3,
+        createdAt: '2026-10-01T10:00:00Z',
+      },
+      {
+        id: '2',
+        name: 'Bob Smith',
+        username: 'bob.smith',
+        maskedEmail: 'b***@pipeline.engine',
+        role: 'STANDARD_USER',
+        status: 'ACTIVE',
+        ownedProjectCount: 0,
+        joinedProjectCount: 0,
+        createdAt: '2026-10-02T10:00:00Z',
+      },
+    ];
+
+    const deleteUserMock = vi.fn().mockResolvedValue(undefined);
+
+    const mockService: IAdminService = {
+      getSystemKpis: vi.fn().mockRejectedValue(new Error('Chưa nối API')),
+      getAnalyticsTrends: vi.fn().mockRejectedValue(new Error('Chưa nối API')),
+      getRoleDistribution: vi.fn().mockRejectedValue(new Error('Chưa nối API')),
+      getUsers: vi.fn().mockResolvedValue(mockUsers),
+      getWorkspaces: vi.fn().mockRejectedValue(new Error('Chưa nối API')),
+      getSecurityAuditLogs: vi.fn().mockResolvedValue([]),
+      suspendUser: vi.fn(),
+      unbanUser: vi.fn(),
+      archiveWorkspace: vi.fn(),
+      changeUserRole: vi.fn(),
+      deleteUser: deleteUserMock,
+      getOwnedProjects: vi.fn().mockResolvedValue([]),
+      transferProjectOwner: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useAdminPortal(mockService));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.users).toHaveLength(2);
+
+    // Thành công: bỏ user khỏi users và trả true
+    let success = false;
+    await act(async () => {
+      success = await result.current.handleDeleteUser('2');
+    });
+
+    expect(success).toBe(true);
+    expect(deleteUserMock).toHaveBeenCalledWith('2');
+    expect(result.current.users).toHaveLength(1);
+    expect(result.current.users[0].id).toBe('1');
+
+    // Thất bại: service ném lỗi -> users giữ nguyên và trả false
+    deleteUserMock.mockRejectedValueOnce(new Error('Tài khoản đã có dữ liệu'));
+
+    let failResult = true;
+    await act(async () => {
+      failResult = await result.current.handleDeleteUser('1');
+    });
+
+    expect(failResult).toBe(false);
+    expect(result.current.users).toHaveLength(1);
+    expect(result.current.users[0].id).toBe('1');
   });
 });
