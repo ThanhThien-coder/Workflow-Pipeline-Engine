@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -130,6 +131,56 @@ class AuthServiceTest {
         assertThat(res.token()).isEqualTo("jwt");
         assertThat(res.refreshToken()).isEqualTo("rt_x");
         assertThat(res.user().id()).isEqualTo("2");
+    }
+
+    @Test
+    @DisplayName("login: bằng email alex.kim@pipeline.engine -> gọi findByEmailIgnoreCase, thành công, không gọi findByUsername")
+    void login_byEmail_ok() {
+        UserEntity user = alex(false);
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(user));
+        when(jwtService.generateAccessToken(user)).thenReturn("jwt");
+        when(refreshTokenService.issue(2L)).thenReturn("rt_x");
+        when(userMapper.toUserSummary(user)).thenReturn(summary);
+
+        AuthResponse res = authService.login(new LoginRequest("alex.kim@pipeline.engine", "Password123!", true));
+
+        assertThat(res.token()).isEqualTo("jwt");
+        assertThat(res.refreshToken()).isEqualTo("rt_x");
+        assertThat(res.user().id()).isEqualTo("2");
+        verify(userRepository).findByEmailIgnoreCase("alex.kim@pipeline.engine");
+        verify(userRepository, never()).findByUsername(anyString());
+    }
+
+    @Test
+    @DisplayName("login: email viết hoa ALEX.KIM@PIPELINE.ENGINE -> gọi findByEmailIgnoreCase với chuỗi đó (đã trim) và thành công")
+    void login_byEmail_uppercase_ok() {
+        UserEntity user = alex(false);
+        when(userRepository.findByEmailIgnoreCase("ALEX.KIM@PIPELINE.ENGINE")).thenReturn(Optional.of(user));
+        when(jwtService.generateAccessToken(user)).thenReturn("jwt");
+        when(refreshTokenService.issue(2L)).thenReturn("rt_x");
+        when(userMapper.toUserSummary(user)).thenReturn(summary);
+
+        AuthResponse res = authService.login(new LoginRequest("  ALEX.KIM@PIPELINE.ENGINE  ", "Password123!", true));
+
+        assertThat(res.token()).isEqualTo("jwt");
+        assertThat(res.refreshToken()).isEqualTo("rt_x");
+        assertThat(res.user().id()).isEqualTo("2");
+        verify(userRepository).findByEmailIgnoreCase("ALEX.KIM@PIPELINE.ENGINE");
+        verify(userRepository, never()).findByUsername(anyString());
+    }
+
+    @Test
+    @DisplayName("login: email không tồn tại -> 401 BAD_CREDENTIALS")
+    void login_byEmail_notFound_badCredentials() {
+        when(userRepository.findByEmailIgnoreCase("ghost@pipeline.engine")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("ghost@pipeline.engine", "Password123!", false)))
+            .isInstanceOf(UnauthorizedException.class)
+            .extracting("errorCode")
+            .isEqualTo("BAD_CREDENTIALS");
+        verify(userRepository).findByEmailIgnoreCase("ghost@pipeline.engine");
+        verify(userRepository, never()).findByUsername(anyString());
+        verify(refreshTokenService, never()).issue(anyLong());
     }
 
     @Test

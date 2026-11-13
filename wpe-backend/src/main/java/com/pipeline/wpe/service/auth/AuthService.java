@@ -66,7 +66,11 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        UserEntity user = userRepository.findByUsername(request.username().trim()).orElse(null);
+        String identifier = request.username().trim();
+        UserEntity user = (identifier.contains("@")
+            ? userRepository.findByEmailIgnoreCase(identifier)
+            : userRepository.findByUsername(identifier))
+            .orElse(null);
         if (user == null) {
             passwordEncoder.matches(request.password(), dummyHash());
             throw badCredentials();
