@@ -40,10 +40,12 @@ public class PipelineTemplateController {
         @RequestParam(required = false) String search,
         @Parameter(description = "Lọc mẫu chuẩn hệ thống")
         @RequestParam(required = false) Boolean isSystemStandard,
+        @Parameter(description = "Lọc theo phạm vi: PUBLIC hoặc PRIVATE")
+        @RequestParam(required = false) String visibility,
         @RequestParam(required = false) Long currentUserId
     ) {
         Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(null);
-        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard, callerId);
+        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard, callerId, visibility);
         return ResponseEntity.ok(list);
     }
 

@@ -465,4 +465,107 @@ class PipelineTemplateServiceTest {
         );
         verify(templateRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("getTemplates: Lọc visibility PUBLIC chỉ trả template PUBLIC, null trả cả PUBLIC và PRIVATE của caller")
+    void testGetTemplatesFilterVisibility() {
+        Long meoUserId = 5L;
+
+        PipelineTemplateEntity tPublic = PipelineTemplateEntity.builder()
+            .id(1L)
+            .name("Public SDLC")
+            .visibility(TemplateVisibility.PUBLIC)
+            .createdBy(1L)
+            .graphData(validGraphData)
+            .build();
+
+        PipelineTemplateEntity tMeoPrivate = PipelineTemplateEntity.builder()
+            .id(2L)
+            .name("Meo Private Template")
+            .visibility(TemplateVisibility.PRIVATE)
+            .createdBy(meoUserId)
+            .graphData(validGraphData)
+            .build();
+
+        when(templateRepository.findAll()).thenReturn(List.of(tPublic, tMeoPrivate));
+
+        // Lọc PUBLIC: chỉ có tPublic
+        List<TemplateSummaryResponse> publicOnly = templateService.getTemplates(null, null, null, meoUserId, "PUBLIC");
+        assertEquals(1, publicOnly.size());
+        assertEquals("Public SDLC", publicOnly.get(0).name());
+
+        // visibility = null: có cả hai (hành vi cũ)
+        List<TemplateSummaryResponse> both = templateService.getTemplates(null, null, null, meoUserId, null);
+        assertEquals(2, both.size());
+        List<String> names = both.stream().map(TemplateSummaryResponse::name).toList();
+        assertTrue(names.contains("Public SDLC"));
+        assertTrue(names.contains("Meo Private Template"));
+    }
+
+    @Test
+    @DisplayName("getTemplates: visibility không hợp lệ ('abc') -> ném IllegalArgumentException")
+    void testGetTemplatesInvalidVisibilityThrowsException() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+            templateService.getTemplates(null, null, null, 5L, "abc")
+        );
+        assertEquals("visibility chỉ nhận PUBLIC hoặc PRIVATE", ex.getMessage());
+        verify(templateRepository, never()).findAll();
+    }
+
+    @Test
+    @DisplayName("updateTemplateBySlugOrId: Admin cập nhật bằng slug 'tpl-sdlc' thành công, user thường bị 403 Forbidden")
+    void testUpdateTemplateBySlugOrIdAdminAndUser() {
+        Long adminId = 1L;
+        Long regularUserId = 2L;
+
+        UserEntity admin = UserEntity.builder().id(adminId).username("admin").systemRole(SystemRole.ADMIN).build();
+        UserEntity regularUser = UserEntity.builder().id(regularUserId).username("meo").systemRole(SystemRole.USER).build();
+
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
+        when(userRepository.findById(regularUserId)).thenReturn(Optional.of(regularUser));
+
+        PipelineTemplateEntity original = PipelineTemplateEntity.builder()
+            .id(10L)
+            .slug("tpl-sdlc")
+            .name("Old SDLC Name")
+            .category("Software Engineering")
+            .visibility(TemplateVisibility.PUBLIC)
+            .isSystemStandard(true)
+            .graphData(validGraphData)
+            .build();
+
+        when(templateRepository.findBySlug("tpl-sdlc")).thenReturn(Optional.of(original));
+        when(templateRepository.findById(10L)).thenReturn(Optional.of(original));
+
+        CreateTemplateRequest validReq = new CreateTemplateRequest(
+            "New SDLC Name",
+            "Updated Description",
+            "Software Engineering",
+            true,
+            validGraphData
+        );
+
+        PipelineTemplateEntity savedEntity = PipelineTemplateEntity.builder()
+            .id(10L)
+            .slug("tpl-sdlc")
+            .name("New SDLC Name")
+            .category("Software Engineering")
+            .visibility(TemplateVisibility.PUBLIC)
+            .isSystemStandard(true)
+            .graphData(validGraphData)
+            .build();
+        when(templateRepository.save(any(PipelineTemplateEntity.class))).thenReturn(savedEntity);
+
+        // 1. Admin gọi thành công, trả về tên mới
+        TemplateDetailResponse response = templateService.updateTemplateBySlugOrId("tpl-sdlc", validReq, adminId);
+        assertNotNull(response);
+        assertEquals("New SDLC Name", response.name());
+        verify(templateRepository).save(any(PipelineTemplateEntity.class));
+
+        // 2. User thường gọi -> ForbiddenException
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+            templateService.updateTemplateBySlugOrId("tpl-sdlc", validReq, regularUserId)
+        );
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
+    }
 }

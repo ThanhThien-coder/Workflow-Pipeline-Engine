@@ -42,16 +42,39 @@ public class PipelineTemplateService {
      */
     @Transactional(readOnly = true)
     public List<TemplateSummaryResponse> getTemplates(String category, String search, Boolean isSystemStandard) {
-        return getTemplates(category, search, isSystemStandard, null);
+        return getTemplates(category, search, isSystemStandard, null, null);
     }
 
     @Transactional(readOnly = true)
     public List<TemplateSummaryResponse> getTemplates(String category, String search, Boolean isSystemStandard, Long currentUserId) {
+        return getTemplates(category, search, isSystemStandard, currentUserId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TemplateSummaryResponse> getTemplates(String category, String search, Boolean isSystemStandard, Long currentUserId, String visibility) {
+        final TemplateVisibility targetVisibility;
+        if (visibility != null && !visibility.trim().isEmpty()) {
+            String v = visibility.trim();
+            if ("PUBLIC".equalsIgnoreCase(v)) {
+                targetVisibility = TemplateVisibility.PUBLIC;
+            } else if ("PRIVATE".equalsIgnoreCase(v)) {
+                targetVisibility = TemplateVisibility.PRIVATE;
+            } else {
+                throw new IllegalArgumentException("visibility chỉ nhận PUBLIC hoặc PRIVATE");
+            }
+        } else {
+            targetVisibility = null;
+        }
+
         List<PipelineTemplateEntity> all = templateRepository.findAll();
 
         return all.stream()
             .filter(t -> canView(t, currentUserId))
             .filter(t -> {
+                if (targetVisibility != null) {
+                    TemplateVisibility v = t.getVisibility() != null ? t.getVisibility() : TemplateVisibility.PUBLIC;
+                    if (v != targetVisibility) return false;
+                }
                 if (category != null && !category.isBlank() && !"All".equalsIgnoreCase(category)) {
                     if (!category.equalsIgnoreCase(t.getCategory())) return false;
                 }
