@@ -1,7 +1,7 @@
 # FC1 — Tài khoản mới đăng nhập thấy hồ sơ của người khác
 
 Người làm: C
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L2
 Nhánh git: fix-fc1-profile-that
 Làm trước: không (kiểm tài khoản mẫu cần FA1; kiểm bằng tài khoản mới đăng ký thì không cần)
@@ -38,3 +38,22 @@ Làm trước: không (kiểm tài khoản mẫu cần FA1; kiểm bằng tài k
 2. Đăng xuất, đăng nhập alex → hiện alex. Không F5 cũng đúng.
 
 ## Kết quả (Claude ghi, dán output thật)
+
+**File đã sửa**
+- `FE/services/impl/HttpProfileService.ts` (mới): `getMyProfile()` dựng từ `getStoredUser()` (`displayName = name || username`), chưa đăng nhập → lỗi 401; mọi phương thức ghi ném `ApiError` 501 "Tính năng chưa hỗ trợ".
+- `FE/services/container.ts`: `profileService: isMock ? new MockProfileApi() : new HttpProfileService()`.
+- `FE/store/useProfileStore.ts`: thêm `reset()`.
+- `FE/store/slices/authSlice.ts`: gọi `reset()` trong `applySession` (đăng nhập/đăng ký) và `resetUserData` (đăng xuất).
+- `FE/components/common/GlobalProfileMenu.tsx`: tải lại hồ sơ khi `auth.currentUser.id` đổi.
+- `FE/views/ProfileView.tsx`: tải lại khi đổi user; vô hiệu hóa các nút ghi (lưu hồ sơ, ảnh đại diện, riêng tư, public dự án, đổi mật khẩu, deactivate/delete) kèm dòng chú thích "Tính năng chưa hỗ trợ". Lưu ý: các nút này bị vô hiệu cả ở chế độ mock.
+
+**Test đã thêm**: `FE/services/impl/__tests__/HttpProfileService.test.ts` (4 test: getMyProfile trả đúng user lưu + 401 khi chưa đăng nhập; phương thức ghi ném "Tính năng chưa hỗ trợ"; đăng nhập A → đăng xuất → đăng nhập B thì profile là B; GlobalProfileMenu tải lại khi đổi user).
+
+**Output test thật** (13/11/2026)
+- Trước khi sửa (giữ service mới + test, hoàn lại 5 file còn lại): `Tests 2 failed | 2 passed (4)`; 2 test fail là "Đăng nhập A → profile A; đăng xuất, đăng nhập B…" và "GlobalProfileMenu tự tải lại khi currentUser.id đổi".
+- Sau khi sửa:
+```text
+npm run typecheck  → tsc -b, exit 0
+npm test           → Test Files 48 passed (48) | Tests 365 passed (365)
+```
+- Backend: không đổi file nào.
