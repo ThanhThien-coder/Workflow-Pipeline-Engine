@@ -54,12 +54,11 @@ function formatStatusBadge(status: UserAccountStatus) {
   );
 }
 
-function formatLastLogin(isoString: string): string {
+function formatCreatedAt(isoString: string): string {
   try {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return isoString;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return d.toLocaleDateString('vi-VN');
   } catch {
     return isoString;
   }
@@ -130,7 +129,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                 <th className="px-4 py-4 font-semibold">Masked Email</th>
                 <th className="px-4 py-4 font-semibold">Role</th>
                 <th className="px-4 py-4 font-semibold">Workspaces</th>
-                <th className="px-4 py-4 font-semibold">Last Login</th>
+                <th className="px-4 py-4 font-semibold">Ngày tạo</th>
                 <th className="px-4 py-4 font-semibold">Status</th>
                 <th className="px-5 py-4 text-right font-semibold">Actions</th>
               </tr>
@@ -165,16 +164,13 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
 
                     {/* Workspaces */}
                     <td className="px-4 py-4 text-slate-600">
-                      {user.workspaceCount} workspaces
+                      Sở hữu {user.ownedProjectCount} · Tham gia {user.joinedProjectCount}
                     </td>
 
-                    {/* Last Login & IP */}
+                    {/* Ngày tạo */}
                     <td className="px-4 py-4">
                       <div className="text-xs text-slate-600">
-                        {formatLastLogin(user.lastLoginAt)}
-                      </div>
-                      <div className="mt-1 font-mono text-[11px] text-slate-400">
-                        {user.maskedIp}
+                        {formatCreatedAt(user.createdAt)}
                       </div>
                     </td>
 

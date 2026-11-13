@@ -7,6 +7,7 @@ interface WorkspacesTabProps {
   onRefresh: () => Promise<void> | void;
   onInspectPipeline: (projectName: string) => void;
   onArchive?: (workspaceId: string) => Promise<void> | void;
+  errorMessage?: string;
 }
 
 export const WorkspacesTab: FC<WorkspacesTabProps> = ({
@@ -14,6 +15,7 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
   onRefresh,
   onInspectPipeline,
   onArchive,
+  errorMessage,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<WorkspaceOverviewDto | null>(null);
@@ -68,6 +70,16 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
       setIsArchiving(false);
     }
   };
+
+  if (errorMessage) {
+    return (
+      <section id="tab-workspaces" className="tab-panel active animate-fade">
+        <div className="admin-surface flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500">
+          <p className="font-semibold text-slate-700">Chưa có dữ liệu: {errorMessage}</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="tab-workspaces" className="tab-panel active animate-fade">

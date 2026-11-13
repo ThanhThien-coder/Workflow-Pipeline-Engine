@@ -12,6 +12,7 @@ interface AnalyticsTabProps {
   trendRange: '7D' | '30D';
   onRangeChange: (range: '7D' | '30D') => void;
   roleDistribution: RoleDistributionDto | null;
+  errorMessage?: string;
 }
 
 export const AnalyticsTab: FC<AnalyticsTabProps> = ({
@@ -20,6 +21,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
   trendRange,
   onRangeChange,
   roleDistribution,
+  errorMessage,
 }) => {
   const lineCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const lineChartRef = useRef<Chart | null>(null);
@@ -200,6 +202,16 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
     collaboratorCount: 56,
     viewerCount: 22,
   };
+
+  if (errorMessage) {
+    return (
+      <section id="tab-overview" className="tab-panel active">
+        <div className="admin-surface flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500">
+          <p className="font-semibold text-slate-700">Chưa có dữ liệu: {errorMessage}</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="tab-overview" className="tab-panel active">

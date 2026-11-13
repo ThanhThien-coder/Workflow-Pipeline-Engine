@@ -4,18 +4,20 @@ export type UserAccountStatus = 'ACTIVE' | 'SUSPENDED';
 export interface AdminUserDto {
   id: string;
   name: string;
-  maskedEmail: string;       // e.g. "al***im@pipeline.engine"
+  username: string;
+  maskedEmail: string;
   role: AdminRole;
-  workspaceCount: number;
-  lastLoginAt: string;       // ISO 8601 string
-  maskedIp: string;          // e.g. "172.16.0.***"
   status: UserAccountStatus;
+  ownedProjectCount: number;
+  joinedProjectCount: number;
+  createdAt: string;
 }
 
 export interface SuspendUserRequestDto {
   userId: string;
   reason: 'TERMS_VIOLATION' | 'SECURITY_RISK' | 'BILLING_OVERDUE' | 'OTHER';
   note?: string;
+  durationDays?: number;
 }
 
 export interface SystemKpiDto {

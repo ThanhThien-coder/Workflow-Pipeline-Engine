@@ -29,6 +29,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
   const [roleDistribution, setRoleDistribution] = useState<RoleDistributionDto | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceOverviewDto[]>([]);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLogDto[]>([]);
+  const [loadErrors, setLoadErrors] = useState<Partial<Record<'overview' | 'users' | 'workspaces' | 'audit', string>>>({});
   const [loading, setLoading] = useState<boolean>(true);
 
   // Filters
@@ -70,7 +71,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [kpiRes, trendsRes, rolesRes, usersRes, wsRes, logsRes] = await Promise.all([
+      const [kpiRes, trendsRes, rolesRes, usersRes, wsRes, logsRes] = await Promise.allSettled([
         service.getSystemKpis(),
         service.getAnalyticsTrends(trendRange),
         service.getRoleDistribution(),
@@ -79,15 +80,60 @@ export function useAdminPortal(service: IAdminService = adminService) {
         service.getSecurityAuditLogs(),
       ]);
 
-      setKpis(kpiRes);
-      setTrends(trendsRes);
-      setRoleDistribution(rolesRes);
-      setUsers(usersRes);
-      setWorkspaces(wsRes);
-      setAuditLogs(logsRes);
+      const errors: Partial<Record<'overview' | 'users' | 'workspaces' | 'audit', string>> = {};
+
+      if (kpiRes.status === 'fulfilled') {
+        setKpis(kpiRes.value);
+      } else {
+        setKpis(null);
+      }
+
+      if (trendsRes.status === 'fulfilled') {
+        setTrends(trendsRes.value);
+      } else {
+        setTrends([]);
+      }
+
+      if (rolesRes.status === 'fulfilled') {
+        setRoleDistribution(rolesRes.value);
+      } else {
+        setRoleDistribution(null);
+      }
+
+      // lỗi của kpi/trend/role gộp vào overview
+      if (kpiRes.status === 'rejected') {
+        errors.overview = kpiRes.reason instanceof Error ? kpiRes.reason.message : String(kpiRes.reason);
+      } else if (trendsRes.status === 'rejected') {
+        errors.overview = trendsRes.reason instanceof Error ? trendsRes.reason.message : String(trendsRes.reason);
+      } else if (rolesRes.status === 'rejected') {
+        errors.overview = rolesRes.reason instanceof Error ? rolesRes.reason.message : String(rolesRes.reason);
+      }
+
+      if (usersRes.status === 'fulfilled') {
+        setUsers(usersRes.value);
+      } else {
+        setUsers([]);
+        errors.users = usersRes.reason instanceof Error ? usersRes.reason.message : String(usersRes.reason);
+        showToast('Không thể tải dữ liệu quản trị', 'rose');
+      }
+
+      if (wsRes.status === 'fulfilled') {
+        setWorkspaces(wsRes.value);
+      } else {
+        setWorkspaces([]);
+        errors.workspaces = wsRes.reason instanceof Error ? wsRes.reason.message : String(wsRes.reason);
+      }
+
+      if (logsRes.status === 'fulfilled') {
+        setAuditLogs(logsRes.value);
+      } else {
+        setAuditLogs([]);
+        errors.audit = logsRes.reason instanceof Error ? logsRes.reason.message : String(logsRes.reason);
+      }
+
+      setLoadErrors(errors);
     } catch (err) {
       console.error('Failed to load admin data:', err);
-      showToast('Không thể tải dữ liệu quản trị', 'rose');
     } finally {
       setLoading(false);
     }
@@ -211,6 +257,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
     roleDistribution,
     workspaces,
     auditLogs,
+    loadErrors,
     loading,
     searchQuery,
     setSearchQuery,

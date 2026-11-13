@@ -28,6 +28,7 @@ export const AdminPortalView: FC = () => {
     roleDistribution,
     workspaces,
     auditLogs,
+    loadErrors,
     searchQuery,
     setSearchQuery,
     statusFilter,
@@ -180,6 +181,7 @@ export const AdminPortalView: FC = () => {
                     trendRange={trendRange}
                     onRangeChange={handleTrendRangeChange}
                     roleDistribution={roleDistribution}
+                    errorMessage={loadErrors.overview}
                   />
                 )}
 
@@ -201,6 +203,7 @@ export const AdminPortalView: FC = () => {
                     onRefresh={handleRefreshWorkspaces}
                     onInspectPipeline={handleInspectPipeline}
                     onArchive={handleArchiveWorkspace}
+                    errorMessage={loadErrors.workspaces}
                   />
                 )}
 

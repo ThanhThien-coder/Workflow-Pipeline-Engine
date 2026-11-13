@@ -1,7 +1,7 @@
 # FA2 — API admin thật: người dùng, workspace (bỏ MockAdminService)
 
 Người làm: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L19 (phần người dùng, workspace)
 Nhánh git: fix-fa2-api-admin
 Làm trước: FA1 (cần đăng nhập được `admin` để kiểm)
@@ -46,4 +46,32 @@ Mọi tab admin hiện dữ liệu giả, bấm khóa user hay lưu trữ worksp
 2. Khóa `sarah.chen`. Ở tab khác, sarah đang đăng nhập bấm bất kỳ gì → bị đá ra trang đăng nhập. Mở khóa → sarah đăng nhập lại được.
 3. Tab Workspaces hiện đúng các dự án trong DB. Lưu trữ một dự án → alex thấy dự án đó ở tab Archived.
 
-## Kết quả (Claude ghi, dán output thật)
+## Kết quả
+Đợt này chỉ làm phần người dùng; phần workspace chưa làm (nhóm đang xem lại).
+
+Các file đã thêm và chỉnh sửa:
+**Backend:**
+- `wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectRepository.java`: thêm `countByOwnerId`.
+- `wpe-backend/src/main/java/com/pipeline/wpe/repository/ProjectMemberRepository.java`: thêm `countByUserIdAndRemovedAtIsNullAndRoleNot`.
+- `wpe-backend/src/main/java/com/pipeline/wpe/service/admin/EmailMasker.java`: hàm static `mask(String email)` che email theo chuẩn `a***@pipeline.engine`.
+- `wpe-backend/src/main/java/com/pipeline/wpe/dto/response/admin/AdminUserResponse.java`: DTO response thông tin người dùng quản trị.
+- `wpe-backend/src/main/java/com/pipeline/wpe/dto/request/admin/SuspendUserRequest.java`: DTO request khóa tài khoản.
+- `wpe-backend/src/main/java/com/pipeline/wpe/service/admin/AdminUserService.java`: service quản trị người dùng (`listUsers`, `suspendUser`, `unbanUser`).
+- `wpe-backend/src/main/java/com/pipeline/wpe/controller/AdminController.java`: controller `/api/v1/admin` với `@PreAuthorize("hasRole('ADMIN')")`.
+- `wpe-backend/src/main/java/com/pipeline/wpe/exception/GlobalExceptionHandler.java`: thêm handler cho Spring `AccessDeniedException` và `AuthenticationCredentialsNotFoundException`.
+- `wpe-backend/src/test/java/com/pipeline/wpe/admin/EmailMaskerTest.java`: unit tests che email.
+- `wpe-backend/src/test/java/com/pipeline/wpe/admin/AdminUserServiceTest.java`: unit tests cho `AdminUserService`.
+- `wpe-backend/src/test/java/com/pipeline/wpe/admin/AdminControllerTest.java`: `@WebMvcTest` kiểm thử phân quyền 200/403/401 và các endpoint quản trị.
+
+**Frontend:**
+- `wpe-frontend/src/types/admin.types.ts`: cập nhật `AdminUserDto` và `SuspendUserRequestDto` theo dữ liệu backend thật.
+- `wpe-frontend/src/services/admin/HttpAdminService.ts`: cài đặt `IAdminService` gọi API thật qua `apiRequest`.
+- `wpe-frontend/src/services/container.ts`: cấu hình `adminService` chuyển đổi linh hoạt theo `isMock`.
+- `wpe-frontend/src/services/admin/MockAdminService.ts`: cập nhật dữ liệu mock khớp `AdminUserDto`.
+- `wpe-frontend/src/hooks/useAdminPortal.ts`: dùng `Promise.allSettled`, quản lý `loadErrors`, toast khi users lỗi.
+- `wpe-frontend/src/features/admin/tabs/UserManagementTab.tsx`: đổi cột thành "Ngày tạo", hiển thị số dự án sở hữu/tham gia.
+- `wpe-frontend/src/features/admin/tabs/AnalyticsTab.tsx`: thêm prop `errorMessage`.
+- `wpe-frontend/src/features/admin/tabs/WorkspacesTab.tsx`: thêm prop `errorMessage`.
+- `wpe-frontend/src/features/admin/AdminPortalView.tsx`: truyền `loadErrors.overview` và `loadErrors.workspaces`.
+- `wpe-frontend/src/services/admin/__tests__/HttpAdminService.test.ts`: test unit cho `HttpAdminService`.
+- `wpe-frontend/src/features/admin/__tests__/useAdminPortal.test.ts`: test unit cho `useAdminPortal`.
