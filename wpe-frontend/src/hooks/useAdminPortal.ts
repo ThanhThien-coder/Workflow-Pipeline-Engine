@@ -260,8 +260,8 @@ export function useAdminPortal(service: IAdminService = adminService) {
       const matchQuery =
         !q ||
         user.name.toLowerCase().includes(q) ||
-        user.id.toLowerCase().includes(q) ||
-        user.maskedEmail.toLowerCase().includes(q);
+        user.username.toLowerCase().includes(q) ||
+        user.id.toLowerCase().includes(q);
       return matchStatus && matchQuery;
     });
   }, [users, searchQuery, statusFilter]);

@@ -100,7 +100,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 placeholder:text-slate-400"
-              placeholder="Search by name, ID, or masked email..."
+              placeholder="Tìm theo họ tên, username hoặc ID..."
             />
           </label>
           <select
