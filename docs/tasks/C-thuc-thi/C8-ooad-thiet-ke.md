@@ -91,6 +91,11 @@ Chế độ sprint (12/11/2026 tối): Claude vẽ đủ 6 sản phẩm từ cod
 - Ảnh rộng hơn 4096 px bị PlantUML cắt (`seq-nop-bai` rộng 4098 px) → render với `-DPLANTUML_LIMIT_SIZE=16384`.
 - **Lỗ hổng tìm thấy khi vẽ:** `NodeController` nhận `?currentUserId=` và mặc định user 2 khi không đăng nhập → ai cũng tự xưng Owner để duyệt bài được. Cùng kiểu D báo ở #49. Đã vá ở PR #56 (người làm yêu cầu). Ghi ở nhat-quan mục 5.
 
+**Sửa theo review của D ở #58 (13/11/2026), sau khi #56 merge:**
+1. `class-thuc-thi.puml`: `NodeController.updateStatus / submitTask / forceUnlock` bỏ tham số `currentUserId`; thêm lớp `ProjectAuthorizationService` (`verifyProjectMemberOrOwner`), `NodeController ..> ProjectAuthorizationService` (getMyTasks kiểm thành viên) và `ArtifactService --> ProjectAuthorizationService`. Xuất lại `C-class-thuc-thi.png`, `C-class-thuc-thi-du-lieu.png`.
+2. `nhat-quan.md`: số dòng `NodeController` theo main sau #56 (đã tự đếm lại, khớp số D đưa): `43–48 → 54–59`, `55 → 64`, `56 → 65`, `59–64 → 68–73`, `71 → 78`, `72 → 79`.
+3. `nhat-quan.md` mục 5: tiêu đề còn "(chưa sửa…)" nên đọc như chưa vá; đổi tiêu đề và ghi trạng thái từng ý (ý 3: đã vá ở #56, kèm lưu ý chế độ dev vẫn coi request không header là user 2).
+
 **Render:** `java -DPLANTUML_LIMIT_SIZE=16384 -jar ~/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar -charset UTF-8 -tpng`. Đã mở xem cả 6 ảnh: đủ chữ, không lỗi. PNG: `docs/ooad/png/C-state-task.png`, `C-seq-duyet-task.png`, `C-seq-nop-bai.png`, `C-comm-nop-bai.png`, `C-class-thuc-thi.png`, `C-class-thuc-thi-du-lieu.png`.
 
 **Tự chấm theo cẩm nang mục 3:**

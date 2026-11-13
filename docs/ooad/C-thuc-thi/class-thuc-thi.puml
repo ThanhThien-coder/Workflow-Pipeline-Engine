@@ -4,7 +4,7 @@
 '        security/CurrentUserProvider.java, entity/*.java, repository/*.java, dto/**/*.java, common/enums/*.java,
 '        resources/db/migration/V1__init_schema.sql (luật xóa khóa ngoại)
 ' Class diagram thiết kế mảng C — Chạy task & Realtime (C8). Tên lớp, phương thức, kiểu giữ đúng như code
-' (ArtifactController, ArtifactService, ArtifactUrlValidator theo C4 — PR #49).
+' (ArtifactController, ArtifactService, ArtifactUrlValidator theo C4 — PR #49; NodeController theo #56: không còn tham số currentUserId).
 ' Không liệt kê getter/setter (Lombok sinh). Lớp bean Spring tiêm nhau qua constructor: vẽ association có bội số,
 ' không ghi lại thành thuộc tính. Controller → service: dependency (cẩm nang 3.6b).
 ' Tách 2 hình để ảnh không quá rộng: (1) controller + service + sự kiện, (2) repository + entity + enum + DTO.
@@ -18,9 +18,9 @@ hide empty members
 package "controller" {
   class NodeController {
     +getMyTasks(projectId: Long, userId: Long): ResponseEntity<List<KanbanTaskResponse>>
-    +updateStatus(taskId: Long, request: UpdateNodeStatusRequest, currentUserId: Long): ResponseEntity<KanbanTaskResponse>
-    +submitTask(taskId: Long, request: SubmitTaskArtifactRequest, currentUserId: Long): ResponseEntity<SubmitTaskArtifactResponse>
-    +forceUnlock(taskId: Long, currentUserId: Long): ResponseEntity<KanbanTaskResponse>
+    +updateStatus(taskId: Long, request: UpdateNodeStatusRequest): ResponseEntity<KanbanTaskResponse>
+    +submitTask(taskId: Long, request: SubmitTaskArtifactRequest): ResponseEntity<SubmitTaskArtifactResponse>
+    +forceUnlock(taskId: Long): ResponseEntity<KanbanTaskResponse>
   }
   class RealtimeController {
     +subscribe(userId: Long): SseEmitter
@@ -94,6 +94,9 @@ package "service.event" {
 }
 
 package "service" {
+  class ProjectAuthorizationService {
+    +verifyProjectMemberOrOwner(projectId: Long, userId: Long): ProjectEntity
+  }
   class ArtifactService {
     +getProjectArtifacts(projectId: Long, nodeId: Long, inRepoOnly: Boolean, currentUserId: Long): List<ArtifactResponse>
     +createArtifact(projectId: Long, req: CreateArtifactRequest, currentUserId: Long): ArtifactResponse
@@ -131,7 +134,8 @@ package "Spring / Jakarta (thư viện)" {
 
 ' --- Controller dùng service (dependency) ---
 NodeController ..> StateMachineService
-NodeController ..> CurrentUserProvider
+NodeController ..> CurrentUserProvider : requireCurrentUserId()
+NodeController ..> ProjectAuthorizationService : getMyTasks kiểm thành viên
 RealtimeController ..> SseEmitterService
 RealtimeController ..> CurrentUserProvider
 ArtifactController ..> ArtifactService
@@ -146,6 +150,7 @@ InvitationEventConsumer "1" --> "1" SseEmitterService : sseEmitterService
 TaskOverdueScanner "1" --> "1" WorkflowEventPublisher : eventPublisher
 TaskOverdueScanner "1" --> "1" SseEmitterService : sseEmitterService
 WorkflowEventPublisher "1" --> "1" RabbitTemplate : rabbitTemplate
+ArtifactService "1" --> "1" ProjectAuthorizationService : projectAuthorizationService
 
 ' --- Dùng tạm ---
 StateMachineService ..> ArtifactUrlValidator : isValid(url)

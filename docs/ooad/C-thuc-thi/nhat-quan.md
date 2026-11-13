@@ -3,7 +3,7 @@
 Mỗi message trong sơ đồ sequence ứng với một phương thức thật; mỗi chuyển trạng thái ứng với một nhánh code.
 `BE/` = `wpe-backend/src/main/java/com/pipeline/wpe/`, `FE/` = `wpe-frontend/src/`.
 
-**Số dòng lấy ở đâu:** FE và BE lấy trên main `7d5a5b1`, riêng `BE/service/engine/StateMachineService.java` và `BE/dto/artifact/ArtifactUrlValidator.java` lấy trên nhánh `c4-artifacts` (`2fe00a3`, PR #49). Từ lúc C4 tách nhánh, main không sửa file backend nào của mảng C, nên khi #49 merge thì số dòng ở đây là số dòng trên main.
+**Số dòng lấy ở đâu:** FE và BE lấy trên main `7d5a5b1`; `BE/controller/NodeController.java` lấy trên main sau #56 (`1895969`); riêng `BE/service/engine/StateMachineService.java` và `BE/dto/artifact/ArtifactUrlValidator.java` lấy trên nhánh `c4-artifacts` (`2fe00a3`, PR #49). Từ lúc C4 tách nhánh, main không sửa file backend nào của mảng C, nên khi #49 merge thì số dòng ở đây là số dòng trên main.
 
 Cột "Dòng gọi" là chỗ lời gọi nằm trong code của bên gửi; cột "Định nghĩa" là chỗ phương thức được khai báo ở lớp nhận. "Spring" = phương thức của thư viện (JPA, Spring TX, Spring AMQP), không có trong repo.
 
@@ -15,8 +15,8 @@ Cột "Dòng gọi" là chỗ lời gọi nằm trong code của bên gửi; c�
 | 2 | `moveTask(taskId, "DONE")` | `usePhaseKanban.moveTask` (prop `onMove`) | `FE/components/kanban/TaskDetailModal.tsx:595` → `FE/components/workflow/MindmapDrawer.tsx:468` | `FE/hooks/usePhaseKanban.ts:188` | ✔ |
 | 3 | `evaluateTransition(task, "DONE", actor)` | hàm `evaluateTransition` | `FE/hooks/usePhaseKanban.ts:197` | `FE/domain/taskTransitions.ts:3` | ✔ |
 | 4 | `updateTaskStatus(taskId, "DONE")` | `HttpWorkflowService.updateTaskStatus` | `FE/hooks/usePhaseKanban.ts:237` | `FE/services/impl/HttpWorkflowService.ts:132` | ✔ |
-| 5 | `PATCH /api/v1/nodes/{taskId}/status` | `NodeController.updateStatus` | `FE/services/impl/HttpWorkflowService.ts:134` (`apiRequest`) | `BE/controller/NodeController.java:43–48` | ✔ |
-| 6 | `updateStatus(taskId, request, actorId)` | `StateMachineService.updateStatus` | `BE/controller/NodeController.java:55` | `BE/service/engine/StateMachineService.java:104` | ✔ |
+| 5 | `PATCH /api/v1/nodes/{taskId}/status` | `NodeController.updateStatus` | `FE/services/impl/HttpWorkflowService.ts:134` (`apiRequest`) | `BE/controller/NodeController.java:54–59` | ✔ |
+| 6 | `updateStatus(taskId, request, actorId)` | `StateMachineService.updateStatus` | `BE/controller/NodeController.java:64` | `BE/service/engine/StateMachineService.java:104` | ✔ |
 | 7–8 | `findById(taskId)` | `NodeRepository.findById` | `StateMachineService.java:105` | Spring (`JpaRepository`) | ✔ |
 | 9–10 | `findById(projectId)` | `ProjectRepository.findById` | `StateMachineService.java:130` | Spring (`JpaRepository`) | ✔ |
 | 11 | `ensureNotArchived(project)` | `StateMachineService.ensureNotArchived` (private) | `StateMachineService.java:132` | `StateMachineService.java:450` | ✔ |
@@ -32,7 +32,7 @@ Cột "Dòng gọi" là chỗ lời gọi nằm trong code của bên gửi; c�
 | 24 | `afterCompletion(STATUS_COMMITTED)` | lớp vô danh trong `afterCommit` | Spring gọi sau commit | `StateMachineService.java:471` | ✔ |
 | 25 | `sendToUser(assigneeId, "TASK_STATUS_CHANGED", …)` | `SseEmitterService.sendToUser` | `StateMachineService.java:229` (Owner: `:232`) | `BE/service/event/SseEmitterService.java:89` | ✔ |
 | 26 | trả `KanbanTaskResponse` | — | `StateMachineService.java:236` | — | ✔ |
-| 27 | 200 `KanbanTaskResponse` | — | `NodeController.java:56` | — | ✔ |
+| 27 | 200 `KanbanTaskResponse` | — | `NodeController.java:65` | — | ✔ |
 | 28 | trả `KanbanTask` | — | `HttpWorkflowService.ts:142` | — | ✔ |
 | 29 | thẻ ở cột Done | — | `usePhaseKanban.ts:239` (`setAllTasks`) | — | ✔ |
 | 30 | `handleTaskCompleted(event)` | `WorkflowEventConsumer.handleTaskCompleted` | RabbitMQ giao (`@RabbitListener` queue `wpe.task.completed.queue`) | `BE/service/event/WorkflowEventConsumer.java:33–34` | ✔ |
@@ -62,8 +62,8 @@ Cột "Dòng gọi" là chỗ lời gọi nằm trong code của bên gửi; c�
 | 2 | `isValidArtifactUrl(url)` | hàm tiện ích | `SubmitArtifactModal.tsx:28` | `FE/utils/artifactLabel.ts:11` | ✔ |
 | 3 | `submitArtifact(taskId, {type, url, note})` | `usePhaseKanban.submitArtifact` (prop `onSubmit`) | `SubmitArtifactModal.tsx:32` → `FE/components/workflow/MindmapDrawer.tsx:483` | `FE/hooks/usePhaseKanban.ts:287` | ✔ |
 | 4 | `submitTaskArtifact({taskId, type, url, note})` | `HttpWorkflowService.submitTaskArtifact` | `usePhaseKanban.ts:297` | `HttpWorkflowService.ts:146` | ✔ |
-| 5 | `POST /api/v1/nodes/{taskId}/submit` | `NodeController.submitTask` | `HttpWorkflowService.ts:148` (`apiRequest`) | `BE/controller/NodeController.java:59–64` | ✔ |
-| 6 | `submitTaskArtifact(taskId, request, actorId)` | `StateMachineService.submitTaskArtifact` | `NodeController.java:71` | `StateMachineService.java:243` | ✔ |
+| 5 | `POST /api/v1/nodes/{taskId}/submit` | `NodeController.submitTask` | `HttpWorkflowService.ts:148` (`apiRequest`) | `BE/controller/NodeController.java:68–73` | ✔ |
+| 6 | `submitTaskArtifact(taskId, request, actorId)` | `StateMachineService.submitTaskArtifact` | `NodeController.java:78` | `StateMachineService.java:243` | ✔ |
 | 7–8 | `findById(taskId)` | `NodeRepository.findById` | `StateMachineService.java:244` | Spring | ✔ |
 | 9–10 | `findById(projectId)` | `ProjectRepository.findById` | `StateMachineService.java:255` | Spring | ✔ |
 | 11 | `ensureNotArchived(project)` | `StateMachineService.ensureNotArchived` | `StateMachineService.java:257` | `StateMachineService.java:450` | ✔ |
@@ -77,7 +77,7 @@ Cột "Dòng gọi" là chỗ lời gọi nằm trong code của bên gửi; c�
 | 25–26 | `afterCompletion` → `sendToUser(ownerId, "TASK_SUBMITTED", …)` | `SseEmitterService.sendToUser` | `StateMachineService.java:471, 336` | `SseEmitterService.java:89` | ✔ |
 | 27 | event `TASK_SUBMITTED` | — | `SseEmitterService.java:138` | **FE không có listener** (`HttpWorkflowService.ts:223–260` chỉ nghe INIT, TASK_UNLOCKED, TASK_STATUS_CHANGED, NOTIFICATION_RECEIVED) | ⚠ ghi trên sơ đồ |
 | 28 | trả `SubmitTaskArtifactResponse` | — | `StateMachineService.java:338` | — | ✔ |
-| 29 | 200 | — | `NodeController.java:72` | — | ✔ |
+| 29 | 200 | — | `NodeController.java:79` | — | ✔ |
 | 30 | trả `{task, artifact}` | — | `HttpWorkflowService.ts:173` | — | ✔ |
 | 31 | `true` | — | `usePhaseKanban.ts:331` | — | ✔ |
 | 32 | `handleNotification(event)` | `WorkflowEventConsumer.handleNotification` | RabbitMQ giao (queue `wpe.notification.queue`) | `WorkflowEventConsumer.java:57–58` | ✔ |
@@ -140,8 +140,8 @@ Message trả về (8, 10, 13, 15, 17, 20, 28–31, 34) không vẽ trên sơ đ
 
 **Chiều ngược lại (mỗi nhánh code có trong sơ đồ):** `updateStatus` có 6 nhánh — DONE (`:141`), REVIEW→IN_PROGRESS (`:161`), TODO→IN_PROGRESS (`:191`), IN_PROGRESS→TODO (`:199`), IN_PROGRESS→REVIEW (`:207`) và `else` (`:215`, cặp không hợp lệ → 400, ghi trong ghi chú sơ đồ). 5 nhánh đầu là 5 chuyển trên sơ đồ. Các hàm còn lại đổi `status`/`isOverdue` (`submitTaskArtifact`, `forceUnlock`, `unlockDownstreamTasks`, `TaskOverdueScanner`, `WorkflowGraphService`, `NodeAssignmentService`) đều có chuyển tương ứng. Đã dò bằng grep `setStatus(`, `.status(`, `NodeEntity.builder()`, `setIsOverdue` trên toàn `BE/`: ngoài các chỗ trên chỉ còn 2 chỗ tạo node (`WorkflowGraphService.java:300–306`, `TemplateCloneService.java:343–349`), đã vẽ thành 2 chuyển từ trạng thái đầu. (Lần dò đầu chỉ tìm `setStatus(NodeStatus.` nên sót 2 chỗ này, rồi tìm rộng hơn mới thấy.)
 
-## 5. Điều phát hiện khi đối chiếu (chưa sửa, ngoài phạm vi C8)
+## 5. Điều phát hiện khi đối chiếu (ngoài phạm vi C8)
 
-1. **`TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE` được backend gửi nhưng giao diện không nghe.** `connectRealtime` (`HttpWorkflowService.ts:223`) chỉ đăng ký INIT, TASK_UNLOCKED, TASK_STATUS_CHANGED, NOTIFICATION_RECEIVED. `MyTasksView.tsx:57` có kiểm `TASK_REJECTED` nhưng không bao giờ nhận được. Người phụ trách vẫn thấy bài bị từ chối nhờ `TASK_STATUS_CHANGED` (cùng request). Việc của C6.
-2. **Task ghi lifeline `tasks.ts` nhưng file này không có:** lời gọi API của task nằm trong `HttpWorkflowService.ts` (A2 mới tách `http/graph.ts`, `http/workspace.ts`). Sơ đồ dùng `HttpWorkflowService`.
-3. **`NodeController` nhận `?currentUserId=` từ request và mặc định user 2 khi không đăng nhập** (`NodeController.java:54, 70, 85` trên main `7d5a5b1`): ai gọi API cũng có thể tự xưng là Owner để duyệt bài. Cùng kiểu lỗ hổng D báo ở #49 cho `ArtifactController`. **Đã vá ở PR #56** (dùng `requireCurrentUserId()`, `getMyTasks` kiểm thành viên). Sau khi #56 merge, số dòng của `NodeController` trong bảng trên lệch vài dòng nhưng tên phương thức không đổi. `RealtimeController.java:34` vẫn nhận `?userId=` (EventSource không gửi được header), để lại X1.
+1. **(Chưa sửa, việc của C6)** **`TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE` được backend gửi nhưng giao diện không nghe.** `connectRealtime` (`HttpWorkflowService.ts:223`) chỉ đăng ký INIT, TASK_UNLOCKED, TASK_STATUS_CHANGED, NOTIFICATION_RECEIVED. `MyTasksView.tsx:57` có kiểm `TASK_REJECTED` nhưng không bao giờ nhận được. Người phụ trách vẫn thấy bài bị từ chối nhờ `TASK_STATUS_CHANGED` (cùng request). Việc của C6.
+2. **(Đã xử lý trong sơ đồ)** **Task ghi lifeline `tasks.ts` nhưng file này không có:** lời gọi API của task nằm trong `HttpWorkflowService.ts` (A2 mới tách `http/graph.ts`, `http/workspace.ts`). Sơ đồ dùng `HttpWorkflowService`.
+3. **(Đã vá ở #56)** **`NodeController` nhận `?currentUserId=` từ request và mặc định user 2 khi không đăng nhập** (`NodeController.java:54, 70, 85` trên main `7d5a5b1`): ai gọi API cũng có thể tự xưng là Owner để duyệt bài. Cùng kiểu lỗ hổng D báo ở #49 cho `ArtifactController`. **Đã vá ở #56** (dùng `requireCurrentUserId()`, `getMyTasks` kiểm thành viên); số dòng `NodeController` trong bảng mục 1, 2 đã cập nhật theo main sau #56. Lưu ý: chế độ dev (`app.security.debug-user-id-enabled: true`) vẫn coi request không gửi header nào là user mặc định (2), phải tắt ở X1 trước khi nộp hoặc deploy. `RealtimeController.java:34` vẫn nhận `?userId=` (EventSource không gửi được header), để lại X1.
