@@ -27,6 +27,22 @@ export interface ProjectInvitationDto {
   version?: number;
 }
 
+export type ActivityEventType =
+  | 'PROJECT_CREATED'
+  | 'PROJECT_STATUS_CHANGED'
+  | 'MEMBER_JOINED'
+  | 'MEMBER_REMOVED'
+  | 'INVITATION_SENT'
+  | 'INVITATION_ACCEPTED'
+  | 'INVITATION_REJECTED'
+  | 'INVITATION_REVOKED'
+  | 'INVITATION_EXPIRED'
+  | 'TASK_STATUS_CHANGED'
+  | 'ARTIFACT_SUBMITTED'
+  | 'GUEST_LINK_CREATED'
+  | 'GUEST_LINK_REVOKED'
+  | 'FEEDBACK_CREATED';
+
 export type AuditLogAction =
   | 'MEMBER_INVITED'
   | 'ROLE_CHANGED'
@@ -35,7 +51,8 @@ export type AuditLogAction =
   | 'PROJECT_UPDATED'
   | 'RESOURCE_ADDED'
   | 'RESOURCE_REMOVED'
-  | 'RESOURCE_UPDATED';
+  | 'RESOURCE_UPDATED'
+  | ActivityEventType;
 
 export type AuditScope = 'Governance' | 'Lifecycle' | 'Access';
 
@@ -50,6 +67,8 @@ export interface AuditLogItem {
   action: AuditLogAction;
   details: string;
   scope: AuditScope;
+  type?: string;
+  targetCode?: string | null;
 }
 
 export interface ProjectMemberDetail {

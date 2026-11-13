@@ -9,6 +9,7 @@ import * as membersApi from './http/members'
 import * as projectSettingsApi from './http/projectSettings'
 import * as guestApi from './http/guest'
 import * as assignmentApi from './http/assignment'
+import * as activityApi from './http/activity'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import type {
   ArtifactItem,
@@ -55,7 +56,6 @@ export const METHODS_STILL_MOCKED = [
   'getOverviewData', // D5 (chỉ phần KPI/AI còn mock; góp ý và link khách đã thật)
   'getProjectMembers', // C6
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
-  'getProjectAuditLogs', // chưa có task: cần nhóm quyết
   'deleteProject', // D1
 ] as const satisfies readonly (keyof IWorkflowService)[]
 
@@ -433,8 +433,9 @@ export class HttpWorkflowService implements IWorkflowService {
     return this.mock.updateProjectSettings(projectId, cmd) // chưa có task
   }
 
-  getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]> {
-    return this.mock.getProjectAuditLogs(projectId) // chưa có task
+  async getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]> {
+    const items = await activityApi.fetchProjectActivity(projectId, 50)
+    return items.map(activityApi.mapActivityToAuditLog)
   }
 
   async archiveProject(projectId: string): Promise<ProjectSettingsDto> {
