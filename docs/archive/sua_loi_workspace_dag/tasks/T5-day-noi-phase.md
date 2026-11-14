@@ -1,7 +1,7 @@
 # T5 — Phase xếp theo cột, dây vuông góc chạy trong khe, có hướng
 
 Sửa lỗi: G3
-Trạng thái: chờ làm
+Trạng thái: xong, chờ test tay
 Cần có trước: không (nên làm sau G2 đã sửa)
 Mở khóa: không
 
@@ -54,3 +54,18 @@ Dây nối giữa các phase cùng màu, không có mũi tên, chồng nhau ở 
   - Chọn/rê PHASE 6 → chỉ dây vào/ra PHASE 6 đậm, dây khác mờ.
   - Auto Layout → ít dây cắt nhau hơn trước, thứ tự được lưu.
   - Nút ✕ vẫn gỡ dây được.
+
+## Kết quả (14/11/2026)
+Commit `f6d0762` trên nhánh `fix/sua-loi-workspace-dag`.
+
+**Điều chỉnh so với "Việc cần làm" (cách gọn hơn, cùng kết quả):** không dời phase rồi lưu lên server mỗi khi đổi dây (bước 3 cũ). Thay vào đó vị trí được **tính lúc vẽ** bằng hàm thuần: x luôn = cột của phase trong DAG, y = vị trí đã lưu (chưa lưu thì bố cục tự động), tự đẩy xuống nếu đè thẻ cùng cột. Nối / gỡ / tạo / xóa phase thì thẻ tự về đúng cột mà không cần gọi API, không có trạng thái lệch giữa FE và DB. Kéo thả và Auto Layout vẫn lưu vị trí như cũ. Vì vậy store không phải sửa.
+
+Đã làm:
+- `utils/phaseColumnLayout.ts` (mới, hàm thuần): `phaseColumns` (độ sâu dài nhất, có vòng vẫn dừng), `columnX`, `arrangePhases` (x theo cột, tránh đè), `autoLayoutColumns` (barycenter), `channelOffsets` (nguồn khác nhau cùng cột lệch đoạn dọc, không chồng), `routeEdge` (vuông góc; cột kề: ngang–dọc trong khe–ngang; vượt cột: đi ngang ở khe giữa hai thẻ của cột trung gian), `roundedPath` (bo góc).
+- `MacroWorkflow`: vị trí theo `arrangePhases`; kéo thẻ thì các thẻ cùng cột tự dồn chỗ, thả ra bám về cột (lưu x = cột, y = vị trí thả); Auto Layout dùng `autoLayoutColumns`; `<defs>` 2 marker mũi tên; tính đường cho từng dây; phase đang rê chuột (ưu tiên) hoặc đang chọn → dây ra/vào nó `on` (indigo, liền, đậm), dây khác `dim` (mờ).
+- `WorkflowEdge`: chỉ vẽ đường đã tính, mũi tên ở đầu đích, giữ nút ✕ gỡ dây ở điểm giữa và vùng bấm 16px.
+- `PhaseCard`: thêm `onHoverChange`.
+
+Kiểm tra tự động: typecheck sạch; `vitest run` 78 file / 524 test qua. Test mới: 8 test hàm bố cục (gồm dựng sơ đồ như ảnh G3 và lấy mẫu dọc từng đoạn dây để chắc **không đoạn nào cắt qua thẻ**, mọi dây đi vào đích từ bên trái), 2 test canvas (x theo cột kể cả khi x đã lưu sai cột; mũi tên; rê chuột làm nổi/mờ đúng dây).
+
+Test tay: chờ người dùng (dựng lại sơ đồ như ảnh G3, nối thêm dây, kéo thẻ sang cột khác, Auto Layout, gỡ dây bằng ✕).
