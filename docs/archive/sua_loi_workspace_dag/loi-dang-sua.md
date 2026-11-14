@@ -16,6 +16,8 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G10 | Kanban của phase: task chưa giao hiện "Alex Kim", task LOCKED hiện ở To Do, subtask tạm có mã WPE ngẫu nhiên | FE + BE | Đã sửa (T4), chờ test tay |
 | G11 | Thành viên không phải chủ dự án vẫn sửa được các ô trong Node Properties (chỉ không lưu được) | FE | Đã sửa (T3), chờ test tay |
 | G12 | Chủ dự án chưa mở khóa sớm được task trên giao diện; BE mở sớm xong thì sửa dây sẽ bị khóa lại, không lưu ai mở | FE + BE + DB | Chưa sửa |
+| G13 | My Tasks: bộ lọc phase viết cứng Phase 1/2A/2B/3, mọi task bị coi là "Phase 1", tên phase hiện "Phase 56" | FE | Đã sửa, chờ test tay |
+| G14 | Header drawer phase ghi cứng "Marketing Q4 › Workflow › …" cho mọi dự án | FE | Đã sửa, chờ test tay |
 
 ---
 
@@ -416,3 +418,51 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 - BE: `controller/NodeController.java`, `service/engine/StateMachineService.java`, `service/WorkflowGraphService.java`, `service/ProjectActivityService.java`, `entity/NodeEntity.java`, DTO node (graph + kanban), mapper node
 - DB: `wpe-backend/src/main/resources/db/migration/V15__node_force_unlock.sql`
 - FE: `services/impl/http/graph.ts` hoặc nơi gọi API task, `components/mindmap/NodePropertiesModal.tsx`, `components/kanban/TaskCard.tsx`
+
+---
+
+## G13. Bộ lọc phase ở My Tasks là lọc giả
+
+**Ngày phát hiện:** 14/11/2026 (khi làm T4)
+
+**Tái hiện**
+1. Dự án có nhiều phase thật (id kiểu 56, 57), có task được giao cho mình ở các phase khác nhau. Mở tab My Tasks.
+2. Thanh lọc chỉ có All / Phase 1 / Phase 2A / Phase 2B / Phase 3. Bấm "Phase 1" ra hết task, các nút còn lại trống. Thẻ task ghi "Phase 56" thay vì tên phase.
+
+**Nguyên nhân (đã xác định)**
+- FE `components/kanban/KanbanToolbar.tsx` dòng 4: danh sách nút lọc viết cứng theo 4 phase của dữ liệu mock.
+- FE `HttpWorkflowService.mapBackendTaskToKanban`: `phaseMap = { '1': 'P1', '2': 'P2A', '3': 'P2B', '4': 'P3' }`, id khác đều thành `'P1'`; `phaseLabel = "Phase <id>"`.
+- FE `types/kanban.types.ts`: `PhaseId = 'P1' | 'P2A' | 'P2B' | 'P3'` (kiểu của dữ liệu mock).
+- BE: không lỗi (task trả `phaseId` thật). DB: không liên quan.
+
+**Cách sửa**
+- `PhaseId` thành id thật (`string`); mapper giữ nguyên `phaseId` của backend.
+- `kanbanSlice.loadTasks`: tải thêm danh sách phase của dự án (`getMacroPhases`) để gắn tên phase thật (`PHASE 4 · Cụm công việc 4`) cho task.
+- `KanbanToolbar`: nút lọc sinh từ các phase có trong danh sách task (id + tên thật), không viết cứng.
+
+**Đã sửa (14/11/2026)**: commit G13 (sau `4ca6126`). `PhaseId` = id thật (dữ liệu mock giữ kiểu riêng `MockPhaseId`); mapper giữ `phaseId` thật, bỏ bảng ép P1–P3; `loadTasks` tải thêm `getMacroPhases` để gắn "TÊN · phụ đề" (không tải được thì vẫn hiện task); thanh lọc sinh từ phase có task. 3 test mới; `vitest run` 76 file / 514 test qua.
+
+**File liên quan**
+- `wpe-frontend/src/types/kanban.types.ts`, `services/impl/HttpWorkflowService.ts`, `store/slices/kanbanSlice.ts`, `components/kanban/KanbanToolbar.tsx`, `views/MyTasksView.tsx`
+
+---
+
+## G14. Header drawer phase ghi cứng "Marketing Q4"
+
+**Ngày phát hiện:** 14/11/2026 (khi làm T3)
+
+**Tái hiện**
+1. Mở bất kỳ dự án nào, bấm "Click to inspect" một phase.
+2. Dòng nhỏ đầu drawer: "Marketing Q4 › Workflow › PHASE 4", dự án nào cũng là "Marketing Q4".
+
+**Nguyên nhân (đã xác định)**
+- FE `components/workflow/MindmapDrawer.tsx` dòng 266–267: chuỗi "Marketing Q4" viết cứng (cùng loại G5).
+- BE, DB: không liên quan.
+
+**Cách sửa**
+- Lấy tên dự án thật từ slice `project` (T1) cho dòng breadcrumb.
+
+**Đã sửa (14/11/2026)**: commit `4ca6126`. Breadcrumb = tên dự án thật › Workflow › tên phase (chưa tải tên dự án thì bỏ phần đó). Typecheck + toàn bộ test FE qua.
+
+**File liên quan**
+- `wpe-frontend/src/components/workflow/MindmapDrawer.tsx`
