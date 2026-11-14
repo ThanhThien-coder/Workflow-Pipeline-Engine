@@ -16,6 +16,7 @@ import java.util.Optional;
 public interface ProjectInvitationRepository extends JpaRepository<ProjectInvitationEntity, Long> {
     List<ProjectInvitationEntity> findByProjectIdAndStatus(Long projectId, InvitationStatus status);
     long countByProjectIdAndStatus(Long projectId, InvitationStatus status);
+    List<ProjectInvitationEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
     List<ProjectInvitationEntity> findByInviteeIdAndStatus(Long inviteeId, InvitationStatus status);
     Optional<ProjectInvitationEntity> findByProjectIdAndInviteeIdAndStatus(Long projectId, Long inviteeId, InvitationStatus status);
     boolean existsByProjectIdAndInviteeIdAndStatus(Long projectId, Long inviteeId, InvitationStatus status);

@@ -23,12 +23,16 @@ interface ProfileState {
   changePassword: (cmd: ChangePasswordCommand) => Promise<void>
   deactivateAccount: () => Promise<void>
   deleteAccount: (cmd: DeleteAccountCommand) => Promise<void>
+  reset: () => void
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
   loading: false,
   error: null,
+  reset: () => {
+    set({ profile: null, loading: false, error: null })
+  },
   loadProfile: async () => {
     set({ loading: true, error: null })
     try {

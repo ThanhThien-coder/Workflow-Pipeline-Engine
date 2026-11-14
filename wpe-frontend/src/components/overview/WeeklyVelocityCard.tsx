@@ -3,6 +3,13 @@ import type { WeeklyVelocity } from '../../types/overview.types'
 
 export function WeeklyVelocityCard({ velocity }: { velocity: WeeklyVelocity }) {
   const [hover, setHover] = useState<number | null>(null)
+  if (velocity.hasData === false || velocity.days.length === 0) {
+    return (
+      <div data-testid="weekly-velocity-unavailable" className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+        {velocity.unavailableNote || 'Biểu đồ Weekly Velocity tạm ẩn vì dữ liệu node từ server chưa có updatedAt.'}
+      </div>
+    )
+  }
   const max = Math.max(...velocity.days.map((day) => day.tasks), 1)
   return <div>
     <div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">Weekly Velocity</h3><span className="text-xs text-slate-500">{velocity.periodLabel}</span></div>

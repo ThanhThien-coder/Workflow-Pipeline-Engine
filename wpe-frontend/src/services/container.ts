@@ -6,6 +6,7 @@ import { HttpGuestService } from './impl/HttpGuestService'
 import type { IGuestService } from './contracts/IGuestService'
 import type { IProfileService } from './contracts/IProfileService'
 import { MockProfileApi } from './mock/MockWorkflowService.profile'
+import { HttpProfileService } from './impl/HttpProfileService'
 import type { IAdminService } from './admin/IAdminService'
 import { MockAdminService } from './admin/MockAdminService'
 import { HttpAdminService } from './admin/HttpAdminService'
@@ -13,6 +14,7 @@ import type { ITemplateService } from './template/ITemplateService'
 import { MockTemplateService } from './template/MockTemplateService'
 import type { INotificationService } from './contracts/INotificationService'
 import { MockNotificationApi } from './mock/MockWorkflowService.notification'
+import { HttpNotificationService } from './impl/HttpNotificationService'
 
 import { HttpTemplateService } from './template/HttpTemplateService'
 import { isMockMode } from './env'
@@ -31,10 +33,10 @@ const isMock = isMockMode
 export const container: ServiceContainer = {
   workflowService: isMock ? new MockWorkflowService() : new HttpWorkflowService(),
   guestService: isMock ? new MockGuestApi() : new HttpGuestService(),
-  profileService: new MockProfileApi(),
+  profileService: isMock ? new MockProfileApi() : new HttpProfileService(),
   adminService: isMock ? new MockAdminService() : new HttpAdminService(),
   templateService: isMock ? new MockTemplateService() : new HttpTemplateService(),
-  notificationService: new MockNotificationApi(),
+  notificationService: isMock ? new MockNotificationApi() : new HttpNotificationService(),
 }
 
 export const workflowService = container.workflowService
