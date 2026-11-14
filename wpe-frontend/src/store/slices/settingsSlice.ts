@@ -12,6 +12,7 @@ import type {
 } from '../../types/settings.types'
 import { workflowService } from '../../services/container'
 import { isApiError } from '../../services/http/ApiError'
+import { isMockMode } from '../../services/env'
 
 /**
  * Số thứ tự lần gọi loadSettings mới nhất. Để ở cấp module (không nằm trong slice) vì đăng xuất
@@ -558,6 +559,13 @@ export const createSettingsSlice = (
       },
 
       addMockAuditLog: (log) => {
+        // Chế độ API: nhật ký lấy từ backend (FC5). Không tự chèn dòng giả với người thực hiện ghi cứng,
+        // chỉ tải lại nhật ký thật của dự án đang mở.
+        if (!isMockMode) {
+          const pid = get().settings.settings?.id
+          if (pid) void refreshLogs(String(pid))
+          return
+        }
         set((state) =>
           produce(state, (draft) => {
             draft.settings.auditLogs.unshift({
