@@ -10,6 +10,8 @@ import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.UnauthorizedException;
 import com.pipeline.wpe.mapper.UserMapper;
 import com.pipeline.wpe.repository.UserRepository;
+import com.pipeline.wpe.service.admin.AdminAuditAction;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,6 +37,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final UserMapper userMapper;
+    private final AdminAuditService adminAuditService;
 
     /** Hash BCrypt giả để vẫn tốn thời gian so khớp khi user không tồn tại (giảm lộ thông tin qua thời gian phản hồi). */
     private volatile String dummyHash;
@@ -61,6 +64,7 @@ public class AuthService {
             .build();
         user = userRepository.save(user);
         log.info("Đăng ký tài khoản mới: user #{} ({})", user.getId(), user.getUsername());
+        adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.REGISTER, "USER", String.valueOf(user.getId()), "Đăng ký tài khoản thành công");
         return buildAuthResponse(user, refreshTokenService.issue(user.getId()));
     }
 
@@ -72,16 +76,20 @@ public class AuthService {
             : userRepository.findByUsername(identifier))
             .orElse(null);
         if (user == null) {
+            adminAuditService.record(null, identifier, AdminAuditAction.LOGIN_FAILED, "USER", null, "Không tồn tại tài khoản");
             passwordEncoder.matches(request.password(), dummyHash());
             throw badCredentials();
         }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.LOGIN_FAILED, "USER", String.valueOf(user.getId()), "Sai mật khẩu");
             throw badCredentials();
         }
         // Kiểm khóa SAU khi đúng mật khẩu để không lộ trạng thái tài khoản cho người không biết mật khẩu
         if (Boolean.TRUE.equals(user.getIsLocked())) {
+            adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.ACCOUNT_LOCKED_LOGIN, "USER", String.valueOf(user.getId()), "Tài khoản bị khóa");
             throw accountLocked();
         }
+        adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.LOGIN_SUCCESS, "USER", String.valueOf(user.getId()), "Đăng nhập thành công");
         return buildAuthResponse(user, refreshTokenService.issue(user.getId()));
     }
 
@@ -104,7 +112,11 @@ public class AuthService {
     }
 
     public void logout(String rawRefreshToken) {
+        java.util.Optional<Long> userIdOpt = refreshTokenService.findUserIdByRawToken(rawRefreshToken);
         refreshTokenService.revoke(rawRefreshToken);
+        userIdOpt.ifPresent(userId ->
+            adminAuditService.record(userId, null, AdminAuditAction.LOGOUT, "USER", String.valueOf(userId), "Đăng xuất")
+        );
     }
 
     private String dummyHash() {

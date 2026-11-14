@@ -10,6 +10,7 @@ import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.UnauthorizedException;
 import com.pipeline.wpe.mapper.UserMapper;
 import com.pipeline.wpe.repository.UserRepository;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,8 @@ class AuthServiceTest {
     private RefreshTokenService refreshTokenService;
     @Mock
     private UserMapper userMapper;
+    @Mock
+    private AdminAuditService adminAuditService;
 
     private AuthService authService;
 
@@ -51,7 +54,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, passwordEncoder, jwtService, refreshTokenService, userMapper);
+        authService = new AuthService(userRepository, passwordEncoder, jwtService, refreshTokenService, userMapper, adminAuditService);
     }
 
     private UserEntity alex(boolean locked) {
@@ -131,6 +134,7 @@ class AuthServiceTest {
         assertThat(res.token()).isEqualTo("jwt");
         assertThat(res.refreshToken()).isEqualTo("rt_x");
         assertThat(res.user().id()).isEqualTo("2");
+        verify(adminAuditService).record(eq(2L), any(), eq("LOGIN_SUCCESS"), eq("USER"), eq("2"), any());
     }
 
     @Test
@@ -260,6 +264,29 @@ class AuthServiceTest {
     void logout_revokes() {
         authService.logout("rt_x");
         verify(refreshTokenService).revoke("rt_x");
+    }
+
+    @Test
+    @DisplayName("login audit: sai mật khẩu -> ghi audit log LOGIN_FAILED với actor là user")
+    void login_audit_wrongPassword_loginFailed() {
+        UserEntity user = alex(false);
+        when(userRepository.findByUsername("alex.kim")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim", "wrong_pass", false)))
+            .isInstanceOf(UnauthorizedException.class);
+
+        verify(adminAuditService).record(eq(2L), eq("alex.kim"), eq("LOGIN_FAILED"), eq("USER"), eq("2"), eq("Sai mật khẩu"));
+    }
+
+    @Test
+    @DisplayName("login audit: user không tồn tại -> ghi audit log LOGIN_FAILED với actorUserId null")
+    void login_audit_userNotFound_loginFailed() {
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("ghost", "Password123!", false)))
+            .isInstanceOf(UnauthorizedException.class);
+
+        verify(adminAuditService).record(isNull(), eq("ghost"), eq("LOGIN_FAILED"), eq("USER"), isNull(), eq("Không tồn tại tài khoản"));
     }
 
     private static Throwable catchUnauthorized(Runnable r) {
