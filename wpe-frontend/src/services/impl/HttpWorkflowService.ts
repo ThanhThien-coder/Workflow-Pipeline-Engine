@@ -82,6 +82,15 @@ interface BackendTaskResponse {
 }
 
 /**
+ * templateId gửi lên backend: template tự lưu có id số, template mẫu có id là slug (vd. `tpl-sdlc`).
+ * Backend nhận cả hai, nên chuỗi toàn chữ số thì đổi sang số, còn lại giữ nguyên slug.
+ */
+function toTemplateIdPayload(templateId: string | number): string | number {
+  const id = String(templateId).trim()
+  return /^\d+$/.test(id) ? Number(id) : id
+}
+
+/**
  * Gọi backend thật. Dùng composition thay cho kế thừa MockWorkflowService:
  * `mock` chỉ được gọi ở các phương thức nằm trong METHODS_STILL_MOCKED.
  * (Phần tách file theo mảng vào impl/http/ để sau sprint — xem A2 mục 4.)
@@ -276,7 +285,7 @@ export class HttpWorkflowService implements IWorkflowService {
       body: {
         name: cmd.name,
         description: cmd.desc ?? cmd.description ?? '',
-        templateId: cmd.templateId ? Number(cmd.templateId) : null,
+        templateId: cmd.templateId ? toTemplateIdPayload(cmd.templateId) : null,
         visibility: cmd.visibility || 'PRIVATE',
       },
     })
@@ -313,7 +322,7 @@ export class HttpWorkflowService implements IWorkflowService {
   }): Promise<ProjectDetailDto> {
     const item = await apiRequest<any>('POST', '/projects/clone-template', {
       body: {
-        templateId: Number(req.templateId),
+        templateId: toTemplateIdPayload(req.templateId),
         projectName: req.projectName.trim(),
         description: req.description?.trim() || '',
         visibility: req.visibility || 'PRIVATE',

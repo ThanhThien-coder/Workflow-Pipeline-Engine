@@ -184,3 +184,42 @@ describe('HttpWorkflowService: auth gọi backend thật (A4)', () => {
     expect(JSON.parse(String(init.body))).toEqual({ refreshToken: 'rt_5' })
   })
 })
+
+describe('HttpWorkflowService: tạo dự án từ template gửi đúng templateId', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: 99, name: 'Dự án mới', status: 'DRAFT' }))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  function sentBody(): Record<string, unknown> {
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    return JSON.parse(init.body as string)
+  }
+
+  it('cloneTemplate với template mẫu (slug) gửi nguyên slug, không gửi null', async () => {
+    await new HttpWorkflowService().cloneTemplate({ templateId: 'tpl-sdlc', projectName: 'Dự án mới' })
+
+    expect(sentBody().templateId).toBe('tpl-sdlc')
+  })
+
+  it('cloneTemplate với template tự lưu (id số dạng chuỗi) gửi số', async () => {
+    await new HttpWorkflowService().cloneTemplate({ templateId: '12', projectName: 'Dự án mới' })
+
+    expect(sentBody().templateId).toBe(12)
+  })
+
+  it('createProject có templateId là slug thì gửi nguyên slug', async () => {
+    await new HttpWorkflowService().createProject({ name: 'Dự án mới', templateId: 'tpl-devops' })
+
+    expect(sentBody().templateId).toBe('tpl-devops')
+  })
+})
