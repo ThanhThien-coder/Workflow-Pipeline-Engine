@@ -112,6 +112,7 @@ function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
     due: n.dueDate ? n.dueDate.split('T')[0] : null,
     blocker: null,
     joinPolicy,
+    forceUnlocked: Boolean(n.forceUnlockedAt),
     phaseId,
     // Mặc định treo dưới root; toPhaseTree đổi sang node cha nếu có cạnh phụ thuộc cùng phase
     parentIds: [rootIdOf(phaseId)],
@@ -175,6 +176,9 @@ export function toPhaseTree(graph: BackendGraphResponse | null | undefined, phas
       title: parentNode.title || 'Upstream Prerequisite',
       parentIds: [],
       sourceTaskTitle: parentNode.title,
+      sourceTaskCode: parentNode.code,
+      // Trạng thái task nguồn ở phase khác: để biết điều kiện mở khóa đã thỏa chưa
+      status: ((parentNode.status as NodeStatus) || 'LOCKED') as NodeStatus,
       sourcePhaseTitle: sourcePhase?.name,
     }
     tree[ghostId] = ghost

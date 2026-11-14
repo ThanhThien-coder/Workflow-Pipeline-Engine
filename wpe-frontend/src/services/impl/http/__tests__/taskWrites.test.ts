@@ -148,3 +148,24 @@ describe('HttpWorkflowService: ghi task qua API', () => {
     expect(calls.map((c) => `${c.method} ${c.url.replace(/.*\/api\/v1/, '')}`)).toEqual(['DELETE /nodes/2'])
   })
 })
+
+describe('HttpWorkflowService.forceUnlockTask (T6)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('POST /nodes/{id}/force-unlock', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: '2', code: 'WPE-002', title: 'X', status: 'TODO', version: 5, forceUnlockedAt: '2026-11-14T10:00:00Z' }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await new HttpWorkflowService().forceUnlockTask('2')
+
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/nodes\/2\/force-unlock$/)
+  })
+})

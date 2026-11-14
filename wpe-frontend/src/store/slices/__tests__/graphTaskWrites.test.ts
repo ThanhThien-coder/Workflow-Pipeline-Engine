@@ -92,3 +92,25 @@ describe('selectCanEditGraph lấy vai trò từ dự án đang mở', () => {
     expect(selectCanEditGraph(store.getState())).toBe(true)
   })
 })
+
+describe('store.forceUnlockNode (T6)', () => {
+  it('owner: gọi service mở khóa sớm rồi đọc lại cây', async () => {
+    const { store, service } = setup('OWNER')
+    const forceUnlockTask = vi.fn(async () => {})
+    Object.assign(service, { forceUnlockTask })
+
+    await store.getState().forceUnlockNode('20', '2')
+
+    expect(forceUnlockTask).toHaveBeenCalledWith('2')
+    expect(service.getPhaseGraph).toHaveBeenCalledWith('20', '7')
+  })
+
+  it('không phải owner thì chặn, không gọi API', async () => {
+    const { store, service } = setup('COLLABORATOR')
+    const forceUnlockTask = vi.fn(async () => {})
+    Object.assign(service, { forceUnlockTask })
+
+    await expect(store.getState().forceUnlockNode('20', '2')).rejects.toMatchObject({ code: 'GRAPH_READ_ONLY' })
+    expect(forceUnlockTask).not.toHaveBeenCalled()
+  })
+})

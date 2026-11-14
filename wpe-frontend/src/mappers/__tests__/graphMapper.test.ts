@@ -135,6 +135,8 @@ describe('graphMapper.toPhaseTree', () => {
     expect(ghost).toEqual({
       id: 'ghost_1_to_2', kind: 'ghost', refPhase: '10', refId: '1', dir: 'up', targetTaskId: '2',
       title: 'Thu thập yêu cầu', parentIds: [], sourceTaskTitle: 'Thu thập yêu cầu', sourcePhaseTitle: 'PHASE 1',
+      // T6: mã và trạng thái task nguồn để biết điều kiện mở khóa đã thỏa chưa
+      sourceTaskCode: 'WPE-001', status: 'DONE',
     })
   })
 
@@ -171,6 +173,21 @@ describe('graphMapper.toPhaseTree', () => {
   it('cạnh trỏ tới node cha không tồn tại thì bỏ qua, không tạo ghost rỗng', () => {
     const graph: BackendGraphResponse = { ...GRAPH, dependencies: [{ parentNodeId: '999', childNodeId: '2' }] }
     expect(Object.values(toPhaseTree(graph, '20')!).some((n) => n.kind === 'ghost')).toBe(false)
+  })
+})
+
+describe('graphMapper: mở khóa sớm (T6)', () => {
+  it('node có forceUnlockedAt thì forceUnlocked = true, không có thì false', () => {
+    const graph: BackendGraphResponse = {
+      phases: [{ id: 1, name: 'P' }],
+      nodes: [
+        { id: 11, phaseId: 1, code: 'A', title: 'A', status: 'TODO', forceUnlockedAt: '2026-11-14T10:00:00Z', forceUnlockedBy: 9 },
+        { id: 12, phaseId: 1, code: 'B', title: 'B', status: 'TODO' },
+      ],
+    }
+    const tree = toPhaseTree(graph, '1')!
+    expect((tree['11'] as BranchGraphNode).forceUnlocked).toBe(true)
+    expect((tree['12'] as BranchGraphNode).forceUnlocked).toBe(false)
   })
 })
 

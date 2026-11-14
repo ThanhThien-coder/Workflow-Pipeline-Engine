@@ -16,7 +16,6 @@ import type {
   ArtifactItem,
   ArtifactType,
   KanbanTask,
-  PhaseId,
   SubmitArtifactDto,
   TaskStatus,
   UserSummary,
@@ -67,6 +66,7 @@ interface BackendTaskResponse {
   assignedUserId?: string
   joinPolicy: string
   rejectReason?: string
+  forceUnlockedAt?: string | null
   dueDate?: string
   isOverdue: boolean
   version: number
@@ -768,6 +768,13 @@ export class HttpWorkflowService implements IWorkflowService {
     this.rememberNode(updated, known.phaseId)
   }
 
+  /** POST /nodes/{id}/force-unlock — chỉ chủ dự án, chỉ task LOCKED */
+  async forceUnlockTask(taskId: string): Promise<void> {
+    const nodeId = graphApi.toBackendId(taskId, 'Task')
+    const updated = await apiRequest<BackendTaskResponse>('POST', `/nodes/${nodeId}/force-unlock`)
+    this.taskVersionCache.set(String(updated.id), updated.version)
+  }
+
   /** DELETE /nodes/{id} */
   async deleteTaskNode(taskId: string): Promise<void> {
     await graphApi.deleteNode(graphApi.toBackendId(taskId, 'Task'))
@@ -873,7 +880,8 @@ export class HttpWorkflowService implements IWorkflowService {
         uploadedAt: a.uploadedAt
       })),
       version: item.version,
-      rejectReason: item.rejectReason
+      rejectReason: item.rejectReason,
+      forceUnlocked: Boolean(item.forceUnlockedAt),
     }
   }
 }

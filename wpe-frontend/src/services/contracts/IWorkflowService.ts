@@ -75,6 +75,8 @@ export interface IWorkflowService {
   updateTaskNode?(taskId: string, patch: TaskNodePatch): Promise<void>
   /** Chế độ API: xóa task (backend chỉ cho xóa task LOCKED hoặc TODO). */
   deleteTaskNode?(taskId: string): Promise<void>
+  /** Chế độ API: chủ dự án mở khóa sớm task đang LOCKED (LOCKED → TODO dù task trước chưa xong). */
+  forceUnlockTask?(taskId: string): Promise<void>
   resetPhaseTree?(phaseId: string): Promise<void>
   createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase>
   connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void>

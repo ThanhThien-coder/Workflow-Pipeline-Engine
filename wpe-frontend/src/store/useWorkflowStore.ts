@@ -62,6 +62,8 @@ export interface WorkflowState
   updateNodeInfo: (phaseId: string, nodeId: string, patch: TaskNodePatch) => Promise<void>
   /** T3: xóa task qua API rồi đọc lại cây. */
   removeNode: (phaseId: string, nodeId: string) => Promise<void>
+  /** T6: chủ dự án mở khóa sớm task đang khóa, rồi đọc lại cây. */
+  forceUnlockNode: (phaseId: string, nodeId: string) => Promise<void>
   setActiveTab: (tab: NavigationTab) => void
 }
 
@@ -332,6 +334,12 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     ensureCanEditGraph(get())
     if (!service.deleteTaskNode) throw new Error('Service hiện tại không hỗ trợ xóa task qua API.')
     await service.deleteTaskNode(nodeId)
+    await get().resetPhaseTree(phaseId)
+  },
+  forceUnlockNode: async (phaseId, nodeId) => {
+    ensureCanEditGraph(get())
+    if (!service.forceUnlockTask) throw new Error('Service hiện tại không hỗ trợ mở khóa sớm.')
+    await service.forceUnlockTask(nodeId)
     await get().resetPhaseTree(phaseId)
   },
   setActiveTab: (activeTab) => set({ activeTab }),
