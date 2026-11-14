@@ -20,6 +20,8 @@ export interface PhaseCardProps {
   readOnly?: boolean
   /** Lời giải thích hiện trên nút bị vô hiệu hóa khi readOnly. */
   readOnlyTitle?: string
+  /** T5: rê chuột vào / ra thẻ, để làm nổi các dây của phase này. */
+  onHoverChange?: (hovered: boolean) => void
 }
 
 export function PhaseCard({
@@ -32,6 +34,7 @@ export function PhaseCard({
   onDeletePhase,
   readOnly = false,
   readOnlyTitle,
+  onHoverChange,
 }: PhaseCardProps) {
   // Màu đi theo trạng thái suy ra từ task: hoàn thành -> xanh lá, đang khóa -> xám, còn lại giữ accent của Phase
   const accentKey =
@@ -51,6 +54,8 @@ export function PhaseCard({
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onClick()
       }}
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
       style={{
         position: 'absolute',
         left: position.x,

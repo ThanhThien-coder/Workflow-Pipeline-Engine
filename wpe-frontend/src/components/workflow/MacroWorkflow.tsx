@@ -6,13 +6,14 @@ import { KahnCycleModal } from '../settings/KahnCycleModal'
 import { useGraphErrorHandler } from './useGraphErrorHandler'
 import { isApiError } from '../../services/http/ApiError'
 import { usePanZoom } from '../../hooks/usePanZoom'
-import { WorkflowEdge } from './WorkflowEdge'
+import { EDGE_ARROW_ACTIVE_ID, EDGE_ARROW_ID, WorkflowEdge } from './WorkflowEdge'
 import { PhaseCard } from './PhaseCard'
 import { CreatePhaseModal } from './CreatePhaseModal'
 import { ConfirmDialog } from '../../features/admin/templates/components/ConfirmDialog'
 import { ZoomControls } from '../mindmap/ZoomControls'
 import { usePhaseConnectDrag } from '../../hooks/usePhaseConnectDrag'
 import { computeMacroGraphLayout, MACRO_CARD_H, MACRO_CARD_W } from '../../utils/macroLayout'
+import { arrangePhases, autoLayoutColumns, channelOffsets, columnX, phaseColumns, routeEdge } from '../../utils/phaseColumnLayout'
 import { WorkflowArtifactsIsland } from '../workspace/WorkflowArtifactsIsland'
 import { WorkflowArtifactsDrawer } from '../workspace/WorkflowArtifactsDrawer'
 
@@ -68,21 +69,35 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
     [phases]
   )
   const layoutPositions = useMemo(() => computeMacroGraphLayout(phaseRecord), [phaseRecord])
+  const columns = useMemo(() => phaseColumns(phases), [phases])
 
-  // Current real-time positions of each phase (prioritizing drag position, then persisted x/y, then auto layout)
+  // T5: x theo cột của DAG; y theo vị trí đã lưu (chưa lưu thì bố cục tự động), tự tránh đè thẻ cùng cột.
+  // Thẻ đang kéo đi theo chuột, các thẻ khác cùng cột tự dồn chỗ.
   const currentPositions = useMemo(() => {
-    const result: Record<string, { x: number; y: number }> = {}
+    const preferredY: Record<string, number> = {}
     phases.forEach((p) => {
-      if (dragPhase && dragPhase.id === p.id) {
-        result[p.id] = { x: dragPhase.x, y: dragPhase.y }
-      } else if (p.x != null && p.y != null) {
-        result[p.id] = { x: p.x, y: p.y }
-      } else {
-        result[p.id] = layoutPositions[p.id] || { x: 40, y: 140 }
-      }
+      preferredY[p.id] = dragPhase?.id === p.id ? dragPhase.y : p.y ?? layoutPositions[p.id]?.y ?? 60
     })
-    return result
+    const arranged = arrangePhases(phases, preferredY)
+    if (dragPhase && arranged[dragPhase.id]) arranged[dragPhase.id] = { x: dragPhase.x, y: dragPhase.y }
+    return arranged
   }, [phases, dragPhase, layoutPositions])
+
+  // Phase đang được chú ý (rê chuột ưu tiên hơn đang chọn): dây ra/vào nó nổi lên, dây khác mờ đi
+  const [hoveredPhaseId, setHoveredPhaseId] = useState<string | null>(null)
+  const focusPhaseId = hoveredPhaseId ?? selectedPhaseId
+
+  const edgeRoutes = useMemo(() => {
+    const offsets = channelOffsets(workflowEdges, currentPositions, columns)
+    return workflowEdges
+      .filter(([from, to]) => currentPositions[from] && currentPositions[to])
+      .map(([from, to]) => {
+        const middle = phases
+          .filter((p) => columns[p.id] > columns[from] && columns[p.id] < columns[to])
+          .map((p) => currentPositions[p.id])
+        return { from, to, route: routeEdge(currentPositions[from], currentPositions[to], columns[from], columns[to], middle, offsets[from]) }
+      })
+  }, [workflowEdges, currentPositions, columns, phases])
 
   const workflowSize = useMemo(() => {
     const positions = Object.values(currentPositions)
@@ -98,11 +113,12 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
     void loadArtifacts(projectId)
   }, [loadPhases, loadArtifacts, projectId])
 
-  // Auto Layout action: cleanly aligns all phases into a standard DAG layout
+  // Auto Layout: giữ cột theo DAG, sắp lại thứ tự trong từng cột cho ít dây cắt nhau, rồi lưu
   const handleAutoLayout = useCallback(() => {
     if (!canEdit) return
-    Object.entries(layoutPositions).forEach(([id, pos]) => savePhasePosition(id, pos))
-  }, [canEdit, layoutPositions, savePhasePosition])
+    const currentY = Object.fromEntries(Object.entries(currentPositions).map(([id, pos]) => [id, pos.y]))
+    Object.entries(autoLayoutColumns(phases, currentY)).forEach(([id, pos]) => savePhasePosition(id, pos))
+  }, [canEdit, currentPositions, phases, savePhasePosition])
 
   // Smooth dragging of Phase Cards
   const handleDragCardStart = useCallback(
@@ -115,8 +131,8 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
 
       const startClientX = e.clientX
       const startClientY = e.clientY
-      const initX = dragPhase?.id === phaseId ? dragPhase.x : (phase.x ?? layoutPositions[phaseId]?.x ?? 40)
-      const initY = dragPhase?.id === phaseId ? dragPhase.y : (phase.y ?? layoutPositions[phaseId]?.y ?? 140)
+      const initX = currentPositions[phaseId]?.x ?? columnX(columns[phaseId] ?? 0)
+      const initY = currentPositions[phaseId]?.y ?? 60
 
       let isDragging = false
       let lastX = initX
@@ -151,7 +167,8 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           }
           window.addEventListener('click', blockClick, true)
 
-          savePhasePosition(phaseId, { x: lastX, y: lastY })
+          // Thả ra thì bám về cột của phase, chỉ giữ thứ tự trên–dưới
+          savePhasePosition(phaseId, { x: columnX(columns[phaseId] ?? 0), y: lastY })
           setDragPhase(null)
         } else {
           selectPhase(selectedPhaseId === phaseId ? null : phaseId)
@@ -161,7 +178,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
     },
-    [canEdit, phases, dragPhase, layoutPositions, panZoom.scale, savePhasePosition, selectPhase, selectedPhaseId]
+    [canEdit, phases, currentPositions, columns, panZoom.scale, savePhasePosition, selectPhase, selectedPhaseId]
   )
 
   return (
@@ -222,12 +239,21 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
         >
           {/* SVG Connecting Edges */}
           <svg className="pointer-events-none absolute inset-0" width={workflowSize.width} height={workflowSize.height}>
-            {workflowEdges.map(([from, to]) => (
+            <defs>
+              <marker id={EDGE_ARROW_ID} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8" />
+              </marker>
+              <marker id={EDGE_ARROW_ACTIVE_ID} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#4f46e5" />
+              </marker>
+            </defs>
+            {edgeRoutes.map(({ from, to, route }) => (
               <WorkflowEdge
                 key={`${from}-${to}`}
-                a={phases.find((phase) => phase.id === from)}
-                b={phases.find((phase) => phase.id === to)}
-                positions={currentPositions}
+                sourceId={from}
+                targetId={to}
+                route={route}
+                highlight={!focusPhaseId ? 'normal' : from === focusPhaseId || to === focusPhaseId ? 'on' : 'dim'}
                 onDisconnect={canEdit ? (src, tgt) => void disconnectPhases(src, tgt).catch(handleError) : undefined}
               />
             ))}
@@ -249,6 +275,9 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
               }}
               readOnly={!canEdit}
               readOnlyTitle={GRAPH_READ_ONLY_MESSAGE}
+              onHoverChange={(hovered) =>
+                setHoveredPhaseId((current) => (hovered ? phase.id : current === phase.id ? null : current))
+              }
             />
           ))}
         </div>
