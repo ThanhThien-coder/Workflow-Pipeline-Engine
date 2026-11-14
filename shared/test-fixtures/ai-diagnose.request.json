@@ -1,0 +1,46 @@
+{
+  "projectId": 10,
+  "projectName": "Xây dựng cổng thanh toán trực tuyến",
+  "projectStatus": "ACTIVE",
+  "requestedAt": "2026-11-12T09:44:11.123Z",
+  "nodes": [
+    {
+      "id": 101,
+      "code": "WPE-001",
+      "title": "Thiết kế CSDL 3NF & API Contract",
+      "status": "DONE",
+      "phaseId": 1,
+      "estimatedHours": 16,
+      "startedAt": "2026-11-01T08:00:00Z",
+      "dueDate": "2026-11-03T17:00:00Z",
+      "isOverdue": false,
+      "assignedUserId": 2,
+      "joinPolicy": "ALL_COMPLETED"
+    },
+    {
+      "id": 102,
+      "code": "WPE-002",
+      "title": "Tích hợp cổng thanh toán VNPay",
+      "status": "IN_PROGRESS",
+      "phaseId": 2,
+      "estimatedHours": 24,
+      "startedAt": "2026-11-04T08:00:00Z",
+      "dueDate": "2026-11-08T17:00:00Z",
+      "isOverdue": true,
+      "assignedUserId": 3,
+      "joinPolicy": "ALL_COMPLETED"
+    }
+  ],
+  "dependencies": [
+    { "parentNodeId": 101, "childNodeId": 102 }
+  ],
+  "openFeedbacks": [
+    {
+      "id": 501,
+      "nodeId": 102,
+      "reviewerRole": "TEACHER",
+      "content": "Cần kiểm tra kỹ luồng IPN và checksum HMAC-SHA512 khi nhận webhook từ cổng.",
+      "createdAt": "2026-11-09T10:15:00Z"
+    }
+  ]
+}

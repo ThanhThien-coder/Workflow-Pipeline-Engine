@@ -1,0 +1,41 @@
+{
+  "analyzedAt": "2026-11-12T09:44:15.000Z",
+  "source": "AI_SERVICE",
+  "criticalPath": ["WPE-001", "WPE-002"],
+  "bottlenecks": [
+    {
+      "nodeCode": "WPE-002",
+      "title": "Tích hợp cổng thanh toán VNPay",
+      "reason": "Tác vụ đã vượt quá hạn chót (due_date) 4 ngày và đang giữ chân downstream nodes.",
+      "severity": "HIGH"
+    }
+  ],
+  "taskTraps": [
+    {
+      "nodeCode": "WPE-002",
+      "title": "Tích hợp cổng thanh toán VNPay",
+      "trapType": "POTENTIAL_STALL",
+      "suggestion": "Nên phân rã nhỏ phạm vi công việc hoặc bổ sung người phối hợp pair-programming."
+    }
+  ],
+  "actionableAdvice": [
+    {
+      "action": "SPLIT_NODE",
+      "targetNodeCode": "WPE-002",
+      "instruction": "Tách tác vụ WPE-002 thành: (1) Tích hợp Sandbox API và (2) Xử lý Webhook IPN.",
+      "priority": "HIGH"
+    },
+    {
+      "action": "RESOLVE_FEEDBACK",
+      "targetNodeCode": "WPE-002",
+      "instruction": "Kiểm tra và xử lý góp ý của Giáo viên về luồng checksum HMAC-SHA512.",
+      "priority": "HIGH"
+    }
+  ],
+  "metrics": {
+    "targetVelocity": 2.0,
+    "actualVelocity": 1.2,
+    "driftScore": 42.5,
+    "status": "RED_ALERT"
+  }
+}

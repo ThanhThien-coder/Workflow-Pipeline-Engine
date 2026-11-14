@@ -6,6 +6,40 @@
 
 ---
 
+## 0. Quyết định schema (ĐÃ DUYỆT)
+
+> 📖 Bản tóm tắt dễ hiểu: [`ai-tich-hop-de-hieu.md`](ai-tich-hop-de-hieu.md).
+>
+> **Trạng thái:** Đã duyệt ngày 14/11/2026. Phạm vi *AI Workflow Architect* và *Simulate-assign* vẫn chưa quyết định (xem bên dưới).
+
+**Quyết định:** với chức năng **chẩn đoán dự án** (cơ chế 2.1 *Trajectory Drift Engine* ở mục 3), schema chuẩn là schema trong [`ai-service-contract.md`](ai-service-contract.md): `criticalPath`, `bottlenecks`, `taskTraps`, `actionableAdvice`, `metrics`. Các mục dưới đây **bị thay thế** bởi contract:
+
+| Mục trong file này | Thay bằng |
+| :--- | :--- |
+| 3.1.d–e, 4.1.b–c (`driftMetrics`, `forensicInvestigation`, `triageRecommendations`, `TrajectoryAnalysisResponse`) | Schema response ở `ai-service-contract.md` §4 |
+| Endpoint `GET /api/ai/projects/{id}/trajectory`, `POST .../trigger-audit` (mục 5) | `GET /api/v1/projects/{id}/ai-analysis`, `POST /api/v1/projects/{id}/ai-diagnostics` |
+| Bảng `PROJECT_AI_ANALYSIS` | Cột `project.latest_ai_analysis` (JSONB) |
+| Cooldown 24 giờ + Warm-up Guard | Cooldown 180 giây (`app.ai.cooldown-seconds`); Warm-up Guard chưa làm |
+
+**Chưa quyết định, vẫn theo spec này cho đến khi nhóm chốt:** *AI Workflow Architect* (mục 2) và *Simulate-assign* (mục 3.2) chưa có cổng Java nào. Nếu không làm trong lần nộp này thì ghi rõ "để sau".
+
+### Lý do chọn schema của contract
+1. **Code đã theo contract.** `AiDiagnosticController`, `HttpAiServiceClient`, test và fixture dùng chung (`shared/test-fixtures/ai-diagnose.*.json`) đều theo contract. Đổi sang spec nghĩa là sửa lại cả bốn nơi.
+2. **Python chưa viết.** Chọn contract bây giờ thì người làm AI viết đúng ngay từ đầu, không tốn công làm lại.
+3. **Contract chạy được độc lập.** Có stub (`tools/ai-stub`), có chế độ `mock` làm mặc định và fallback `MOCK_FALLBACK`, nên backend không phụ thuộc việc AI xong hay chưa.
+4. **Có thể kiểm bằng máy.** Java kiểm các khóa bắt buộc và rơi về dữ liệu dự phòng nếu sai. Schema của spec chưa có bước kiểm tương đương.
+5. **Phần của spec không mất:** nếu sau này cần `forensicInvestigation`, thêm nó như một khóa mở rộng. Java lưu nguyên object vào JSONB mà không cắt bớt.
+
+### Điều đáng lo (cần nhóm biết trước khi duyệt)
+1. **Lệch với tài liệu thiết kế.** Nếu người chấm đối chiếu theo spec gốc (`driftMetrics`, `PROJECT_AI_ANALYSIS`), code sẽ lệch. Cần giải thích quyết định này trong báo cáo, hoặc đổi sang spec.
+2. **Người làm AI đọc nhầm file.** Nếu họ làm theo mục 3–4 của file này thì Python trả `driftMetrics/forensicInvestigation`, Java coi là sai hợp đồng và luôn rơi về `MOCK_FALLBACK`. Ghép xong mà giao diện vẫn thấy dữ liệu giả. Phải báo cho họ trước khi họ viết code.
+3. **Ai tính CPM và drift chưa thống nhất.** Spec nói Java tính (0 token), ghi chú D6 ngày 12/11 nói Python tính. Hai bên có thể cùng tính hoặc không ai tính.
+4. **Mất hai cơ chế chống tốn token của spec.** Warm-up Guard và cooldown 24 giờ chưa có. Hiện chỉ có cooldown 180 giây, nên một dự án mới vẫn có thể gọi Gemini ngay ngày đầu và cho `driftScore` 100% giả.
+5. **Frontend chưa nối.** `AiDiagnosticReport { engine, insights[] }` còn lệch với JSON backend, nên cần một bộ chuyển đổi dữ liệu trước khi demo thật.
+6. **Chưa có xác thực giữa Java và Python.** Ai gọi được cổng của service AI thì dùng được nó.
+
+---
+
 ## 1. Tầm nhìn & Nguyên lý Cốt lõi của Phân hệ AI
 
 Khác biệt hoàn toàn với các mô hình AI "bấm nút thụ động" (Passive) hoặc "quét định kỳ đốt token", phân hệ AI trong **Workflow-Pipeline-Engine** được thiết kế theo chuẩn **Enterprise SaaS B2B**:

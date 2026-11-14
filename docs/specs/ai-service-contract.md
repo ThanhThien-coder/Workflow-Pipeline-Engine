@@ -1,5 +1,7 @@
 # Hợp Đồng Giao Tiếp HTTP Giữa Backend (Java) & AI Microservice (Python)
 
+> 📖 **Bản tóm tắt dễ hiểu cho cả nhóm:** [`ai-tich-hop-de-hieu.md`](ai-tich-hop-de-hieu.md). File này là bản kỹ thuật chi tiết.
+
 > **Tài liệu**: Hợp đồng dịch vụ API (API Service Contract SSOT)  
 > **Dự án**: Workflow-Pipeline-Engine  
 > **Bên gọi (Consumer)**: Spring Boot 3 Backend (`HttpAiServiceClient`)  
@@ -162,7 +164,11 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 
 ### 4.1 Danh Sách Các Khóa Bắt Buộc
 
-1. **`analyzedAt`** (String, ISO-8601): Thời điểm kết thúc phân tích (UTC). Nếu microservice không trả, Java sẽ tự điền thời điểm hiện tại.
+> **Fixture chuẩn** (cả Java và Python dùng để kiểm): `shared/test-fixtures/ai-diagnose.request.json` và `shared/test-fixtures/ai-diagnose.response.json`.
+>
+> **Java kiểm hợp đồng:** thiếu hoặc sai kiểu một trong `criticalPath`, `bottlenecks`, `taskTraps`, `actionableAdvice` (phải là mảng) hoặc `metrics` (phải là object) thì Java coi như lỗi và dùng dữ liệu dự phòng `MOCK_FALLBACK` kèm `warning` nêu rõ khóa sai. Kết quả `MOCK_FALLBACK` không kích hoạt cooldown 180 giây.
+
+1. **`analyzedAt`** (String, ISO-8601, tùy chọn): Thời điểm microservice kết thúc phân tích. **Java luôn tự đặt `analyzedAt` bằng giờ của chính nó** (vì cooldown dựa vào giá trị này); giá trị bạn gửi được lưu lại ở khóa `serviceAnalyzedAt`.
 2. **`source`** (String, tùy chọn): Đặt `"AI_SERVICE"`. Nếu bỏ trống, Java sẽ tự điền `"AI_SERVICE"`.
 3. **`criticalPath`** (Array[String]): Mảng các mã node (`code`) nằm trên đường găng CPM dài nhất của dự án (ví dụ: `["WPE-001", "WPE-002"]`).
 4. **`bottlenecks`** (Array[Object]): Danh sách các điểm nghẽn tiến độ.
