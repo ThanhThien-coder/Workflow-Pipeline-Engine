@@ -325,7 +325,7 @@ Những mục ghi "cần xác nhận" là suy ra từ việc đọc code, chưa 
 | Đồ thị (code mới): nối node chỉ chặn vòng 2 node; Viewer sửa được đồ thị; lưu tọa độ làm tăng `version`; không tính lại trạng thái node khi đổi cạnh; chưa có PUT/DELETE node | B1, B3 |
 | Xuất bản (code mới): dự án ARCHIVED vẫn xuất bản được; không gửi SSE cho task vừa mở khóa | B4 |
 | Vị trí phase trên canvas không được lưu; dự án ARCHIVED vẫn sửa được đồ thị | B2 |
-| `WorkflowGraphController`, `PipelineTemplateController` (code mới) cũng có `?currentUserId=` và `orElse(...)` | X1 |
+| `WorkflowGraphController` (code mới) cũng có `?currentUserId=` và `orElse(...)` (`PipelineTemplateController` đã vá 14/11 (D, PR admin)) | X1 |
 | DB chưa có cột hồ sơ và ảnh đại diện | A5 |
 | AI: `criticalPath` chỉ liệt kê mọi node, chưa phải CPM | D6 |
 | Sơ đồ use case cũ trong archive vẽ bằng flowchart, có use case trái SSOT ("Claim Task", "phản hồi giải trình feedback") | D7, X3 |
