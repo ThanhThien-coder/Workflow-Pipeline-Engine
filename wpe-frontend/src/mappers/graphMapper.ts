@@ -23,10 +23,6 @@ import type {
  * thêm duy nhất một điểm: phase có uiMetadata.x/y (đã kéo thả, lưu qua PUT /phases/{id}) thì dùng vị trí đó.
  */
 
-// Vị trí mặc định của thẻ phase khi chưa từng kéo: xếp ngang theo orderIndex (giữ như cũ)
-const PHASE_DEFAULT_X0 = 60
-const PHASE_DEFAULT_GAP_X = 360
-const PHASE_DEFAULT_Y = 80
 const PHASE_W = 260
 const PHASE_H = 128
 
@@ -52,8 +48,14 @@ function finiteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-function toMacroPhase(p: BackendPhaseDto, idx: number): MacroPhase {
-  const ui = p.uiMetadata ?? {}
+/** Vị trí đã lưu của phase. Thiếu x hoặc y thì trả rỗng để canvas tự xếp bằng bố cục tự động. */
+function savedPosition(uiMetadata: BackendPhaseDto['uiMetadata']): { x?: number; y?: number } {
+  const x = finiteNumber(uiMetadata?.x)
+  const y = finiteNumber(uiMetadata?.y)
+  return x !== undefined && y !== undefined ? { x, y } : {}
+}
+
+function toMacroPhase(p: BackendPhaseDto): MacroPhase {
   return {
     id: String(p.id),
     name: p.name,
@@ -62,8 +64,7 @@ function toMacroPhase(p: BackendPhaseDto, idx: number): MacroPhase {
     // Backend tính sẵn tiến độ và trạng thái phase từ task (cùng công thức với domain/phaseProgress)
     status: (p.status || 'TODO') as PhaseStatus,
     pct: typeof p.progressPct === 'number' ? p.progressPct : 0,
-    x: finiteNumber(ui.x) ?? PHASE_DEFAULT_X0 + (p.orderIndex ?? idx) * PHASE_DEFAULT_GAP_X,
-    y: finiteNumber(ui.y) ?? PHASE_DEFAULT_Y,
+    ...savedPosition(p.uiMetadata),
     w: PHASE_W,
     h: PHASE_H,
     parentPhaseIds: (p.parentPhaseIds || []).map(String),
@@ -73,19 +74,17 @@ function toMacroPhase(p: BackendPhaseDto, idx: number): MacroPhase {
 
 /** Danh sách thẻ phase cho canvas Macro. Đồ thị rỗng thì trả []. */
 export function toMacroPhases(graph: BackendGraphResponse | null | undefined): MacroPhase[] {
-  return (graph?.phases || []).map(toMacroPhase)
+  return (graph?.phases || []).map((p) => toMacroPhase(p))
 }
 
-/** Một phase vừa tạo (POST /phases trả 1 PhaseResponse). x/y truyền vào ưu tiên hơn vị trí mặc định. */
-export function toCreatedMacroPhase(p: BackendPhaseDto, pos?: { x?: number; y?: number }): MacroPhase {
+/** Một phase vừa tạo (POST /phases trả 1 PhaseResponse, kèm uiMetadata đã lưu). */
+export function toCreatedMacroPhase(p: BackendPhaseDto): MacroPhase {
   const parents = (p.parentPhaseIds || []).map(String)
   return {
-    ...toMacroPhase({ ...p, uiMetadata: {} }, p.orderIndex ?? 0),
+    ...toMacroPhase(p),
     // Phase mới chưa có task: hiển thị TODO, 0%, bị khóa nếu có phase cha (giữ như cũ)
     status: 'TODO',
     pct: 0,
-    x: pos?.x ?? PHASE_DEFAULT_X0 + (p.orderIndex ?? 0) * PHASE_DEFAULT_GAP_X,
-    y: pos?.y ?? PHASE_DEFAULT_Y,
     parentPhaseIds: parents,
     locked: parents.length > 0,
   }

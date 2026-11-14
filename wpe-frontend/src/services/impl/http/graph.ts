@@ -18,6 +18,8 @@ export interface CreatePhaseBody {
   sub?: string
   accent?: string
   parentPhaseId: number | null
+  /** Vị trí thẻ trên canvas. Không gửi thì backend lưu rỗng và canvas tự xếp. */
+  uiMetadata?: { x: number; y: number; w: number; h: number }
 }
 
 /** POST /projects/{id}/phases */

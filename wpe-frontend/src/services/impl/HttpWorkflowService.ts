@@ -645,9 +645,13 @@ export class HttpWorkflowService implements IWorkflowService {
       sub: dto.sub,
       accent: dto.accent,
       parentPhaseId: dto.parentPhaseId ? Number(dto.parentPhaseId) : null,
+      uiMetadata:
+        dto.x != null && dto.y != null
+          ? { x: Math.round(dto.x), y: Math.round(dto.y), w: MACRO_PHASE_W, h: MACRO_PHASE_H }
+          : undefined,
     })
     this.phaseIndex.set(String(item.id), { projectId: pid, name: item.name })
-    return toCreatedMacroPhase(item, { x: dto.x, y: dto.y })
+    return toCreatedMacroPhase(item)
   }
 
   /** POST /projects/{id}/phases/connect?sourcePhaseId=&targetPhaseId= — 422 chu trình ném ApiError có cycleNodes. */

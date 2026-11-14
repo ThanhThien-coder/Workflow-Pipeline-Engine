@@ -43,10 +43,10 @@ describe('graphMapper.toMacroPhases', () => {
     expect(phases[0].parentPhaseIds).toEqual(['10', '20'])
   })
 
-  it('phase chưa kéo (uiMetadata rỗng) xếp ngang theo orderIndex: x = 60 + orderIndex*360, y = 80', () => {
+  it('phase chưa lưu vị trí (uiMetadata rỗng) không có x, y để canvas dùng bố cục tự động', () => {
     const [p1, p2] = toMacroPhases(GRAPH)
-    expect([p1.x, p1.y]).toEqual([60, 80])
-    expect([p2.x, p2.y]).toEqual([420, 80])
+    expect([p1.x, p1.y]).toEqual([undefined, undefined])
+    expect([p2.x, p2.y]).toEqual([undefined, undefined])
   })
 
   it('phase đã kéo thả (uiMetadata có x, y) dùng đúng vị trí đã lưu, để F5 không mất vị trí', () => {
@@ -54,25 +54,31 @@ describe('graphMapper.toMacroPhases', () => {
     expect([p3.x, p3.y]).toEqual([900, 320])
   })
 
-  it('uiMetadata x/y không phải số thì bỏ qua, dùng vị trí mặc định', () => {
-    const [p] = toMacroPhases({ phases: [{ id: 1, name: 'P', orderIndex: 1, uiMetadata: { x: 'abc', y: null } }] })
-    expect([p.x, p.y]).toEqual([420, 80])
+  it('uiMetadata x/y không phải số, hoặc chỉ có một trong hai, thì coi như chưa lưu vị trí', () => {
+    const [p, q] = toMacroPhases({
+      phases: [
+        { id: 1, name: 'P', orderIndex: 1, uiMetadata: { x: 'abc', y: null } },
+        { id: 2, name: 'Q', orderIndex: 2, uiMetadata: { x: 500 } },
+      ],
+    })
+    expect([p.x, p.y]).toEqual([undefined, undefined])
+    expect([q.x, q.y]).toEqual([undefined, undefined])
   })
 
   it('thiếu sub, accent, status, progressPct thì dùng giá trị mặc định', () => {
     const [p] = toMacroPhases({ phases: [{ id: 7, name: 'P' }] })
-    expect(p).toMatchObject({ sub: '', accent: 'slate', status: 'TODO', pct: 0, parentPhaseIds: [], locked: false, x: 60 })
+    expect(p).toMatchObject({ sub: '', accent: 'slate', status: 'TODO', pct: 0, parentPhaseIds: [], locked: false })
   })
 })
 
 describe('graphMapper.toCreatedMacroPhase', () => {
   it('phase mới có phase cha thì bị khóa, chưa có task nên TODO 0%', () => {
     const p = toCreatedMacroPhase({ id: 40, name: 'PHASE 4', orderIndex: 3, parentPhaseIds: [30] })
-    expect(p).toMatchObject({ id: '40', status: 'TODO', pct: 0, locked: true, parentPhaseIds: ['30'], x: 60 + 3 * 360, y: 80 })
+    expect(p).toMatchObject({ id: '40', status: 'TODO', pct: 0, locked: true, parentPhaseIds: ['30'] })
   })
 
-  it('vị trí truyền vào ưu tiên hơn vị trí mặc định', () => {
-    const p = toCreatedMacroPhase({ id: 40, name: 'PHASE 4', orderIndex: 3 }, { x: 15, y: 25 })
+  it('lấy vị trí backend đã lưu (uiMetadata trong response)', () => {
+    const p = toCreatedMacroPhase({ id: 40, name: 'PHASE 4', orderIndex: 3, uiMetadata: { x: 15, y: 25, w: 380, h: 180 } })
     expect([p.x, p.y, p.locked]).toEqual([15, 25, false])
   })
 })

@@ -86,8 +86,9 @@ export interface MacroPhase {
   status: PhaseStatus
   pct: number
   accent: PhaseAccent
-  x: number
-  y: number
+  /** Vị trí đã lưu trên canvas. Không có thì canvas dùng bố cục tự động (computeMacroGraphLayout). */
+  x?: number
+  y?: number
   w: number
   h: number
   parentPhaseIds: string[]

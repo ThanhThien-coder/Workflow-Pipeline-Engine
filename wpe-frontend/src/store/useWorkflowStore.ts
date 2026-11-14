@@ -5,6 +5,7 @@ import type { GraphNodeMap, MacroPhase } from '../types/workflow.types'
 import { ApiError } from '../services/http/ApiError'
 import { computePhaseProgress, syncTrackProgress, withPhaseProgress } from '../domain/phaseProgress'
 import { deleteNodeCascade } from '../utils/spanningTreeLayout'
+import { computeNewPhasePosition } from '../utils/macroLayout'
 import { getStoredProjectGraph, saveStoredProjectGraph } from '../services/mock/mockProjectGraphStore'
 import { TREES } from '../services/MockWorkflowService'
 import { createOverviewSlice, type OverviewSlice } from './slices/overviewSlice'
@@ -109,7 +110,12 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   createPhase: async (dto) => {
     ensureCanEditGraph(get())
     const currentProjectId = get().currentProjectId
-    const phase = await service.createPhase({ ...dto, projectId: currentProjectId || undefined }, currentProjectId || undefined)
+    const position =
+      dto.x != null && dto.y != null ? { x: dto.x, y: dto.y } : computeNewPhasePosition(get().macroPhases, dto.parentPhaseId)
+    const phase = await service.createPhase(
+      { ...dto, ...position, projectId: currentProjectId || undefined },
+      currentProjectId || undefined
+    )
     const rootTree = syncTrackProgress(await service.getPhaseGraph(phase.id, currentProjectId || undefined))
     set((state) => ({
       macroPhases: [...state.macroPhases, withPhaseProgress(phase, rootTree)],
