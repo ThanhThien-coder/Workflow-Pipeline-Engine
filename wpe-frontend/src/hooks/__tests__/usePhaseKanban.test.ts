@@ -1,117 +1,94 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { renderHook, waitFor, act } from '@testing-library/react'
 import { usePhaseKanban } from '../usePhaseKanban'
-import { MockWorkflowService } from '../../services/MockWorkflowService'
-import { MockConfig } from '../../services/mock/MockConfig'
-import { createWorkflowStore, useWorkflowStore } from '../../store/useWorkflowStore'
+import { workflowService } from '../../services/container'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
+import type { KanbanTask, UserSummary } from '../../types/kanban.types'
 import type { MacroPhase } from '../../types/workflow.types'
 
-describe('usePhaseKanban Hook', () => {
-  const p2aPhase: MacroPhase = {
-    id: 'p2a',
-    name: 'PHASE 2A',
-    sub: 'Cụm Xác thực (Auth)',
-    status: 'IN_PROGRESS',
-    pct: 70,
-    accent: 'blue',
-    x: 360,
-    y: 40,
-    w: 440,
-    h: 170,
-    parentPhaseIds: ['p1'],
+/** T4 (G10) — Kanban của phase: task lấy theo dự án + phase từ service, thành viên thật, không trộn node tạm. */
+
+const PHASE: MacroPhase = {
+  id: '56', name: 'PHASE 4', sub: 'Cụm công việc 4', status: 'TODO', pct: 0, accent: 'slate', w: 380, h: 180, parentPhaseIds: [],
+}
+
+function task(id: string, status: KanbanTask['status'], assignedUserId = ''): KanbanTask {
+  return {
+    id, code: `WPE-${id}`, title: `Task ${id}`, description: '', status, assignedUserId, phaseId: 'P1', phaseLabel: 'Phase 56',
+    dueDate: '2026-11-20T00:00:00Z', isOverdue: false, joinPolicySummary: '', artifacts: [], version: 0,
   }
+}
 
+const OWNER: UserSummary = {
+  id: '9', name: 'a', roleTitle: 'OWNER', initials: 'A', avatarClass: 'bg-indigo-500', projectRole: 'OWNER', assignedTaskCount: 0,
+}
+
+describe('usePhaseKanban', () => {
   beforeEach(() => {
-    MockConfig.latencyMs = 0
-    MockConfig.fakeError500 = false
-    useWorkflowStore.setState({
+    useWorkflowStore.setState((state) => ({
       trees: {},
-      selectedPhaseId: null,
-      macroPhases: [p2aPhase],
-      kanban: {
-        ...useWorkflowStore.getState().kanban,
-        currentUserId: '1',
-        tasks: [],
-        filterPhaseId: 'ALL',
-      },
-    })
-  })
-
-  it('loads all tasks of the specified phase across all team members (not just current user)', async () => {
-    const { result } = renderHook(() => usePhaseKanban(p2aPhase))
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-      expect(result.current.phaseTasks.length).toBeGreaterThan(0)
-    })
-
-    // Phase 2A should contain tasks from Alex Kim (1), Sarah Chen (2), and Marcus Liu (3)
-    const assignedUserIds = new Set(result.current.phaseTasks.map((t) => t.assignedUserId))
-    expect(assignedUserIds.has('1')).toBe(true) // Alex Kim (WPE-043)
-    expect(assignedUserIds.has('2')).toBe(true) // Sarah Chen (WPE-001, WPE-012)
-    expect(assignedUserIds.has('3')).toBe(true) // Marcus Liu (WPE-020, WPE-024, etc.)
-  })
-
-  it('does not mutate personal MyTasks list or leak private filtering', async () => {
-    const { result } = renderHook(() => usePhaseKanban(p2aPhase))
-
-    await waitFor(() => {
-      expect(result.current.phaseTasks.length).toBeGreaterThan(0)
-    })
-
-    // Personal tasks store state remains clean and scoped
-    const personalTasks = useWorkflowStore.getState().kanban.tasks
-    expect(Array.isArray(personalTasks)).toBe(true)
-  })
-
-  it('synchronizes newly added Graph tree nodes into Phase Kanban and reflects status changes', async () => {
-    // Add a new graph node into trees['p2a']
-    const customGraphNode = {
-      kind: 'branch' as const,
-      id: 'task-sync-999',
-      code: 'WPE-999',
-      title: 'Graph Created Task for Kanban',
-      description: 'Synchronized task',
-      phaseId: 'p2a',
-      trackId: 'trk-1',
-      parentId: 'trk-1',
-      parentIds: ['trk-1'],
-      status: 'TODO' as const,
-      isTrack: false,
-      assignee: 'Alex Kim',
-      due: '2026-10-20',
-      blocker: null,
-      joinPolicy: null,
-      level: 2,
-      order: 9,
-    }
-
-    useWorkflowStore.getState().updateTree('p2a', (nodes) => ({
-      ...nodes,
-      [customGraphNode.id]: customGraphNode,
+      project: { ...state.project, members: [OWNER] },
+      kanban: { ...state.kanban, currentUserId: '9', tasks: [] },
     }))
+  })
 
-    const { result } = renderHook(() => usePhaseKanban(p2aPhase))
+  afterEach(() => vi.restoreAllMocks())
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-      const syncedTask = result.current.phaseTasks.find((t) => t.id === 'task-sync-999')
-      expect(syncedTask).toBeDefined()
-      expect(syncedTask?.title).toBe('Graph Created Task for Kanban')
-      expect(syncedTask?.status).toBe('TODO')
-    })
+  it('tải task theo đúng dự án và phase; giữ LOCKED và task chưa giao; nhãn phase lấy từ phase thật', async () => {
+    const getPhaseTasks = vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([task('1', 'LOCKED'), task('2', 'TODO', '9')])
 
-    // Now move task to IN_PROGRESS
-    await result.current.moveTask('task-sync-999', 'IN_PROGRESS')
+    const { result } = renderHook(() => usePhaseKanban(PHASE, '19'))
 
-    await waitFor(() => {
-      const movedTask = result.current.phaseTasks.find((t) => t.id === 'task-sync-999')
-      expect(movedTask?.status).toBe('IN_PROGRESS')
+    await waitFor(() => expect(result.current.phaseTasks).toHaveLength(2))
+    expect(getPhaseTasks).toHaveBeenCalledWith('19', '56')
+    expect(result.current.phaseTasks.map((t) => [t.status, t.assignedUserId])).toEqual([['LOCKED', ''], ['TODO', '9']])
+    expect(result.current.phaseTasks[0].phaseLabel).toBe('PHASE 4 · Cụm công việc 4')
+  })
 
-      // Check graph tree updated
-      const treeNode = useWorkflowStore.getState().trees['p2a']?.['task-sync-999']
-      expect(treeNode?.kind === 'branch' && treeNode.status).toBe('IN_PROGRESS')
-    })
+  it('chưa có dự án thì không gọi API', async () => {
+    const getPhaseTasks = vi.spyOn(workflowService, 'getPhaseTasks')
+
+    const { result } = renderHook(() => usePhaseKanban(PHASE, null))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(getPhaseTasks).not.toHaveBeenCalled()
+    expect(result.current.phaseTasks).toEqual([])
+  })
+
+  it('người thao tác là người đăng nhập trong danh sách thành viên thật; không phải thành viên thì null', async () => {
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
+    const { result, rerender } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    expect(result.current.actor?.name).toBe('a')
+
+    act(() => useWorkflowStore.setState((state) => ({ kanban: { ...state.kanban, currentUserId: '1' } })))
+    rerender()
+    expect(result.current.actor).toBeNull()
+  })
+
+  it('task đang khóa không đổi được trạng thái, không gọi API', async () => {
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([task('1', 'LOCKED', '9')])
+    const update = vi.spyOn(workflowService, 'updateTaskStatus')
+    const { result } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    await waitFor(() => expect(result.current.phaseTasks).toHaveLength(1))
+
+    await act(() => result.current.moveTask('1', 'IN_PROGRESS'))
+
+    expect(update).not.toHaveBeenCalled()
+    expect(result.current.phaseTasks[0].status).toBe('LOCKED')
+  })
+
+  it('đổi trạng thái thành công: dùng bản backend trả về rồi đọc lại cây phase (task con có thể vừa mở khóa)', async () => {
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([task('2', 'TODO', '9')])
+    vi.spyOn(workflowService, 'updateTaskStatus').mockResolvedValue(task('2', 'IN_PROGRESS', '9'))
+    const resetPhaseTree = vi.fn(async () => {})
+    useWorkflowStore.setState({ resetPhaseTree })
+    const { result } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    await waitFor(() => expect(result.current.phaseTasks).toHaveLength(1))
+
+    await act(() => result.current.moveTask('2', 'IN_PROGRESS'))
+
+    expect(result.current.phaseTasks[0].status).toBe('IN_PROGRESS')
+    expect(resetPhaseTree).toHaveBeenCalledWith('56')
   })
 })

@@ -135,6 +135,14 @@ export class HttpWorkflowService implements IWorkflowService {
     return items.map((item) => this.mapBackendTaskToKanban(item))
   }
 
+  /** GET /projects/{id}/phases/{phaseId}/tasks: mọi task của phase (kể cả LOCKED, chưa giao) */
+  async getPhaseTasks(projectId: string, phaseId: string): Promise<KanbanTask[]> {
+    const data = await apiRequest<BackendTaskResponse[]>('GET', `/projects/${projectId}/phases/${phaseId}/tasks`)
+    const items = data ?? []
+    items.forEach((item) => this.taskVersionCache.set(String(item.id), item.version))
+    return items.map((item) => this.mapBackendTaskToKanban(item))
+  }
+
   /** PATCH /nodes/{taskId}/status */
   async updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask> {
     const currentVersion = this.taskVersionCache.get(taskId) ?? 0
@@ -851,7 +859,8 @@ export class HttpWorkflowService implements IWorkflowService {
       title: item.title,
       description: item.description || '',
       status: item.status as TaskStatus,
-      assignedUserId: String(item.assignedUserId || '1'),
+      // Chưa giao thì để rỗng (trước đây rơi về '1', tức một người cụ thể)
+      assignedUserId: item.assignedUserId != null && item.assignedUserId !== '' ? String(item.assignedUserId) : '',
       phaseId,
       phaseLabel: item.phaseId ? `Phase ${item.phaseId}` : 'Foundation',
       dueDate: item.dueDate || new Date().toISOString(),

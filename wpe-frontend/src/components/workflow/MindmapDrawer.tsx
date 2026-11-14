@@ -35,6 +35,7 @@ export function MindmapDrawer() {
   const updateTree = useWorkflowStore((state) => state.updateTree)
   const deleteNode = useWorkflowStore((state) => state.deleteNode)
   const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
+  const currentProjectId = useWorkflowStore((state) => state.currentProjectId)
   // B5: quyền sửa và các thao tác ghi đồ thị qua API (chế độ API thật)
   const canEdit = useWorkflowStore(selectCanEditGraph)
   const graphWritesUseApi = useWorkflowStore((state) => state.graphWritesUseApi)
@@ -101,7 +102,7 @@ export function MindmapDrawer() {
     submitArtifact,
     closeSubmitModal,
     updateAssignment,
-  } = usePhaseKanban(phase)
+  } = usePhaseKanban(phase, currentProjectId)
 
   // Active selected task kept up to date with updates
   const activeSelectedTask = useMemo(() => {
@@ -424,7 +425,7 @@ export function MindmapDrawer() {
                 phaseId={phase.id}
                 tasks={phaseTasks}
                 members={members}
-                actor={actor}
+                actor={actor ?? undefined}
                 pendingIds={pendingTaskIds}
                 onMoveTask={moveTask}
                 onOpenTaskDetails={(task) => setSelectedTask(task)}
@@ -490,7 +491,7 @@ export function MindmapDrawer() {
 
       {/* Task Details Modal in Phase Kanban */}
       <AnimatePresence mode="wait">
-        {activeSelectedTask && (
+        {activeSelectedTask && actor && (
           <TaskDetailModal
             key="task-detail"
             task={activeSelectedTask}

@@ -6,6 +6,7 @@ import {
   ExternalLink,
   FileText,
   Layers,
+  Lock,
   Play,
   RotateCcw,
   Send,
@@ -25,6 +26,11 @@ const statusConfigs: Record<
   TaskStatus,
   { label: string; badgeClass: string; Icon: typeof Clock }
 > = {
+  LOCKED: {
+    label: 'Đang khóa',
+    badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+    Icon: Lock,
+  },
   TODO: {
     label: 'To Do',
     badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',

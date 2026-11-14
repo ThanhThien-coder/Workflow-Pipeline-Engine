@@ -126,6 +126,58 @@ describe('PhaseKanbanBoard Component', () => {
     expect(screen.getByText('Alex Kim')).toBeDefined()
   })
 
+  const lockedTask: KanbanTask = {
+    ...mockTasks[0],
+    id: 'task-locked',
+    code: 'WPE-099',
+    title: 'Task dang khoa',
+    status: 'LOCKED',
+    assignedUserId: '',
+  }
+
+  it('T4: có cột "Đang khóa" đứng đầu, task LOCKED nằm ở cột đó, không kéo được, có nhãn chờ', () => {
+    render(
+      <PhaseKanbanBoard phaseId="p2a" tasks={[lockedTask, ...mockTasks]} members={mockMembers} onOpenTaskDetails={vi.fn()} onMoveTask={vi.fn()} />
+    )
+
+    const columns = screen.getAllByTestId(/^kanban-column-/).map((el) => el.dataset.testid)
+    expect(columns).toEqual([
+      'kanban-column-LOCKED', 'kanban-column-TODO', 'kanban-column-IN_PROGRESS', 'kanban-column-REVIEW', 'kanban-column-DONE',
+    ])
+    const lockedColumn = screen.getByTestId('kanban-column-LOCKED')
+    const card = screen.getByTestId('task-card-task-locked')
+    expect(lockedColumn.contains(card)).toBe(true)
+    expect(card.getAttribute('draggable')).toBe('false')
+    expect(screen.getByText('🔒 Chờ task trước')).toBeDefined()
+    expect(screen.getByText('1 Đang khóa')).toBeDefined()
+    // Task không khóa vẫn kéo được
+    expect(screen.getByTestId('task-card-task-1').getAttribute('draggable')).toBe('true')
+  })
+
+  it('T4: thả task vào cột Đang khóa thì không gọi đổi trạng thái', () => {
+    const onMoveTask = vi.fn()
+    render(<PhaseKanbanBoard phaseId="p2a" tasks={mockTasks} members={mockMembers} onOpenTaskDetails={vi.fn()} onMoveTask={onMoveTask} />)
+
+    fireEvent.drop(screen.getByTestId('kanban-column-LOCKED'), { dataTransfer: { getData: () => 'task-1' } })
+
+    expect(onMoveTask).not.toHaveBeenCalled()
+  })
+
+  it('T4: task chưa giao hiện "Chưa giao", không lấy người đang xem hay tên mặc định', () => {
+    render(
+      <PhaseKanbanBoard
+        phaseId="p2a"
+        tasks={[{ ...mockTasks[0], assignedUserId: '' }]}
+        members={mockMembers}
+        actor={mockMembers[0]}
+        onOpenTaskDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Chưa giao')).toBeDefined()
+    expect(screen.queryByText('Alex Kim')).toBeNull()
+  })
+
   it('calls onOpenTaskDetails when clicking card or Details button', () => {
     const handleOpenDetails = vi.fn()
     render(

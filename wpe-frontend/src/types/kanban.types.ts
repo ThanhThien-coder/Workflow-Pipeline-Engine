@@ -1,5 +1,5 @@
 export type ISODateTime = string
-export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
+export type TaskStatus = 'LOCKED' | 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
 export type ProjectRole = 'OWNER' | 'MANAGER' | 'COLLABORATOR' | 'VIEWER'
 export interface UserSummary { id: string; name: string; roleTitle: string; initials: string; avatarClass: string; projectRole: ProjectRole; assignedTaskCount: number; avatarUrl?: string | null }
 export type ArtifactType = 'PR' | 'FIGMA' | 'DOCS' | 'ZIP'

@@ -1,16 +1,11 @@
 import type { KanbanTask, UserSummary } from '../../types/kanban.types'
 import { getSavedAvatar } from '../../utils/avatarUtils'
 
-const DEFAULT_MEMBERS: Record<string, { name: string; initials: string; avatarClass: string; avatarUrl?: string | null }> = {
-  '1': { name: 'Alex Kim', initials: 'AK', avatarClass: 'bg-emerald-500' },
-  '2': { name: 'Sarah Chen', initials: 'SC', avatarClass: 'bg-indigo-500' },
-  '3': { name: 'Marcus Liu', initials: 'ML', avatarClass: 'bg-rose-500' },
-  '4': { name: 'Jamie Doe', initials: 'JD', avatarClass: 'bg-amber-500' },
-}
-
 export interface TaskCardProps {
   task: KanbanTask
+  /** Người đang xem (My Tasks): chỉ dùng để hiện người làm khi task đúng là của người đó. */
   actor?: UserSummary
+  /** Thành viên được giao task (tra theo assignedUserId). */
   member?: UserSummary
   onOpenDetails: (task: KanbanTask) => void
   onDragStart?: (id: string) => void
@@ -26,30 +21,27 @@ export function TaskCard({
   dragging = false,
 }: TaskCardProps) {
   const frozen = task.status === 'DONE'
-  const phaseText = task.phaseLabel || (task as unknown as { phaseName?: string }).phaseName || ''
-  const fallback = DEFAULT_MEMBERS[task.assignedUserId]
-  const targetUser = member || actor || fallback
-  const assigneeName =
-    targetUser?.name ||
-    (task as unknown as { assignee?: { name: string; initials: string } }).assignee?.name ||
-    fallback?.name ||
-    ''
-  const assigneeInitials =
-    targetUser?.initials ||
-    (task as unknown as { assignee?: { name: string; initials: string } }).assignee?.initials ||
-    fallback?.initials ||
-    'AK'
-  const avatarClass = targetUser?.avatarClass || fallback?.avatarClass || 'bg-emerald-500'
-  const avatarUrl = targetUser?.avatarUrl || getSavedAvatar(assigneeName || task.assignedUserId)
+  const locked = task.status === 'LOCKED'
+  const canDrag = !frozen && !locked && Boolean(onDragStart)
+  const phaseText = task.phaseLabel || ''
+  const assignee = !task.assignedUserId
+    ? undefined
+    : member ?? (actor?.id === task.assignedUserId ? actor : undefined)
+  // Chưa giao: hiện "Chưa giao", không lấy người đang xem hay tên mặc định
+  const assigneeName = !task.assignedUserId ? 'Chưa giao' : assignee?.name ?? 'Thành viên khác'
+  const assigneeInitials = assignee?.initials ?? (task.assignedUserId ? '?' : '–')
+  const avatarClass = assignee?.avatarClass ?? 'bg-slate-300'
+  const avatarUrl = assignee ? assignee.avatarUrl || getSavedAvatar(assignee.name) : null
 
   return (
     <div
-      draggable={!frozen && Boolean(onDragStart)}
+      data-testid={`task-card-${task.id}`}
+      draggable={canDrag}
       onDragStart={() => onDragStart?.(task.id)}
       onClick={() => onOpenDetails(task)}
       className={`group rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-150 cursor-pointer flex flex-col justify-between gap-2.5 min-h-[96px] w-full select-none ${
         frozen ? 'border-emerald-200/80 bg-emerald-50/20' : ''
-      } ${!frozen ? 'cursor-grab active:cursor-grabbing' : ''} ${
+      } ${locked ? 'bg-slate-50/80' : ''} ${canDrag ? 'cursor-grab active:cursor-grabbing' : ''} ${
         dragging ? 'opacity-40' : ''
       }`}
     >
@@ -67,6 +59,11 @@ export function TaskCard({
       <h4 className="line-clamp-2 text-xs font-bold leading-snug text-slate-800 transition-colors group-hover:text-indigo-600">
         {task.title}
       </h4>
+      {locked && (
+        <span className="w-fit rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+          🔒 Chờ task trước
+        </span>
+      )}
 
       {/* 3. Footer: Nằm trọn vẹn bên trong card */}
       <div className="flex items-center justify-between border-t border-slate-100 pt-2">

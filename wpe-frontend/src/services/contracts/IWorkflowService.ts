@@ -86,6 +86,8 @@ export interface IWorkflowService {
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState>
   generateGuestToken(projectId: string): Promise<GuestAccessState>
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]>
+  /** Mọi task của một phase cho Kanban theo phase (kể cả LOCKED, chưa giao). */
+  getPhaseTasks(projectId: string, phaseId: string): Promise<KanbanTask[]>
   updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask>
   submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }>
   updateTaskAssignment(taskId: string, cmd: { assignedUserId?: string; dueDate?: string; version: number }): Promise<Pick<KanbanTask, 'assignedUserId' | 'dueDate' | 'version'>>
