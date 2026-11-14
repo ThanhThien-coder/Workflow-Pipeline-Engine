@@ -150,7 +150,7 @@ class AdminControllerTest {
 
         mockMvc.perform(post("/api/v1/admin/users/99/suspend")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new SuspendUserRequest("Vi phạm", 7, "Chi tiết"))))
+                .content(objectMapper.writeValueAsString(new SuspendUserRequest("Vi phạm", "Chi tiết"))))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.error").value("CANNOT_SUSPEND_ADMIN"));
     }
@@ -177,7 +177,7 @@ class AdminControllerTest {
 
         mockMvc.perform(post("/api/v1/admin/users/2/suspend")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new SuspendUserRequest("TERMS_VIOLATION", 10, null))))
+                .content(objectMapper.writeValueAsString(new SuspendUserRequest("TERMS_VIOLATION", null))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("SUSPENDED"));
     }

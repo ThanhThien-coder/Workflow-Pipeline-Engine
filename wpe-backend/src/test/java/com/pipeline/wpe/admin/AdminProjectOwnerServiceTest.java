@@ -209,4 +209,54 @@ class AdminProjectOwnerServiceTest {
 
         verify(projectRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("transferOwner: dự án ARCHIVED -> ném ConflictException mã PROJECT_CLOSED và không save gì")
+    void testTransferOwner_archivedProject_throwsProjectClosed() {
+        Long projectId = 10L;
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(1L)
+            .status(ProjectStatus.ARCHIVED)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> adminProjectOwnerService.transferOwner(projectId, 2L, 99L))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> {
+                ConflictException ce = (ConflictException) ex;
+                assertThat(ce.getErrorCode()).isEqualTo("PROJECT_CLOSED");
+                assertThat(ce.getMessage()).isEqualTo("Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.");
+            });
+
+        verify(projectRepository, never()).save(any());
+        verify(projectMemberRepository, never()).save(any());
+        verify(adminAuditService, never()).record(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("transferOwner: dự án COMPLETED -> ném ConflictException mã PROJECT_CLOSED và không save gì")
+    void testTransferOwner_completedProject_throwsProjectClosed() {
+        Long projectId = 10L;
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(1L)
+            .status(ProjectStatus.COMPLETED)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> adminProjectOwnerService.transferOwner(projectId, 2L, 99L))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> {
+                ConflictException ce = (ConflictException) ex;
+                assertThat(ce.getErrorCode()).isEqualTo("PROJECT_CLOSED");
+                assertThat(ce.getMessage()).isEqualTo("Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.");
+            });
+
+        verify(projectRepository, never()).save(any());
+        verify(projectMemberRepository, never()).save(any());
+        verify(adminAuditService, never()).record(any(), any(), any(), any(), any(), any());
+    }
 }

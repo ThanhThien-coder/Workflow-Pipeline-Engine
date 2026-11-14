@@ -239,10 +239,6 @@ public class PipelineTemplateService {
 
         requireCanManage(template, currentUserId);
 
-        if (Boolean.TRUE.equals(template.getIsSystemStandard())) {
-            throw new ConflictException("SYSTEM_TEMPLATE_LOCKED", "Không thể xóa template chuẩn của hệ thống.");
-        }
-
         templateRepository.delete(template);
         log.info("Template #{} deleted by user #{}", id, currentUserId);
         adminAuditService.record(currentUserId, null, AdminAuditAction.TEMPLATE_DELETED, "TEMPLATE", String.valueOf(id), template.getName());

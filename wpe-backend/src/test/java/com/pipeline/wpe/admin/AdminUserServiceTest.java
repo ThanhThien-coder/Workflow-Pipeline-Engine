@@ -82,7 +82,7 @@ class AdminUserServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
 
-        assertThatThrownBy(() -> adminUserService.suspendUser(1L, new SuspendUserRequest("Reason", 7, "Note"), 99L))
+        assertThatThrownBy(() -> adminUserService.suspendUser(1L, new SuspendUserRequest("Reason", "Note"), 99L))
             .isInstanceOf(ForbiddenException.class)
             .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("CANNOT_SUSPEND_ADMIN"));
 
@@ -109,7 +109,7 @@ class AdminUserServiceTest {
         when(projectRepository.countByOwnerId(2L)).thenReturn(3L);
         when(projectMemberRepository.countByUserIdAndRemovedAtIsNullAndRoleNot(2L, ProjectRole.OWNER)).thenReturn(5L);
 
-        AdminUserResponse response = adminUserService.suspendUser(2L, new SuspendUserRequest("Violation", 3, "Note"), 1L);
+        AdminUserResponse response = adminUserService.suspendUser(2L, new SuspendUserRequest("Violation", "Note"), 1L);
 
         assertThat(response).isNotNull();
         assertThat(response.status()).isEqualTo("SUSPENDED");
@@ -126,7 +126,7 @@ class AdminUserServiceTest {
     void testSuspendUser_whenNotFound_throwsResourceNotFound() {
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> adminUserService.suspendUser(999L, new SuspendUserRequest("Violation", 3, null), 1L))
+        assertThatThrownBy(() -> adminUserService.suspendUser(999L, new SuspendUserRequest("Violation", null), 1L))
             .isInstanceOf(ResourceNotFoundException.class);
 
         verify(refreshTokenService, never()).revokeAllForUser(any());
@@ -251,7 +251,7 @@ class AdminUserServiceTest {
         when(userRepository.findById(5L)).thenReturn(Optional.of(user));
         when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        adminUserService.suspendUser(5L, new SuspendUserRequest("TERMS_VIOLATION", 7, "Spamming"), 10L);
+        adminUserService.suspendUser(5L, new SuspendUserRequest("TERMS_VIOLATION", "Spamming"), 10L);
         verify(adminAuditService).record(eq(10L), isNull(), eq("USER_SUSPENDED"), eq("USER"), eq("5"), contains("TERMS_VIOLATION"));
 
         adminUserService.unbanUser(5L, 10L);

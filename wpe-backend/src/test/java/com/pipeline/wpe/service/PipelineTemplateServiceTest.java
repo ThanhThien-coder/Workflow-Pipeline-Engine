@@ -328,8 +328,8 @@ class PipelineTemplateServiceTest {
     }
 
     @Test
-    @DisplayName("deleteTemplate: Admin xóa template hệ thống isSystemStandard(true) -> ném ConflictException SYSTEM_TEMPLATE_LOCKED")
-    void testDeleteSystemTemplateThrowsConflict() {
+    @DisplayName("deleteTemplate: Admin xóa template hệ thống isSystemStandard(true) -> gọi delete và record TEMPLATE_DELETED")
+    void testDeleteSystemTemplate_asAdmin_success() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
 
         PipelineTemplateEntity systemTemplate = PipelineTemplateEntity.builder()
@@ -339,9 +339,34 @@ class PipelineTemplateServiceTest {
             .build();
         when(templateRepository.findById(1L)).thenReturn(Optional.of(systemTemplate));
 
-        ConflictException ex = assertThrows(ConflictException.class, () -> templateService.deleteTemplate(1L, 1L));
-        assertEquals("SYSTEM_TEMPLATE_LOCKED", ex.getErrorCode());
+        templateService.deleteTemplate(1L, 1L);
+
+        verify(templateRepository).delete(systemTemplate);
+        verify(adminAuditService).record(eq(1L), isNull(), eq("TEMPLATE_DELETED"), eq("TEMPLATE"), eq("1"), eq("System Template"));
+    }
+
+    @Test
+    @DisplayName("deleteTemplate: User thường xóa template hệ thống isSystemStandard(true) -> ném ForbiddenException")
+    void testDeleteSystemTemplate_asRegularUser_throwsForbidden() {
+        UserEntity regularUser = UserEntity.builder()
+            .id(2L)
+            .username("regular.user")
+            .systemRole(SystemRole.USER)
+            .build();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(regularUser));
+
+        PipelineTemplateEntity systemTemplate = PipelineTemplateEntity.builder()
+            .id(1L)
+            .name("System Template")
+            .isSystemStandard(true)
+            .visibility(TemplateVisibility.PUBLIC)
+            .build();
+        when(templateRepository.findById(1L)).thenReturn(Optional.of(systemTemplate));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () -> templateService.deleteTemplate(1L, 2L));
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
         verify(templateRepository, never()).delete(any());
+        verify(adminAuditService, never()).record(any(), any(), any(), any(), any(), any());
     }
 
     @Test

@@ -86,17 +86,15 @@ public class AdminUserService {
 
         refreshTokenService.revokeAllForUser(userId);
 
-        log.info("Actor {} suspended user {}. Reason: {}, durationDays: {}, note: {}",
+        log.info("Actor {} suspended user {}. Reason: {}, note: {}",
             actorUserId,
             userId,
             request != null ? request.reason() : null,
-            request != null ? request.durationDays() : null,
             request != null ? request.note() : null
         );
 
-        String detail = String.format("reason=%s, durationDays=%s, note=%s",
+        String detail = String.format("reason=%s, note=%s",
             request != null && request.reason() != null ? request.reason() : "",
-            request != null && request.durationDays() != null ? request.durationDays() : "",
             request != null && request.note() != null ? request.note() : ""
         );
         adminAuditService.record(actorUserId, null, AdminAuditAction.USER_SUSPENDED, "USER", String.valueOf(userId), detail);

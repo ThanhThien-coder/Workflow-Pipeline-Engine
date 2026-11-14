@@ -1,6 +1,7 @@
 package com.pipeline.wpe.service.admin;
 
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.response.admin.OwnedProjectResponse;
 import com.pipeline.wpe.dto.response.admin.OwnerCandidateResponse;
 import com.pipeline.wpe.entity.ProjectEntity;
@@ -58,6 +59,10 @@ public class AdminProjectOwnerService {
         }
         ProjectEntity project = projectRepository.findById(projectId)
             .orElseThrow(() -> new ResourceNotFoundException("Dự án không tồn tại: " + projectId));
+
+        if (project.getStatus() == ProjectStatus.ARCHIVED || project.getStatus() == ProjectStatus.COMPLETED) {
+            throw new ConflictException("PROJECT_CLOSED", "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.");
+        }
 
         if (newOwnerId == null) {
             throw new IllegalArgumentException("Chủ mới không hợp lệ");

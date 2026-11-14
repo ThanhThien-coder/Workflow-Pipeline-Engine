@@ -53,7 +53,7 @@ public class AdminController {
         @RequestBody(required = false) SuspendUserRequest request
     ) {
         Long actorUserId = currentUserProvider.requireCurrentUserId();
-        SuspendUserRequest effectiveRequest = request != null ? request : new SuspendUserRequest(null, null, null);
+        SuspendUserRequest effectiveRequest = request != null ? request : new SuspendUserRequest(null, null);
         AdminUserResponse response = adminUserService.suspendUser(id, effectiveRequest, actorUserId);
         return ResponseEntity.ok(response);
     }
