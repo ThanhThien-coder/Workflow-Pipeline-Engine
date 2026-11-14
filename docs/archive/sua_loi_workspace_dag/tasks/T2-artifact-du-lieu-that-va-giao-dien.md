@@ -1,7 +1,7 @@
 # T2 — Artifact dữ liệu thật và drawer tông sáng
 
 Sửa lỗi: G4, G6
-Trạng thái: chờ làm
+Trạng thái: xong, chờ test tay
 Cần có trước: không
 Mở khóa: không
 
@@ -35,3 +35,16 @@ Nút Artifacts hiện 5 (giả), bấm vào về 0; Settings → Project Resourc
 - `grep -rn "INITIAL_PROJECT_ARTIFACTS\|wpe_artifacts_" wpe-frontend/src --include=*.ts --include=*.tsx | grep -v __tests__` → chỉ còn trong `MockWorkflowService.ts` / `types`.
 - `grep -n "bg-slate-9\|bg-slate-8" wpe-frontend/src/components/workspace/WorkflowArtifactsDrawer.tsx` → không còn.
 - Test tay: dự án mới → nút Artifacts hiện **0**, Settings → Resources hiện trạng thái rỗng. Thêm 1 link → nút hiện 1, F5 vẫn 1, DB bảng `artifacts` có 1 dòng. Xóa → 0. Tắt backend rồi thêm → hiện lỗi, không thêm vào danh sách.
+
+## Kết quả (14/11/2026)
+Commit trên nhánh `fix/sua-loi-workspace-dag`:
+- `1af82f4` (G4) `artifactsSlice` viết lại: khởi tạo rỗng, có `projectId`, `status`, `error`; dữ liệu chỉ từ service (chế độ mock vẫn có 5 link mẫu trong `MockWorkflowService`). Mảng rỗng là kết quả hợp lệ; lỗi thì báo, không rơi về dữ liệu giả; đổi dự án xóa danh sách cũ và bỏ kết quả về muộn. `addArtifact`/`removeArtifact` chờ API xong mới đổi danh sách (id thật), lỗi thì ném. Bỏ `localStorage` và nhật ký giả `addMockAuditLog` (xóa luôn khỏi `settingsSlice` vì không còn ai dùng). `MacroWorkflow` tải artifact khi mở dự án (số trên nút đúng ngay); drawer đọc lại khi mở, bỏ đoạn tự gọi API + `setState`; có trạng thái lỗi + "Thử lại". Settings → Resources có trạng thái đang tải / lỗi / rỗng, xóa có báo lỗi.
+- `20f5f43` (G6) **Nguyên nhân thật khác phân tích ban đầu**: drawer vốn là tông sáng (`bg-white/95`); các nền `slate-900/800` đều nằm sau tiền tố `dark:`. `tailwind.config.js` không khai báo `darkMode` nên Tailwind 3 mặc định `media`: máy bật chế độ tối của Windows thì các lớp `dark:` có hiệu lực, chỉ 5 file có lớp này (drawer Artifacts, hộp thêm task, thanh thêm node…) bị đen giữa app sáng. Sửa: `darkMode: 'class'` (app không bao giờ gắn class `dark`), và gỡ hết lớp `dark:` khỏi `WorkflowArtifactsDrawer`. Đã khởi động lại dev server và kiểm CSS phát ra: không còn `prefers-color-scheme: dark`.
+
+Kiểm tra tự động: `npm run typecheck` sạch; `vitest run` 73 file / 504 test qua (test slice cũ kiểm dữ liệu giả + localStorage + nhật ký giả được thay bằng 9 test theo hành vi mới; thêm 1 test trạng thái lỗi của drawer).
+
+Tiêu chí grep: `INITIAL_PROJECT_ARTIFACTS` chỉ còn ở `MockWorkflowService.ts` và `types`; không còn `wpe_artifacts_`. Trong drawer chỉ còn `bg-slate-900` là nền biểu tượng GitHub (logo đen trên nền sáng, cố ý).
+
+Kiểm thử API thật: dự án mới → `GET /artifacts` trả `[]`; thêm → có trong danh sách; xóa 204 → `[]`. Dự án nháp đã xóa.
+
+Test tay: chờ người dùng.

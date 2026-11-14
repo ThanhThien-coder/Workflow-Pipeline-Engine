@@ -7,9 +7,9 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G1 | Tạo dự án từ template mẫu (SDLC, Marketing, DevOps) bị lỗi, chỉ tạo được dự án trống | FE | Đã sửa, chờ test tay |
 | G2 | Phase mới tạo nằm ngang, dính sát nhau, phải bấm Auto Layout mới xếp đúng | FE | Đã sửa, chờ test tay |
 | G3 | Dây nối giữa các phase khó đọc: không có hướng, đè lên nhau, cắt qua thẻ | FE | Chưa sửa |
-| G4 | Artifacts là dữ liệu giả: nút trên Workflow hiện số 5 (bấm vào về 0), Settings → Project Resources hiện 5 link giả | FE | Chưa sửa |
+| G4 | Artifacts là dữ liệu giả: nút trên Workflow hiện số 5 (bấm vào về 0), Settings → Project Resources hiện 5 link giả | FE | Đã sửa (T2), chờ test tay |
 | G5 | Thanh bên hiện thành viên giả (AK, SC, ML, +1) và tên dự án giả "Marketing Campaign Q4" | FE | Đã sửa (T1), chờ test tay |
-| G6 | Drawer Artifacts nền đen, khó nhìn, lệch tông với cả app | FE | Chưa sửa |
+| G6 | Drawer Artifacts nền đen, khó nhìn, lệch tông với cả app | FE | Đã sửa (T2), chờ test tay |
 | G7 | Subtask không được lưu lên server: gắn ghost vào subtask báo lỗi, gắn ghost vào task gốc thì subtask biến mất | FE + BE | Đã sửa (T3), chờ test tay |
 | G8 | Node Properties cho chọn trạng thái tùy ý (LOCKED, DONE…), lưu chỉ trên trình duyệt | FE | Phần lưu + bỏ ô trạng thái đã sửa (T3); thiết kế lại ở T6 |
 | G9 | Danh sách thành viên trong Node Properties và Kanban là người giả, thiếu chủ dự án thật | FE | Đã sửa (T1), chờ test tay |
