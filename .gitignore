@@ -21,7 +21,21 @@ wpe-backend/target/
 .env.local
 frontend/.env
 frontend/.env.local
+wpe-ai-service/.env
+wpe-ai-service/.env.local
 # (Chỉ giữ lại file .env.example để team làm mẫu)
+
+# Python cache & virtualenv
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.pytest_cache/
+
 
 # Logs & temp files
 npm-debug.log*
