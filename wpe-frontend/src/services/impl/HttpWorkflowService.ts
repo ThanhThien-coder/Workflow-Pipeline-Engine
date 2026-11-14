@@ -850,9 +850,6 @@ export class HttpWorkflowService implements IWorkflowService {
   }
 
   private mapBackendTaskToKanban(item: BackendTaskResponse): KanbanTask {
-    const phaseMap: Record<string, PhaseId> = { '1': 'P1', '2': 'P2A', '3': 'P2B', '4': 'P3' }
-    const phaseId: PhaseId = phaseMap[item.phaseId || '1'] || 'P1'
-
     return {
       id: String(item.id),
       code: item.code,
@@ -861,8 +858,9 @@ export class HttpWorkflowService implements IWorkflowService {
       status: item.status as TaskStatus,
       // Chưa giao thì để rỗng (trước đây rơi về '1', tức một người cụ thể)
       assignedUserId: item.assignedUserId != null && item.assignedUserId !== '' ? String(item.assignedUserId) : '',
-      phaseId,
-      phaseLabel: item.phaseId ? `Phase ${item.phaseId}` : 'Foundation',
+      // Giữ id phase thật; tên phase do nơi dùng gắn theo danh sách phase của dự án (My Tasks, Kanban phase)
+      phaseId: item.phaseId != null ? String(item.phaseId) : '',
+      phaseLabel: '',
       dueDate: item.dueDate || new Date().toISOString(),
       isOverdue: item.isOverdue || false,
       joinPolicySummary: item.joinPolicy === 'ALL_COMPLETED' ? 'AND-Join: Tất cả tiền đề hoàn thành' : 'OR-Join: 1 tiền đề hoàn thành',

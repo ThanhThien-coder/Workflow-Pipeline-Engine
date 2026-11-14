@@ -25,7 +25,17 @@ export const createKanbanSlice = (set: (update: (state: KanbanSlice) => KanbanSl
     loadMembers: async (projectId) => { const members = await workflowService.getProjectMembers(projectId); set((state) => ({ ...state, kanban: { ...state.kanban, members } })) },
     loadTasks: async (projectId) => {
       set((state) => ({ ...state, kanban: { ...state.kanban, status: 'loading', error: null, tasks: [] } }))
-      try { const tasks = await workflowService.getMyTasks(projectId, k().currentUserId); if (tasks.some((task) => task.assignedUserId !== k().currentUserId)) throw new Error('Task data does not belong to current user'); set((state) => ({ ...state, kanban: { ...state.kanban, tasks, status: 'ready' } })) }
+      try {
+        const [loaded, phases] = await Promise.all([
+          workflowService.getMyTasks(projectId, k().currentUserId),
+          // Tên phase chỉ để hiển thị: không tải được thì vẫn hiện task với nhãn sẵn có
+          workflowService.getMacroPhases(projectId).catch(() => []),
+        ])
+        if (loaded.some((task) => task.assignedUserId !== k().currentUserId)) throw new Error('Task data does not belong to current user')
+        const phaseLabels = new Map(phases.map((phase) => [phase.id, `${phase.name} · ${phase.sub}`]))
+        const tasks = loaded.map((task) => ({ ...task, phaseLabel: phaseLabels.get(task.phaseId) ?? task.phaseLabel }))
+        set((state) => ({ ...state, kanban: { ...state.kanban, tasks, status: 'ready' } }))
+      }
       catch (error) { set((state) => ({ ...state, kanban: { ...state.kanban, status: 'error', error: error instanceof Error ? error.message : 'Failed to load tasks' } })) }
     },
     setUserId: async (projectId, userId) => { set((state) => ({ ...state, kanban: { ...state.kanban, currentUserId: userId, tasks: [], searchQuery: '', filterPhaseId: 'ALL', status: 'idle' } })); await get().kanban.loadTasks(projectId) },

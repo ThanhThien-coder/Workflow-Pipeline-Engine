@@ -6,7 +6,8 @@ import { getSavedAvatar } from '../../utils/avatarUtils'
 import { isTaskInPhase } from '../../utils/phaseTaskMatcher'
 
 export const MOCK_NOW = Date.parse('2026-10-02T00:00:00+07:00')
-const PHASE_LABEL: Record<PhaseId, string> = { P1: 'Phase 1 · Foundation', P2A: 'Phase 2A · Auth', P2B: 'Phase 2B · Core', P3: 'Phase 3 · QA & Release' }
+type MockPhaseId = 'P1' | 'P2A' | 'P2B' | 'P3'
+const PHASE_LABEL: Record<MockPhaseId, string> = { P1: 'Phase 1 · Foundation', P2A: 'Phase 2A · Auth', P2B: 'Phase 2B · Core', P3: 'Phase 3 · QA & Release' }
 
 export const DEV_USERS: Omit<UserSummary, 'assignedTaskCount'>[] = [
   { id: '1', name: 'Alex Kim', roleTitle: 'Project Lead / Owner', initials: 'AK', avatarClass: 'bg-emerald-500', projectRole: 'OWNER' },
@@ -17,7 +18,7 @@ export const DEV_USERS: Omit<UserSummary, 'assignedTaskCount'>[] = [
 
 const due = (day: string) => `${day}T23:59:59+07:00`
 const art = (id: string, type: ArtifactType, url: string, label?: string, note = ''): ArtifactItem => ({ id, type, url, note, uploadedAt: '2026-09-30T09:00:00+07:00', ...(label ? { label } : {}) })
-const mk = (id: string, code: string, title: string, description: string, phaseId: PhaseId, status: TaskStatus, assignedUserId: string, dueDay: string, joinPolicySummary: string, artifacts: ArtifactItem[] = []): KanbanTask => ({ id, code, title, description, status, assignedUserId, phaseId, phaseLabel: PHASE_LABEL[phaseId], dueDate: due(dueDay), isOverdue: status !== 'DONE' && Date.parse(due(dueDay)) < MOCK_NOW, joinPolicySummary, artifacts, version: 0 })
+const mk = (id: string, code: string, title: string, description: string, phaseId: MockPhaseId, status: TaskStatus, assignedUserId: string, dueDay: string, joinPolicySummary: string, artifacts: ArtifactItem[] = []): KanbanTask => ({ id, code, title, description, status, assignedUserId, phaseId, phaseLabel: PHASE_LABEL[phaseId], dueDate: due(dueDay), isOverdue: status !== 'DONE' && Date.parse(due(dueDay)) < MOCK_NOW, joinPolicySummary, artifacts, version: 0 })
 
 // ─── Alex Kim    (id: '1') — 17 tasks: 5 TODO, 4 IN_PROGRESS, 4 REVIEW, 4 DONE ───
 // ─── Sarah Chen (id: '2') — 17 tasks: 5 TODO, 5 IN_PROGRESS, 4 REVIEW, 3 DONE ───
