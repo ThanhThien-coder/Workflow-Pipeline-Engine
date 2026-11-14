@@ -19,6 +19,7 @@ export function MyTasksView({
   const userId = useWorkflowStore((state) => state.kanban.currentUserId)
   const currentUser = useWorkflowStore((state) => state.auth.currentUser)
   const projects = useWorkflowStore((state) => state.workspace.projects)
+  const boardProjectName = projectName || projects.find((p) => String(p.id) === String(projectId))?.name
   const phase = useWorkflowStore((state) => state.kanban.filterPhaseId)
   const query = useWorkflowStore((state) => state.kanban.searchQuery)
   const status = useWorkflowStore((state) => state.kanban.status)
@@ -107,7 +108,7 @@ export function MyTasksView({
         <div>
           <h1 className="text-lg font-bold tracking-tight text-slate-900">My Tasks</h1>
           <p className="mt-0.5 text-xs text-slate-500">
-            Personal Kanban Board · {projectName || projects.find((p) => String(p.id) === String(projectId))?.name || 'Marketing Campaign Q4'}
+            Personal Kanban Board{boardProjectName ? ` · ${boardProjectName}` : ''}
           </p>
         </div>
         {actor && (

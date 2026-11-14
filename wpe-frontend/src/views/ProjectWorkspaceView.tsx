@@ -1,4 +1,4 @@
-import { type FC } from 'react'
+import { useEffect, type FC } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search } from 'lucide-react'
 import { WorkflowView } from '../components/views/WorkflowView'
@@ -7,9 +7,10 @@ import SettingsView from './SettingsView'
 import { OverviewView as OverviewScreen } from '../components/views/OverviewView'
 import NotificationBell from '../components/common/NotificationBell'
 import { GlobalProfileMenu } from '../components/common/GlobalProfileMenu'
-import { CurvedCobaltSidebar } from '../components/layout/CurvedCobaltSidebar'
+import { CurvedCobaltSidebar, type TeamMemberItem } from '../components/layout/CurvedCobaltSidebar'
 import { useWorkflowStore, type NavigationTab } from '../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../store/slices/devSlice'
+import { isMockMode } from '../services/env'
 import { useRouter } from '../router/useRouter'
 
 interface ProjectWorkspaceViewProps {
@@ -25,25 +26,37 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
   const activeTab = useWorkflowStore((state) => state.activeTab)
   const setActiveTab = useWorkflowStore((state) => state.setActiveTab)
   const currentUserId = useWorkflowStore((state) => state.kanban.currentUserId)
+  const currentUser = useWorkflowStore((state) => state.auth.currentUser)
   const simulatedRole = useWorkflowStore((state) => state.settings.simulatedRole)
-  const settingsRole = useWorkflowStore((state) => state.settings.settings?.myRole)
-  const overviewRole = useWorkflowStore((state) => state.overview.data?.project.role)
   const projects = useWorkflowStore((state) => state.workspace.projects)
   const logout = useWorkflowStore((state) => state.auth.logout)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
-  const settingsMembers = useWorkflowStore((state) => state.settings.members)
-  const kanbanMembers = useWorkflowStore((state) => state.kanban.members)
-  const teamList = settingsMembers.length > 0 ? settingsMembers : (kanbanMembers.length > 0 ? kanbanMembers : DEV_PERSONAS)
-
-  const activePersona = DEV_PERSONAS.find((p) => p.id === currentUserId) || DEV_PERSONAS[0]
   const settingsProject = useWorkflowStore((state) => state.settings.settings)
-  const currentProject = projects.find((p) => String(p.id) === String(projectId))
-  const isViewingCurrentInSettings = settingsProject && String(settingsProject.id) === String(projectId)
-  const projectName = isViewingCurrentInSettings ? settingsProject.name : currentProject?.name || 'Marketing Campaign Q4'
-  const projectStatus = isViewingCurrentInSettings ? settingsProject.status : currentProject?.status || 'ACTIVE'
+  const settingsMembers = useWorkflowStore((state) => state.settings.members)
+  const project = useWorkflowStore((state) => state.project)
+  const loadProject = useWorkflowStore((state) => state.project.loadProject)
 
-  // Determine current project-scoped role (reactive to DevToolbar persona switch)
-  const currentProjectRole = simulatedRole || settingsRole || overviewRole || activePersona.role || currentProject?.role || 'OWNER'
+  useEffect(() => {
+    void loadProject(projectId)
+  }, [loadProject, projectId])
+
+  // Màn Settings sửa tên/thành viên thì cập nhật settings.*: dùng bản đó nếu đúng dự án đang mở
+  const settingsIsCurrent = settingsProject != null && String(settingsProject.id) === String(projectId)
+  const projectInfo = settingsIsCurrent ? settingsProject : project.projectId === projectId ? project.info : null
+  const teamList: TeamMemberItem[] = settingsIsCurrent && settingsMembers.length > 0
+    ? settingsMembers
+    : project.projectId === projectId ? project.members : []
+
+  const projectName = projectInfo?.name ?? (project.status === 'error' ? 'Không tải được dự án' : 'Đang tải…')
+  const projectStatus = projectInfo?.status ?? ''
+  const currentProject = projects.find((p) => String(p.id) === String(projectId))
+
+  // Chế độ mock: vai trò và người dùng theo persona của DevToolbar. Chế độ API: theo phiên đăng nhập và dự án thật.
+  const activePersona = isMockMode ? DEV_PERSONAS.find((p) => p.id === currentUserId) || DEV_PERSONAS[0] : null
+  const currentProjectRole = activePersona ? simulatedRole || activePersona.role : projectInfo?.myRole ?? 'VIEWER'
+  const displayName = activePersona?.name ?? (currentUser?.name?.trim() || currentUser?.username || '')
+  const avatarInitials = activePersona?.initials ?? (displayName.slice(0, 2).toUpperCase() || 'U')
+  const avatarClass = activePersona?.avatarClass ?? 'bg-indigo-600'
 
   const currentTab = subTab || activeTab
 
@@ -102,10 +115,10 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
             </button>
             <NotificationBell />
             <GlobalProfileMenu
-              displayName={activePersona.name}
+              displayName={displayName}
               roleLabel={currentProjectRole}
-              avatarInitials={activePersona.initials}
-              avatarClassName={`${activePersona.avatarClass || 'bg-indigo-600'} text-white`}
+              avatarInitials={avatarInitials}
+              avatarClassName={`${avatarClass} text-white`}
               onLogout={handleLogout}
             />
           </div>

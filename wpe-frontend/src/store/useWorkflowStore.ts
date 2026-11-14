@@ -16,6 +16,7 @@ import { createAuthSlice, type AuthSlice } from './slices/authSlice'
 import { createWorkspaceSlice, type WorkspaceSlice } from './slices/workspaceSlice'
 import { createUiSlice, type UiSlice } from './slices/uiSlice'
 import { createArtifactsSlice, type ArtifactsSlice } from './slices/artifactsSlice'
+import { createProjectSlice, type ProjectSlice } from './slices/projectSlice'
 
 export type NavigationTab = 'overview' | 'workflow' | 'my-tasks' | 'settings'
 
@@ -27,7 +28,8 @@ export interface WorkflowState
     AuthSlice,
     WorkspaceSlice,
     UiSlice,
-    ArtifactsSlice {
+    ArtifactsSlice,
+    ProjectSlice {
   activeTab: NavigationTab
   currentProjectId: string | null
   macroPhases: MacroPhase[]
@@ -89,6 +91,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   ...createWorkspaceSlice(set, get),
   ...createUiSlice(set, get),
   ...createArtifactsSlice(set, get),
+  ...createProjectSlice(set, get, service),
   activeTab: 'workflow',
   currentProjectId: null,
   macroPhases: [],
