@@ -5,6 +5,7 @@ import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.ProjectStatus;
+import com.pipeline.wpe.dto.artifact.ArtifactUrlValidator;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.event.TaskCompletedEvent;
 import com.pipeline.wpe.dto.request.node.SubmitTaskArtifactRequest;
@@ -261,20 +262,32 @@ public class StateMachineService {
             throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền nộp bài cho tác vụ này.");
         }
 
-        // Chuyển sang REVIEW
-        node.setStatus(NodeStatus.REVIEW);
-        node.setRejectReason(null);
-        NodeEntity savedNode = nodeRepository.save(node);
-
-        // Lưu Artifact nếu có gửi kèm (hỗ trợ cả format trực tiếp và format bọc trong artifact object)
-        NodeArtifactResponse artifactResponse = null;
+        // Đọc minh chứng gửi kèm (hỗ trợ cả format trực tiếp và format bọc trong artifact object)
         String artifactUrl = (request.artifact() != null && request.artifact().url() != null) ? request.artifact().url() : request.url();
         String artifactTypeStr = (request.artifact() != null && request.artifact().type() != null) ? request.artifact().type() : request.type();
         String artifactTitle = (request.artifact() != null && request.artifact().title() != null)
             ? request.artifact().title()
             : (request.title() != null ? request.title() : request.note());
+        // C4: khách thấy minh chứng hay không do người nộp chọn; không gửi thì mặc định công khai (như trước).
+        boolean isPublicForGuest = request.artifact() == null || request.artifact().isPublicForGuest() == null
+            || request.artifact().isPublicForGuest();
+        boolean hasArtifact = artifactUrl != null && !artifactUrl.isBlank();
 
-        if (artifactUrl != null && !artifactUrl.isBlank()) {
+        // C4: kiểm link trước khi đổi trạng thái, để link sai (javascript:, thiếu host...) không làm task sang REVIEW.
+        // NodeController không có @Valid cho request này nên kiểm ở đây; lỗi → 400 BAD_REQUEST.
+        if (hasArtifact && !ArtifactUrlValidator.isValid(artifactUrl)) {
+            throw new IllegalArgumentException(
+                "Link minh chứng phải là http:// hoặc https:// hợp lệ (có tên miền), tối đa 500 ký tự.");
+        }
+
+        // Chuyển sang REVIEW
+        node.setStatus(NodeStatus.REVIEW);
+        node.setRejectReason(null);
+        NodeEntity savedNode = nodeRepository.save(node);
+
+        // Lưu Artifact nếu có gửi kèm. Nộp bài không kèm link vẫn hợp lệ (artifactResponse = null).
+        NodeArtifactResponse artifactResponse = null;
+        if (hasArtifact) {
             ArtifactType artifactType = ArtifactType.PR;
             if (artifactTypeStr != null) {
                 try {
@@ -290,8 +303,8 @@ public class StateMachineService {
                 .uploadedBy(currentUserId)
                 .name(artifactTitle != null && !artifactTitle.isBlank() ? artifactTitle : "Minh chứng " + node.getCode())
                 .type(artifactType)
-                .url(artifactUrl)
-                .isPublicForGuest(true)
+                .url(artifactUrl.trim())
+                .isPublicForGuest(isPublicForGuest)
                 .build();
 
             ArtifactEntity savedArtifact = artifactRepository.save(artifact);

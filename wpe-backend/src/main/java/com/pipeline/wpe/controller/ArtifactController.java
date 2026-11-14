@@ -36,7 +36,9 @@ public class ArtifactController {
         @Parameter(description = "Chỉ lấy tài nguyên trong Kho chung (is_in_repository = true)")
         @RequestParam(required = false) Boolean inRepo
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(null);
+        // C4 (D báo ở #49): bắt buộc đăng nhập. Trước đây token sai → user rỗng → service bỏ qua kiểm thành viên,
+        // ai cũng đọc được mọi link kể cả link không công khai. Khách xem link công khai qua /guest/{token}/overview.
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         List<ArtifactResponse> responses = artifactService.getProjectArtifacts(projectId, nodeId, inRepo, currentUserId);
         return ResponseEntity.ok(responses);
     }
@@ -50,7 +52,8 @@ public class ArtifactController {
         @PathVariable Long projectId,
         @Valid @RequestBody CreateArtifactRequest request
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(1L);
+        // C4: bắt buộc đăng nhập. Trước đây không đăng nhập vẫn tạo được và bị ghi là của admin (user 1).
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         ArtifactResponse response = artifactService.createArtifact(projectId, request, currentUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -64,7 +67,8 @@ public class ArtifactController {
         @PathVariable Long projectId,
         @PathVariable Long artifactId
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(null);
+        // C4: bắt buộc đăng nhập. Trước đây orElse(null) làm service bỏ qua luôn bước kiểm quyền xóa.
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         artifactService.deleteArtifact(projectId, artifactId, currentUserId);
         return ResponseEntity.noContent().build();
     }
@@ -80,7 +84,8 @@ public class ArtifactController {
         @Parameter(description = "Trạng thái hiển thị trong kho chung")
         @RequestParam(required = false, defaultValue = "true") Boolean isInRepo
     ) {
-        Long currentUserId = currentUserProvider.getCurrentUserId().orElse(null);
+        // C4: thao tác ghi nên bắt buộc đăng nhập (Viewer bị chặn ở service).
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
         ArtifactResponse response = artifactService.toggleRepositoryVisibility(projectId, artifactId, isInRepo, currentUserId);
         return ResponseEntity.ok(response);
     }
