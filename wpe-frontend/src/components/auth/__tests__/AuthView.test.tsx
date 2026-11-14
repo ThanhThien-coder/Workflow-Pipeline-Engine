@@ -70,4 +70,42 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
     const expected = getAuthErrorMessage(apiError(409, code), '')
     await waitFor(() => expect(screen.getByText(expected)).toBeDefined())
   })
+
+  it('đăng nhập thành công với vai trò USER -> điều hướng tới /workspaces', async () => {
+    const login = vi.fn().mockImplementation(async () => {
+      useWorkflowStore.setState((s) => ({
+        auth: {
+          ...s.auth,
+          currentUser: { id: 2, username: 'alex.kim', email: 'alex.kim@pipeline.engine', systemRole: 'USER' },
+        },
+      }))
+    })
+    useWorkflowStore.setState((s) => ({ auth: { ...s.auth, login } }))
+    render(<AuthView />)
+
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'alex.kim', 'Enter your password': 'Password123!' })
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/workspaces')
+    })
+  })
+
+  it('đăng nhập thành công với vai trò ADMIN -> điều hướng tới /admin', async () => {
+    const login = vi.fn().mockImplementation(async () => {
+      useWorkflowStore.setState((s) => ({
+        auth: {
+          ...s.auth,
+          currentUser: { id: 1, username: 'admin', email: 'admin@pipeline.engine', systemRole: 'ADMIN' },
+        },
+      }))
+    })
+    useWorkflowStore.setState((s) => ({ auth: { ...s.auth, login } }))
+    render(<AuthView />)
+
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'admin', 'Enter your password': 'Password123!' })
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/admin')
+    })
+  })
 })
