@@ -11,11 +11,11 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G5 | Thanh bên hiện thành viên giả (AK, SC, ML, +1) và tên dự án giả "Marketing Campaign Q4" | FE | Đã sửa (T1), chờ test tay |
 | G6 | Drawer Artifacts nền đen, khó nhìn, lệch tông với cả app | FE | Đã sửa (T2), chờ test tay |
 | G7 | Subtask không được lưu lên server: gắn ghost vào subtask báo lỗi, gắn ghost vào task gốc thì subtask biến mất | FE + BE | Đã sửa (T3), chờ test tay |
-| G8 | Node Properties cho chọn trạng thái tùy ý (LOCKED, DONE…), lưu chỉ trên trình duyệt | FE | Phần lưu + bỏ ô trạng thái đã sửa (T3); thiết kế lại ở T6 |
+| G8 | Node Properties cho chọn trạng thái tùy ý (LOCKED, DONE…), lưu chỉ trên trình duyệt | FE | Đã sửa (T3, T6), chờ test tay |
 | G9 | Danh sách thành viên trong Node Properties và Kanban là người giả, thiếu chủ dự án thật | FE | Đã sửa (T1), chờ test tay |
 | G10 | Kanban của phase: task chưa giao hiện "Alex Kim", task LOCKED hiện ở To Do, subtask tạm có mã WPE ngẫu nhiên | FE + BE | Đã sửa (T4), chờ test tay |
 | G11 | Thành viên không phải chủ dự án vẫn sửa được các ô trong Node Properties (chỉ không lưu được) | FE | Đã sửa (T3), chờ test tay |
-| G12 | Chủ dự án chưa mở khóa sớm được task trên giao diện; BE mở sớm xong thì sửa dây sẽ bị khóa lại, không lưu ai mở | FE + BE + DB | Chưa sửa |
+| G12 | Chủ dự án chưa mở khóa sớm được task trên giao diện; BE mở sớm xong thì sửa dây sẽ bị khóa lại, không lưu ai mở | FE + BE + DB | Đã sửa (T6), chờ test tay |
 | G13 | My Tasks: bộ lọc phase viết cứng Phase 1/2A/2B/3, mọi task bị coi là "Phase 1", tên phase hiện "Phase 56" | FE | Đã sửa, chờ test tay |
 | G14 | Header drawer phase ghi cứng "Marketing Q4 › Workflow › …" cho mọi dự án | FE | Đã sửa, chờ test tay |
 

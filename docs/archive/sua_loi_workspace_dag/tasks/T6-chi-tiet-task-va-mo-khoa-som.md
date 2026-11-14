@@ -1,7 +1,7 @@
 # T6 — Hộp "Chi tiết task": nhãn trạng thái, nút hành động, mở khóa sớm
 
 Sửa lỗi: G8 (phần thiết kế), G12
-Trạng thái: chờ làm
+Trạng thái: xong, chờ test tay
 Cần có trước: T1 (thành viên thật), T3 (lưu thông tin node qua API, khóa ô khi chỉ xem)
 Mở khóa: không
 
@@ -55,3 +55,25 @@ Hộp Node Properties hiện giống form điền dữ liệu thô: trạng thá
 - `grep -n "<option value=\"LOCKED\"" wpe-frontend/src/components/mindmap/*.tsx` → không còn.
 - Test tay (chủ dự án, dự án đã Publish): task C chờ A, B (A xong, B chưa) → hộp hiện "Chờ 1/2 task trước xong", ✔ A, ○ B. Bấm Mở khóa sớm → hộp xác nhận nêu B → Vẫn mở → C thành "Chờ làm" + nhãn "Mở sớm". Thêm dây D → C → C **vẫn** "Chờ làm". Nhật ký hoạt động có "… mở khóa sớm WPE-…".
 - Test tay (thành viên được giao C): thấy nút Bắt đầu, không thấy Mở khóa sớm, không sửa được ô nào.
+
+## Kết quả (14/11/2026)
+Commit trên nhánh `fix/sua-loi-workspace-dag`:
+- `b1594c9` (DB + BE)
+  - `V15__node_force_unlock.sql`: `node.force_unlocked_by` (FK `users`, `ON DELETE SET NULL`), `node.force_unlocked_at`.
+  - `forceUnlock` ghi 2 cột trên. `recomputeNodeStatus` không đưa TODO → LOCKED nếu task đã mở sớm.
+  - `GraphNodeResponse`, `KanbanTaskResponse` thêm `forceUnlockedBy`, `forceUnlockedAt` (giữ constructor cũ). Gom 2 đoạn dựng `GraphNodeResponse` trùng nhau (`WorkflowGraphService`, `NodeAssignmentService`) thành `GraphNodeResponse.from(...)`; `KanbanTaskResponse.withArtifacts(...)` thay đoạn dựng lại 14 trường.
+  - `ProjectActivityService`: mục `TASK_FORCE_UNLOCKED` "Đã mở khóa sớm task WPE-… khi task trước chưa xong" đúng người, đúng thời điểm.
+  - 3 test mới (không khóa lại khi thêm cha chưa xong; ghi ai/lúc nào; nhật ký). `./mvnw test` 618 test, BUILD SUCCESS.
+- `6103e32` (FE dữ liệu): kiểu `forceUnlocked` cho node/task; mapper đọc `forceUnlockedAt`; ghost kèm `status` và `sourceTaskCode` của task nguồn (trước đây ghost không có trạng thái nên luôn bị coi là chưa xong); `forceUnlockTask` (POST `/nodes/{id}/force-unlock`); store `forceUnlockNode` (chặn nếu không phải owner, xong thì đọc lại cây); `utils/taskPrerequisites.ts` (`prerequisitesOf`, `isUnlockSatisfied`).
+- `a798fe5` (FE giao diện): `NodePropertiesModal` thành hộp **"Chi tiết task"**:
+  - Đầu hộp: mã · tên, nhãn trạng thái tiếng Việt (🔒 Đang khóa / Chờ làm / Đang làm / Chờ duyệt / Xong), nhãn "Mở sớm".
+  - Khung điều kiện: "Chờ k/n task trước xong (cần tất cả | chỉ cần 1)" + ✔/○ từng task (cùng phase và phase khác).
+  - Nút hành động: Mở khóa sớm (chủ dự án + LOCKED; còn task trước chưa xong thì hộp xác nhận liệt kê mã + tên → "Vẫn mở khóa"), Bắt đầu / Nộp để duyệt (người được giao), Duyệt / Trả lại kèm lý do (chủ dự án / quản lý). Đổi trạng thái đi qua Kanban của phase (`moveTask`): cùng luật chuyển, sang Chờ duyệt thì mở hộp nộp minh chứng.
+  - Hai mục Giao việc (người làm, hạn chót) và Yêu cầu (tên, mô tả, điều kiện mở khóa dạng radio "Cần tất cả" / "Chỉ cần 1").
+  - Nhãn "Mở sớm" trên thẻ cây (`BranchCard`) và thẻ Kanban (`TaskCard`).
+
+Kiểm tra tự động: FE typecheck sạch, `vitest run` 80 file / 539 test qua (thêm test helper, store, service, mapper, 7 test hộp Chi tiết task, nhãn).
+
+Kiểm thử API thật (backend khởi động lại, Flyway chạy V15): mở sớm task C (LOCKED → TODO, ghi người 2 + thời điểm) → thêm dây từ task chưa xong vào C → C vẫn TODO; `/graph` và `/phases/{id}/tasks` trả `forceUnlockedBy/At`; nhật ký có "Alex Kim · Đã mở khóa sớm task WPE-002". Dự án nháp đã xóa.
+
+Test tay: chờ người dùng.
