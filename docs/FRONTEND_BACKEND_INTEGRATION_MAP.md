@@ -1075,7 +1075,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
        6. Số tác vụ được phân công thực hiện (`nodeRepository.countByAssignedUserId`)
        Nếu tổng số liên kết lớn hơn 0, hệ thống từ chối xóa với HTTP 409 `USER_HAS_DATA` kèm thông điệp chi tiết số lượng dữ liệu đang gắn, yêu cầu quản trị viên chuyển sang thao tác khóa tài khoản thay vì xóa.
      - **Các chức năng KHÔNG cung cấp tại Admin Portal (theo đề xuất đã duyệt)**:
-       - *Không có thêm tài khoản từ Admin*: Người dùng tự đăng ký theo UC1. Nếu admin tạo tài khoản kèm mật khẩu tạm thì admin biết mật khẩu đó và có thể đăng nhập xem trộm dữ liệu task của người dùng, vi phạm nguyên tắc bảo mật.
+       - *Không có thêm tài khoản từ Admin*: Không có thêm tài khoản từ admin: người dùng tự đăng ký (UC1), nhóm đã quyết 14/11. Nếu admin tạo tài khoản kèm mật khẩu tạm thì admin biết mật khẩu đó và có thể đăng nhập xem trộm dữ liệu task của người dùng, vi phạm nguyên tắc bảo mật.
        - *Không có đặt lại mật khẩu bằng mật khẩu tạm*: Admin biết mật khẩu tạm sẽ đăng nhập được vào tài khoản người khác và xem trộm nội dung công việc bên trong workspace, vi phạm đặc tả kiến trúc (system-overview dòng 79).
        - *Không sửa email trong Admin*: Email thuộc quyền riêng tư của người dùng, người dùng tự đổi trong Hồ sơ cá nhân. Ngoài ra, giao diện Admin hiển thị email đã che (`a***@domain.com`), nếu cho gửi cập nhật sẽ vô tình ghi đè email bị che lên email thật trong DB.
 2. **Luồng Mã Nguồn**:
@@ -1094,7 +1094,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
        ```json
        {
          "reason": "TERMS_VIOLATION",
-         "durationDays": 7,
+ 
          "note": "Vi phạm chính sách nội dung cộng đồng"
        }
        ```
@@ -1134,6 +1134,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 1. **Mục tiêu Nghiệp vụ**: Quản trị viên rà soát toàn bộ các Không gian Làm việc (Workspace / Project) trên hệ thống ở mức **Metadata Quản trị**. Hỗ trợ xem danh sách, xem chi tiết trong ngăn kéo (Drawer), chuyển trạng thái lưu trữ (`ARCHIVED`) cho dự án không hoạt động, và chuyển quyền sở hữu dự án (`transfer-owner`) khi chủ cũ bị khóa hoặc rời nhóm mà dự án cần người tiếp quản.
    - **Nguyên tắc Quản trị Metadata**: Quản trị viên chỉ xem các thông số tổng hợp (tên, mô tả, trạng thái, chủ sở hữu, cơ cấu vai trò thành viên, tiến độ %, task quá hạn, hạn link khách). **Tuyệt đối KHÔNG trả nội dung task, tiêu đề task, mô tả task, file artifact hay đồ thị DAG Canvas**.
    - **Quy tắc Chuyển quyền Sở hữu (Transfer Owner)**:
+      - Luật `PROJECT_CLOSED` (Nhóm đã quyết 14/11): Nếu dự án đã ở trạng thái lưu trữ (`ARCHIVED`) hoặc hoàn thành (`COMPLETED`) -> hệ thống từ chối chuyển chủ với HTTP 409 `PROJECT_CLOSED` ("Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."). Kiểm tra ngay sau khi tìm thấy dự án, trước mọi kiểm tra khác về chủ mới. Giao diện (OwnedProjectsDrawer, WorkspaceDetailDrawer) không hiện select/nút chuyển chủ mà thay bằng thông báo này.
      - Chủ mới phải là thành viên đang hoạt động trong dự án (`removed_at IS NULL`) và tài khoản không bị khóa (`is_locked = FALSE`), nếu không thỏa mãn từ chối với HTTP 409 `NEW_OWNER_NOT_ACTIVE_MEMBER`.
      - Nếu chỉ định chủ mới trùng với chủ sở hữu hiện tại -> từ chối với HTTP 409 `ALREADY_OWNER`.
      - Sau khi chuyển chủ thành công: `project.owner_id` đổi sang ID chủ mới, vai trò của chủ mới trong bảng `project_member` chuyển thành `OWNER`, vai trò của chủ cũ tự động chuyển thành `COLLABORATOR`.
@@ -1175,7 +1176,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 1. **Mục tiêu Nghiệp vụ**: Quản trị viên thiết kế, thẩm định, lưu trữ và quản lý các mẫu quy trình công việc chuẩn 2 tầng (Macro Phases và Detail Nodes) cho toàn hệ thống.
    - **Bộ lọc Catalog Admin (Chỉ hiển thị PUBLIC)**: Danh mục Template trong giao diện Admin Portal chỉ hiển thị các template `PUBLIC` (`visibility == 'PUBLIC'`) do Admin tạo dùng chung toàn sàn. Tuyệt đối không hiển thị các template cá nhân `PRIVATE` do người dùng tự lưu từ dự án của họ.
    - **Thẩm định Đồ thị Kahn 2 tầng bắt buộc**: Mọi thao tác tạo mới hoặc cập nhật template đều bắt buộc chạy thuật toán Kahn thẩm định cấu trúc `graphData` không có chu trình. Nếu phát hiện chu trình, từ chối với HTTP 422 `CYCLE_DETECTED`.
-   - **Bảo vệ Template Chuẩn Hệ thống**: Template chuẩn hệ thống (`is_system_standard == TRUE`) không thể bị xóa bởi bất kỳ ai. Yêu cầu xóa template chuẩn sẽ bị từ chối với HTTP 409 `SYSTEM_TEMPLATE_LOCKED` ("Không thể xóa template chuẩn của hệ thống.").
+   - **Quyền xóa Template Chuẩn Hệ thống (Nhóm đã quyết 14/11)**: Admin được xóa cả template mẫu của hệ thống (`is_system_standard == TRUE`), bỏ khóa `SYSTEM_TEMPLATE_LOCKED`. Khi xóa, người dùng không chọn được mẫu này khi tạo dự án nữa; các dự án đã tạo trước đó không bị ảnh hưởng. User thường cố xóa vẫn bị 403 Forbidden.
 2. **Luồng Mã Nguồn**:
    - `src/features/admin/templates/TemplateCatalogView.tsx`, `TemplateStudioView.tsx` -> `useTemplateStudio` (`save`, `loadTemplate`, `validate`, `deleteTemplate`) -> `container.templateService` (`getTemplates`, `createTemplate`, `updateTemplate`, `deleteTemplate`, `validateGraph`) -> `ITemplateService` -> `PipelineTemplateController` -> `PipelineTemplateService` (`KahnDagService`).
 3. **Request DTO**:
@@ -1218,7 +1219,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - Bảng tác động: `PIPELINE_TEMPLATE`, `ADMIN_AUDIT_LOG`.
    - `GET /templates`: Nhận tham số `visibility=PUBLIC` để lọc chỉ template công khai dùng chung hệ thống.
    - `POST /templates`, `PUT /templates/{id}`: Thẩm định cấu trúc graphData qua `kahnDagService.validateTemplateGraph(graphData)`. Nếu vi phạm chu trình lặp thì ném `CycleDetectedException`. Sau khi lưu thành công, ghi audit log `TEMPLATE_CREATED` hoặc `TEMPLATE_UPDATED`.
-   - `DELETE /templates/{id}`: Kiểm tra nếu `is_system_standard == TRUE` -> ném `ConflictException("SYSTEM_TEMPLATE_LOCKED")`. Nếu hợp lệ -> xóa khỏi `PIPELINE_TEMPLATE`, ghi audit log `TEMPLATE_DELETED`.
+   - `DELETE /templates/{id}`: Kiểm tra quyền quản trị (`requireCanManage`). Admin được phép xóa cả template hệ thống và template thường (không còn `SYSTEM_TEMPLATE_LOCKED`), xóa khỏi `PIPELINE_TEMPLATE`, ghi audit log `TEMPLATE_DELETED`.
 5. **Response DTO & UI Mutation**:
    - **GET /templates**: `200 OK`. Body: `TemplateSummaryResponse[]`.
    - **GET /templates/{id}**: `200 OK`. Body: `TemplateDetailResponse`.
@@ -1226,7 +1227,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **PUT /templates/{id}**: `200 OK`. Body: `TemplateDetailResponse`.
    - **DELETE /templates/{id}**: `204 No Content`.
    - **POST /templates/validate**: `200 OK`. Body: `DagValidationResponse` (`{ "valid": true, "violations": [] }`).
-   - **UI Mutation**: TemplateCatalogView chỉ hiển thị danh sách các template PUBLIC; khi bấm Xóa template hệ thống nhận lỗi 409 và hiển thị thông báo lỗi rõ ràng; khi lưu đồ thị có chu trình lặp, mở modal KahnCycleModal hiển thị danh sách node gây vòng lặp với viền đỏ nổi bật.
+   - **UI Mutation**: TemplateCatalogView chỉ hiển thị danh sách các template PUBLIC; khi bấm Xóa template hệ thống, hiển thị ConfirmDialog cảnh báo template mẫu hệ thống và cho phép xóa vĩnh viễn; khi lưu đồ thị có chu trình lặp, mở modal KahnCycleModal hiển thị danh sách node gây vòng lặp với viền đỏ nổi bật.
 
 ---
 
@@ -1314,7 +1315,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
            "action": "USER_SUSPENDED",
            "targetType": "USER",
            "targetId": "15",
-           "detail": "reason=TERMS_VIOLATION, durationDays=7, note=Vi phạm quy định",
+           "detail": "reason=TERMS_VIOLATION, note=Vi phạm quy định",
            "maskedIp": "192.168.1.***"
          }
        ],

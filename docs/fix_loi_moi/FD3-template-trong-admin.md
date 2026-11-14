@@ -52,4 +52,4 @@ Làm trước: FA1 (đăng nhập admin, chặn `/admin`)
   + `wpe-frontend/src/features/admin/templates/__tests__/TemplateStudioView.test.tsx`: Cập nhật kiểm tra message 403 mới và test 422 với `nameOf`.
   + `wpe-frontend/src/features/admin/templates/__tests__/TemplateCatalogView.test.tsx`: Tạo mới test xác nhận gọi `getTemplates({ visibility: 'PUBLIC' })` và hiển thị template PUBLIC.
 - Mục 4 (nhật ký template) đã làm trong FA3.
-- Ghi chú: Template chuẩn hệ thống (`isSystemStandard = true`) vẫn không xóa được (409 SYSTEM_TEMPLATE_LOCKED) theo đúng quyết định đã chốt ở TASK_03.
+- Ghi chú: Nhóm quyết 14/11: admin xóa được cả template mẫu (bỏ khóa của TASK_03).
