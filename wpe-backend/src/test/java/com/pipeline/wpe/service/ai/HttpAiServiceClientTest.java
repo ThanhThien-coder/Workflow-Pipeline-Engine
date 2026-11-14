@@ -173,7 +173,8 @@ class HttpAiServiceClientTest {
     @DisplayName("Thiếu analyzedAt: server trả 200 không có analyzedAt -> kết quả có analyzedAt khác null và source=AI_SERVICE")
     void testRequestDiagnosis_MissingAnalyzedAt() throws IOException {
         int port = startServer(exchange -> {
-            String jsonResponse = "{\"criticalPath\":[]}";
+            String jsonResponse = "{\"criticalPath\":[],\"bottlenecks\":[],\"taskTraps\":[],"
+                    + "\"actionableAdvice\":[],\"metrics\":{}}";
             byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, responseBytes.length);
@@ -198,6 +199,72 @@ class HttpAiServiceClientTest {
 
         assertThat(result.get("analyzedAt")).isNotNull();
         assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+    }
+
+    private Map<String, Object> callWithBody(String jsonResponse) throws IOException {
+        int port = startServer(exchange -> {
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(), nodeDependencyRepository,
+                "http://127.0.0.1:" + port, "/api/ai/diagnose", 3, 30);
+        return client.requestDiagnosis(project, List.of(), List.of());
+    }
+
+    @Test
+    @DisplayName("Fixture chung: response mẫu của hợp đồng được chấp nhận; request mẫu đọc được vào AiDiagnosisRequest")
+    void testSharedContractFixtures() throws IOException {
+        java.nio.file.Path dir = java.nio.file.Path.of("..", "shared", "test-fixtures");
+        String responseJson = java.nio.file.Files.readString(dir.resolve("ai-diagnose.response.json"));
+        String requestJson = java.nio.file.Files.readString(dir.resolve("ai-diagnose.request.json"));
+
+        AiDiagnosisRequest req = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readValue(requestJson, AiDiagnosisRequest.class);
+        assertThat(req.nodes()).hasSize(2);
+        assertThat(req.dependencies()).hasSize(1);
+        assertThat(req.openFeedbacks().get(0).reviewerRole()).isEqualTo("TEACHER");
+
+        Map<String, Object> result = callWithBody(responseJson);
+        assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+        assertThat(result.get("criticalPath")).isEqualTo(List.of("WPE-001", "WPE-002"));
+        assertThat(result).doesNotContainKey("warning");
+    }
+
+    @Test
+    @DisplayName("Sai hợp đồng: thiếu khóa bắt buộc (chỉ có criticalPath) -> MOCK_FALLBACK, warning nêu lý do")
+    void testRequestDiagnosis_MissingRequiredKeys_FallsBack() throws IOException {
+        Map<String, Object> result = callWithBody("{\"criticalPath\":[]}");
+
+        assertThat(result.get("source")).isEqualTo("MOCK_FALLBACK");
+        assertThat(result.get("warning").toString()).contains("sai hợp đồng").contains("bottlenecks");
+    }
+
+    @Test
+    @DisplayName("Sai hợp đồng: sai kiểu (metrics là mảng) -> MOCK_FALLBACK")
+    void testRequestDiagnosis_WrongType_FallsBack() throws IOException {
+        Map<String, Object> result = callWithBody("{\"criticalPath\":[],\"bottlenecks\":[],\"taskTraps\":[],"
+                + "\"actionableAdvice\":[],\"metrics\":[]}");
+
+        assertThat(result.get("source")).isEqualTo("MOCK_FALLBACK");
+        assertThat(result.get("warning").toString()).contains("metrics");
+    }
+
+    @Test
+    @DisplayName("analyzedAt do Java đặt: giá trị rác/quá khứ của AI không được dùng cho cooldown")
+    void testRequestDiagnosis_JavaOverridesAnalyzedAt() throws IOException {
+        Map<String, Object> result = callWithBody("{\"analyzedAt\":\"not-a-date\",\"criticalPath\":[],"
+                + "\"bottlenecks\":[],\"taskTraps\":[],\"actionableAdvice\":[],\"metrics\":{}}");
+
+        assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+        assertThat(result.get("serviceAnalyzedAt")).isEqualTo("not-a-date");
+        assertThat(Instant.parse(result.get("analyzedAt").toString())).isNotNull();
     }
 
     @Test

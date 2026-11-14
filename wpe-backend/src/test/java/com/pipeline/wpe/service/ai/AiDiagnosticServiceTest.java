@@ -135,5 +135,31 @@ class AiDiagnosticServiceTest {
 
         verify(projectRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - Kết quả MOCK_FALLBACK trước đó không kích hoạt cooldown")
+    void testTriggerAiDiagnostics_PreviousFallbackSkipsCooldown() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+
+        Map<String, Object> previousFallback = Map.of(
+            "analyzedAt", Instant.now().minus(10, ChronoUnit.SECONDS).toString(),
+            "source", "MOCK_FALLBACK"
+        );
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .latestAiAnalysis(previousFallback)
+            .build();
+
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
+        Map<String, Object> fresh = Map.of("analyzedAt", Instant.now().toString(), "source", "AI_SERVICE");
+        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenReturn(fresh);
+
+        Map<String, Object> result = aiDiagnosticService.triggerAiDiagnostics(projectId);
+
+        assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+        verify(projectRepository).save(project);
+    }
 }
 

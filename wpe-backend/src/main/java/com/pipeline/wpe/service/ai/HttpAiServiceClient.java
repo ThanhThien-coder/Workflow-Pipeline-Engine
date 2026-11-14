@@ -75,10 +75,19 @@ public class HttpAiServiceClient implements AiServiceClient {
                 return createFallbackResult(project, nodes, openFeedbacks, "body null");
             }
 
-            Map<String, Object> result = new LinkedHashMap<>(responseBody);
-            if (!result.containsKey("analyzedAt") || result.get("analyzedAt") == null) {
-                result.put("analyzedAt", Instant.now().toString());
+            String invalid = findContractViolation(responseBody);
+            if (invalid != null) {
+                log.warn("Dịch vụ AI trả về JSON sai hợp đồng cho dự án ID: {}: {}", projectId, invalid);
+                return createFallbackResult(project, nodes, openFeedbacks, "phản hồi sai hợp đồng: " + invalid);
             }
+
+            Map<String, Object> result = new LinkedHashMap<>(responseBody);
+            // analyzedAt do Java đặt: cooldown dựa vào giá trị này nên không tin đồng hồ/định dạng của bên ngoài.
+            Object serviceAnalyzedAt = result.get("analyzedAt");
+            if (serviceAnalyzedAt != null) {
+                result.put("serviceAnalyzedAt", serviceAnalyzedAt);
+            }
+            result.put("analyzedAt", Instant.now().toString());
             if (!result.containsKey("source") || result.get("source") == null) {
                 result.put("source", "AI_SERVICE");
             }
@@ -90,6 +99,22 @@ public class HttpAiServiceClient implements AiServiceClient {
                     project != null ? project.getId() : "null", shortReason, ex);
             return createFallbackResult(project, nodes, openFeedbacks, shortReason);
         }
+    }
+
+    /**
+     * Kiểm tra các khóa bắt buộc trong docs/specs/ai-service-contract.md §4.1 (frontend phụ thuộc vào chúng).
+     * analyzedAt và source không bắt buộc (Java tự điền). Trả về mô tả lỗi đầu tiên, hoặc null nếu hợp lệ.
+     */
+    static String findContractViolation(Map<String, Object> body) {
+        for (String key : List.of("criticalPath", "bottlenecks", "taskTraps", "actionableAdvice")) {
+            if (!(body.get(key) instanceof List<?>)) {
+                return "thiếu hoặc sai kiểu '" + key + "' (cần mảng)";
+            }
+        }
+        if (!(body.get("metrics") instanceof Map<?, ?>)) {
+            return "thiếu hoặc sai kiểu 'metrics' (cần object)";
+        }
+        return null;
     }
 
     private Map<String, Object> createFallbackResult(ProjectEntity project, List<NodeEntity> nodes,

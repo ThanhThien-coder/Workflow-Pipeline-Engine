@@ -60,15 +60,19 @@ public class AiDiagnosticService {
      * 9.2 Bấm nút "AI Diagnosis" kích hoạt phân tích mới (có Cooldown 3-5 phút).
      * Kiểm tra cooldown trước khi gọi microservice AI để chống spam và lãng phí token.
      * Ghi đè kết quả phân tích vào PROJECT.latest_ai_analysis.
+     *
+     * Cố ý KHÔNG đặt @Transactional: lời gọi HTTP sang AI có thể chờ tới read-timeout (30s),
+     * không được giữ kết nối DB suốt thời gian đó. Mỗi lần đọc/ghi repository tự mở transaction ngắn.
      */
-    @Transactional
     public Map<String, Object> triggerAiDiagnostics(Long projectId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
         ProjectEntity project = authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
 
         // 1. Kiểm tra Cooldown
         Map<String, Object> latestAnalysis = project.getLatestAiAnalysis();
-        if (latestAnalysis != null && latestAnalysis.containsKey("analyzedAt")) {
+        // Kết quả dự phòng (MOCK_FALLBACK) không tính cooldown: AI vừa sống lại thì được gọi ngay.
+        boolean lastWasFallback = latestAnalysis != null && "MOCK_FALLBACK".equals(latestAnalysis.get("source"));
+        if (latestAnalysis != null && !lastWasFallback && latestAnalysis.containsKey("analyzedAt")) {
             Object rawAnalyzedAt = latestAnalysis.get("analyzedAt");
             Instant lastAnalyzed = parseInstant(rawAnalyzedAt);
             if (lastAnalyzed != null) {
