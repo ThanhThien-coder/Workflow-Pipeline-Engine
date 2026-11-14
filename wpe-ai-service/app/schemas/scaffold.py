@@ -22,9 +22,11 @@ class ScaffoldDependency(BaseModel):
     childTempId: str
 
 class ScaffoldResponse(BaseModel):
+    source: str = "GEMINI_API"  # GEMINI_API hoặc HEURISTIC_FALLBACK
     domain: str
     targetAudience: str
     techStack: List[str]
     phases: List[ScaffoldPhase]
     nodes: List[ScaffoldNode]
     dependencies: List[ScaffoldDependency]
+    tokenUsage: Optional[Dict[str, Any]] = None

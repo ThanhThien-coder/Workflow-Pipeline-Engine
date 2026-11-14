@@ -25,6 +25,13 @@ class MetricsDto(BaseModel):
     driftScore: float = 0.0
     status: str = "STABLE_GREEN"  # STABLE_GREEN, YELLOW_WARNING, RED_ALERT
 
+class TokenUsageDto(BaseModel):
+    promptTokens: int = 0
+    candidateTokens: int = 0
+    totalTokens: int = 0
+    estimatedCostUsd: float = 0.0
+    source: str = "GEMINI_API"  # GEMINI_API hoặc HEURISTIC_FALLBACK
+
 class AiDiagnosisResponse(BaseModel):
     analyzedAt: str
     source: str = "AI_SERVICE"
@@ -33,3 +40,5 @@ class AiDiagnosisResponse(BaseModel):
     taskTraps: List[TaskTrapItem] = Field(default_factory=list)
     actionableAdvice: List[ActionableAdviceItem] = Field(default_factory=list)
     metrics: MetricsDto
+    tokenUsage: Optional[TokenUsageDto] = None
+    rateLimitWarning: Optional[str] = None

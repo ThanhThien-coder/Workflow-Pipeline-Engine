@@ -124,16 +124,45 @@ JSON SCHEMA:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.2,
+                    max_output_tokens=1500,  # Giới hạn output tối đa chống tràn token
                     response_mime_type="application/json"
                 )
             )
 
+            # Đo đạc Token thực tế từ Google Gemini Usage Metadata
+            usage = response.usage_metadata if response else None
+            prompt_tokens = usage.prompt_token_count if usage else 0
+            candidate_tokens = usage.candidates_token_count if usage else 0
+            total_tokens = usage.total_token_count if usage else (prompt_tokens + candidate_tokens)
+            
+            logger.info(
+                "📊 [Gemini Token Usage] Input: %d | Output: %d | Total: %d tokens (Max Limit: 1500)",
+                prompt_tokens, candidate_tokens, total_tokens
+            )
+
             if response and response.text:
                 result_json = json.loads(response.text)
+                result_json["_token_usage"] = {
+                    "promptTokens": prompt_tokens,
+                    "candidateTokens": candidate_tokens,
+                    "totalTokens": total_tokens,
+                    "estimatedCostUsd": round((prompt_tokens * 0.075 + candidate_tokens * 0.30) / 1_000_000, 6),
+                    "source": "GEMINI_API"
+                }
                 return result_json
             return None
 
         except Exception as ex:
+            err_str = str(ex)
+            if "429" in err_str or "ResourceExhausted" in err_str:
+                logger.warning(
+                    "⚠️ [RATE LIMIT 429] Đã chạm giới hạn gói Free (15 requests/phút hoặc hết quota ngày của Gemini)! "
+                    "Hệ thống tự động kích hoạt Heuristic Fallback an toàn để không làm nghẽn ứng dụng."
+                )
+                return {
+                    "_rate_limit_hit": True,
+                    "_warning": "Đã chạm giới hạn 15 req/phút của gói Gemini Free. Hệ thống tự động chuyển sang phân tích dự phòng."
+                }
             logger.warning("Lỗi khi gọi Google Gemini API: %s. Kích hoạt Heuristic Fallback.", ex)
             return None
 
@@ -178,14 +207,34 @@ JSON SCHEMA BẮT BUỘC:
                 contents=system_prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.2,
+                    max_output_tokens=2048,  # Giới hạn output tối đa
                     response_mime_type="application/json"
                 )
             )
             if response and response.text:
-                return json.loads(response.text)
+                result = json.loads(response.text)
+                usage = response.usage_metadata if response else None
+                if usage:
+                    logger.info(
+                        "📊 [Scaffold Token Usage] Input: %d | Output: %d | Total: %d tokens",
+                        usage.prompt_token_count or 0,
+                        usage.candidates_token_count or 0,
+                        usage.total_token_count or 0
+                    )
+                    result["tokenUsage"] = {
+                        "promptTokens": usage.prompt_token_count or 0,
+                        "candidateTokens": usage.candidates_token_count or 0,
+                        "totalTokens": usage.total_token_count or 0,
+                        "source": "GEMINI_API"
+                    }
+                return result
             return None
         except Exception as ex:
-            logger.warning("Lỗi Prompt-to-DAG qua Gemini: %s", ex)
+            err_str = str(ex)
+            if "429" in err_str or "ResourceExhausted" in err_str:
+                logger.warning("⚠️ [RATE LIMIT 429] Chạm giới hạn 15 req/phút của Gemini khi Scaffold DAG!")
+            else:
+                logger.warning("Lỗi Prompt-to-DAG qua Gemini: %s", ex)
             return None
 
 gemini_client = GeminiClient()

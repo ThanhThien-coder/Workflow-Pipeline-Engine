@@ -49,8 +49,16 @@ class DiagnosisService:
 
         task_traps: List[TaskTrapItem] = []
         actionable_advice: List[ActionableAdviceItem] = []
+        token_usage = None
+        rate_limit_warning = None
 
         if gemini_result:
+            if "_token_usage" in gemini_result:
+                from app.schemas.response import TokenUsageDto
+                token_usage = TokenUsageDto(**gemini_result["_token_usage"])
+            if "_warning" in gemini_result:
+                rate_limit_warning = gemini_result["_warning"]
+
             # 1. Trích xuất Task Traps từ Gemini
             for trap in gemini_result.get("taskTraps", []):
                 try:
@@ -79,6 +87,15 @@ class DiagnosisService:
             root_cause_notes = gemini_result.get("rootCauseNotes")
             if root_cause_notes and bottlenecks:
                 bottlenecks[0].reason += f" [Cố vấn AI]: {root_cause_notes}"
+        else:
+            from app.schemas.response import TokenUsageDto
+            token_usage = TokenUsageDto(
+                promptTokens=0,
+                candidateTokens=0,
+                totalTokens=0,
+                estimatedCostUsd=0.0,
+                source="HEURISTIC_FALLBACK"
+            )
 
         # =====================================================================
         # DỰ PHÒNG THÔNG MINH (Heuristic Fallback khi không có Key hoặc LLM lỗi)
@@ -135,7 +152,9 @@ class DiagnosisService:
             bottlenecks=bottlenecks,
             taskTraps=task_traps,
             actionableAdvice=actionable_advice,
-            metrics=metrics
+            metrics=metrics,
+            tokenUsage=token_usage,
+            rateLimitWarning=rate_limit_warning
         )
 
 diagnosis_service = DiagnosisService()

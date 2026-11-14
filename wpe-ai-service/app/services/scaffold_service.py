@@ -28,19 +28,22 @@ class ScaffoldService:
                 nodes = [ScaffoldNode(**n) for n in llm_data.get("nodes", [])]
                 dependencies = [ScaffoldDependency(**d) for d in llm_data.get("dependencies", [])]
                 return ScaffoldResponse(
+                    source="GEMINI_API",
                     domain=llm_data.get("domain", "Hệ thống phần mềm"),
                     targetAudience=llm_data.get("targetAudience", "Người dùng cuối & Quản trị viên"),
                     techStack=llm_data.get("techStack", request.techStack or ["Spring Boot 3", "React", "PostgreSQL"]),
                     phases=phases,
                     nodes=nodes,
-                    dependencies=dependencies
+                    dependencies=dependencies,
+                    tokenUsage=llm_data.get("tokenUsage")
                 )
             except Exception:
                 pass
 
-        # Heuristic Scaffolding Fallback nếu không có Key
+        # Heuristic Scaffolding Fallback nếu không có Key hoặc lỗi
         tech = request.techStack or ["Spring Boot 3", "React", "PostgreSQL"]
         return ScaffoldResponse(
+            source="HEURISTIC_FALLBACK",
             domain="Hệ thống phần mềm tự động hóa",
             targetAudience="Người dùng cuối & Quản trị viên dự án",
             techStack=tech,
@@ -65,7 +68,12 @@ class ScaffoldService:
                 ScaffoldDependency(parentTempId="n3", childTempId="n5"),
                 ScaffoldDependency(parentTempId="n4", childTempId="n5"),
                 ScaffoldDependency(parentTempId="n5", childTempId="n6"),
-            ]
+            ],
+            tokenUsage={
+                "source": "HEURISTIC_FALLBACK",
+                "totalTokens": 0,
+                "note": "Dữ liệu mẫu dự phòng khi chưa kết nối được Gemini API"
+            }
         )
 
 scaffold_service = ScaffoldService()
