@@ -18,10 +18,10 @@ describe('NodePropertiesModal — trạng thái và chế độ chỉ xem', () =
     const onSave = vi.fn()
     render(<NodePropertiesModal node={NODE} onClose={() => {}} onDelete={() => {}} onSave={onSave} />)
 
-    expect(screen.getByTestId('node-status').textContent).toBe('LOCKED')
+    expect(screen.getByTestId('node-status').textContent).toBe('🔒 Đang khóa')
     expect(screen.queryByRole('option', { name: 'DONE' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: /lưu thay đổi/i }))
     expect(onSave).toHaveBeenCalledTimes(1)
     expect(onSave.mock.calls[0][0]).not.toHaveProperty('status')
     expect(onSave.mock.calls[0][0]).not.toHaveProperty('progress')
@@ -38,8 +38,8 @@ describe('NodePropertiesModal — trạng thái và chế độ chỉ xem', () =
     expect(fields.length).toBeGreaterThanOrEqual(4)
     fields.forEach((field) => expect((field as HTMLInputElement).matches(':disabled')).toBe(true))
 
-    expect(screen.queryByRole('button', { name: /save changes/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /delete node/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /lưu thay đổi/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /xóa task/i })).toBeNull()
     expect(screen.getByText('Chỉ chủ dự án được sửa đồ thị')).toBeTruthy()
     expect(screen.getByText('Chi tiết task')).toBeTruthy()
   })

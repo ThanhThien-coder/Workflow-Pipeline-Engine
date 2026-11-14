@@ -50,3 +50,12 @@ describe('BranchCard — người làm', () => {
     expect(screen.getByText('Unassigned')).toBeTruthy()
   })
 })
+
+describe('BranchCard — nhãn mở sớm (T6)', () => {
+  afterEach(() => cleanup())
+
+  it('task đã được chủ dự án mở khóa sớm có nhãn "Mở sớm"', () => {
+    renderCard({ ...node('9'), forceUnlocked: true })
+    expect(screen.getByText('Mở sớm')).toBeTruthy()
+  })
+})

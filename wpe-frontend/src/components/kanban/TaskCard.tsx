@@ -64,6 +64,11 @@ export function TaskCard({
           🔒 Chờ task trước
         </span>
       )}
+      {task.forceUnlocked && (
+        <span className="w-fit rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+          Mở sớm
+        </span>
+      )}
 
       {/* 3. Footer: Nằm trọn vẹn bên trong card */}
       <div className="flex items-center justify-between border-t border-slate-100 pt-2">

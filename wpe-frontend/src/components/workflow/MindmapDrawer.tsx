@@ -15,6 +15,7 @@ import { GhostPicker } from '../popovers/GhostPicker'
 import type { BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
 import { isAncestor, TASK_H, W } from '../../utils/spanningTreeLayout'
 import { toTaskNodePatch } from '../../mappers/graphMapper'
+import { prerequisitesOf } from '../../utils/taskPrerequisites'
 import { PhaseKanbanBoard } from '../kanban/PhaseKanbanBoard'
 import { TaskDetailModal } from '../kanban/TaskDetailModal'
 import { SubmitArtifactModal } from '../kanban/SubmitArtifactModal'
@@ -49,6 +50,7 @@ export function MindmapDrawer() {
   const addChildTaskViaApi = useWorkflowStore((state) => state.addChildTask)
   const updateNodeInfoViaApi = useWorkflowStore((state) => state.updateNodeInfo)
   const removeNodeViaApi = useWorkflowStore((state) => state.removeNode)
+  const forceUnlockViaApi = useWorkflowStore((state) => state.forceUnlockNode)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
   const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
   // Chế độ API: hộp nhập tên trước khi tạo task gốc, subtask (1 cha) hoặc task hội tụ (nhiều cha)
@@ -466,6 +468,17 @@ export function MindmapDrawer() {
             node={tree[selectedNodeId] as BranchGraphNode}
             members={members}
             readOnly={!canEdit}
+            prerequisites={prerequisitesOf(tree, selectedNodeId)}
+            viewerId={actor?.id ?? null}
+            isOwner={canEdit}
+            canReview={actor?.projectRole === 'OWNER' || actor?.projectRole === 'MANAGER'}
+            onForceUnlock={
+              graphWritesUseApi && selectedPhaseId
+                ? () => void forceUnlockViaApi(selectedPhaseId, selectedNodeId).catch(handleError)
+                : undefined
+            }
+            // Đổi trạng thái đi qua Kanban của phase: cùng luật chuyển, cùng hộp nộp minh chứng khi sang Chờ duyệt
+            onMoveStatus={(to, reason) => void moveTask(selectedNodeId, to, reason)}
             onClose={() => setSelectedNodeId(null)}
             onSave={(updated) => {
               const current = tree[selectedNodeId]
