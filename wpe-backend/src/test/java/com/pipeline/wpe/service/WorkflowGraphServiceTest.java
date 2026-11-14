@@ -903,6 +903,42 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
+    @DisplayName("T3 updateNode: clearAssignee / clearDueDate = true thì bỏ người phụ trách và hạn chót")
+    void testUpdateNodeClearAssigneeAndDueDate() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setVersion(3L);
+        n.setAssignedUserId(3L);
+        n.setDueDate(Instant.now().minusSeconds(3600));
+        n.setIsOverdue(true);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        workflowGraphService.updateNode(100L,
+            new UpdateNodeRequest("WPE-100", null, null, null, null, null, null, 3L, true, true), 2L);
+
+        assertNull(n.getAssignedUserId());
+        assertNull(n.getDueDate());
+        assertFalse(n.getIsOverdue());
+    }
+
+    @Test
+    @DisplayName("T3 updateNode: không gửi cờ clear (constructor cũ) thì null vẫn là giữ nguyên")
+    void testUpdateNodeNullKeepsAssigneeAndDueDate() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        Instant due = Instant.now().plusSeconds(86400);
+        n.setVersion(3L);
+        n.setAssignedUserId(3L);
+        n.setDueDate(due);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        workflowGraphService.updateNode(100L, new UpdateNodeRequest("WPE-100", null, null, null, null, null, null, 3L), 2L);
+
+        assertEquals(3L, n.getAssignedUserId());
+        assertEquals(due, n.getDueDate());
+    }
+
+    @Test
     @DisplayName("B3 updateNode: người phụ trách không phải thành viên ném IllegalArgumentException ASSIGNEE_NOT_MEMBER (HTTP 400)")
     void testUpdateNodeAssigneeNotMember() {
         NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);

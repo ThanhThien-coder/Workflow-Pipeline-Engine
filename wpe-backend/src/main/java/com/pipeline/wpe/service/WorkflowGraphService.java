@@ -436,7 +436,9 @@ public class WorkflowGraphService {
             node.setPhaseId(request.phaseId());
         }
 
-        if (request.assignedUserId() != null && !request.assignedUserId().equals(node.getAssignedUserId())) {
+        if (request.shouldClearAssignee()) {
+            node.setAssignedUserId(null);
+        } else if (request.assignedUserId() != null && !request.assignedUserId().equals(node.getAssignedUserId())) {
             boolean isMember = request.assignedUserId().equals(project.getOwnerId())
                 || projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, request.assignedUserId());
             if (!isMember) {
@@ -448,7 +450,10 @@ public class WorkflowGraphService {
         node.setTitle(request.title().trim());
         if (request.description() != null) node.setDescription(request.description());
         if (request.estimatedHours() != null) node.setEstimatedHours(request.estimatedHours());
-        if (request.dueDate() != null) {
+        if (request.shouldClearDueDate()) {
+            node.setDueDate(null);
+            node.setIsOverdue(false);
+        } else if (request.dueDate() != null) {
             node.setDueDate(request.dueDate());
             // Dời hạn sang tương lai thì công việc không còn quá hạn
             if (request.dueDate().isAfter(Instant.now())) {
