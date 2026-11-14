@@ -112,4 +112,45 @@ describe('OwnedProjectsDrawer Component', () => {
 
     expect(await screen.findByText('Người dùng này không sở hữu dự án nào.')).toBeTruthy();
   });
+
+  it('dự án ARCHIVED hoặc COMPLETED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', async () => {
+    const closedProjects: OwnedProjectDto[] = [
+      {
+        projectId: '10',
+        name: 'Archived Project',
+        status: 'ARCHIVED',
+        memberCount: 3,
+        candidates: [{ userId: '5', name: 'Eve', username: 'eve' }],
+      },
+      {
+        projectId: '20',
+        name: 'Completed Project',
+        status: 'COMPLETED',
+        memberCount: 2,
+        candidates: [{ userId: '6', name: 'Frank', username: 'frank' }],
+      },
+    ];
+
+    loadOwnedProjects.mockResolvedValue(closedProjects);
+
+    render(
+      <OwnedProjectsDrawer
+        user={mockUser}
+        onClose={onClose}
+        loadOwnedProjects={loadOwnedProjects}
+        onTransfer={onTransfer}
+      />
+    );
+
+    expect(await screen.findByText('Archived Project')).toBeTruthy();
+    expect(await screen.findByText('Completed Project')).toBeTruthy();
+
+    const closedMessages = screen.getAllByText(
+      'Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.'
+    );
+    expect(closedMessages).toHaveLength(2);
+
+    expect(screen.queryByLabelText('Chủ mới')).toBeNull();
+    expect(screen.queryByText('Chuyển chủ')).toBeNull();
+  });
 });

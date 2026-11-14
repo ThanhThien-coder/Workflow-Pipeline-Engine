@@ -134,7 +134,11 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
 
                   {/* Transfer Controls */}
                   <div className="mt-4 pt-3 border-t border-slate-200/60">
-                    {hasCandidates ? (
+                    {proj.status === 'ARCHIVED' || proj.status === 'COMPLETED' ? (
+                      <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-200">
+                        Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.
+                      </p>
+                    ) : hasCandidates ? (
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <select
                           aria-label="Chủ mới"

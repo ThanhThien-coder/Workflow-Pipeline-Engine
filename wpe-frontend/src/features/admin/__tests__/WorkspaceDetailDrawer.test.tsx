@@ -60,8 +60,28 @@ describe('WorkspaceDetailDrawer Component', () => {
     ...mockDetailWithCandidates,
     id: '2',
     name: 'Dự án Một Người',
-    status: 'ARCHIVED',
+    status: 'ACTIVE',
     ownerCandidates: [],
+  };
+
+  const mockDetailArchived: AdminWorkspaceDetailDto = {
+    ...mockDetailWithCandidates,
+    id: '3',
+    name: 'Dự án Lưu Trữ',
+    status: 'ARCHIVED',
+    ownerCandidates: [
+      { userId: '20', name: 'Alex Kim', username: 'alex.kim' },
+    ],
+  };
+
+  const mockDetailCompleted: AdminWorkspaceDetailDto = {
+    ...mockDetailWithCandidates,
+    id: '4',
+    name: 'Dự án Hoàn Thành',
+    status: 'COMPLETED',
+    ownerCandidates: [
+      { userId: '20', name: 'Alex Kim', username: 'alex.kim' },
+    ],
   };
 
   it('hiện đủ 4 tiêu đề nhóm và không có chữ "token"', () => {
@@ -107,8 +127,8 @@ describe('WorkspaceDetailDrawer Component', () => {
   it('khi trạng thái là ARCHIVED thì ẩn nút Lưu trữ dự án', () => {
     render(
       <WorkspaceDetailDrawer
-        projectId="2"
-        detail={mockDetailSolo}
+        projectId="3"
+        detail={mockDetailArchived}
         loading={false}
         onClose={onClose}
         onArchive={onArchive}
@@ -117,6 +137,44 @@ describe('WorkspaceDetailDrawer Component', () => {
     );
 
     expect(screen.queryByText('Lưu trữ dự án')).toBeNull();
+  });
+
+  it('dự án ARCHIVED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', () => {
+    render(
+      <WorkspaceDetailDrawer
+        projectId="3"
+        detail={mockDetailArchived}
+        loading={false}
+        onClose={onClose}
+        onArchive={onArchive}
+        onTransfer={onTransfer}
+      />
+    );
+
+    expect(
+      screen.getByText('Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.')
+    ).toBeTruthy();
+    expect(screen.queryByLabelText('Chủ mới')).toBeNull();
+    expect(screen.queryByText('Chuyển')).toBeNull();
+  });
+
+  it('dự án COMPLETED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', () => {
+    render(
+      <WorkspaceDetailDrawer
+        projectId="4"
+        detail={mockDetailCompleted}
+        loading={false}
+        onClose={onClose}
+        onArchive={onArchive}
+        onTransfer={onTransfer}
+      />
+    );
+
+    expect(
+      screen.getByText('Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.')
+    ).toBeTruthy();
+    expect(screen.queryByLabelText('Chủ mới')).toBeNull();
+    expect(screen.queryByText('Chuyển')).toBeNull();
   });
 
   it('chọn chủ mới và bấm Chuyển gọi onTransfer(projectId, newOwnerId)', async () => {

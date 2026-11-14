@@ -137,7 +137,7 @@ export class MockAdminService implements IAdminService {
       action: 'USER_SUSPENDED',
       targetType: 'USER',
       targetId: '3',
-      detail: 'reason=TERMS_VIOLATION, durationDays=7, note=Spamming',
+      detail: 'reason=TERMS_VIOLATION, note=Spamming',
       maskedIp: '192.168.1.***',
     },
     {

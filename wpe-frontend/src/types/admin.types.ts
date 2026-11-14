@@ -17,7 +17,6 @@ export interface SuspendUserRequestDto {
   userId: string;
   reason: 'TERMS_VIOLATION' | 'SECURITY_RISK' | 'BILLING_OVERDUE' | 'OTHER';
   note?: string;
-  durationDays?: number;
 }
 
 export interface OwnerCandidateDto {

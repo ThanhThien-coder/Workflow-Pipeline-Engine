@@ -292,7 +292,11 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                 {/* Chuyển chủ dự án */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5">
                   <h4 className="text-xs font-bold text-slate-800">Chuyển chủ dự án</h4>
-                  {detail.ownerCandidates && detail.ownerCandidates.length > 0 ? (
+                  {detail.status === 'ARCHIVED' || detail.status === 'COMPLETED' ? (
+                    <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-200">
+                      Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.
+                    </p>
+                  ) : detail.ownerCandidates && detail.ownerCandidates.length > 0 ? (
                     <div className="space-y-2">
                       <div className="flex gap-2">
                         <select

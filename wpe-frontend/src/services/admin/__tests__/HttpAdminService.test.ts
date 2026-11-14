@@ -88,14 +88,12 @@ describe('HttpAdminService', () => {
       userId: '2',
       reason: 'TERMS_VIOLATION',
       note: 'Spamming',
-      durationDays: 7,
     });
 
     expect(mockApiRequest).toHaveBeenCalledWith('POST', '/admin/users/2/suspend', {
       body: {
         reason: 'TERMS_VIOLATION',
         note: 'Spamming',
-        durationDays: 7,
       },
     });
     expect(result.status).toBe('SUSPENDED');

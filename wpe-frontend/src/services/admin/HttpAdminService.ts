@@ -315,7 +315,6 @@ export class HttpAdminService implements IAdminService {
       body: {
         reason: payload.reason,
         note: payload.note,
-        durationDays: payload.durationDays,
       },
     });
     return mapAdminUser(raw);

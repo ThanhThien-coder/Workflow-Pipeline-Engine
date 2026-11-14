@@ -280,7 +280,11 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
       <ConfirmDialog
         isOpen={deleteTarget !== null}
         title="Delete template?"
-        message={`"${deleteTarget?.name}" sẽ bị xóa khỏi kho mẫu. Các dự án đã clone trước đó không bị ảnh hưởng.`}
+        message={
+          deleteTarget?.isSystemStandard
+            ? `"${deleteTarget?.name}" là template mẫu của hệ thống. Xóa vĩnh viễn thì người dùng không chọn được mẫu này khi tạo dự án nữa. Các dự án đã tạo trước đó không bị ảnh hưởng.`
+            : `"${deleteTarget?.name}" sẽ bị xóa khỏi kho mẫu. Các dự án đã clone trước đó không bị ảnh hưởng.`
+        }
         confirmLabel="Delete"
         isDanger={true}
         onConfirm={handleDeleteConfirm}
