@@ -1,0 +1,174 @@
+' Nguồn: wpe-frontend/src/components/kanban/TaskDetailModal.tsx, components/workflow/MindmapDrawer.tsx, hooks/usePhaseKanban.ts,
+'        services/impl/HttpWorkflowService.ts, views/MyTasksView.tsx;
+'        wpe-backend/.../controller/NodeController.java, service/engine/StateMachineService.java (updateStatus, unlockDownstreamTasks, afterCommit),
+'        service/event/WorkflowEventPublisher.java (publishTaskCompleted, publishNotification, sendAfterCommit),
+'        service/event/WorkflowEventConsumer.java (handleTaskCompleted), service/event/SseEmitterService.java, config/RabbitMQConfig.java
+' Sequence "Duyệt task → task con tự mở khóa" (C8). Ví dụ seed: alex (Owner) duyệt WPE-003 → WPE-004 (LOCKED) mở khóa cho người phụ trách.
+' Số dòng của từng message: xem nhat-quan.md mục 1.
+
+@startuml seq-duyet-task
+skinparam shadowing false
+skinparam sequenceMessageAlign left
+autonumber
+
+actor "Chủ dự án / Quản lý" as Reviewer
+boundary ":TaskDetailModal" as Modal
+control ":usePhaseKanban" as Hook
+control ":HttpWorkflowService" as Http
+control ":NodeController" as Ctl
+control ":StateMachineService" as Svc
+entity ":NodeRepository" as NodeRepo
+entity ":ProjectRepository" as ProjRepo
+entity ":ProjectMemberRepository" as MemRepo
+entity ":NodeDependencyRepository" as DepRepo
+control ":WorkflowEventPublisher" as Pub
+control ":TransactionSynchronizationManager" as Tx
+queue "RabbitMQ\nwpe.task.completed.queue" as MQ
+control ":WorkflowEventConsumer" as Cons
+control ":SseEmitterService" as Sse
+boundary ":EventSource\n(MyTasksView của\nngười phụ trách task con)" as ES
+
+Reviewer -> Modal : bấm "Approve" (task đang REVIEW)
+activate Modal
+Modal -> Hook : moveTask(taskId, "DONE")\n(qua prop onMove của MindmapDrawer)
+activate Hook
+Hook -> Hook : evaluateTransition(task, "DONE", actor)
+note right of Hook : kiểm phía giao diện: Owner/Manager mới thấy nút;\ncập nhật thẻ trước (optimistic), lỗi thì trả lại
+Hook -> Http : updateTaskStatus(taskId, "DONE")
+activate Http
+Http -> Ctl : PATCH /api/v1/nodes/{taskId}/status\n{status: DONE, version}
+activate Ctl
+Ctl -> Svc : updateStatus(taskId, request, actorId)
+activate Svc
+note right of Svc : @Transactional: mở transaction
+Svc -> NodeRepo : findById(taskId)
+activate NodeRepo
+NodeRepo --> Svc : NodeEntity (REVIEW)
+deactivate NodeRepo
+note right of Svc
+  version khác → 409 OPTIMISTIC_LOCK_CONFLICT;
+  đã DONE → 400 (rút gọn, không vẽ nhánh lỗi)
+end note
+Svc -> ProjRepo : findById(projectId)
+activate ProjRepo
+ProjRepo --> Svc : ProjectEntity
+deactivate ProjRepo
+Svc -> Svc : ensureNotArchived(project)
+opt người gọi không phải Owner
+  Svc -> MemRepo : findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, userId)
+  activate MemRepo
+  MemRepo --> Svc : Optional<ProjectMemberEntity>
+  deactivate MemRepo
+end
+note right of Svc
+  canReview = là Owner hoặc role == MANAGER.
+  Không phải REVIEW → 400; không canReview → 403
+end note
+Svc -> Pub : publishTaskCompleted(TaskCompletedEvent)
+activate Pub
+Pub -> Pub : sendAfterCommit(routingKey, event, mô tả)
+Pub -> Tx : registerSynchronization(afterCompletion)
+note right of Tx : CHƯA gửi lên RabbitMQ: chỉ hẹn,\nchờ transaction commit
+Pub --> Svc
+deactivate Pub
+Svc -> NodeRepo : save(node)  [status = DONE]
+activate NodeRepo
+NodeRepo --> Svc : NodeEntity (version + 1)
+deactivate NodeRepo
+Svc -> Svc : afterCommit(gửi SSE TASK_STATUS_CHANGED)
+Svc -> Tx : registerSynchronization(afterCompletion)
+
+== Proxy @Transactional commit khi updateStatus trả về (điểm "sau commit") ==
+Tx -> Pub : afterCompletion(STATUS_COMMITTED)
+activate Pub
+Pub ->> MQ : convertAndSend("wpe.workflow.exchange",\n"wpe.task.completed", event)
+deactivate Pub
+Tx -> Svc : afterCompletion(STATUS_COMMITTED)
+Svc -> Sse : sendToUser(assigneeId, "TASK_STATUS_CHANGED", response)
+note right of Sse : người phụ trách task vừa duyệt (và Owner nếu Manager duyệt);\nkhông vẽ trình duyệt của họ cho gọn
+Svc --> Ctl : KanbanTaskResponse
+deactivate Svc
+Ctl --> Http : 200 KanbanTaskResponse
+deactivate Ctl
+Http --> Hook : KanbanTask
+deactivate Http
+Hook --> Modal : thẻ ở cột Done
+deactivate Hook
+deactivate Modal
+
+== Bất đồng bộ: RabbitMQ giao sự kiện cho consumer (luồng khác, HTTP đã trả về) ==
+MQ ->> Cons : handleTaskCompleted(TaskCompletedEvent)
+activate Cons
+Cons -> Svc : unlockDownstreamTasks(event.taskId())
+activate Svc
+note right of Svc : @Transactional: transaction mới
+Svc -> DepRepo : findByParentNodeId(parentTaskId)
+activate DepRepo
+DepRepo --> Svc : List<NodeDependencyEntity> (cạnh tới các task con)
+deactivate DepRepo
+loop mỗi cạnh tới một task con
+  Svc -> NodeRepo : findById(childId)
+  activate NodeRepo
+  NodeRepo --> Svc : NodeEntity con
+  deactivate NodeRepo
+  opt task con đang LOCKED
+    Svc -> DepRepo : findByChildNodeId(childId)
+    activate DepRepo
+    DepRepo --> Svc : List<NodeDependencyEntity> (cạnh từ các cha)
+    deactivate DepRepo
+    alt joinPolicy == ALL_COMPLETED
+      loop mỗi cha, dừng khi gặp cha chưa DONE
+        Svc -> NodeRepo : findById(parentNodeId)
+        NodeRepo --> Svc : NodeEntity cha
+      end
+      note right of Svc : canUnlock = mọi cha DONE (allMatch)
+    else joinPolicy == ANY_COMPLETED
+      loop mỗi cha, dừng khi gặp cha DONE
+        Svc -> NodeRepo : findById(parentNodeId)
+        NodeRepo --> Svc : NodeEntity cha
+      end
+      note right of Svc : canUnlock = có ít nhất 1 cha DONE (anyMatch)
+    end
+    opt canUnlock
+      Svc -> NodeRepo : save(childNode)  [LOCKED → TODO]
+      activate NodeRepo
+      NodeRepo --> Svc : NodeEntity con
+      deactivate NodeRepo
+      opt task con có người phụ trách
+        Svc -> Pub : publishNotification(NotificationEvent "TASK_READY")
+        activate Pub
+        Pub -> Tx : registerSynchronization(afterCompletion)
+        Pub --> Svc
+        deactivate Pub
+        Svc -> Svc : afterCommit(gửi SSE TASK_UNLOCKED)
+        Svc -> Tx : registerSynchronization(afterCompletion)
+      end
+    end
+  end
+end
+== Proxy @Transactional commit khi unlockDownstreamTasks trả về ==
+Tx -> Pub : afterCompletion(STATUS_COMMITTED)
+activate Pub
+Pub ->> MQ : convertAndSend("wpe.workflow.exchange",\n"wpe.notification.task_ready", event)
+note right of MQ : vào wpe.notification.queue → handleNotification\nlưu NOTIFICATION + SSE NOTIFICATION_RECEIVED\n(vẽ ở seq-nop-bai)
+deactivate Pub
+Tx -> Svc : afterCompletion(STATUS_COMMITTED)
+Svc -> Sse : sendToUser(assigneeId, "TASK_UNLOCKED", taskResponse)
+activate Sse
+Sse ->> ES : event TASK_UNLOCKED (mọi tab đang mở của user)
+deactivate Sse
+activate ES
+ES -> ES : onEvent → loadTasks(projectId)
+note right of ES : thẻ task con hiện ở cột TODO, không cần F5
+deactivate ES
+Svc --> Cons
+deactivate Svc
+deactivate Cons
+
+note over Cons
+  Hai task cha cùng DONE một lúc sửa cùng task con: một bên thua @Version
+  (OptimisticLockingFailureException) → handleTaskCompleted ném lại → Spring AMQP thử lại 3 lần,
+  hết lượt thì vào DLQ. Chạy lại không mở khóa 2 lần vì chỉ xét task con đang LOCKED (lũy đẳng).
+end note
+
+@enduml

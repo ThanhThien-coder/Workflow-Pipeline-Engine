@@ -2,7 +2,7 @@
 
 Người làm: C
 Người review: D
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Cần có trước: C7, C2
 Cần trước bước frontend: không
 Mở khóa: X3
@@ -78,8 +78,33 @@ Người dán file này đang **học vẽ sơ đồ thiết kế OOAD** khớp 
 ### Ảnh bản vẽ tay đầu tiên
 
 ### Ma trận nhất quán: các chỗ lệch đã tìm thấy và cách xử lý
+Chế độ sprint (12/11/2026 tối): Claude vẽ đủ 6 sản phẩm từ code thật, không có bản vẽ tay. Ma trận đầy đủ ở `docs/ooad/C-thuc-thi/nhat-quan.md`. Số dòng backend lấy theo main + C4 (#49), vì từ lúc C4 tách nhánh main không sửa file backend nào của mảng C.
+- **Lifeline `tasks.ts` không có trong code:** lời gọi API task nằm ở `HttpWorkflowService.ts`, nên sơ đồ dùng lớp này.
+- **Lifeline trình duyệt nhận `TASK_UNLOCKED`:** chỉ `MyTasksView` gọi `connectRealtime`, nên vẽ là "EventSource trong MyTasksView của người phụ trách task con".
+- **Sơ đồ state:** ngoài `StateMachineService` còn 4 chỗ đổi trạng thái ở code mảng B (xuất bản dự án, sửa cạnh khóa/mở lại, tạo node, clone template) và 2 chỗ gỡ cờ trễ hạn (`updateNode`, `updateAssignment`). Đã vẽ đủ, ghi (B). Trạng thái đầu có 2 nhánh: node trong phase / có cạnh vào → LOCKED, còn lại → TODO. Lần dò đầu chỉ tìm `setStatus(NodeStatus.` nên sót 2 chỗ tạo node; tìm rộng thêm `.status(` và `NodeEntity.builder()` mới thấy.
+- **"Nộp bài" có 2 nhánh code** (kéo thẻ qua `updateStatus` và nộp kèm link qua `submitTaskArtifact`), nên vẽ 2 chuyển IN_PROGRESS → REVIEW để mỗi chuyển ứng đúng một nhánh.
+- **Vùng song song `isOverdue`:** smetana (bộ vẽ không cần Graphviz) không vẽ được nét chia vùng, máy không có Graphviz, nên vẽ 2 khối con cạnh nhau và ghi chú.
+- **Giao diện không nghe `TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE`:** ghi trên sơ đồ và ở nhat-quan mục 5 (việc của C6).
 
 ### Lỗi Claude hoặc người review chỉ ra và cách mình sửa
+- Nhãn `opt [..]`, `loop [..]` gõ kèm ngoặc vuông bị PlantUML hiểu thành link → bỏ ngoặc (PlantUML tự thêm).
+- Ảnh rộng hơn 4096 px bị PlantUML cắt (`seq-nop-bai` rộng 4098 px) → render với `-DPLANTUML_LIMIT_SIZE=16384`.
+- **Lỗ hổng tìm thấy khi vẽ:** `NodeController` nhận `?currentUserId=` và mặc định user 2 khi không đăng nhập → ai cũng tự xưng Owner để duyệt bài được. Cùng kiểu D báo ở #49. Đã vá ở PR #56 (người làm yêu cầu). Ghi ở nhat-quan mục 5.
+
+**Sửa theo review của D ở #58 (13/11/2026), sau khi #56 merge:**
+1. `class-thuc-thi.puml`: `NodeController.updateStatus / submitTask / forceUnlock` bỏ tham số `currentUserId`; thêm lớp `ProjectAuthorizationService` (`verifyProjectMemberOrOwner`), `NodeController ..> ProjectAuthorizationService` (getMyTasks kiểm thành viên) và `ArtifactService --> ProjectAuthorizationService`. Xuất lại `C-class-thuc-thi.png`, `C-class-thuc-thi-du-lieu.png`.
+2. `nhat-quan.md`: số dòng `NodeController` theo main sau #56 (đã tự đếm lại, khớp số D đưa): `43–48 → 54–59`, `55 → 64`, `56 → 65`, `59–64 → 68–73`, `71 → 78`, `72 → 79`.
+3. `nhat-quan.md` mục 5: tiêu đề còn "(chưa sửa…)" nên đọc như chưa vá; đổi tiêu đề và ghi trạng thái từng ý (ý 3: đã vá ở #56, kèm lưu ý chế độ dev vẫn coi request không header là user 2).
+
+**Render:** `java -DPLANTUML_LIMIT_SIZE=16384 -jar ~/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar -charset UTF-8 -tpng`. Đã mở xem cả 6 ảnh: đủ chữ, không lỗi. PNG: `docs/ooad/png/C-state-task.png`, `C-seq-duyet-task.png`, `C-seq-nop-bai.png`, `C-comm-nop-bai.png`, `C-class-thuc-thi.png`, `C-class-thuc-thi-du-lieu.png`.
+
+**Tự chấm theo cẩm nang mục 3:**
+- Sequence 8/9 (cả 2 sơ đồ). Message RabbitMQ và SSE dùng mũi tên hở; điểm "sau commit" là dải `== Proxy @Transactional commit ==`. Chưa đạt "mỗi message là phương thức có trong class diagram của lớp nhận" cho message tới lớp giao diện (cùng lý do với mục Class bên dưới).
+- Communication 5/5.
+- Class 8/9. Chưa đạt "phương thức xuất hiện trong sequence đều có trong lớp tương ứng" cho phần giao diện (`usePhaseKanban`, `HttpWorkflowService`, `TaskDetailModal`): class diagram chỉ vẽ backend (giống B). Phương thức FE được dò bằng `file:dòng` trong nhat-quan.
+- State 8/8.
+
+**Mở PR theo yêu cầu người làm (12/11/2026). Người làm còn phải làm trước khi D merge:** vòng hiểu — giải thích lại 1 sơ đồ sequence (gợi ý `seq-duyet-task`: chỉ ra điểm "sau commit"). Nên merge sau C7 (#57).
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa

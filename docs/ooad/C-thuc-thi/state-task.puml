@@ -1,0 +1,69 @@
+' Nguồn: wpe-backend/src/main/java/com/pipeline/wpe/ — service/engine/StateMachineService.java (updateStatus, submitTaskArtifact,
+'        forceUnlock, unlockDownstreamTasks), service/engine/TaskOverdueScanner.java, service/WorkflowGraphService.java
+'        (publishPipeline, recomputeNodeStatus, updateNode), service/NodeAssignmentService.java, entity/NodeEntity.java, common/enums/NodeStatus.java
+' Sơ đồ state của Công việc (NodeEntity) — C8. Mỗi chuyển ghi "sự kiện [điều kiện] / hành động".
+' Mỗi chuyển ứng với đúng một nhánh code: xem bảng ở nhat-quan.md mục 4.
+
+@startuml state-task
+!pragma layout smetana
+skinparam shadowing false
+hide empty description
+
+state "Công việc (NodeEntity)" as Task {
+
+ state "Vòng đời (status)" as Life {
+  state LOCKED
+  state TODO
+  state IN_PROGRESS
+  state REVIEW
+  state DONE
+
+  [*] --> LOCKED : createNode [thuộc một phase]\nhoặc clone template [có cạnh đi vào]
+  [*] --> TODO : createNode [không thuộc phase]\nhoặc clone template [không có cạnh đi vào]
+
+  LOCKED --> TODO : autoUnlock [cha thỏa ALL_COMPLETED / ANY_COMPLETED]\n/ thông báo TASK_READY, SSE TASK_UNLOCKED
+  LOCKED --> TODO : forceUnlock [là Owner]\n/ thông báo FORCE_UNLOCKED, SSE TASK_UNLOCKED
+  LOCKED --> TODO : publishPipeline [là node gốc]\n/ thông báo, SSE TASK_UNLOCKED (B4)
+  LOCKED --> TODO : sửa cạnh [điều kiện hội tụ lại thỏa]\n/ SSE TASK_UNLOCKED (B)
+  TODO --> LOCKED : sửa cạnh [điều kiện hội tụ không còn thỏa] (B)
+
+  TODO --> IN_PROGRESS : start [người phụ trách hoặc Owner]\n/ startedAt = now
+  IN_PROGRESS --> TODO : cancel [người phụ trách hoặc Owner]\n/ startedAt = null
+
+  IN_PROGRESS --> REVIEW : submit — kéo thẻ [người phụ trách hoặc Owner]\n/ rejectReason = null
+  IN_PROGRESS --> REVIEW : submitArtifact [người phụ trách hoặc Owner, link hợp lệ nếu có]\n/ rejectReason = null, lưu minh chứng,\nthông báo REVIEW_REQUESTED, SSE TASK_SUBMITTED
+
+  REVIEW --> IN_PROGRESS : reject(lý do) [Owner hoặc Manager, lý do không rỗng]\n/ lưu rejectReason, thông báo REJECTED, SSE TASK_REJECTED
+  REVIEW --> DONE : approve [Owner hoặc Manager]\n/ bắn TaskCompletedEvent (sau commit)
+
+  DONE --> [*]
+ }
+
+ state "Cờ trễ hạn (isOverdue)" as Flag {
+  state "Đúng hạn" as OnTime
+  state "Quá hạn" as Overdue
+
+  [*] --> OnTime : / isOverdue = false
+  OnTime --> Overdue : scanOverdueTasks [IN_PROGRESS và dueDate < now]\n/ isOverdue = true, thông báo OVERDUE, SSE TASK_OVERDUE
+  Overdue --> OnTime : đổi dueDate [dueDate mới > now]\n/ isOverdue = false
+ }
+}
+
+note right of Task
+  Điều kiện chung cho mọi chuyển do người dùng gọi
+  (start, cancel, submit, reject, approve, forceUnlock):
+  [version khớp] — sai → 409 OPTIMISTIC_LOCK_CONFLICT
+  [dự án không ARCHIVED] — sai → 409 PROJECT_ARCHIVED
+  Cặp trạng thái không có trong sơ đồ (ví dụ TODO → DONE,
+  LOCKED → IN_PROGRESS) → 400 BAD_REQUEST.
+
+  DONE: không còn chuyển nào (mọi PATCH → 400
+  "đã hoàn tất và đóng băng"), nên nối thẳng tới trạng thái kết thúc.
+
+  "Vòng đời" và "Cờ trễ hạn" là 2 vùng song song (orthogonal region):
+  cờ isOverdue độc lập với vòng đời, task REVIEW vẫn có thể "Quá hạn".
+  (PlantUML smetana không vẽ được nét đứt chia vùng nên vẽ 2 khối cạnh nhau.)
+  Chuyển ghi (B), (B4) là code mảng B, vẽ để sơ đồ đủ.
+end note
+
+@enduml
