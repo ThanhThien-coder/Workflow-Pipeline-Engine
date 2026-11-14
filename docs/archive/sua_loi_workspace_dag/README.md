@@ -1,6 +1,6 @@
 # Sửa lỗi Workspace DAG
 
-Thư mục này dùng cho đợt sửa lỗi khi test tay với backend thật (`VITE_USE_MOCK=false`). Gặp lỗi nào thì ghi và sửa lỗi đó, không theo bộ task `docs/fix_loi_moi`.
+Thư mục này dùng cho đợt sửa lỗi khi test tay với backend thật (`VITE_USE_MOCK=false`). Gặp lỗi thì ghi lại trước (tái hiện, nguyên nhân đã kiểm, hướng sửa); chỉ sửa code khi được bảo. Không theo bộ task `docs/fix_loi_moi`.
 
 Danh sách lỗi và tiến độ: [loi-dang-sua.md](loi-dang-sua.md).
 
