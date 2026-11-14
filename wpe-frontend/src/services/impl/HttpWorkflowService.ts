@@ -54,7 +54,6 @@ import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '..
  * (không còn tự chuyển sang dữ liệu giả).
  */
 export const METHODS_STILL_MOCKED = [
-  'getProjectMembers', // C6
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
 ] as const satisfies readonly (keyof IWorkflowService)[]
 
@@ -187,8 +186,9 @@ export class HttpWorkflowService implements IWorkflowService {
     return res
   }
 
+  /** GET /projects/{id}/members */
   getProjectMembers(projectId: string): Promise<UserSummary[]> {
-    return this.mock.getProjectMembers(projectId) // C6
+    return membersApi.listMemberSummaries(projectId)
   }
 
   // ───────────────────────── Artifact (C) ─────────────────────────
