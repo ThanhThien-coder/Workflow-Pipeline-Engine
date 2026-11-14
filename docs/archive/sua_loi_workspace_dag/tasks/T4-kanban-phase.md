@@ -1,7 +1,7 @@
 # T4 — Kanban của phase hiện đúng người làm, đúng trạng thái
 
 Sửa lỗi: G10
-Trạng thái: chờ làm
+Trạng thái: xong, chờ test tay
 Cần có trước: T1 (thành viên thật), T3 (subtask có trên server)
 Mở khóa: không
 
@@ -33,3 +33,31 @@ Kanban của phase: task chưa giao hiện "Alex Kim", task LOCKED nằm ở To 
 - Test mới cho `usePhaseKanban` và `TaskCard` (chưa giao, LOCKED) qua; typecheck 0 lỗi; vitest toàn bộ qua.
 - `grep -n "includes('Sarah')\|includes('Marcus')\|Math.random" wpe-frontend/src/hooks/usePhaseKanban.ts` → không còn.
 - Test tay: phase có task chưa giao → thẻ hiện "Chưa giao". Giao cho "a" ở Node Properties → Kanban hiện "a". Dự án DRAFT: mọi task nằm ở cột "Đang khóa", không kéo được, không thả được task khác vào cột này. Publish → task gốc hết khóa, kéo được sang In Progress. Mở lại Kanban nhiều lần → mã WPE không đổi, không có thẻ trùng.
+
+## Kết quả (14/11/2026)
+Phát hiện thêm khi làm (nặng hơn mô tả G10):
+- `MindmapDrawer` gọi `usePhaseKanban(phase)` **không truyền projectId** → hook dùng mặc định `'1'`: Kanban của mọi dự án tải thành viên và task của **dự án 1**, rồi trộn với node trên cây.
+- Nguồn task cũ là `my-tasks` của từng thành viên, mà `my-tasks` **bỏ task LOCKED và task chưa giao** → không bao giờ ra đủ task của phase.
+- `HttpWorkflowService.mapBackendTaskToKanban`: `assignedUserId: String(item.assignedUserId || '1')` → task chưa giao bị gán user '1' (trong mock là "Alex Kim"). Đây là gốc của "chưa giao mà hiện Alex Kim".
+- Hook cũ cho thành viên thường mượn quyền người được giao (`effectiveActor = taskAssignee`) khi kiểm luật chuyển trạng thái.
+
+Commit trên nhánh `fix/sua-loi-workspace-dag`:
+- `74827e0` (BE) `GET /projects/{projectId}/phases/{phaseId}/tasks`: mọi task của phase (kể cả LOCKED, chưa giao), cùng dạng `KanbanTaskResponse` + artifact như my-tasks; chỉ thành viên/chủ dự án (403 nếu không); chỉ lấy task thuộc đúng dự án. Tách phần gắn artifact thành hàm dùng chung. 3 test mới (service + controller).
+- `728399e` (FE):
+  - `getPhaseTasks` trong contract, Http (endpoint mới), Mock (dữ liệu mẫu theo phase).
+  - Mapper: task chưa giao có `assignedUserId` rỗng.
+  - `TaskStatus` của Kanban thêm `LOCKED`; `evaluateTransition` chặn kéo từ / về LOCKED.
+  - `usePhaseKanban` viết lại: nhận `projectId`, task từ `getPhaseTasks`, thành viên từ dự án đang mở (T1), người thao tác = người đăng nhập (không mượn quyền); bỏ trộn node cây, bỏ đổi tên→id bằng so chữ, bỏ mã WPE ngẫu nhiên, bỏ "Alex Kim" dự phòng. Sau khi đổi trạng thái / nộp / giao thành công thì đọc lại cây phase (task con có thể vừa mở khóa), Kanban tự tải lại theo cây (nên sửa ở Node Properties cũng hiện ngay trên Kanban).
+  - `PhaseKanbanBoard`: 5 cột "🔒 Đang khóa · To Do · In Progress · In Review · Done" (cuộn ngang nếu hẹp); cột Đang khóa không nhận thả, thẻ trong đó không kéo được, có nhãn "🔒 Chờ task trước"; thanh đếm thêm "k Đang khóa".
+  - `TaskCard`: bỏ `DEFAULT_MEMBERS`; chưa giao → "Chưa giao"; chỉ dùng người đang xem khi task đúng là của người đó.
+  - `MindmapDrawer` truyền `currentProjectId`; chỉ mở hộp chi tiết task khi người xem là thành viên.
+
+Kiểm tra tự động: FE typecheck sạch, `vitest run` 74 file / 511 test qua (viết lại test hook theo hành vi mới; thêm test cột Đang khóa, thả vào cột khóa, "Chưa giao", luật LOCKED, endpoint Http). BE `./mvnw test` 615 test, BUILD SUCCESS.
+
+Kiểm thử API thật (backend khởi động lại): dự án nháp có 2 task → endpoint trả cả 2 với `LOCKED`, `assignedUserId: null`; người không phải thành viên → 403. Dự án nháp đã xóa.
+
+Còn lại ngoài phạm vi T4 (chưa sửa):
+- `mapBackendTaskToKanban` vẫn ép `phaseId` về mã cũ P1/P2A/P2B/P3 (bộ lọc phase của My Tasks dùng mã này) — nên sửa cùng My Tasks.
+- Header drawer phase vẫn ghi cứng "Marketing Q4 › Workflow › …".
+
+Test tay: chờ người dùng.

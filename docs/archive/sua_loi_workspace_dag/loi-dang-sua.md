@@ -13,7 +13,7 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G7 | Subtask không được lưu lên server: gắn ghost vào subtask báo lỗi, gắn ghost vào task gốc thì subtask biến mất | FE + BE | Đã sửa (T3), chờ test tay |
 | G8 | Node Properties cho chọn trạng thái tùy ý (LOCKED, DONE…), lưu chỉ trên trình duyệt | FE | Phần lưu + bỏ ô trạng thái đã sửa (T3); thiết kế lại ở T6 |
 | G9 | Danh sách thành viên trong Node Properties và Kanban là người giả, thiếu chủ dự án thật | FE | Đã sửa (T1), chờ test tay |
-| G10 | Kanban của phase: task chưa giao hiện "Alex Kim", task LOCKED hiện ở To Do, subtask tạm có mã WPE ngẫu nhiên | FE | Chưa sửa |
+| G10 | Kanban của phase: task chưa giao hiện "Alex Kim", task LOCKED hiện ở To Do, subtask tạm có mã WPE ngẫu nhiên | FE + BE | Đã sửa (T4), chờ test tay |
 | G11 | Thành viên không phải chủ dự án vẫn sửa được các ô trong Node Properties (chỉ không lưu được) | FE | Đã sửa (T3), chờ test tay |
 | G12 | Chủ dự án chưa mở khóa sớm được task trên giao diện; BE mở sớm xong thì sửa dây sẽ bị khóa lại, không lưu ai mở | FE + BE + DB | Chưa sửa |
 
