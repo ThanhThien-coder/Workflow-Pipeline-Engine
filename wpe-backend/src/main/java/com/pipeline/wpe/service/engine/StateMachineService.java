@@ -37,6 +37,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -64,37 +65,52 @@ public class StateMachineService {
             projectId, userId, NodeStatus.LOCKED
         );
 
-        return nodes.stream().map(node -> {
-            KanbanTaskResponse base = nodeMapper.toKanbanTaskResponse(node);
-            List<ArtifactEntity> artifacts = artifactRepository.findByNodeId(node.getId());
-            List<NodeArtifactResponse> artifactResponses = artifacts.stream()
-                .map(a -> new NodeArtifactResponse(
-                    String.valueOf(a.getId()),
-                    a.getType().name(),
-                    a.getUrl(),
-                    a.getName(),
-                    a.getName(),
-                    a.getCreatedAt()
-                ))
-                .toList();
+        return nodes.stream().map(this::toKanbanTaskWithArtifacts).toList();
+    }
 
-            return new KanbanTaskResponse(
-                base.id(),
-                base.phaseId(),
-                base.code(),
-                base.title(),
-                base.description(),
-                base.status(),
-                base.assignedUserId(),
-                base.joinPolicy(),
-                base.rejectReason(),
-                base.dueDate(),
-                base.isOverdue(),
-                base.version(),
-                base.uiMetadata(),
-                artifactResponses
-            );
-        }).toList();
+    /**
+     * Mọi task của một phase cho bảng Kanban theo phase: kể cả task LOCKED và task chưa giao
+     * (my-tasks bỏ hai loại này). Chỉ lấy task thuộc đúng dự án; sắp theo id để thứ tự ổn định.
+     */
+    @Transactional(readOnly = true)
+    public List<KanbanTaskResponse> getPhaseTasks(Long projectId, Long phaseId) {
+        return nodeRepository.findByPhaseId(phaseId).stream()
+            .filter(node -> projectId.equals(node.getProjectId()))
+            .sorted(Comparator.comparing(NodeEntity::getId))
+            .map(this::toKanbanTaskWithArtifacts)
+            .toList();
+    }
+
+    private KanbanTaskResponse toKanbanTaskWithArtifacts(NodeEntity node) {
+        KanbanTaskResponse base = nodeMapper.toKanbanTaskResponse(node);
+        List<ArtifactEntity> artifacts = artifactRepository.findByNodeId(node.getId());
+        List<NodeArtifactResponse> artifactResponses = artifacts.stream()
+            .map(a -> new NodeArtifactResponse(
+                String.valueOf(a.getId()),
+                a.getType().name(),
+                a.getUrl(),
+                a.getName(),
+                a.getName(),
+                a.getCreatedAt()
+            ))
+            .toList();
+
+        return new KanbanTaskResponse(
+            base.id(),
+            base.phaseId(),
+            base.code(),
+            base.title(),
+            base.description(),
+            base.status(),
+            base.assignedUserId(),
+            base.joinPolicy(),
+            base.rejectReason(),
+            base.dueDate(),
+            base.isOverdue(),
+            base.version(),
+            base.uiMetadata(),
+            artifactResponses
+        );
     }
 
     /**

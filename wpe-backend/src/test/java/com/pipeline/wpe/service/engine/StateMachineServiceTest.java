@@ -460,4 +460,26 @@ class StateMachineServiceTest {
         assertThat(response.artifact().url()).isEqualTo("https://github.com/org/repo/pull/42");
         verify(sseEmitterService).sendToUser(eq(ownerId), eq("TASK_SUBMITTED"), any());
     }
+
+    @Test
+    @DisplayName("T4 getPhaseTasks: trả mọi task của phase (kể cả LOCKED, chưa giao) kèm artifact; bỏ task dự án khác")
+    void testGetPhaseTasks_allTasksOfPhase() {
+        NodeEntity locked = NodeEntity.builder().id(11L).projectId(projectId).phaseId(5L).code("WPE-011")
+            .title("Khóa").status(NodeStatus.LOCKED).assignedUserId(null).version(0L).uiMetadata(Map.of()).build();
+        NodeEntity otherProject = NodeEntity.builder().id(12L).projectId(99L).phaseId(5L).code("X")
+            .title("Dự án khác").status(NodeStatus.TODO).version(0L).uiMetadata(Map.of()).build();
+        when(nodeRepository.findByPhaseId(5L)).thenReturn(List.of(mockNode, locked, otherProject));
+        KanbanTaskResponse lockedResponse = new KanbanTaskResponse(
+            "11", "5", "WPE-011", "Khóa", null, "LOCKED", null, "ALL_COMPLETED", null, null, false, 0L, Map.of());
+        when(nodeMapper.toKanbanTaskResponse(mockNode)).thenReturn(mockResponse);
+        when(nodeMapper.toKanbanTaskResponse(locked)).thenReturn(lockedResponse);
+        when(artifactRepository.findByNodeId(anyLong())).thenReturn(List.of());
+
+        List<KanbanTaskResponse> tasks = stateMachineService.getPhaseTasks(projectId, 5L);
+
+        assertThat(tasks).extracting(KanbanTaskResponse::id).containsExactly("10", "11");
+        assertThat(tasks).extracting(KanbanTaskResponse::status).containsExactly("TODO", "LOCKED");
+        assertThat(tasks.get(1).assignedUserId()).isNull();
+        verify(nodeMapper, never()).toKanbanTaskResponse(otherProject);
+    }
 }

@@ -54,6 +54,21 @@ public class NodeController {
         return ResponseEntity.ok(tasks);
     }
 
+    @GetMapping("/projects/{projectId}/phases/{phaseId}/tasks")
+    @Operation(
+        summary = "5.1b Lấy mọi task của một phase cho bảng Kanban theo phase",
+        description = "Khác my-tasks: trả cả task LOCKED và task chưa giao. "
+            + "Người gọi phải đăng nhập và là thành viên dự án (401 / 403)."
+    )
+    public ResponseEntity<List<KanbanTaskResponse>> getPhaseTasks(
+        @PathVariable Long projectId,
+        @PathVariable Long phaseId
+    ) {
+        Long callerId = currentUserProvider.requireCurrentUserId();
+        projectAuthorizationService.verifyProjectMemberOrOwner(projectId, callerId);
+        return ResponseEntity.ok(stateMachineService.getPhaseTasks(projectId, phaseId));
+    }
+
     @PatchMapping("/nodes/{taskId}/status")
     @Operation(
         summary = "5.2/5.4/5.5 Cập nhật trạng thái tác vụ Kanban & Cổng nghiệm thu",
