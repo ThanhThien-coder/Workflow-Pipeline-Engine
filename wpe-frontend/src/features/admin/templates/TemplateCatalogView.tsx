@@ -43,7 +43,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const data = await container.templateService.getTemplates({ visibility: 'PUBLIC' });
+      const data = await container.templateService.getTemplates({ visibility: 'PUBLIC', includeHidden: true });
       setTemplates(data);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể tải danh sách template';
@@ -125,6 +125,19 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
     }
   };
 
+  const handleToggleHidden = async (id: string, nextHidden: boolean) => {
+    try {
+      const updated = await container.templateService.setTemplateHidden(id, nextHidden);
+      setTemplates((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, ...updated, isHidden: nextHidden } : t))
+      );
+      onToast(nextHidden ? 'Đã ẩn template' : 'Đã hiện template', 'blue');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái ẩn template';
+      onToast(msg, 'rose');
+    }
+  };
+
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -141,11 +154,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-            Quản lý kho mẫu quy trình chuẩn toàn hệ thống. Người dùng có thể clone các mẫu
-            công khai khi khởi tạo dự án.
-          </p>
-          <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-            Chỉ hiện template công khai. Template riêng của người dùng chỉ hiện ở màn tạo dự án của chính họ.
+            Template đang ẩn sẽ không hiện ở màn tạo dự án của người dùng.
           </p>
         </div>
 
@@ -271,6 +280,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
               onEdit={(id) => onOpenStudio(id)}
               onDuplicate={(id) => handleDuplicate(id)}
               onDelete={() => setDeleteTarget(t)}
+              onToggleHidden={handleToggleHidden}
             />
           ))}
         </div>

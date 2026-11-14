@@ -68,6 +68,9 @@ export class MockTemplateService implements ITemplateService {
     let list = this.templates;
 
     if (filter) {
+      if (!filter.includeHidden) {
+        list = list.filter((t) => !t.isHidden);
+      }
       if (filter.category && filter.category !== 'All') {
         list = list.filter((t) => t.category === filter.category);
       }
@@ -85,6 +88,8 @@ export class MockTemplateService implements ITemplateService {
             (t.description && t.description.toLowerCase().includes(q))
         );
       }
+    } else {
+      list = list.filter((t) => !t.isHidden);
     }
 
     // Map to summaries
@@ -102,6 +107,7 @@ export class MockTemplateService implements ITemplateService {
       updatedAt: t.updatedAt,
       visibility: t.visibility || 'PUBLIC',
       sourceProjectId: t.sourceProjectId || null,
+      isHidden: t.isHidden ?? false,
     }));
   }
 
@@ -235,5 +241,34 @@ export class MockTemplateService implements ITemplateService {
     this.templates.unshift(newTemplate);
     persistTemplates(this.templates);
     return structuredClone(newTemplate);
+  }
+
+  async setTemplateHidden(id: string, hidden: boolean): Promise<TemplateSummaryDto> {
+    await delay(100);
+    this.templates = loadPersistedTemplates();
+    const index = this.templates.findIndex((t) => t.id === id);
+    if (index === -1) {
+      throw new Error(`Template not found with ID: ${id}`);
+    }
+    const t = this.templates[index];
+    t.isHidden = hidden;
+    t.updatedAt = new Date().toISOString();
+    persistTemplates(this.templates);
+    return {
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      category: t.category,
+      isSystemStandard: t.isSystemStandard,
+      phaseCount: t.graphData.phases.length,
+      nodeCount: t.graphData.nodes.length,
+      cloneCount: t.cloneCount,
+      createdBy: t.createdBy,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      visibility: t.visibility || 'PUBLIC',
+      sourceProjectId: t.sourceProjectId || null,
+      isHidden: t.isHidden,
+    };
   }
 }

@@ -75,6 +75,7 @@ export interface TemplateSummaryDto {
   updatedAt: string;
   visibility?: 'PUBLIC' | 'PRIVATE';
   sourceProjectId?: string | null;
+  isHidden?: boolean;
 }
 
 export interface SaveProjectAsTemplateRequestDto {
@@ -102,6 +103,7 @@ export interface TemplateFilter {
   category?: TemplateCategory | 'All';
   isSystemStandard?: boolean;
   visibility?: 'PUBLIC' | 'PRIVATE';
+  includeHidden?: boolean;
 }
 
 export interface DagViolation {

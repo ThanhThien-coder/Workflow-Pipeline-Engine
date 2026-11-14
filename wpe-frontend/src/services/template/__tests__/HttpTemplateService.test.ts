@@ -91,6 +91,46 @@ describe('HttpTemplateService unit tests', () => {
     expect(calls[0].url).toContain('visibility=PUBLIC');
   });
 
+  it("getTemplates({ includeHidden: true }) có includeHidden=true trong URL", async () => {
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return jsonResponse(200, []);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await service.getTemplates({ includeHidden: true });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('GET');
+    expect(calls[0].url).toContain('/templates?');
+    expect(calls[0].url).toContain('includeHidden=true');
+  });
+
+  it("setTemplateHidden('tpl-sdlc', true) gửi đúng PATCH /templates/tpl-sdlc/hidden và body { hidden: true }", async () => {
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return jsonResponse(200, { id: 'tpl-sdlc', isHidden: true });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await service.setTemplateHidden('tpl-sdlc', true);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('PATCH');
+    expect(calls[0].url).toMatch(/\/templates\/tpl-sdlc\/hidden$/);
+    expect(calls[0].body).toEqual({ hidden: true });
+    expect(result.id).toBe('tpl-sdlc');
+    expect(result.isHidden).toBe(true);
+  });
+
   it("createTemplate khi server trả 422 {error:'CYCLE_DETECTED', cycleNodes:['n1','n2']} → ném ApiError có status 422 và cycleNodes ['n1','n2']", async () => {
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({

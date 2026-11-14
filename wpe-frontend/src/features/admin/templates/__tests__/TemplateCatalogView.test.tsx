@@ -18,7 +18,7 @@ describe('TemplateCatalogView Component', () => {
     vi.restoreAllMocks();
   });
 
-  it('gọi getTemplates({ visibility: "PUBLIC" }) và hiển thị tên template PUBLIC', async () => {
+  it('gọi getTemplates({ visibility: "PUBLIC", includeHidden: true }) và hiển thị tên template', async () => {
     const mockTemplates: TemplateSummaryDto[] = [
       {
         id: 'tpl-sdlc',
@@ -43,7 +43,7 @@ describe('TemplateCatalogView Component', () => {
     render(<TemplateCatalogView onOpenStudio={onOpenStudio} onToast={onToast} />);
 
     await waitFor(() => {
-      expect(getTemplatesSpy).toHaveBeenCalledWith({ visibility: 'PUBLIC' });
+      expect(getTemplatesSpy).toHaveBeenCalledWith({ visibility: 'PUBLIC', includeHidden: true });
     });
 
     expect(
@@ -128,5 +128,69 @@ describe('TemplateCatalogView Component', () => {
         '"Custom Team Workflow" sẽ bị xóa khỏi kho mẫu. Các dự án đã clone trước đó không bị ảnh hưởng.'
       )
     ).toBeTruthy();
+  });
+
+  it('thẻ ẩn có chữ "Đang ẩn" và nút "Hiện", thẻ hiện có nút "Ẩn"; bấm "Ẩn" gọi setTemplateHidden(id, true); không còn chữ PUBLIC trong catalog', async () => {
+    const mockTemplates: TemplateSummaryDto[] = [
+      {
+        id: 'tpl-visible',
+        name: 'Visible Template',
+        description: 'Mô tả visible',
+        category: 'Software Engineering',
+        isSystemStandard: true,
+        phaseCount: 1,
+        nodeCount: 2,
+        cloneCount: 0,
+        createdBy: 'Admin',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        visibility: 'PUBLIC',
+        isHidden: false,
+      },
+      {
+        id: 'tpl-hidden',
+        name: 'Hidden Template',
+        description: 'Mô tả hidden',
+        category: 'General',
+        isSystemStandard: false,
+        phaseCount: 1,
+        nodeCount: 2,
+        cloneCount: 0,
+        createdBy: 'Admin',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        visibility: 'PUBLIC',
+        isHidden: true,
+      },
+    ];
+
+    vi.spyOn(container.templateService, 'getTemplates').mockResolvedValue(mockTemplates);
+    const setHiddenSpy = vi
+      .spyOn(container.templateService, 'setTemplateHidden')
+      .mockResolvedValue({ ...mockTemplates[0], isHidden: true });
+
+    render(<TemplateCatalogView onOpenStudio={onOpenStudio} onToast={onToast} />);
+
+    expect(await screen.findByText('Visible Template')).toBeTruthy();
+    expect(await screen.findByText('Hidden Template')).toBeTruthy();
+
+    // Thẻ ẩn có chữ "Đang ẩn"
+    expect(screen.getByText('Đang ẩn')).toBeTruthy();
+
+    // Không còn chữ "PUBLIC" trong catalog
+    expect(screen.queryByText(/PUBLIC/)).toBeNull();
+
+    // Thẻ ẩn có nút "Hiện", thẻ hiện có nút "Ẩn"
+    const hideBtn = screen.getByRole('button', { name: 'Ẩn' });
+    const showBtn = screen.getByRole('button', { name: 'Hiện' });
+    expect(hideBtn).toBeTruthy();
+    expect(showBtn).toBeTruthy();
+
+    // Bấm nút "Ẩn" gọi setTemplateHidden(id, true)
+    fireEvent.click(hideBtn);
+    await waitFor(() => {
+      expect(setHiddenSpy).toHaveBeenCalledWith('tpl-visible', true);
+      expect(onToast).toHaveBeenCalledWith('Đã ẩn template', 'blue');
+    });
   });
 });

@@ -22,6 +22,8 @@ const ACTION_LABELS: Record<string, string> = {
   TEMPLATE_CREATED: 'Tạo template',
   TEMPLATE_UPDATED: 'Sửa template',
   TEMPLATE_DELETED: 'Xóa template',
+  TEMPLATE_HIDDEN: 'Ẩn template',
+  TEMPLATE_SHOWN: 'Hiện template',
 };
 
 const DANGER_ACTIONS = new Set([
