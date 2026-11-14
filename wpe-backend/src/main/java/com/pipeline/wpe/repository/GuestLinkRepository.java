@@ -12,4 +12,5 @@ public interface GuestLinkRepository extends JpaRepository<GuestLinkEntity, Long
     Optional<GuestLinkEntity> findByToken(String token);
     Optional<GuestLinkEntity> findByProjectIdAndIsRevokedFalse(Long projectId);
     List<GuestLinkEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
+    Optional<GuestLinkEntity> findFirstByProjectIdOrderByCreatedAtDesc(Long projectId);
 }

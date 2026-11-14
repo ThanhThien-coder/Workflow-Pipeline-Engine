@@ -15,6 +15,8 @@ import com.pipeline.wpe.exception.CycleDetectedException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
+import com.pipeline.wpe.service.admin.AdminAuditAction;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.engine.KahnDagService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,6 +58,9 @@ class PipelineTemplateServiceTest {
 
     @Mock
     private PhaseDependencyRepository phaseDependencyRepository;
+
+    @Mock
+    private AdminAuditService adminAuditService;
 
     @Spy
     private KahnDagService kahnDagService = new KahnDagService();
@@ -324,8 +329,8 @@ class PipelineTemplateServiceTest {
     }
 
     @Test
-    @DisplayName("deleteTemplate: Admin xóa template hệ thống isSystemStandard(true) -> ném ConflictException SYSTEM_TEMPLATE_LOCKED")
-    void testDeleteSystemTemplateThrowsConflict() {
+    @DisplayName("deleteTemplate: Admin xóa template hệ thống isSystemStandard(true) -> gọi delete và record TEMPLATE_DELETED")
+    void testDeleteSystemTemplate_asAdmin_success() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
 
         PipelineTemplateEntity systemTemplate = PipelineTemplateEntity.builder()
@@ -335,9 +340,34 @@ class PipelineTemplateServiceTest {
             .build();
         when(templateRepository.findById(1L)).thenReturn(Optional.of(systemTemplate));
 
-        ConflictException ex = assertThrows(ConflictException.class, () -> templateService.deleteTemplate(1L, 1L));
-        assertEquals("SYSTEM_TEMPLATE_LOCKED", ex.getErrorCode());
+        templateService.deleteTemplate(1L, 1L);
+
+        verify(templateRepository).delete(systemTemplate);
+        verify(adminAuditService).record(eq(1L), isNull(), eq("TEMPLATE_DELETED"), eq("TEMPLATE"), eq("1"), eq("System Template"));
+    }
+
+    @Test
+    @DisplayName("deleteTemplate: User thường xóa template hệ thống isSystemStandard(true) -> ném ForbiddenException")
+    void testDeleteSystemTemplate_asRegularUser_throwsForbidden() {
+        UserEntity regularUser = UserEntity.builder()
+            .id(2L)
+            .username("regular.user")
+            .systemRole(SystemRole.USER)
+            .build();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(regularUser));
+
+        PipelineTemplateEntity systemTemplate = PipelineTemplateEntity.builder()
+            .id(1L)
+            .name("System Template")
+            .isSystemStandard(true)
+            .visibility(TemplateVisibility.PUBLIC)
+            .build();
+        when(templateRepository.findById(1L)).thenReturn(Optional.of(systemTemplate));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () -> templateService.deleteTemplate(1L, 2L));
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
         verify(templateRepository, never()).delete(any());
+        verify(adminAuditService, never()).record(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -373,6 +403,26 @@ class PipelineTemplateServiceTest {
         verify(templateRepository).save(captor.capture());
         assertEquals(adminId, captor.getValue().getCreatedBy());
         assertEquals(TemplateVisibility.PUBLIC, captor.getValue().getVisibility());
+    }
+
+    @Test
+    @DisplayName("createTemplate: Admin tạo template thành công -> gọi adminAuditService.record với TEMPLATE_CREATED và TEMPLATE")
+    void testCreateTemplateRecordsAuditLog() {
+        Long adminId = 1L;
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(adminUser));
+
+        CreateTemplateRequest req = new CreateTemplateRequest("New Pipeline Template", "Desc", "General", false, validGraphData);
+        PipelineTemplateEntity saved = PipelineTemplateEntity.builder()
+            .id(888L)
+            .name("New Pipeline Template")
+            .createdBy(adminId)
+            .visibility(TemplateVisibility.PUBLIC)
+            .build();
+        when(templateRepository.save(any(PipelineTemplateEntity.class))).thenReturn(saved);
+
+        templateService.createTemplate(req, adminId);
+
+        verify(adminAuditService).record(eq(adminId), isNull(), eq("TEMPLATE_CREATED"), eq("TEMPLATE"), eq("888"), eq("New Pipeline Template"));
     }
 
     @Test
@@ -464,5 +514,241 @@ class PipelineTemplateServiceTest {
             templateService.saveProjectAsTemplate(projectId, req, userId)
         );
         verify(templateRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getTemplates: Lọc visibility PUBLIC chỉ trả template PUBLIC, null trả cả PUBLIC và PRIVATE của caller")
+    void testGetTemplatesFilterVisibility() {
+        Long meoUserId = 5L;
+
+        PipelineTemplateEntity tPublic = PipelineTemplateEntity.builder()
+            .id(1L)
+            .name("Public SDLC")
+            .visibility(TemplateVisibility.PUBLIC)
+            .createdBy(1L)
+            .graphData(validGraphData)
+            .build();
+
+        PipelineTemplateEntity tMeoPrivate = PipelineTemplateEntity.builder()
+            .id(2L)
+            .name("Meo Private Template")
+            .visibility(TemplateVisibility.PRIVATE)
+            .createdBy(meoUserId)
+            .graphData(validGraphData)
+            .build();
+
+        when(templateRepository.findAll()).thenReturn(List.of(tPublic, tMeoPrivate));
+
+        // Lọc PUBLIC: chỉ có tPublic
+        List<TemplateSummaryResponse> publicOnly = templateService.getTemplates(null, null, null, meoUserId, "PUBLIC");
+        assertEquals(1, publicOnly.size());
+        assertEquals("Public SDLC", publicOnly.get(0).name());
+
+        // visibility = null: có cả hai (hành vi cũ)
+        List<TemplateSummaryResponse> both = templateService.getTemplates(null, null, null, meoUserId, null);
+        assertEquals(2, both.size());
+        List<String> names = both.stream().map(TemplateSummaryResponse::name).toList();
+        assertTrue(names.contains("Public SDLC"));
+        assertTrue(names.contains("Meo Private Template"));
+    }
+
+    @Test
+    @DisplayName("getTemplates: visibility không hợp lệ ('abc') -> ném IllegalArgumentException")
+    void testGetTemplatesInvalidVisibilityThrowsException() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+            templateService.getTemplates(null, null, null, 5L, "abc")
+        );
+        assertEquals("visibility chỉ nhận PUBLIC hoặc PRIVATE", ex.getMessage());
+        verify(templateRepository, never()).findAll();
+    }
+
+    @Test
+    @DisplayName("updateTemplateBySlugOrId: Admin cập nhật bằng slug 'tpl-sdlc' thành công, user thường bị 403 Forbidden")
+    void testUpdateTemplateBySlugOrIdAdminAndUser() {
+        Long adminId = 1L;
+        Long regularUserId = 2L;
+
+        UserEntity admin = UserEntity.builder().id(adminId).username("admin").systemRole(SystemRole.ADMIN).build();
+        UserEntity regularUser = UserEntity.builder().id(regularUserId).username("meo").systemRole(SystemRole.USER).build();
+
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
+        when(userRepository.findById(regularUserId)).thenReturn(Optional.of(regularUser));
+
+        PipelineTemplateEntity original = PipelineTemplateEntity.builder()
+            .id(10L)
+            .slug("tpl-sdlc")
+            .name("Old SDLC Name")
+            .category("Software Engineering")
+            .visibility(TemplateVisibility.PUBLIC)
+            .isSystemStandard(true)
+            .graphData(validGraphData)
+            .build();
+
+        when(templateRepository.findBySlug("tpl-sdlc")).thenReturn(Optional.of(original));
+        when(templateRepository.findById(10L)).thenReturn(Optional.of(original));
+
+        CreateTemplateRequest validReq = new CreateTemplateRequest(
+            "New SDLC Name",
+            "Updated Description",
+            "Software Engineering",
+            true,
+            validGraphData
+        );
+
+        PipelineTemplateEntity savedEntity = PipelineTemplateEntity.builder()
+            .id(10L)
+            .slug("tpl-sdlc")
+            .name("New SDLC Name")
+            .category("Software Engineering")
+            .visibility(TemplateVisibility.PUBLIC)
+            .isSystemStandard(true)
+            .graphData(validGraphData)
+            .build();
+        when(templateRepository.save(any(PipelineTemplateEntity.class))).thenReturn(savedEntity);
+
+        // 1. Admin gọi thành công, trả về tên mới
+        TemplateDetailResponse response = templateService.updateTemplateBySlugOrId("tpl-sdlc", validReq, adminId);
+        assertNotNull(response);
+        assertEquals("New SDLC Name", response.name());
+        verify(templateRepository).save(any(PipelineTemplateEntity.class));
+
+        // 2. User thường gọi -> ForbiddenException
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+            templateService.updateTemplateBySlugOrId("tpl-sdlc", validReq, regularUserId)
+        );
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("getTemplates: user thường gọi không thấy template ẩn")
+    void testGetTemplatesRegularUserCannotSeeHidden() {
+        Long regularUserId = 2L;
+
+        PipelineTemplateEntity tPublic = PipelineTemplateEntity.builder().id(1L).name("Public Tpl").isHidden(false).visibility(TemplateVisibility.PUBLIC).graphData(validGraphData).build();
+        PipelineTemplateEntity tHidden = PipelineTemplateEntity.builder().id(2L).name("Hidden Tpl").isHidden(true).visibility(TemplateVisibility.PUBLIC).graphData(validGraphData).build();
+
+        when(templateRepository.findAll()).thenReturn(List.of(tPublic, tHidden));
+
+        List<TemplateSummaryResponse> list = templateService.getTemplates(null, null, null, regularUserId, null, false);
+        assertEquals(1, list.size());
+        assertEquals("Public Tpl", list.get(0).name());
+    }
+
+    @Test
+    @DisplayName("getTemplates: admin với includeHidden=true thấy cả template ẩn")
+    void testGetTemplatesAdminWithIncludeHiddenSeesHidden() {
+        Long adminId = 1L;
+        UserEntity admin = UserEntity.builder().id(adminId).username("admin").systemRole(SystemRole.ADMIN).build();
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
+
+        PipelineTemplateEntity tPublic = PipelineTemplateEntity.builder().id(1L).name("Public Tpl").isHidden(false).visibility(TemplateVisibility.PUBLIC).graphData(validGraphData).build();
+        PipelineTemplateEntity tHidden = PipelineTemplateEntity.builder().id(2L).name("Hidden Tpl").isHidden(true).visibility(TemplateVisibility.PUBLIC).graphData(validGraphData).build();
+
+        when(templateRepository.findAll()).thenReturn(List.of(tPublic, tHidden));
+
+        List<TemplateSummaryResponse> list = templateService.getTemplates(null, null, null, adminId, null, true);
+        assertEquals(2, list.size());
+    }
+
+    @Test
+    @DisplayName("getTemplates: user thường gửi includeHidden=true vẫn không thấy template ẩn")
+    void testGetTemplatesRegularUserWithIncludeHiddenCannotSeeHidden() {
+        Long regularUserId = 2L;
+        UserEntity regularUser = UserEntity.builder().id(regularUserId).username("user").systemRole(SystemRole.USER).build();
+        when(userRepository.findById(regularUserId)).thenReturn(Optional.of(regularUser));
+
+        PipelineTemplateEntity tPublic = PipelineTemplateEntity.builder().id(1L).name("Public Tpl").isHidden(false).visibility(TemplateVisibility.PUBLIC).graphData(validGraphData).build();
+        PipelineTemplateEntity tHidden = PipelineTemplateEntity.builder().id(2L).name("Hidden Tpl").isHidden(true).visibility(TemplateVisibility.PUBLIC).graphData(validGraphData).build();
+
+        when(templateRepository.findAll()).thenReturn(List.of(tPublic, tHidden));
+
+        List<TemplateSummaryResponse> list = templateService.getTemplates(null, null, null, regularUserId, null, true);
+        assertEquals(1, list.size());
+        assertEquals("Public Tpl", list.get(0).name());
+    }
+
+    @Test
+    @DisplayName("setTemplateHidden: ẩn template PRIVATE -> ConflictException TEMPLATE_NOT_PUBLIC")
+    void testSetTemplateHiddenPrivateTemplateThrowsConflict() {
+        Long adminId = 1L;
+        UserEntity admin = UserEntity.builder().id(adminId).username("admin").systemRole(SystemRole.ADMIN).build();
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
+
+        PipelineTemplateEntity privateTpl = PipelineTemplateEntity.builder()
+            .id(10L)
+            .name("Private Template")
+            .visibility(TemplateVisibility.PRIVATE)
+            .isHidden(false)
+            .build();
+        when(templateRepository.findById(10L)).thenReturn(Optional.of(privateTpl));
+
+        ConflictException ex = assertThrows(ConflictException.class, () ->
+            templateService.setTemplateHidden("10", true, adminId)
+        );
+        assertEquals("TEMPLATE_NOT_PUBLIC", ex.getErrorCode());
+        assertEquals("Chỉ ẩn/hiện được template công khai.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("setTemplateHidden: user thường gọi ẩn -> ForbiddenException")
+    void testSetTemplateHiddenRegularUserThrowsForbidden() {
+        Long regularUserId = 2L;
+        UserEntity regularUser = UserEntity.builder().id(regularUserId).username("user").systemRole(SystemRole.USER).build();
+        when(userRepository.findById(regularUserId)).thenReturn(Optional.of(regularUser));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+            templateService.setTemplateHidden("10", true, regularUserId)
+        );
+        assertEquals("ACCESS_DENIED", ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("setTemplateHidden: admin ẩn -> isHidden=true + record TEMPLATE_HIDDEN; hiện lại -> record TEMPLATE_SHOWN")
+    void testSetTemplateHiddenAdminSuccess() {
+        Long adminId = 1L;
+        UserEntity admin = UserEntity.builder().id(adminId).username("admin").systemRole(SystemRole.ADMIN).build();
+        when(userRepository.findById(adminId)).thenReturn(Optional.of(admin));
+
+        PipelineTemplateEntity tpl = PipelineTemplateEntity.builder()
+            .id(10L)
+            .name("Public SDLC")
+            .visibility(TemplateVisibility.PUBLIC)
+            .isHidden(false)
+            .graphData(validGraphData)
+            .build();
+        when(templateRepository.findById(10L)).thenReturn(Optional.of(tpl));
+        when(templateRepository.save(any(PipelineTemplateEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // 1. Ẩn template
+        TemplateSummaryResponse hiddenResp = templateService.setTemplateHidden("10", true, adminId);
+        assertTrue(hiddenResp.isHidden());
+        verify(adminAuditService).record(adminId, null, AdminAuditAction.TEMPLATE_HIDDEN, "TEMPLATE", "10", "Public SDLC");
+
+        // 2. Hiện lại template
+        TemplateSummaryResponse shownResp = templateService.setTemplateHidden("10", false, adminId);
+        assertFalse(shownResp.isHidden());
+        verify(adminAuditService).record(adminId, null, AdminAuditAction.TEMPLATE_SHOWN, "TEMPLATE", "10", "Public SDLC");
+    }
+
+    @Test
+    @DisplayName("getTemplateByIdOrSlug: user thường truy vấn template ẩn -> ResourceNotFoundException")
+    void testGetTemplateByIdOrSlugHiddenThrowsNotFoundForRegularUser() {
+        Long regularUserId = 2L;
+        UserEntity regularUser = UserEntity.builder().id(regularUserId).username("user").systemRole(SystemRole.USER).build();
+        when(userRepository.findById(regularUserId)).thenReturn(Optional.of(regularUser));
+
+        PipelineTemplateEntity hiddenTpl = PipelineTemplateEntity.builder()
+            .id(10L)
+            .slug("tpl-hidden")
+            .name("Hidden Template")
+            .visibility(TemplateVisibility.PUBLIC)
+            .isHidden(true)
+            .graphData(validGraphData)
+            .build();
+        when(templateRepository.findBySlug("tpl-hidden")).thenReturn(Optional.of(hiddenTpl));
+
+        assertThrows(ResourceNotFoundException.class, () ->
+            templateService.getTemplateByIdOrSlug("tpl-hidden", regularUserId)
+        );
     }
 }

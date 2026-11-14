@@ -118,4 +118,39 @@ describe('Service Layer DI: MockTemplateService Unit Tests', () => {
     expect(updatedList).toHaveLength(2);
     expect(updatedList.some((t) => t.id === idToDelete)).toBe(false);
   });
+
+  it("should filter templates by visibility: 'PUBLIC' excluding PRIVATE templates", async () => {
+    await service.saveProjectAsTemplate('proj-1', { name: 'Private Exported Template' });
+    const all = await service.getTemplates();
+    expect(all.some((t) => t.visibility === 'PRIVATE')).toBe(true);
+
+    const publicOnly = await service.getTemplates({ visibility: 'PUBLIC' });
+    expect(publicOnly.length).toBeGreaterThan(0);
+    expect(publicOnly.some((t) => t.visibility === 'PRIVATE')).toBe(false);
+    expect(publicOnly.every((t) => (t.visibility ?? 'PUBLIC') === 'PUBLIC')).toBe(true);
+  });
+
+  it('should exclude hidden templates by default, and include them with includeHidden=true', async () => {
+    const list = await service.getTemplates();
+    const targetId = list[0].id;
+
+    // Hide target template
+    const hidden = await service.setTemplateHidden(targetId, true);
+    expect(hidden.isHidden).toBe(true);
+
+    // Default getTemplates() should exclude targetId
+    const afterHide = await service.getTemplates();
+    expect(afterHide.some((t) => t.id === targetId)).toBe(false);
+
+    // getTemplates({ includeHidden: true }) should include targetId
+    const withHidden = await service.getTemplates({ includeHidden: true });
+    expect(withHidden.some((t) => t.id === targetId)).toBe(true);
+
+    // Unhide target template
+    const unhidden = await service.setTemplateHidden(targetId, false);
+    expect(unhidden.isHidden).toBe(false);
+
+    const afterUnhide = await service.getTemplates();
+    expect(afterUnhide.some((t) => t.id === targetId)).toBe(true);
+  });
 });

@@ -1,6 +1,9 @@
 package com.pipeline.wpe.exception;
 
+import com.pipeline.wpe.service.admin.AdminAuditAction;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +18,45 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private final ObjectProvider<AdminAuditService> adminAuditServiceProvider;
+
+    public GlobalExceptionHandler(ObjectProvider<AdminAuditService> adminAuditServiceProvider) {
+        this.adminAuditServiceProvider = adminAuditServiceProvider;
+    }
+
+    private void recordAdminDenied(HttpServletRequest request, String reason) {
+        try {
+            if (request == null || request.getRequestURI() == null || !request.getRequestURI().startsWith("/api/v1/admin")) {
+                return;
+            }
+            if (adminAuditServiceProvider == null) {
+                return;
+            }
+            AdminAuditService auditService = adminAuditServiceProvider.getIfAvailable();
+            if (auditService == null) {
+                return;
+            }
+            Long actorUserId = null;
+            org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof Long userId) {
+                actorUserId = userId;
+            }
+            String method = request.getMethod() != null ? request.getMethod() : "GET";
+            String targetId = method + " " + request.getRequestURI();
+            auditService.record(
+                actorUserId,
+                null,
+                AdminAuditAction.ADMIN_ACCESS_DENIED,
+                "API",
+                targetId,
+                reason
+            );
+        } catch (RuntimeException ignored) {
+            // Không bao giờ để ghi log làm hỏng xử lý lỗi của handler
+        }
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.of(
@@ -28,6 +70,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
+        String reason = ex.getErrorCode() != null ? ex.getErrorCode() : ex.getMessage();
+        recordAdminDenied(request, reason);
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.FORBIDDEN.value(),
             ex.getErrorCode(),
@@ -139,5 +183,45 @@ public class GlobalExceptionHandler {
             request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleSpringAccessDenied(
+        org.springframework.security.access.AccessDeniedException ex,
+        HttpServletRequest request
+    ) {
+        org.springframework.security.core.Authentication auth =
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+            ErrorResponse error = ErrorResponse.of(
+                HttpStatus.UNAUTHORIZED.value(),
+                "UNAUTHORIZED",
+                "Yêu cầu đăng nhập để thực hiện hành động này.",
+                request.getRequestURI()
+            );
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+        recordAdminDenied(request, "Không có quyền ADMIN");
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.FORBIDDEN.value(),
+            "ACCESS_DENIED",
+            "Bạn không có quyền thực hiện hành động này.",
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(org.springframework.security.authentication.AuthenticationCredentialsNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationCredentialsNotFound(
+        org.springframework.security.authentication.AuthenticationCredentialsNotFoundException ex,
+        HttpServletRequest request
+    ) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.UNAUTHORIZED.value(),
+            "UNAUTHORIZED",
+            "Yêu cầu đăng nhập để thực hiện hành động này.",
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 }

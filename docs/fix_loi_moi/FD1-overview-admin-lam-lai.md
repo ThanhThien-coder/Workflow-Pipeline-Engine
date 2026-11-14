@@ -1,7 +1,7 @@
 # FD1 — Làm lại Overview của admin: số liệu thật, bỏ thông tin thừa
 
 Người làm: D
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L19 (phần Overview), L20
 Nhánh git: fix-fd1-overview-admin
 Làm trước: FA1 (đăng nhập admin). Song song được với FA2.
@@ -47,3 +47,21 @@ Tab Overview (Analytics) của admin toàn số giả, nhiều ô không liên q
 3. Không còn ô nào có số giả.
 
 ## Kết quả (Claude ghi, dán output thật)
+Các file đã thêm và chỉnh sửa:
+**Backend:**
+- `wpe-backend/src/main/java/com/pipeline/wpe/controller/AdminController.java`: endpoints `GET /api/v1/admin/stats` và `GET /api/v1/admin/stats/trends`.
+- `wpe-backend/src/main/java/com/pipeline/wpe/service/admin/AdminStatsService.java`: tính toán số liệu thống kê người dùng, dự án, task, template, vai trò từ DB và xu hướng theo ngày 7D/30D (task DONE theo ngày cập nhật cuối).
+- `wpe-backend/src/main/java/com/pipeline/wpe/dto/response/admin/AdminStatsResponse.java`: DTO response thống kê (UserStats, ProjectStats, TaskStats, TemplateStats, RoleStats).
+- `wpe-backend/src/main/java/com/pipeline/wpe/dto/response/admin/AdminTrendPointResponse.java`: DTO response điểm xu hướng theo ngày.
+- `wpe-backend/src/test/java/com/pipeline/wpe/admin/AdminStatsServiceTest.java`: unit tests cho `AdminStatsService`.
+- `wpe-backend/src/test/java/com/pipeline/wpe/admin/AdminControllerTest.java`: `@WebMvcTest` kiểm thử endpoints `/stats` và `/stats/trends` với phân quyền ADMIN.
+
+**Frontend:**
+- `wpe-frontend/src/types/admin.types.ts`: các DTO `AdminStatsDto`, `AdminTrendPointDto`, `AdminUserStatsDto`, `AdminProjectStatsDto`, `AdminTaskStatsDto`, `AdminTemplateStatsDto`, `AdminRoleStatsDto`.
+- `wpe-frontend/src/services/admin/HttpAdminService.ts`: cài đặt phương thức `getStats()` và `getTrends(range)`.
+- `wpe-frontend/src/hooks/useAdminPortal.ts`: quản lý `stats`, `trends`, `trendRange`, gọi `getStats` và `getTrends`.
+- `wpe-frontend/src/features/admin/tabs/AnalyticsTab.tsx`: bố cục lại giao diện Overview theo số liệu thật từ DB, loại bỏ các ô số giả, hỗ trợ chuyển đổi khoảng xu hướng 7D/30D.
+- `wpe-frontend/src/services/admin/__tests__/HttpAdminService.test.ts`: unit tests cho `getStats` và `getTrends`.
+- `wpe-frontend/src/features/admin/__tests__/useAdminPortal.test.ts`: unit tests cho `useAdminPortal` với số liệu thống kê thật.
+
+Người kiểm chạy test và E2E, xem báo cáo tổng.

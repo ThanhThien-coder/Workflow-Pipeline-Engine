@@ -18,4 +18,5 @@ export interface ITemplateService {
   deleteTemplate(id: string): Promise<void>;
   validateGraph(graphData: GraphDataPayload): Promise<DagValidationResult>;
   saveProjectAsTemplate(projectId: string, payload: SaveProjectAsTemplateRequestDto): Promise<TemplateDetailDto>;
+  setTemplateHidden(id: string, hidden: boolean): Promise<TemplateSummaryDto>;
 }

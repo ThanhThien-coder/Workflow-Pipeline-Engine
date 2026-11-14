@@ -8,29 +8,23 @@ describe('Clean Architecture DI: MockAdminService Unit Tests', () => {
     service = new MockAdminService();
   });
 
-  it('should return system KPIs matching Spring Boot DTO', async () => {
-    const kpis = await service.getSystemKpis();
-    expect(kpis).toBeDefined();
-    expect(kpis.totalUsers).toBe(1284);
-    expect(kpis.systemUptimePercentage).toBe(99.98);
-    expect(kpis.errorRatePercentage).toBe(0.02);
+  it('should return admin stats matching Spring Boot DTO', async () => {
+    const stats = await service.getStats();
+    expect(stats).toBeDefined();
+    expect(stats.users.total).toBe(6);
+    expect(stats.projects.total).toBe(3);
+    expect(stats.tasks.total).toBe(39);
+    expect(stats.templates.publicCount).toBe(3);
   });
 
   it('should return analytics trends for 7D and 30D', async () => {
-    const trends7 = await service.getAnalyticsTrends('7D');
+    const trends7 = await service.getTrends('7D');
     expect(trends7).toHaveLength(7);
-    expect(trends7[0].label).toBe('Mon');
+    expect(trends7[0].date).toBeDefined();
+    expect(typeof trends7[0].newUsers).toBe('number');
 
-    const trends30 = await service.getAnalyticsTrends('30D');
-    expect(trends30).toHaveLength(7);
-    expect(trends30[0].label).toBe('Sep 7');
-  });
-
-  it('should return role distribution', async () => {
-    const roles = await service.getRoleDistribution();
-    expect(roles.ownerCount).toBe(22);
-    expect(roles.collaboratorCount).toBe(56);
-    expect(roles.viewerCount).toBe(22);
+    const trends30 = await service.getTrends('30D');
+    expect(trends30).toHaveLength(30);
   });
 
   it('should fetch users and filter by query and status', async () => {
@@ -45,21 +39,18 @@ describe('Clean Architecture DI: MockAdminService Unit Tests', () => {
     expect(searched[0].name).toBe('Sarah Chen');
   });
 
-  it('should suspend a user and reject suspending Super Admin', async () => {
-    // Attempting to suspend Super Admin should throw
+  it('should suspend a user and reject suspending Super Admin/Admin', async () => {
     await expect(
       service.suspendUser({ userId: 'usr_01AKM9', reason: 'TERMS_VIOLATION' })
-    ).rejects.toThrow('Cannot suspend Super Admin account');
+    ).rejects.toThrow('Cannot suspend Admin account');
 
-    // Suspend Sarah Chen
     const suspended = await service.suspendUser({
-      userId: 'usr_02JQ71',
+      userId: 'usr_04DV88',
       reason: 'SECURITY_RISK',
     });
     expect(suspended.status).toBe('SUSPENDED');
 
-    // Verify in audit logs
-    const logs = await service.getSecurityAuditLogs();
+    const logs = await service.getSecurityAuditLogs('ADMIN');
     expect(logs[0].action).toBe('USER_SUSPENDED');
   });
 
@@ -67,17 +58,42 @@ describe('Clean Architecture DI: MockAdminService Unit Tests', () => {
     const unbanned = await service.unbanUser('usr_03PL44');
     expect(unbanned.status).toBe('ACTIVE');
 
-    // Verify in audit logs
     const logs = await service.getSecurityAuditLogs();
     expect(logs[0].action).toBe('USER_UNBANNED');
   });
 
-  it('should return workspaces and security audit logs', async () => {
+  it('should return workspaces and get workspace detail', async () => {
     const workspaces = await service.getWorkspaces();
-    expect(workspaces.length).toBeGreaterThan(0);
-    expect(workspaces[0].status).toBe('RUNNING');
+    expect(workspaces.length).toBe(3);
+    expect(workspaces[0].status).toBe('ACTIVE');
 
-    const logs = await service.getSecurityAuditLogs();
-    expect(logs.length).toBeGreaterThan(0);
+    const detail = await service.getWorkspaceDetail('ws_01');
+    expect(detail).toBeDefined();
+    expect(detail.id).toBe('ws_01');
+    expect(detail.owner.ownerName).toBe('Sarah Chen');
+    expect(detail.membersByRole.OWNER).toBe(1);
+    expect(detail.ownerCandidates.length).toBeGreaterThan(0);
+  });
+
+  it('should archive a workspace', async () => {
+    const archived = await service.archiveWorkspace('ws_01');
+    expect(archived.status).toBe('ARCHIVED');
+
+    const logs = await service.getSecurityAuditLogs('ADMIN');
+    expect(logs[0].action).toBe('WORKSPACE_ARCHIVED');
+  });
+
+  it('should filter audit logs by group', async () => {
+    const loginLogs = await service.getSecurityAuditLogs('LOGIN');
+    expect(loginLogs.length).toBeGreaterThan(0);
+    expect(loginLogs.every((l) => ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'REGISTER', 'ACCOUNT_LOCKED_LOGIN'].includes(l.action))).toBe(true);
+
+    const adminLogs = await service.getSecurityAuditLogs('ADMIN');
+    expect(adminLogs.length).toBeGreaterThan(0);
+    expect(adminLogs.every((l) => ['USER_SUSPENDED', 'USER_UNBANNED', 'WORKSPACE_ARCHIVED'].includes(l.action))).toBe(true);
+
+    const templateLogs = await service.getSecurityAuditLogs('TEMPLATE');
+    expect(templateLogs.length).toBeGreaterThan(0);
+    expect(templateLogs.every((l) => ['TEMPLATE_CREATED', 'TEMPLATE_UPDATED', 'TEMPLATE_DELETED'].includes(l.action))).toBe(true);
   });
 });

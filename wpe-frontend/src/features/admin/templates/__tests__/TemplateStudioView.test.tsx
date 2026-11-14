@@ -18,8 +18,37 @@ describe('describeSaveError pure function', () => {
     });
     const result = describeSaveError(err);
     expect(result).toEqual({
-      message: 'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.',
+      message: 'Đồ thị có chu trình lặp ở: p1, n2',
       cycleIds: ['p1', 'n2'],
+      keepOpen: true,
+    });
+  });
+
+  it('handles 422 cycle error with custom nameOf mapper', () => {
+    const err = new ApiError({
+      status: 422,
+      code: 'CYCLE_DETECTED',
+      message: 'Cycle detected',
+      cycleNodes: ['n1'],
+    });
+    const result = describeSaveError(err, (id) => (id === 'n1' ? 'Thiết kế' : undefined));
+    expect(result.message).toContain('Thiết kế');
+    expect(result.message).toBe('Đồ thị có chu trình lặp ở: Thiết kế');
+    expect(result.cycleIds).toEqual(['n1']);
+    expect(result.keepOpen).toBe(true);
+  });
+
+  it('handles 422 cycle error without cycleNodes', () => {
+    const err = new ApiError({
+      status: 422,
+      code: 'CYCLE_DETECTED',
+      message: 'Cycle detected',
+      cycleNodes: [],
+    });
+    const result = describeSaveError(err);
+    expect(result).toEqual({
+      message: 'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.',
+      cycleIds: [],
       keepOpen: true,
     });
   });
@@ -32,7 +61,7 @@ describe('describeSaveError pure function', () => {
     });
     const result = describeSaveError(err);
     expect(result).toEqual({
-      message: 'Chỉ quản trị viên được chỉnh sửa template',
+      message: 'Chỉ quản trị viên mới lưu được template',
       cycleIds: [],
       keepOpen: true,
     });
@@ -96,7 +125,7 @@ describe('TemplateStudioView Component', () => {
     vi.restoreAllMocks();
   });
 
-  it('khi save ném ApiError 403 → gọi onToast với "Chỉ quản trị viên được chỉnh sửa template" và Studio KHÔNG gọi onClose', async () => {
+  it('khi save ném ApiError 403 → gọi onToast với "Chỉ quản trị viên mới lưu được template" và Studio KHÔNG gọi onClose', async () => {
     vi.spyOn(container.templateService, 'getTemplates').mockResolvedValue([]);
     vi.spyOn(container.templateService, 'createTemplate').mockRejectedValue(
       new ApiError({
@@ -119,7 +148,7 @@ describe('TemplateStudioView Component', () => {
 
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith(
-        'Chỉ quản trị viên được chỉnh sửa template',
+        'Chỉ quản trị viên mới lưu được template',
         'rose'
       );
     });
@@ -151,7 +180,7 @@ describe('TemplateStudioView Component', () => {
 
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith(
-        'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.',
+        'Đồ thị có chu trình lặp ở: n1, n2',
         'rose'
       );
     });

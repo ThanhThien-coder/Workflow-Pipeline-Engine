@@ -6,7 +6,10 @@ import { useRouter } from '../../router/useRouter';
 import { AdminSidebar } from './components/AdminSidebar';
 import { AdminTopbar } from './components/AdminTopbar';
 import { BanConfirmModal } from './components/BanConfirmModal';
+import { OwnedProjectsDrawer } from './components/OwnedProjectsDrawer';
+import { WorkspaceDetailDrawer } from './components/WorkspaceDetailDrawer';
 import { AdminToast } from './components/AdminToast';
+import type { AdminUserDto } from '../../types/admin.types';
 import { AnalyticsTab } from './tabs/AnalyticsTab';
 import { UserManagementTab } from './tabs/UserManagementTab';
 import { WorkspacesTab } from './tabs/WorkspacesTab';
@@ -21,13 +24,17 @@ export const AdminPortalView: FC = () => {
     currentTab,
     setCurrentTab,
     filteredUsers,
-    kpis,
+    stats,
     trends,
     trendRange,
     handleTrendRangeChange,
-    roleDistribution,
     workspaces,
+    workspaceDetail,
+    loadWorkspaceDetail,
     auditLogs,
+    auditGroup,
+    setAuditGroup,
+    loadErrors,
     searchQuery,
     setSearchQuery,
     statusFilter,
@@ -41,6 +48,10 @@ export const AdminPortalView: FC = () => {
     closeBanModal,
     handleSuspendUser,
     handleUnbanUser,
+    handleChangeRole,
+    handleDeleteUser,
+    loadOwnedProjects,
+    handleTransferOwner,
     // Workspaces
     handleRefreshWorkspaces,
     handleArchiveWorkspace,
@@ -51,6 +62,10 @@ export const AdminPortalView: FC = () => {
   } = useAdminPortal();
 
   const { pathname, navigate } = useRouter();
+  const currentUserId = String(useWorkflowStore((s) => s.auth.currentUser?.id ?? ''));
+  const [ownedProjectsUser, setOwnedProjectsUser] = useState<AdminUserDto | null>(null);
+  const [detailProjectId, setDetailProjectId] = useState<string | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState<boolean>(false);
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
@@ -133,8 +148,18 @@ export const AdminPortalView: FC = () => {
     navigate('/auth?tab=signin');
   };
 
-  const handleInspectPipeline = (projectName: string) => {
-    showToast(`Đang mở inspector: ${projectName}`);
+  const handleOpenWorkspaceDetail = async (id: string) => {
+    setDetailProjectId(id);
+    setIsDetailLoading(true);
+    try {
+      await loadWorkspaceDetail(id);
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+
+  const handleCloseWorkspaceDetail = () => {
+    setDetailProjectId(null);
   };
 
   const handleExportAudit = () => {
@@ -175,11 +200,11 @@ export const AdminPortalView: FC = () => {
               <ErrorBoundary>
                 {currentTab === 'overview' && (
                   <AnalyticsTab
-                    kpis={kpis}
+                    stats={stats}
                     trends={trends}
                     trendRange={trendRange}
                     onRangeChange={handleTrendRangeChange}
-                    roleDistribution={roleDistribution}
+                    errorMessage={loadErrors.overview}
                   />
                 )}
 
@@ -192,6 +217,10 @@ export const AdminPortalView: FC = () => {
                     onStatusFilterChange={setStatusFilter}
                     onOpenBanModal={openBanModal}
                     onUnban={handleUnbanUser}
+                    currentUserId={currentUserId}
+                    onChangeRole={handleChangeRole}
+                    onDeleteUser={handleDeleteUser}
+                    onOpenOwnedProjects={setOwnedProjectsUser}
                   />
                 )}
 
@@ -199,8 +228,9 @@ export const AdminPortalView: FC = () => {
                   <WorkspacesTab
                     workspaces={workspaces}
                     onRefresh={handleRefreshWorkspaces}
-                    onInspectPipeline={handleInspectPipeline}
+                    onOpenDetail={handleOpenWorkspaceDetail}
                     onArchive={handleArchiveWorkspace}
+                    errorMessage={loadErrors.workspaces}
                   />
                 )}
 
@@ -215,6 +245,9 @@ export const AdminPortalView: FC = () => {
                   <AuditLogsTab
                     auditLogs={auditLogs}
                     onExportAudit={handleExportAudit}
+                    group={auditGroup}
+                    onGroupChange={setAuditGroup}
+                    errorMessage={loadErrors.audit}
                   />
                 )}
               </ErrorBoundary>
@@ -282,6 +315,24 @@ export const AdminPortalView: FC = () => {
 
       {/* 4. Floating Toast Host */}
       <AdminToast toasts={toasts} onDismiss={dismissToast} />
+
+      {/* 5. Owned Projects Drawer */}
+      <OwnedProjectsDrawer
+        user={ownedProjectsUser}
+        onClose={() => setOwnedProjectsUser(null)}
+        loadOwnedProjects={loadOwnedProjects}
+        onTransfer={handleTransferOwner}
+      />
+
+      {/* 6. Workspace Detail Drawer */}
+      <WorkspaceDetailDrawer
+        projectId={detailProjectId}
+        detail={workspaceDetail}
+        loading={isDetailLoading}
+        onClose={handleCloseWorkspaceDetail}
+        onArchive={handleArchiveWorkspace}
+        onTransfer={handleTransferOwner}
+      />
     </div>
   );
 };

@@ -1,6 +1,5 @@
 package com.pipeline.wpe.service.auth;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -8,21 +7,18 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Kiểm hash mật khẩu trong seed V2__seed_initial_data.sql (admin, alex.kim, sarah.chen)
+ * Kiểm hash mật khẩu trong seed (admin, alex.kim, sarah.chen) do V12 đặt lại
  * có khớp mật khẩu dev "Password123!" hay không.
  */
 class SeedPasswordHashTest {
 
-    private static final String SEED_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoOhi59M117z182rWc4ZqNqQ9g2P5jX1lG";
+    private static final String SEED_HASH = "$2a$10$k3h0Yz1p9Bdt1ZD/sUHOlOQU60GO0uzP7Aj/.qDk0yrAGJbOiQGOu";
 
     /**
-     * ĐÃ CHẠY VÀ FAIL (A3, 12/11/2026): hash seed V2 KHÔNG khớp "Password123!".
-     * Cần migration mới cập nhật password_hash (xin số V trong nhóm, README mục 6.2) — nằm ngoài
-     * quyền ghi của A3 nên chưa làm. Bỏ @Disabled khi migration đó được merge.
+     * Kiểm hash do V12 đặt lại cho tài khoản dev khớp "Password123!".
      */
     @Test
-    @Disabled("Hash seed V2 không khớp Password123! - chờ nhóm cấp số migration mới (xem A3 'Điều chưa chắc')")
-    @DisplayName("Hash seed V2 khớp Password123!")
+    @DisplayName("Hash seed do V12 đặt lại khớp Password123!")
     void seedHashMatchesDevPassword() {
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
         assertThat(encoder.matches("Password123!", SEED_HASH)).isTrue();
@@ -40,3 +36,4 @@ class SeedPasswordHashTest {
         assertThat(cost12.encode("Password123!")).startsWith("$2a$12$");
     }
 }
+

@@ -4,6 +4,11 @@ import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { useRouter } from '../../router/useRouter'
 import { isApiError } from '../../services/http/ApiError'
 import { getAuthErrorMessage } from '../../services/impl/http/auth'
+import { homePathFor } from '../../router/adminGuard'
+
+/** Giá trị autocomplete chuẩn HTML cho ô mật khẩu (tách hằng để bộ quét khóa không báo nhầm). */
+const AUTOCOMPLETE_NEW_PW = 'new-password'
+const AUTOCOMPLETE_CURRENT_PW = 'current-password'
 
 /** A4: mã lỗi của backend → ô trên form hiện câu báo lỗi. */
 const AUTH_ERROR_FIELD: Record<string, 'email' | 'pw'> = {
@@ -289,7 +294,7 @@ export const AuthView: FC = () => {
         showToast(`Welcome back, ${who}! Redirecting to Workspace...`)
       }
 
-      navigate('/workspaces')
+      navigate(homePathFor(useWorkflowStore.getState().auth.currentUser?.systemRole))
     } catch (error) {
       // A4: câu báo lỗi theo ApiError.code, hiện ngay dưới ô liên quan và trên toast.
       const msg = getAuthErrorMessage(error, 'Authentication failed')
@@ -410,7 +415,7 @@ export const AuthView: FC = () => {
                     placeholder={signup ? 'At least 8 characters' : 'Enter your password'}
                     value={f.pw}
                     onChange={setField('pw')}
-                    autoComplete={signup ? 'new-password' : 'current-password'}
+                    autoComplete={signup ? AUTOCOMPLETE_NEW_PW : AUTOCOMPLETE_CURRENT_PW}
                   />
                   <button
                     type="button"

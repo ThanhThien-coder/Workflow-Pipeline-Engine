@@ -1,6 +1,6 @@
 # Đề xuất làm lại phân hệ Admin
 
-Bản 2, ngày 13/11/2026. Bản này đã qua một lượt phản biện của Gemini 4 Hydrogen XHigh, các ý hợp lý đã đưa thẳng vào nội dung. Đang chờ nhóm duyệt, chưa sửa code.
+Bản 2, ngày 13/11/2026. Bản này đã qua một lượt phản biện của Gemini 4 Hydrogen XHigh, các ý hợp lý đã đưa thẳng vào nội dung. Nhóm đã duyệt; đợt 1 và đợt 2 (trừ mục 6) đã làm, chờ kiểm.
 
 ## 1. Kết luận
 
@@ -112,6 +112,7 @@ Rút ra 6 nguyên tắc:
 
 1. **Thêm tài khoản từ admin** (đang hỏi team; thầy chưa nhắc tới). Theo đặc tả, đăng ký là UC1 (người dùng tự đăng ký), còn admin chỉ khóa và mở (UC4). Nếu admin tạo tài khoản kèm mật khẩu tạm thì admin biết mật khẩu đó, nên đăng nhập được vào tài khoản người khác.
    - Đề xuất: **không làm**, người dùng tự đăng ký.
+   - **Nhóm đã quyết (14/11): không làm, người dùng tự đăng ký.**
    - Nếu team muốn có "thêm", thì phải bắt đổi mật khẩu ngay lần đăng nhập đầu và ghi việc tạo vào nhật ký. Việc này cần thêm một cột, tức thêm migration.
 
 ## Nguồn
@@ -123,3 +124,51 @@ Rút ra 6 nguyên tắc:
 - Asana: [User deprovisioning](https://help.asana.com/s/article/user-deprovisioning), [Torii: remove users from Asana](https://www.toriihq.com/articles/how-to-remove-user-asana)
 - OWASP: [Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
 - Vercel: [Web Analytics](https://vercel.com/docs/analytics)
+
+## 7. Kết quả thực hiện
+
+### 7.1 Đợt 1 (Đã hoàn thành)
+- **FA1 — Đăng nhập và bảo vệ tuyến đường admin**:
+  - Sửa hash BCrypt seed mẫu cho tài khoản `admin`, `alex.kim`, `sarah.chen` khớp với `Password123!` (`V12__fix_seed_password_hash.sql`).
+  - Hỗ trợ đăng nhập linh hoạt bằng username hoặc email không phân biệt hoa thường (`AuthService.java` gọi `userRepository.findByEmailIgnoreCase`).
+  - Chặn tuyến đường `/admin` ở Frontend (`wpe-frontend/src/router/adminGuard.ts`), tự động chuyển hướng tài khoản `ADMIN` vào thẳng `/admin` sau khi đăng nhập thành công.
+- **FA2 — API quản lý người dùng và workspace thật**:
+  - API danh sách người dùng `GET /api/v1/admin/users`: lọc theo `query` (username, fullName; không tìm theo email) và `status=ACTIVE|SUSPENDED`, che email dạng `a***@pipeline.engine` (`EmailMasker.java`, `AdminUserService.java`).
+  - Tạm khóa tài khoản `POST /api/v1/admin/users/{id}/suspend`: đặt `is_locked = TRUE`, tăng `token_version += 1`, thu hồi toàn bộ refresh token, cấm khóa tài khoản quản trị viên (`CANNOT_SUSPEND_ADMIN` 403). Nhóm quyết 14/11: bỏ hẳn khóa theo số ngày (durationDays), chỉ còn lý do và ghi chú.
+  - Mở khóa tài khoản `POST /api/v1/admin/users/{id}/unban`: đặt `is_locked = FALSE`.
+  - Danh sách dự án `GET /api/v1/admin/workspaces`: trả về danh sách metadata (không trả nội dung task hay đồ thị DAG).
+  - Lưu trữ dự án `POST /api/v1/admin/workspaces/{id}/archive`: chuyển trạng thái sang `ARCHIVED` (`AdminWorkspaceService.java`).
+- **FA3 — Nhật ký hệ thống**:
+  - Bảng CSDL `admin_audit_log` (`V13__admin_audit_log.sql`).
+  - Service `AdminAuditService.java` ghi nhật ký độc lập với mức lan truyền `PROPAGATION_REQUIRES_NEW`, che địa chỉ IP (`maskIp`), cắt độ dài chuỗi an toàn.
+  - API `GET /api/v1/admin/audit-logs`: lọc theo 3 nhóm hành động `LOGIN`, `ADMIN`, `TEMPLATE` (`AdminAuditAction.java`).
+  - Ghi nhận tự động mọi request bị 403 vào `/api/v1/admin/**` với hành động `ADMIN_ACCESS_DENIED` (`GlobalExceptionHandler.java`).
+- **FD1 — Overview số liệu thật**:
+  - API `GET /api/v1/admin/stats`: tính toán 100% số liệu thật từ DB về người dùng, dự án, task trễ hạn, template và vai trò (`AdminStatsService.java`).
+  - API `GET /api/v1/admin/stats/trends?range=7D|30D`: chuỗi số liệu theo ngày về user mới, dự án mới và task hoàn thành (tính theo ngày cập nhật cuối `updated_at`).
+  - Giao diện `AnalyticsTab.tsx` bố cục lại theo các chỉ số đo lường được từ DB, loại bỏ toàn bộ số giả.
+- **FD2 — Chi tiết workspace dạng Drawer**:
+  - API `GET /api/v1/admin/workspaces/{id}`: nạp metadata chi tiết gồm thông tin owner đã che email, cơ cấu thành viên theo 4 vai trò, số node theo 5 trạng thái, tiến độ %, task quá hạn, trạng thái link khách, thời điểm hoạt động cuối và danh sách ứng viên chuyển chủ (`ownerCandidates`).
+  - Component `WorkspaceDetailDrawer.tsx` hiển thị ngăn kéo bên phải; loại bỏ hoàn toàn việc mở đồ thị DAG của dự án.
+- **FD3 — Lọc template Public**:
+  - API `GET /api/v1/templates?visibility=PUBLIC`: Catalog Admin chỉ hiển thị template `PUBLIC` do Admin tạo (`PipelineTemplateController.java`).
+  - Nhóm quyết 14/11: Admin được xóa cả template mẫu của hệ thống (bỏ khóa `SYSTEM_TEMPLATE_LOCKED` của TASK_03/D3, `PipelineTemplateService.java`).
+
+### 7.2 Đợt 2 (Đã hoàn thành)
+- **Đổi vai trò `USER ↔ ADMIN` (`PATCH /api/v1/admin/users/{id}/role`)**:
+  - Cấm tự hạ quyền của chính mình (`CANNOT_DEMOTE_SELF` 403).
+  - Cấm hạ quản trị viên hoạt động cuối cùng: khóa hàng bằng `PESSIMISTIC_WRITE` (`userRepository.lockActiveAdmins()`), trả về `LAST_ADMIN` 409 nếu chỉ còn 1 admin active.
+  - Hạ quyền tự động tăng `token_version += 1` và thu hồi toàn bộ refresh token.
+  - Cấm nâng quyền cho tài khoản đang bị khóa (`USER_LOCKED` 409).
+- **Xóa tài khoản trắng (`DELETE /api/v1/admin/users/{id}`)**:
+  - Cấm tự xóa tài khoản của chính mình (`CANNOT_DELETE_SELF` 403).
+  - Cấm xóa tài khoản `ADMIN` (`CANNOT_DELETE_ADMIN` 403).
+  - Kiểm tra đủ 6 loại dữ liệu liên kết: dự án sở hữu, template đã tạo, minh chứng đã tải, lời mời liên quan, số lần tham gia dự án, task được phân công. Nếu có dữ liệu từ chối với `USER_HAS_DATA` 409, chỉ cho phép xóa tài khoản chưa phát sinh bất kỳ dữ liệu nào.
+- **Chuyển quyền sở hữu dự án (`POST /api/v1/admin/projects/{projectId}/transfer-owner` và `GET /api/v1/admin/users/{id}/owned-projects`)**:
+  - `AdminProjectOwnerService.java`: chủ mới phải là thành viên active và không bị khóa (`NEW_OWNER_NOT_ACTIVE_MEMBER` 409); chủ cũ chuyển thành `COLLABORATOR`; dự án 1 người không chuyển được (chỉ lưu trữ). Nhóm quyết 14/11: dự án đã lưu trữ (`ARCHIVED`) hoặc đã hoàn thành (`COMPLETED`) thì admin KHÔNG được chuyển chủ (`PROJECT_CLOSED` 409).
+  - Drawer `OwnedProjectsDrawer.tsx` và modal chuyển chủ trên giao diện Frontend.
+- **Cắt độ dài trường an toàn**: Cắt chuỗi trước khi lưu `admin_audit_log` tránh lỗi tràn độ dài cột SQL.
+- **Ẩn/hiện template (V14 — Đã làm)**: Admin có nút Ẩn/Hiện template mẫu (`PATCH /api/v1/templates/{id}/hidden`). Template bị ẩn KHÔNG hiện ở màn tạo dự án của người dùng và KHÔNG clone được, nhưng vẫn hiện trong catalog admin (có nhãn "Đang ẩn") để hiện lại. Giữ nguyên PUBLIC/PRIVATE ở bên trong, bỏ nhãn PUBLIC/PRIVATE khỏi giao diện admin. Ghi nhật ký `TEMPLATE_HIDDEN`, `TEMPLATE_SHOWN`.
+
+### 7.3 Chưa làm
+*(Lưu ý: "Thêm tài khoản từ admin" nhóm đã quyết 14/11 là không làm, người dùng tự đăng ký).*

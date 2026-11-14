@@ -11,6 +11,7 @@ import java.util.List;
 
 @Repository
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
+    long countByOwnerId(Long ownerId);
     List<ProjectEntity> findByOwnerId(Long ownerId);
     List<ProjectEntity> findByStatus(ProjectStatus status);
 

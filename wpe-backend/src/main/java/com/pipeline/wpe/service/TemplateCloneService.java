@@ -74,6 +74,9 @@ public class TemplateCloneService {
         }
 
         PipelineTemplateEntity tpl = pipelineTemplateOpt.get();
+        if (Boolean.TRUE.equals(tpl.getIsHidden())) {
+            throw new ResourceNotFoundException("Không tìm thấy mẫu quy trình với ID: " + identifier);
+        }
         if (tpl.getVisibility() == TemplateVisibility.PRIVATE && (currentUserId == null || !currentUserId.equals(tpl.getCreatedBy()))) {
             throw new ResourceNotFoundException("Không tìm thấy mẫu quy trình với ID: " + identifier);
         }

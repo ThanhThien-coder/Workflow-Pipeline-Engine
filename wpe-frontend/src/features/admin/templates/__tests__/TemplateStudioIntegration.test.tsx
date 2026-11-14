@@ -35,8 +35,7 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
       expect(screen.getByText('Data Science / ETL Pipeline')).toBeDefined();
 
       // Check badge presence
-      expect(screen.getAllByText('PUBLIC · SYSTEM STANDARD').length).toBe(2);
-      expect(screen.getAllByText('DRAFT').length).toBe(1);
+      expect(screen.getAllByText('Template mẫu hệ thống').length).toBe(2);
 
       // Filter by category
       const select = screen.getByRole('combobox');

@@ -15,6 +15,7 @@ import java.util.Optional;
 @Repository
 public interface ProjectInvitationRepository extends JpaRepository<ProjectInvitationEntity, Long> {
     List<ProjectInvitationEntity> findByProjectIdAndStatus(Long projectId, InvitationStatus status);
+    long countByProjectIdAndStatus(Long projectId, InvitationStatus status);
     List<ProjectInvitationEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
     List<ProjectInvitationEntity> findByInviteeIdAndStatus(Long inviteeId, InvitationStatus status);
     Optional<ProjectInvitationEntity> findByProjectIdAndInviteeIdAndStatus(Long projectId, Long inviteeId, InvitationStatus status);
@@ -23,4 +24,6 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
     @Modifying
     @Query("UPDATE ProjectInvitationEntity i SET i.status = :expired, i.respondedAt = :now, i.version = i.version + 1 WHERE i.status = :pending AND i.expiresAt < :now")
     int expireOverdue(@Param("pending") InvitationStatus pending, @Param("expired") InvitationStatus expired, @Param("now") Instant now);
+
+    long countByInviterIdOrInviteeId(Long inviterId, Long inviteeId);
 }

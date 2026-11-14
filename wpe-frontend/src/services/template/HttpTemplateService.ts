@@ -23,6 +23,12 @@ export class HttpTemplateService implements ITemplateService {
     if (filter?.isSystemStandard !== undefined) {
       query.isSystemStandard = filter.isSystemStandard;
     }
+    if (filter?.visibility) {
+      query.visibility = filter.visibility;
+    }
+    if (filter?.includeHidden !== undefined) {
+      query.includeHidden = filter.includeHidden;
+    }
 
     return apiRequest<TemplateSummaryDto[]>('GET', '/templates', {
       query: Object.keys(query).length > 0 ? query : undefined,
@@ -84,6 +90,12 @@ export class HttpTemplateService implements ITemplateService {
   ): Promise<TemplateDetailDto> {
     return apiRequest<TemplateDetailDto>('POST', `/projects/${projectId}/save-as-template`, {
       body: payload,
+    });
+  }
+
+  async setTemplateHidden(id: string, hidden: boolean): Promise<TemplateSummaryDto> {
+    return apiRequest<TemplateSummaryDto>('PATCH', `/templates/${id}/hidden`, {
+      body: { hidden },
     });
   }
 }

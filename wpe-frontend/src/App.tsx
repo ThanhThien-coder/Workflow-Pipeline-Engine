@@ -12,6 +12,7 @@ import { ProjectInviteAcceptModal } from './components/workspace/ProjectInviteAc
 import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
 import { useRouter } from './router/useRouter'
 import { isMockMode } from './services/env'
+import { resolveAdminAccess, homePathFor, ADMIN_ONLY_MESSAGE } from './router/adminGuard'
 
 const DevToolbar = import.meta.env.DEV && isMockMode
   ? lazy(() => import('./components/dev/DevToolbar').then((m) => ({ default: m.DevToolbar })))
@@ -22,6 +23,8 @@ export default function App() {
   const { pathname, searchParams, replace } = useRouter()
   const isAuthenticated = useWorkflowStore((state) => state.auth.isAuthenticated)
   const hydrate = useWorkflowStore((state) => state.auth.hydrate)
+  const systemRole = useWorkflowStore((state) => state.auth.currentUser?.systemRole)
+  const showToast = useWorkflowStore((state) => state.ui.showToast)
 
   const [activeInviteId, setActiveInviteId] = useState<string | null>(null)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -72,9 +75,22 @@ export default function App() {
       }
     } else if (isAuthRoute) {
       // If already logged in and navigates to /auth, redirect to workspaces
-      replace('/workspaces')
+      replace(homePathFor(systemRole))
     }
-  }, [isAuthenticated, isWorkspaceRoute, isProjectRoute, isProfileRoute, isNotificationsRoute, isAuthRoute, replace])
+  }, [isAuthenticated, isWorkspaceRoute, isProjectRoute, isProfileRoute, isNotificationsRoute, isAuthRoute, replace, systemRole])
+
+  // Admin Guard: check auth & role before allowing access to /admin
+  useEffect(() => {
+    if (isAdminRoute) {
+      const decision = resolveAdminAccess(isAuthenticated, systemRole)
+      if (decision === 'TO_SIGNIN') {
+        replace('/auth?tab=signin')
+      } else if (decision === 'TO_WORKSPACES') {
+        showToast(ADMIN_ONLY_MESSAGE)
+        replace('/workspaces')
+      }
+    }
+  }, [isAdminRoute, isAuthenticated, systemRole, replace, showToast])
 
   // Parse Project Route: /project/:id/:tab
   let projectId = '1'
@@ -91,7 +107,7 @@ export default function App() {
   // Render current view
   const renderScreen = () => {
     if (isAdminRoute) {
-      return <AdminPortalView />
+      return resolveAdminAccess(isAuthenticated, systemRole) === 'ALLOW' ? <AdminPortalView /> : null
     }
 
     if (isGuestRoute) {                                // NEW
