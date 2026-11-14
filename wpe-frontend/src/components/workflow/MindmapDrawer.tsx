@@ -36,6 +36,10 @@ export function MindmapDrawer() {
   const deleteNode = useWorkflowStore((state) => state.deleteNode)
   const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
   const currentProjectId = useWorkflowStore((state) => state.currentProjectId)
+  // Tên dự án thật (tải lúc vào dự án), chưa có thì bỏ khỏi breadcrumb
+  const projectName = useWorkflowStore((state) =>
+    state.project.projectId === state.currentProjectId ? state.project.info?.name : undefined
+  )
   // B5: quyền sửa và các thao tác ghi đồ thị qua API (chế độ API thật)
   const canEdit = useWorkflowStore(selectCanEditGraph)
   const graphWritesUseApi = useWorkflowStore((state) => state.graphWritesUseApi)
@@ -246,6 +250,8 @@ export function MindmapDrawer() {
 
   if (!phase) return null
 
+  const breadcrumb = [projectName, 'Workflow', phase.name].filter(Boolean).join(' › ')
+
   return (
     <aside
       style={{ width: Math.max(w, viewMode === 'kanban' ? 540 : 380) }}
@@ -263,8 +269,8 @@ export function MindmapDrawer() {
       {/* ── Header ── */}
       <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 shrink-0">
         <div className="min-w-0">
-          <div className="text-[11px] text-slate-400 truncate max-w-[200px] xl:max-w-none" title={`Marketing Q4 › Workflow › ${phase.name}`}>
-            Marketing Q4 › Workflow › {phase.name}
+          <div className="text-[11px] text-slate-400 truncate max-w-[200px] xl:max-w-none" title={breadcrumb}>
+            {breadcrumb}
           </div>
           <h2 className="mt-1 truncate text-base font-semibold text-slate-800">
             {phase.sub}
