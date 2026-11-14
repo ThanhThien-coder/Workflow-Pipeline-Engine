@@ -105,7 +105,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   ...createAuthSlice(set, get),
   ...createWorkspaceSlice(set, get),
   ...createUiSlice(set, get),
-  ...createArtifactsSlice(set, get),
+  ...createArtifactsSlice(set, get, service),
   ...createProjectSlice(set, get, service),
   activeTab: 'workflow',
   currentProjectId: null,

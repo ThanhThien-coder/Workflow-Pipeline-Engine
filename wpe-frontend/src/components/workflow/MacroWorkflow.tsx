@@ -21,6 +21,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
   const workflowEdges = useWorkflowStore((state) => state.workflowEdges)
   const selectedPhaseId = useWorkflowStore((state) => state.selectedPhaseId)
   const loadPhases = useWorkflowStore((state) => state.loadPhases)
+  const loadArtifacts = useWorkflowStore((state) => state.artifacts.loadArtifacts)
   const createPhase = useWorkflowStore((state) => state.createPhase)
   const spawnChildPhase = useWorkflowStore((state) => state.spawnChildPhase)
   const connectPhases = useWorkflowStore((state) => state.connectPhases)
@@ -93,7 +94,9 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
 
   useEffect(() => {
     void loadPhases(projectId)
-  }, [loadPhases, projectId])
+    // Số trên nút Artifacts phải đúng ngay khi mở dự án, không chờ mở drawer
+    void loadArtifacts(projectId)
+  }, [loadPhases, loadArtifacts, projectId])
 
   // Auto Layout action: cleanly aligns all phases into a standard DAG layout
   const handleAutoLayout = useCallback(() => {

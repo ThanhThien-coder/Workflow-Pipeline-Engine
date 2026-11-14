@@ -13,7 +13,6 @@ import {
   Link2,
 } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
-import { workflowService } from '../../services/container'
 import type { ProjectArtifact } from '../../types/artifact.types'
 
 // Brand Icons
@@ -137,12 +136,12 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const storeIsOpen = useWorkflowStore((state) => state.artifacts.isDrawerOpen)
   const storeCloseDrawer = useWorkflowStore((state) => state.artifacts.closeDrawer)
   const artifacts = useWorkflowStore((state) => state.artifacts.items)
+  const status = useWorkflowStore((state) => state.artifacts.status)
+  const loadError = useWorkflowStore((state) => state.artifacts.error)
+  const loadArtifacts = useWorkflowStore((state) => state.artifacts.loadArtifacts)
   const addArtifact = useWorkflowStore((state) => state.artifacts.addArtifact)
   const removeArtifact = useWorkflowStore((state) => state.artifacts.removeArtifact)
-  const showToast = useWorkflowStore((state) => state.ui?.showToast)
-  const currentPersona = useWorkflowStore(
-    (state) => state.auth.currentUser?.username || 'Owner',
-  )
+  const showToast = useWorkflowStore((state) => state.ui.showToast)
 
   const isOpen = propIsOpen !== undefined ? propIsOpen : storeIsOpen
   const handleClose = () => {
@@ -153,42 +152,12 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
     }
   }
 
-  const [isLoading, setIsLoading] = useState(false)
-
-  // Load deliverables from backend service when opened or project changes
+  // Mở drawer thì đọc lại danh sách để thấy artifact người khác vừa thêm
   useEffect(() => {
-    let isMounted = true
-    const fetchArtifacts = async () => {
-      if (artifacts.length === 0) {
-        setIsLoading(true)
-      }
-      try {
-        if (workflowService && workflowService.getProjectArtifacts) {
-          const items = await workflowService.getProjectArtifacts(projectId)
-          if (isMounted && Array.isArray(items)) {
-            useWorkflowStore.setState((state) => ({
-              artifacts: {
-                ...state.artifacts,
-                items,
-              },
-            }))
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to fetch deliverables from backend:', err)
-      } finally {
-        if (isMounted) setIsLoading(false)
-      }
-    }
+    if (isOpen) void loadArtifacts(projectId)
+  }, [projectId, isOpen, loadArtifacts])
 
-    if (isOpen) {
-      void fetchArtifacts()
-    }
-
-    return () => {
-      isMounted = false
-    }
-  }, [projectId, isOpen])
+  const isLoading = status === 'loading' || status === 'idle'
 
   // Quick Add Form State
   const [formTitle, setFormTitle] = useState('')
@@ -226,38 +195,15 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
     setSubmitting(true)
     try {
-      if (workflowService && workflowService.createArtifact) {
-        const created = await workflowService.createArtifact(projectId, {
-          name: trimmedTitle,
-          url: normalizedUrl,
-          isInRepository: true,
-        })
-        useWorkflowStore.setState((state) => ({
-          artifacts: {
-            ...state.artifacts,
-            items: [created, ...state.artifacts.items.filter((i) => String(i.id) !== String(created.id))],
-          },
-        }))
-        showToast?.('Đã thêm liên kết tài nguyên thành công.')
-      } else {
-        addArtifact(
-          {
-            title: trimmedTitle,
-            name: trimmedTitle,
-            url: normalizedUrl,
-            createdBy: currentPersona,
-          },
-          projectId,
-        )
-      }
-
+      await addArtifact(projectId, { name: trimmedTitle, url: normalizedUrl })
+      showToast('Đã thêm liên kết tài nguyên thành công.')
       setFormTitle('')
       setFormUrl('')
       setErrorMessage(null)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Thêm tài nguyên thất bại.'
       setErrorMessage(msg)
-      showToast?.(msg)
+      showToast(msg)
     } finally {
       setSubmitting(false)
     }
@@ -265,21 +211,10 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
   const handleDeleteLink = async (artifact: ProjectArtifact) => {
     try {
-      if (workflowService && workflowService.deleteArtifact) {
-        await workflowService.deleteArtifact(projectId, String(artifact.id))
-      }
-      removeArtifact(String(artifact.id), projectId)
-      useWorkflowStore.setState((state) => ({
-        artifacts: {
-          ...state.artifacts,
-          items: state.artifacts.items.filter((i) => String(i.id) !== String(artifact.id)),
-        },
-      }))
-      showToast?.('Đã xóa liên kết tài nguyên.')
+      await removeArtifact(projectId, String(artifact.id))
+      showToast('Đã xóa liên kết tài nguyên.')
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Xóa tài nguyên thất bại.'
-      console.warn('Failed to delete artifact:', err)
-      showToast?.(msg)
+      showToast(err instanceof Error ? err.message : 'Xóa tài nguyên thất bại.')
     }
   }
 
@@ -320,24 +255,24 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
             exit={{ opacity: 0, scale: 0.95, y: -8 }}
             style={{ transformOrigin: 'top right' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className={`fixed top-20 bottom-20 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] flex flex-col rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-mp-n-200 dark:border-slate-800 shadow-2xl overflow-hidden select-text ${className}`}
+            className={`fixed top-20 bottom-20 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] flex flex-col rounded-3xl bg-white/95 backdrop-blur-xl border border-mp-n-200 shadow-2xl overflow-hidden select-text ${className}`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
             {/* Tầng 1: Header (Không co, không giãn) */}
-            <header className="flex-shrink-0 p-4 pb-3 border-b border-mp-n-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-b from-mp-purple-50/60 to-transparent">
+            <header className="flex-shrink-0 p-4 pb-3 border-b border-mp-n-100 flex items-center justify-between bg-gradient-to-b from-mp-purple-50/60 to-transparent">
               <div className="flex items-center gap-2">
-                <h2 className="text-mp-ink dark:text-slate-100 font-semibold text-base flex items-center gap-2">
+                <h2 className="text-mp-ink font-semibold text-base flex items-center gap-2">
                   Project Deliverables
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-mp-purple-100/70 text-mp-purple-700 dark:bg-mp-purple-900/50 dark:text-mp-purple-300 border border-mp-purple-200/50 dark:border-mp-purple-700/50">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-mp-purple-100/70 text-mp-purple-700 border border-mp-purple-200/50">
                   {artifacts.length}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleClose}
-                className="w-7 h-7 rounded-full bg-mp-n-100/70 hover:bg-mp-n-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-mp-n-600 dark:text-slate-300 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                className="w-7 h-7 rounded-full bg-mp-n-100/70 hover:bg-mp-n-200 text-mp-n-600 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
                 aria-label="Close panel"
               >
                 <X size={15} />
@@ -345,13 +280,13 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
             </header>
 
             {/* Tầng 2: Form Thêm Link (Không co, không giãn) */}
-            <section className="flex-shrink-0 p-3 bg-gradient-to-b from-mp-n-50/80 to-white dark:from-slate-800/50 dark:to-slate-900 border-b border-mp-n-200/80 dark:border-slate-800">
+            <section className="flex-shrink-0 p-3 bg-gradient-to-b from-mp-n-50/80 to-white border-b border-mp-n-200/80">
               <form
                 onSubmit={handleAddLink}
                 className="space-y-2"
               >
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-mp-ink dark:text-slate-200">
-                  <Plus size={13} className="text-mp-purple-700 dark:text-mp-purple-400" />
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-mp-ink">
+                  <Plus size={13} className="text-mp-purple-700" />
                   <span>Quick Add Link</span>
                 </div>
 
@@ -359,7 +294,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   <input
                     type="text"
                     disabled={submitting}
-                    className="w-full bg-white dark:bg-slate-800 border border-mp-n-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-mp-ink dark:text-slate-100 placeholder:text-mp-n-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-white border border-mp-n-200 rounded-xl px-3 py-1.5 text-xs text-mp-ink placeholder:text-mp-n-400 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="Tên link (ví dụ: Figma Design, PR GitHub...)"
                     value={formTitle}
                     onChange={(e) => {
@@ -371,7 +306,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   <input
                     type="text"
                     disabled={submitting}
-                    className="w-full bg-white dark:bg-slate-800 border border-mp-n-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-mp-ink dark:text-slate-100 placeholder:text-mp-n-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-white border border-mp-n-200 rounded-xl px-3 py-1.5 text-xs text-mp-ink placeholder:text-mp-n-400 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="https://..."
                     value={formUrl}
                     onChange={(e) => {
@@ -382,7 +317,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                 </div>
 
                 {errorMessage && (
-                  <div className="text-[11px] font-medium text-red-600 dark:text-red-400 px-1">
+                  <div className="text-[11px] font-medium text-red-600 px-1">
                     {errorMessage}
                   </div>
                 )}
@@ -409,7 +344,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
             {/* Tầng 3: Danh sách Deliverables (BẮT BUỘC CO GIÃN VÀ CUỘN ĐỘC LẬP) */}
             <div
-              className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-2.5 overscroll-contain [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-mp-n-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700"
+              className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-2.5 overscroll-contain [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-mp-n-300"
               data-lenis-prevent="true"
             >
               {isLoading && artifacts.length === 0 ? (
@@ -418,29 +353,41 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   {[1, 2, 3].map((n) => (
                     <div
                       key={n}
-                      className="rounded-2xl border border-mp-n-200/80 bg-white dark:bg-slate-800/80 p-3 flex items-center justify-between animate-pulse"
+                      className="rounded-2xl border border-mp-n-200/80 bg-white p-3 flex items-center justify-between animate-pulse"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-9 h-9 rounded-xl bg-mp-n-200/70 dark:bg-slate-700 shrink-0" />
+                        <div className="w-9 h-9 rounded-xl bg-mp-n-200/70 shrink-0" />
                         <div className="space-y-1.5 flex-1 min-w-0">
-                          <div className="h-3.5 bg-mp-n-200/80 dark:bg-slate-700 rounded w-2/3" />
-                          <div className="h-2.5 bg-mp-n-200/50 dark:bg-slate-700/60 rounded w-1/3" />
+                          <div className="h-3.5 bg-mp-n-200/80 rounded w-2/3" />
+                          <div className="h-2.5 bg-mp-n-200/50 rounded w-1/3" />
                         </div>
                       </div>
-                      <div className="w-6 h-6 rounded-lg bg-mp-n-100 dark:bg-slate-700/50 shrink-0 ml-2" />
+                      <div className="w-6 h-6 rounded-lg bg-mp-n-100 shrink-0 ml-2" />
                     </div>
                   ))}
                 </div>
+              ) : status === 'error' ? (
+                <div className="grid place-items-center p-7 text-center bg-rose-50/70 rounded-2xl border border-rose-200 my-2" role="alert">
+                  <h3 className="text-sm font-semibold text-rose-700">Không tải được danh sách tài nguyên.</h3>
+                  <p className="text-xs text-rose-600 mt-1 max-w-[260px] leading-relaxed">{loadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void loadArtifacts(projectId)}
+                    className="mt-3 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                  >
+                    Thử lại
+                  </button>
+                </div>
               ) : artifacts.length === 0 ? (
                 /* Empty State thân thiện */
-                <div className="grid place-items-center p-7 text-center bg-mp-n-50/70 dark:bg-slate-800/40 rounded-2xl border border-dashed border-mp-n-200 dark:border-slate-700 my-2">
-                  <div className="grid h-11 w-11 place-items-center rounded-full bg-mp-purple-50 dark:bg-mp-purple-900/30 text-mp-purple-700 dark:text-mp-purple-300 mb-2.5 border border-mp-purple-200/50 dark:border-mp-purple-800/50">
+                <div className="grid place-items-center p-7 text-center bg-mp-n-50/70 rounded-2xl border border-dashed border-mp-n-200 my-2">
+                  <div className="grid h-11 w-11 place-items-center rounded-full bg-mp-purple-50 text-mp-purple-700 mb-2.5 border border-mp-purple-200/50">
                     <FolderOpen size={20} />
                   </div>
-                  <h3 className="text-sm font-semibold text-mp-ink dark:text-slate-100">
+                  <h3 className="text-sm font-semibold text-mp-ink">
                     Chưa có tài nguyên nào.
                   </h3>
-                  <p className="text-xs text-mp-n-500 dark:text-slate-400 mt-1 max-w-[260px] leading-relaxed">
+                  <p className="text-xs text-mp-n-500 mt-1 max-w-[260px] leading-relaxed">
                     Hãy dán link Figma, PR hoặc tài liệu đầu tiên ở trên để nhóm cùng truy cập.
                   </p>
                 </div>

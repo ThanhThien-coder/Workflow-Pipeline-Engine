@@ -171,6 +171,19 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     })
   })
 
+  it('T2: tải lỗi thì hiện lỗi và nút Thử lại, không hiện link giả', async () => {
+    vi.spyOn(workflowService, 'getProjectArtifacts').mockRejectedValueOnce(new Error('Lỗi máy chủ'))
+
+    render(<WorkflowArtifactsDrawer isOpen={true} projectId="error-project" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Không tải được danh sách tài nguyên.')).toBeDefined()
+      expect(screen.getByText('Lỗi máy chủ')).toBeDefined()
+      expect(screen.getByRole('button', { name: 'Thử lại' })).toBeDefined()
+    })
+    expect(screen.queryByText('Figma Design System')).toBeNull()
+  })
+
   it('resets form and unlocks inputs and submit button after submission', async () => {
     render(<WorkflowArtifactsDrawer isOpen={true} projectId="1" />)
 

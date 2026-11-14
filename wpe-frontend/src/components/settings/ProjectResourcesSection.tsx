@@ -14,9 +14,10 @@ import { useProjectArtifacts } from '../../hooks/useProjectArtifacts'
 import { useRouter } from '../../router/useRouter'
 import type { ProjectArtifact } from '../../types/artifact.types'
 
-export function ProjectResourcesSection({ projectId = '1' }: { projectId?: string }) {
-  const { artifacts, removeArtifact, openDrawer } = useProjectArtifacts(projectId)
+export function ProjectResourcesSection({ projectId }: { projectId: string }) {
+  const { artifacts, status, error, removeArtifact, openDrawer, loadArtifacts } = useProjectArtifacts(projectId)
   const setActiveTab = useWorkflowStore((state) => state.setActiveTab)
+  const showToast = useWorkflowStore((state) => state.ui.showToast)
   const { navigate } = useRouter()
 
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -48,11 +49,15 @@ export function ProjectResourcesSection({ projectId = '1' }: { projectId?: strin
     setIsRemoveModalOpen(true)
   }
 
-  const handleConfirmRemove = () => {
+  const handleConfirmRemove = async () => {
     if (!selectedArtifact) return
-    removeArtifact(selectedArtifact.id)
     setIsRemoveModalOpen(false)
     setSelectedArtifact(null)
+    try {
+      await removeArtifact(selectedArtifact.id)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Xóa tài nguyên thất bại.')
+    }
   }
 
   return (
@@ -106,7 +111,20 @@ export function ProjectResourcesSection({ projectId = '1' }: { projectId?: strin
         {/* Synced Resources List */}
         <div className="overflow-y-auto max-h-[300px] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400">
           <ul className="divide-y divide-slate-100">
-            {artifacts.length === 0 && (
+            {status === 'loading' && artifacts.length === 0 && (
+              <li className="p-6 text-center text-sm text-slate-500" role="status">
+                Đang tải tài nguyên…
+              </li>
+            )}
+            {status === 'error' && (
+              <li className="p-6 text-center text-sm text-rose-600">
+                {error}{' '}
+                <button type="button" onClick={() => void loadArtifacts()} className="font-semibold underline">
+                  Thử lại
+                </button>
+              </li>
+            )}
+            {status === 'ready' && artifacts.length === 0 && (
               <li className="p-6 text-center text-sm text-slate-500">
                 No deliverables added yet. Use the Workflow Canvas to attach link artifacts.
               </li>
@@ -225,7 +243,7 @@ export function ProjectResourcesSection({ projectId = '1' }: { projectId?: strin
               </button>
               <button
                 type="button"
-                onClick={handleConfirmRemove}
+                onClick={() => void handleConfirmRemove()}
                 className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700"
               >
                 Remove

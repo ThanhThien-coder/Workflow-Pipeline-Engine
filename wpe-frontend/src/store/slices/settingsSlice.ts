@@ -59,7 +59,6 @@ export interface SettingsSlice {
     setKahnCycleErrors: (errors: string[] | null) => void
     closeModals: () => void
     showToast: (msg: string) => void
-    addMockAuditLog: (log: { action: string; details: string; scope: string }) => void
   }
 }
 
@@ -529,25 +528,6 @@ export const createSettingsSlice = (
             )
           }
         }, 2600)
-      },
-
-      addMockAuditLog: (log) => {
-        set((state) =>
-          produce(state, (draft) => {
-            draft.settings.auditLogs.unshift({
-              id: `mock-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-              action: log.action as any,
-              actor: {
-                userId: 'user-1',
-                name: 'Alex Kim',
-                role: 'OWNER',
-              },
-              details: log.details,
-              scope: log.scope as any,
-              timestamp: new Date().toISOString(),
-            })
-          }),
-        )
       },
     },
   }

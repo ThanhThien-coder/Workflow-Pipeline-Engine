@@ -1,102 +1,130 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createWorkflowStore } from '../../useWorkflowStore'
 import { MockWorkflowService } from '../../../services/MockWorkflowService'
+import { ApiError } from '../../../services/http/ApiError'
+import type { ProjectArtifact } from '../../../types/artifact.types'
 
-describe('Artifacts & Deliverables Module (artifactsSlice)', () => {
+/**
+ * T2 (G4) — artifact lấy từ service, không có dữ liệu giả ở slice, không localStorage.
+ * Mảng rỗng là kết quả hợp lệ; lỗi thì báo, không rơi về dữ liệu giả.
+ */
+
+function artifact(id: string, name: string, projectId = '19'): ProjectArtifact {
+  return {
+    id, projectId, name, title: name, type: 'OTHER_LINK', url: `https://example.com/${id}`,
+    isInRepository: true, isPublicForGuest: false, createdAt: '2026-11-14',
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
+
+describe('artifactsSlice', () => {
+  let service: MockWorkflowService
   let store: ReturnType<typeof createWorkflowStore>
 
   beforeEach(() => {
     localStorage.clear()
-    store = createWorkflowStore(new MockWorkflowService())
+    service = new MockWorkflowService()
+    store = createWorkflowStore(service)
   })
 
-  it('loads default initial artifacts when storage is empty', () => {
-    store.getState().artifacts.loadArtifacts('1')
-    const items = store.getState().artifacts.items
-
-    expect(items.length).toBeGreaterThanOrEqual(5)
-    expect(items.some((i) => i.title === 'Figma Design System')).toBe(true)
-    expect(items.some((i) => i.title === 'API Documentation')).toBe(true)
+  it('khởi tạo rỗng, không có artifact giả', () => {
+    expect(store.getState().artifacts.items).toEqual([])
+    expect(store.getState().artifacts.status).toBe('idle')
   })
 
-  it('controls drawer open, close, and toggle states', () => {
+  it('dự án chưa có artifact: service trả [] thì danh sách rỗng (không phải 5 link giả)', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([])
+
+    await store.getState().artifacts.loadArtifacts('19')
+
+    expect(store.getState().artifacts.items).toEqual([])
+    expect(store.getState().artifacts.status).toBe('ready')
+  })
+
+  it('tải lỗi: báo lỗi, danh sách rỗng, không rơi về dữ liệu giả', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockRejectedValue(
+      new ApiError({ status: 500, code: 'INTERNAL_SERVER_ERROR', message: 'Lỗi máy chủ' }),
+    )
+
+    await store.getState().artifacts.loadArtifacts('19')
+
+    expect(store.getState().artifacts.status).toBe('error')
+    expect(store.getState().artifacts.error).toBe('Lỗi máy chủ')
+    expect(store.getState().artifacts.items).toEqual([])
+  })
+
+  it('đổi dự án: xóa danh sách dự án cũ ngay, bỏ qua kết quả về muộn của dự án cũ', async () => {
+    const slowOld = deferred<ProjectArtifact[]>()
+    vi.spyOn(service, 'getProjectArtifacts').mockImplementation((id: string) =>
+      id === '1' ? slowOld.promise : Promise.resolve([artifact('7', 'Link dự án 2', '2')]),
+    )
+
+    const loadOld = store.getState().artifacts.loadArtifacts('1')
+    await store.getState().artifacts.loadArtifacts('2')
+    slowOld.resolve([artifact('1', 'Link dự án 1', '1')])
+    await loadOld
+
+    expect(store.getState().artifacts.items.map((a) => a.name)).toEqual(['Link dự án 2'])
+  })
+
+  it('thêm: gọi service rồi thêm bản backend trả về (id thật) lên đầu', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([artifact('1', 'Cũ')])
+    const create = vi.spyOn(service, 'createArtifact').mockResolvedValue(artifact('99', 'Figma'))
+    await store.getState().artifacts.loadArtifacts('19')
+
+    const created = await store.getState().artifacts.addArtifact('19', { name: 'Figma', url: 'https://figma.com/x' })
+
+    expect(create).toHaveBeenCalledWith('19', { name: 'Figma', url: 'https://figma.com/x', isInRepository: true })
+    expect(created.id).toBe('99')
+    expect(store.getState().artifacts.items.map((a) => a.id)).toEqual(['99', '1'])
+  })
+
+  it('thêm lỗi: ném lỗi, danh sách giữ nguyên', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([])
+    vi.spyOn(service, 'createArtifact').mockRejectedValue(new ApiError({ status: 403, code: 'ACCESS_DENIED', message: 'Không có quyền' }))
+    await store.getState().artifacts.loadArtifacts('19')
+
+    await expect(store.getState().artifacts.addArtifact('19', { name: 'X', url: 'https://x.com' })).rejects.toMatchObject({ status: 403 })
+    expect(store.getState().artifacts.items).toEqual([])
+  })
+
+  it('xóa: gọi service xong mới bỏ khỏi danh sách; lỗi thì giữ nguyên', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([artifact('1', 'A'), artifact('2', 'B')])
+    const remove = vi.spyOn(service, 'deleteArtifact')
+    await store.getState().artifacts.loadArtifacts('19')
+
+    remove.mockRejectedValueOnce(new ApiError({ status: 500, code: 'X', message: 'Lỗi' }))
+    await expect(store.getState().artifacts.removeArtifact('19', '1')).rejects.toBeTruthy()
+    expect(store.getState().artifacts.items).toHaveLength(2)
+
+    remove.mockResolvedValueOnce(undefined)
+    await store.getState().artifacts.removeArtifact('19', '1')
+    expect(remove).toHaveBeenLastCalledWith('19', '1')
+    expect(store.getState().artifacts.items.map((a) => a.id)).toEqual(['2'])
+  })
+
+  it('không ghi localStorage', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([])
+    vi.spyOn(service, 'createArtifact').mockResolvedValue(artifact('99', 'Figma'))
+    await store.getState().artifacts.loadArtifacts('19')
+    await store.getState().artifacts.addArtifact('19', { name: 'Figma', url: 'https://figma.com/x' })
+
+    expect(Object.keys(localStorage).filter((k) => k.startsWith('wpe_artifacts_'))).toEqual([])
+  })
+
+  it('mở, đóng, bật/tắt drawer', () => {
     expect(store.getState().artifacts.isDrawerOpen).toBe(false)
-
     store.getState().artifacts.openDrawer()
     expect(store.getState().artifacts.isDrawerOpen).toBe(true)
-
     store.getState().artifacts.closeDrawer()
     expect(store.getState().artifacts.isDrawerOpen).toBe(false)
-
     store.getState().artifacts.toggleDrawer()
     expect(store.getState().artifacts.isDrawerOpen).toBe(true)
-
-    store.getState().artifacts.toggleDrawer()
-    expect(store.getState().artifacts.isDrawerOpen).toBe(false)
-  })
-
-  it('adds a new artifact and creates RESOURCE_ADDED audit log', async () => {
-    // initialize settings for audit log
-    await store.getState().settings.loadSettings('1')
-    const initialLogsCount = store.getState().settings.auditLogs.length
-
-    const created = store.getState().artifacts.addArtifact(
-      {
-        title: 'PR #42 Backend Engine',
-        url: 'https://github.com/wpe/engine/pull/42',
-        createdBy: 'Alex Kim',
-      },
-      '1',
-    )
-
-    expect(created.id).toBeDefined()
-    expect(created.title).toBe('PR #42 Backend Engine')
-    expect(created.url).toBe('https://github.com/wpe/engine/pull/42')
-
-    const items = store.getState().artifacts.items
-    expect(items[0].title).toBe('PR #42 Backend Engine')
-
-    // Verify Audit Log was generated
-    const auditLogs = store.getState().settings.auditLogs
-    expect(auditLogs.length).toBe(initialLogsCount + 1)
-    expect(auditLogs[0].action).toBe('RESOURCE_ADDED')
-    expect(auditLogs[0].details).toContain('PR #42 Backend Engine')
-  })
-
-  it('removes an artifact and creates RESOURCE_REMOVED audit log', async () => {
-    await store.getState().settings.loadSettings('1')
-    store.getState().artifacts.loadArtifacts('1')
-
-    const initialItems = store.getState().artifacts.items
-    const targetToRemove = initialItems[0]
-    const initialLogsCount = store.getState().settings.auditLogs.length
-
-    store.getState().artifacts.removeArtifact(targetToRemove.id, '1')
-
-    const afterItems = store.getState().artifacts.items
-    expect(afterItems.find((i) => i.id === targetToRemove.id)).toBeUndefined()
-    expect(afterItems.length).toBe(initialItems.length - 1)
-
-    // Verify Audit Log was generated
-    const auditLogs = store.getState().settings.auditLogs
-    expect(auditLogs.length).toBe(initialLogsCount + 1)
-    expect(auditLogs[0].action).toBe('RESOURCE_REMOVED')
-    expect(auditLogs[0].details).toContain(targetToRemove.title)
-  })
-
-  it('persists artifacts in localStorage per projectId', () => {
-    store.getState().artifacts.addArtifact(
-      {
-        title: 'Project 2 Custom Spec',
-        url: 'https://notion.so/spec/p2',
-        createdBy: 'Sarah',
-      },
-      'proj-2',
-    )
-
-    const raw = localStorage.getItem('wpe_artifacts_proj-2')
-    expect(raw).not.toBeNull()
-    expect(raw).toContain('Project 2 Custom Spec')
   })
 })
