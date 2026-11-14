@@ -8,11 +8,11 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G2 | Phase mới tạo nằm ngang, dính sát nhau, phải bấm Auto Layout mới xếp đúng | FE | Đã sửa, chờ test tay |
 | G3 | Dây nối giữa các phase khó đọc: không có hướng, đè lên nhau, cắt qua thẻ | FE | Chưa sửa |
 | G4 | Artifacts là dữ liệu giả: nút trên Workflow hiện số 5 (bấm vào về 0), Settings → Project Resources hiện 5 link giả | FE | Chưa sửa |
-| G5 | Thanh bên hiện thành viên giả (AK, SC, ML, +1) và tên dự án giả "Marketing Campaign Q4" | FE | Chưa sửa |
+| G5 | Thanh bên hiện thành viên giả (AK, SC, ML, +1) và tên dự án giả "Marketing Campaign Q4" | FE | Đã sửa (T1), chờ test tay |
 | G6 | Drawer Artifacts nền đen, khó nhìn, lệch tông với cả app | FE | Chưa sửa |
 | G7 | Subtask không được lưu lên server: gắn ghost vào subtask báo lỗi, gắn ghost vào task gốc thì subtask biến mất | FE | Chưa sửa (đã chốt cách sửa) |
 | G8 | Node Properties cho chọn trạng thái tùy ý (LOCKED, DONE…), lưu chỉ trên trình duyệt | FE | Chưa sửa |
-| G9 | Danh sách thành viên trong Node Properties và Kanban là người giả, thiếu chủ dự án thật | FE | Chưa sửa |
+| G9 | Danh sách thành viên trong Node Properties và Kanban là người giả, thiếu chủ dự án thật | FE | Đã sửa (T1), chờ test tay |
 | G10 | Kanban của phase: task chưa giao hiện "Alex Kim", task LOCKED hiện ở To Do, subtask tạm có mã WPE ngẫu nhiên | FE | Chưa sửa |
 | G11 | Thành viên không phải chủ dự án vẫn sửa được các ô trong Node Properties (chỉ không lưu được) | FE | Chưa sửa |
 | G12 | Chủ dự án chưa mở khóa sớm được task trên giao diện; BE mở sớm xong thì sửa dây sẽ bị khóa lại, không lưu ai mở | FE + BE + DB | Chưa sửa |

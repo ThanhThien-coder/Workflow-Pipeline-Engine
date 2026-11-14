@@ -1,7 +1,7 @@
 # T1 — Thành viên và thông tin dự án lấy từ API thật
 
 Sửa lỗi: G5, G9
-Trạng thái: đang làm
+Trạng thái: xong, chờ test tay
 Cần có trước: không
 Mở khóa: T4
 
@@ -36,3 +36,23 @@ Mở khóa: T4
 - `grep -rn "Marketing Campaign Q4" wpe-frontend/src --include=*.tsx | grep -v __tests__ | grep -v mock` → không còn kết quả.
 - `METHODS_STILL_MOCKED` không còn `getProjectMembers`.
 - Test tay (dự án chỉ có chủ "a"): F5 thẳng `/project/{id}/workflow` → thanh bên hiện đúng tên + trạng thái thật, Team Collaborators = 1 người là "a". Ô Assignee chỉ có "a" và "Chưa giao". Mời thêm 1 người → hiện 2.
+
+## Kết quả (14/11/2026)
+Commit trên nhánh `fix/sua-loi-workspace-dag`:
+- `b0ed466` getProjectMembers gọi `GET /projects/{id}/members` thật, bỏ khỏi `METHODS_STILL_MOCKED`.
+- `a598447` khôi phục `services/impl/http/__tests__/members.test.ts` (commit trước lỡ ghi đè), test mới của T1 nằm ở `projectMembers.test.ts`.
+- `f4521f3` slice `project` (`store/slices/projectSlice.ts`): tải thông tin dự án + thành viên một lần khi vào `/project/:id`. Thanh bên, thanh trên (tên người dùng, vai trò) dùng dữ liệu thật; `DEV_PERSONAS`/`simulatedRole` chỉ dùng khi `VITE_USE_MOCK=true`. Bỏ "Marketing Campaign Q4"/"ACTIVE" (thanh bên, MyTasksView). Đang tải → "Đang tải…", lỗi → "Không tải được dự án".
+- `6ad7840` ô Người làm chọn theo id thành viên thật + "Chưa giao" (giữ người đã rời dự án nếu đang được giao); thẻ task hiện tên thay vì id (`utils/memberLookup.ts`).
+
+Kiểm tra tự động: `npm run typecheck` sạch; `vitest run` 69 file / 474 test qua (thêm 13 test: `projectMembers`, `projectSlice`, `ProjectWorkspaceView`, `NodePropertiesModal.assignee`, `BranchCard.assignee`).
+
+Tiêu chí grep: "Marketing Campaign Q4" chỉ còn ở `placeholder` của ô nhập tên trong Settings; `METHODS_STILL_MOCKED` chỉ còn `updateProjectSettings`.
+
+Còn lại ngoài phạm vi T1 (chưa có task):
+- `components/common/GlobalProfileMenu.tsx` dòng 19: mặc định `displayName = 'Alex Kim'`.
+- `components/workspace/WorkspaceView.tsx` dòng 114–115: màn All Pipelines rơi về 'Alex Kim' / 'alex.kim@pipeline.engine' khi chưa có người dùng.
+(`TaskCard`/`usePhaseKanban` → T4; `addMockAuditLog` trong artifact → T2.)
+
+Lưu ý: lưu thông tin node lên server (tên, người làm…) vẫn chỉ ở trình duyệt cho tới T3.
+
+Test tay: chờ người dùng.
