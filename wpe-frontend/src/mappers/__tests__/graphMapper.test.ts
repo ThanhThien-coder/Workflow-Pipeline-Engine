@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree, rootIdOf, ghostIdOf } from '../graphMapper'
+import { toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree, toTaskNodePatch, rootIdOf, ghostIdOf } from '../graphMapper'
 import type { BackendGraphResponse, BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
 
 // Dữ liệu giống seed: alex là owner, sarah (id 3) phụ trách WPE-002
@@ -171,5 +171,22 @@ describe('graphMapper.toPhaseTree', () => {
   it('cạnh trỏ tới node cha không tồn tại thì bỏ qua, không tạo ghost rỗng', () => {
     const graph: BackendGraphResponse = { ...GRAPH, dependencies: [{ parentNodeId: '999', childNodeId: '2' }] }
     expect(Object.values(toPhaseTree(graph, '20')!).some((n) => n.kind === 'ghost')).toBe(false)
+  })
+})
+
+describe('graphMapper.toTaskNodePatch', () => {
+  const base = toPhaseTree(GRAPH, '10')!['1'] as BranchGraphNode
+
+  it('đổi node trên cây sang dữ liệu sửa task (không có trạng thái)', () => {
+    expect(toTaskNodePatch(base)).toEqual({
+      title: 'Thu thập yêu cầu', description: '', joinPolicy: 'ALL_COMPLETED', assigneeId: '2', dueDate: '2026-11-20',
+    })
+  })
+
+  it('join policy kiểu cũ "AND" hoặc null coi là ALL_COMPLETED; chưa giao, chưa có hạn thì null', () => {
+    const patch = toTaskNodePatch({ ...base, joinPolicy: 'AND', assignee: null, due: null, description: '' })
+    expect(patch).toMatchObject({ joinPolicy: 'ALL_COMPLETED', assigneeId: null, dueDate: null })
+    expect(toTaskNodePatch({ ...base, joinPolicy: null }).joinPolicy).toBe('ALL_COMPLETED')
+    expect(toTaskNodePatch({ ...base, joinPolicy: 'ANY_COMPLETED' }).joinPolicy).toBe('ANY_COMPLETED')
   })
 })

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import type { GraphNodeMap, BranchGraphNode } from '../../types/workflow.types'
@@ -41,7 +41,13 @@ export function MindmapTree({
   phaseId,
   readOnly = false,
   onConnectNodes,
+  onAddChildTask,
+  onRenameNode,
 }: {
+  /** T3: có thì nút (+) thêm task con gọi hàm này (chế độ API: hỏi tên rồi POST) thay vì tạo node tạm cục bộ. */
+  onAddChildTask?: (parentId: string) => void
+  /** T3: có thì đổi tên trên thẻ gọi hàm này (chế độ API: PUT /nodes/{id}) thay vì sửa cây cục bộ. */
+  onRenameNode?: (id: string, title: string) => void
   /** B5: người không phải owner. Không thêm, xóa, nối, sửa tên node; vẫn pan, zoom, chọn, xem chi tiết. */
   readOnly?: boolean
   /**
@@ -100,9 +106,24 @@ export function MindmapTree({
     setHoveredNodeId(id)
   }, [])
 
+  // Enter và blur đều gọi commit: dùng ref để chỉ lưu một lần cho mỗi lần sửa
+  const editingRef = useRef<string | null>(null)
+  editingRef.current = editingId
+
   const commit = useCallback(() => {
+    const id = editingRef.current
+    editingRef.current = null
     setEditingId(null)
-  }, [])
+    if (!id || readOnly) return
+    const title = editValue.trim()
+    const node = nodes[id]
+    if (!title || !node || title === node.title) return
+    if (onRenameNode) {
+      onRenameNode(id, title)
+      return
+    }
+    onUpdateNodes?.((current) => (current[id] ? { ...current, [id]: { ...current[id], title } } : current))
+  }, [readOnly, editValue, nodes, onRenameNode, onUpdateNodes])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((current) => {
@@ -127,7 +148,12 @@ export function MindmapTree({
   // Pure Data Action: Tạo Node con phân rã của bất kỳ Node nào (Root, Track, Task, Subtask...)
   const handleAddChild = useCallback(
     (parentId: string) => {
-      if (readOnly || !parentId || !onUpdateNodes) return
+      if (readOnly || !parentId) return
+      if (onAddChildTask) {
+        onAddChildTask(parentId)
+        return
+      }
+      if (!onUpdateNodes) return
       const parentNode = nodes[parentId]
       if (!parentNode) return
 
@@ -161,7 +187,7 @@ export function MindmapTree({
         })
       }
     },
-    [readOnly, nodes, onUpdateNodes, phaseId, collapsed]
+    [readOnly, nodes, onUpdateNodes, onAddChildTask, phaseId, collapsed]
   )
 
   const handleAddTask = useCallback(

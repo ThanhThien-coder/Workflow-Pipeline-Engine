@@ -11,6 +11,7 @@ import type {
   PhaseStatus,
   PhaseTreeData,
 } from '../types/workflow.types'
+import type { TaskNodePatch } from '../services/contracts/IWorkflowService'
 
 /**
  * B5 — Đổi dữ liệu phẳng của backend (phases, nodes, dependencies) sang mô hình FE.
@@ -180,4 +181,15 @@ export function toPhaseTree(graph: BackendGraphResponse | null | undefined, phas
   }
 
   return tree
+}
+
+/** Node trên cây → dữ liệu sửa task gửi API (PUT /nodes/{id}). Không mang trạng thái: trạng thái đi theo state machine. */
+export function toTaskNodePatch(node: BranchGraphNode): TaskNodePatch {
+  return {
+    title: node.title,
+    description: node.description,
+    joinPolicy: node.joinPolicy === 'ANY_COMPLETED' ? 'ANY_COMPLETED' : 'ALL_COMPLETED',
+    assigneeId: node.assignee,
+    dueDate: node.due,
+  }
 }

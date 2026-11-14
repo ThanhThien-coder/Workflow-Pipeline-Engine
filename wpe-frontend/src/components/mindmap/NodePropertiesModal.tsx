@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { X, Trash2, Check, Calendar, User, AlignLeft, Layers } from 'lucide-react'
-import type { BranchGraphNode, NodeStatus } from '../../types/workflow.types'
+import type { BranchGraphNode } from '../../types/workflow.types'
 import type { UserSummary } from '../../types/kanban.types'
 import { findMember } from '../../utils/memberLookup'
 
 const INPUT =
-  'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] text-slate-800 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs'
+  'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] text-slate-800 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed disabled:hover:border-slate-200'
 
 export interface NodePropertiesModalProps {
   node: BranchGraphNode
@@ -26,7 +26,7 @@ export function NodePropertiesModal({
   readOnly = false,
 }: NodePropertiesModalProps) {
   const [title, setTitle] = useState(node.title)
-  const [status, setStatus] = useState<NodeStatus>(node.status)
+
   const memberList = members ?? []
   const currentAssignee = findMember(memberList, node.assignee)
   // Người đang được giao không còn trong danh sách (đã rời dự án): giữ nguyên id để lưu không tự bỏ giao
@@ -36,20 +36,10 @@ export function NodePropertiesModal({
   const [join, setJoin] = useState(node.joinPolicy === 'ANY_COMPLETED' ? 'ANY' : 'ALL')
   const [description, setDescription] = useState(node.description || '')
 
+  // Trạng thái chỉ đổi qua luồng của task (Kanban / hành động), không sửa ở đây
   const handleSave = () => {
-    let newProgress = node.progress
-    if (status === 'DONE') {
-      newProgress = 100
-    } else if (status === 'IN_PROGRESS' && (newProgress === 0 || newProgress == null)) {
-      newProgress = 50
-    } else if (status === 'TODO' || status === 'LOCKED') {
-      newProgress = 0
-    }
-
     onSave?.({
       title: title.trim() || node.title,
-      status,
-      progress: newProgress,
       assignee: assignee || null,
       due: due || null,
       joinPolicy: join === 'ANY' ? 'ANY_COMPLETED' : 'ALL_COMPLETED',
@@ -70,11 +60,16 @@ export function NodePropertiesModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
           <div>
             <h3 className="text-base font-bold text-slate-900 leading-tight">
-              Node Properties
+              {readOnly ? 'Chi tiết task' : 'Node Properties'}
             </h3>
-            <span className="inline-block text-[11px] font-semibold font-mono text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 mt-1">
-              Task Code: {node.code || node.id}
-            </span>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="inline-block text-[11px] font-semibold font-mono text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5">
+                Task Code: {node.code || node.id}
+              </span>
+              <span data-testid="node-status" className="inline-block text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+                {node.status}
+              </span>
+            </div>
           </div>
           <button
             type="button"
@@ -89,8 +84,14 @@ export function NodePropertiesModal({
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-auto px-5 py-4 space-y-4 bg-white">
+        {readOnly && (
+          <div className="px-5 py-2 text-xs font-medium text-slate-600 bg-slate-50 border-b border-slate-100 shrink-0">
+            Chỉ chủ dự án được sửa đồ thị
+          </div>
+        )}
+
+        {/* Modal Body: chỉ xem thì fieldset khóa mọi ô nhập */}
+        <fieldset disabled={readOnly} className="flex-1 overflow-auto px-5 py-4 space-y-4 bg-white min-w-0">
           {/* Task Name */}
           <label className="block">
             <span className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -131,55 +132,19 @@ export function NodePropertiesModal({
             </select>
           </label>
 
-          {/* Status & Deadline Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Status */}
-            <label className="block">
-              <span className="block text-xs font-bold text-slate-700 mb-1.5">
-                Status
-                {node.isTrack && (
-                  <span className="ml-1 font-normal text-slate-400">(tự động theo task)</span>
-                )}
-              </span>
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value as NodeStatus)}
-                disabled={node.isTrack}
-                title={node.isTrack ? 'Trạng thái Track được tính tự động từ các task bên trong' : undefined}
-                className={`${INPUT} ${node.isTrack ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                <option value="TODO" className="bg-white text-slate-900">
-                  TODO
-                </option>
-                <option value="IN_PROGRESS" className="bg-white text-slate-900">
-                  IN_PROGRESS
-                </option>
-                <option value="REVIEW" className="bg-white text-slate-900">
-                  REVIEW
-                </option>
-                <option value="DONE" className="bg-white text-slate-900">
-                  DONE
-                </option>
-                <option value="LOCKED" className="bg-white text-slate-900">
-                  LOCKED
-                </option>
-              </select>
-            </label>
-
-            {/* Deadline */}
-            <label className="block">
-              <span className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5">
-                <Calendar size={13} className="text-indigo-600" />
-                Deadline
-              </span>
-              <input
-                type="date"
-                value={due}
-                onChange={(event) => setDue(event.target.value)}
-                className={INPUT}
-              />
-            </label>
-          </div>
+          {/* Deadline */}
+          <label className="block">
+            <span className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5">
+              <Calendar size={13} className="text-indigo-600" />
+              Deadline
+            </span>
+            <input
+              type="date"
+              value={due}
+              onChange={(event) => setDue(event.target.value)}
+              className={INPUT}
+            />
+          </label>
 
           {/* Join Logic */}
           <label className="block">
@@ -215,12 +180,12 @@ export function NodePropertiesModal({
               className={`${INPUT} resize-none leading-relaxed`}
             />
           </label>
-        </div>
+        </fieldset>
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 bg-slate-50/90 rounded-b-2xl shrink-0">
           {readOnly ? (
-            <span className="text-xs text-slate-500">Chỉ chủ dự án được sửa đồ thị</span>
+            <span />
           ) : (
           <button
             type="button"

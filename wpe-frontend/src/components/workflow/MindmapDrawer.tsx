@@ -14,6 +14,7 @@ import { GhostInfo } from '../popovers/GhostInfo'
 import { GhostPicker } from '../popovers/GhostPicker'
 import type { BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
 import { isAncestor, TASK_H, W } from '../../utils/spanningTreeLayout'
+import { toTaskNodePatch } from '../../mappers/graphMapper'
 import { PhaseKanbanBoard } from '../kanban/PhaseKanbanBoard'
 import { TaskDetailModal } from '../kanban/TaskDetailModal'
 import { SubmitArtifactModal } from '../kanban/SubmitArtifactModal'
@@ -40,9 +41,13 @@ export function MindmapDrawer() {
   const addRootTaskViaApi = useWorkflowStore((state) => state.addRootTask)
   const attachGhostViaApi = useWorkflowStore((state) => state.attachGhostNode)
   const connectNodesViaApi = useWorkflowStore((state) => state.connectNodes)
+  const addChildTaskViaApi = useWorkflowStore((state) => state.addChildTask)
+  const updateNodeInfoViaApi = useWorkflowStore((state) => state.updateNodeInfo)
+  const removeNodeViaApi = useWorkflowStore((state) => state.removeNode)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
   const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
-  const [isRootTaskModalOpen, setIsRootTaskModalOpen] = useState(false)
+  // Chế độ API: hộp nhập tên trước khi tạo task gốc, subtask (1 cha) hoặc task hội tụ (nhiều cha)
+  const [taskModal, setTaskModal] = useState<{ kind: 'root' } | { kind: 'child'; parentIds: string[] } | null>(null)
 
   const { w, dragging, onMouseDown } = useResizable(
     Math.round(window.innerWidth * 0.5)
@@ -72,7 +77,7 @@ export function MindmapDrawer() {
     setMergeSelection(new Set())
     setIsGhostModalOpen(false)
     setGhostAnchorTaskId(undefined)
-    setIsRootTaskModalOpen(false)
+    setTaskModal(null)
   }, [selectedPhaseId])
 
   // Automatically ensure phase tree data is loaded if missing
@@ -173,9 +178,31 @@ export function MindmapDrawer() {
     void connectNodesViaApi(selectedPhaseId, parentId, childId).catch(handleError)
   }
 
+  const taskTitle = (id: string) => {
+    const node = tree?.[id]
+    return node && node.kind !== 'ghost' ? `"${node.title}"` : 'task đã chọn'
+  }
+
+  /** Chế độ API: đổi tên trên thẻ = sửa task (PUT /nodes/{id}) với các trường còn lại giữ nguyên. */
+  const renameTask = (id: string, title: string) => {
+    const node = tree?.[id]
+    if (!selectedPhaseId || node?.kind !== 'branch') return
+    void updateNodeInfoViaApi(selectedPhaseId, id, { ...toTaskNodePatch(node), title }).catch(handleError)
+  }
+
+  const removeTask = (id: string) => {
+    if (!selectedPhaseId) return
+    if (graphWritesUseApi) void removeNodeViaApi(selectedPhaseId, id).catch(handleError)
+    else deleteNode(selectedPhaseId, id)
+  }
+
   const createMerge = () => {
     if (!selectedPhaseId || mergeSelection.size < 2) return
     const parents = [...mergeSelection]
+    if (graphWritesUseApi) {
+      setTaskModal({ kind: 'child', parentIds: parents })
+      return
+    }
     const childId = `task-${Date.now()}`
     const code = `WPE-${Math.floor(100 + Math.random() * 900)}`
     const firstParent = tree?.[parents[0]]
@@ -349,7 +376,7 @@ export function MindmapDrawer() {
                 selectedId={selectedNodeId}
                 onSelect={(id) => setSelectedNodeId(id || null)}
                 onDelete={(id) => {
-                  if (selectedPhaseId) deleteNode(selectedPhaseId, id)
+                  removeTask(id)
                   setSelectedNodeId(null)
                 }}
                 mergeSelection={mergeSelection}
@@ -374,7 +401,9 @@ export function MindmapDrawer() {
                 readOnly={!canEdit}
                 // Chế độ API: "+ Add Root Task" mở hộp nhập tên rồi POST /nodes; kéo-nối gọi POST /dependencies.
                 // Chế độ mock: giữ cách cũ (thêm và nối cục bộ).
-                onAddRootTask={graphWritesUseApi ? () => setIsRootTaskModalOpen(true) : undefined}
+                onAddRootTask={graphWritesUseApi ? () => setTaskModal({ kind: 'root' }) : undefined}
+                onAddChildTask={graphWritesUseApi ? (parentId) => setTaskModal({ kind: 'child', parentIds: [parentId] }) : undefined}
+                onRenameNode={graphWritesUseApi ? renameTask : undefined}
                 onConnectNodes={graphWritesUseApi ? connectNodes : undefined}
               />
             ) : (
@@ -432,7 +461,11 @@ export function MindmapDrawer() {
             readOnly={!canEdit}
             onClose={() => setSelectedNodeId(null)}
             onSave={(updated) => {
-              if (selectedPhaseId && selectedNodeId) {
+              const current = tree[selectedNodeId]
+              if (selectedPhaseId && graphWritesUseApi && current?.kind === 'branch') {
+                const patch = toTaskNodePatch({ ...current, ...updated })
+                void updateNodeInfoViaApi(selectedPhaseId, selectedNodeId, patch).catch(handleError)
+              } else if (selectedPhaseId && selectedNodeId) {
                 updateTree(selectedPhaseId, (nodes) => {
                   const current = nodes[selectedNodeId]
                   if (!current || current.kind !== 'branch') return nodes
@@ -448,7 +481,7 @@ export function MindmapDrawer() {
               setSelectedNodeId(null)
             }}
             onDelete={() => {
-              if (selectedPhaseId) deleteNode(selectedPhaseId, selectedNodeId)
+              removeTask(selectedNodeId)
               setSelectedNodeId(null)
             }}
           />
@@ -549,15 +582,33 @@ export function MindmapDrawer() {
         }}
       />
 
-      {/* B5 chế độ API: thêm node vào phase (POST /projects/{id}/nodes) */}
+      {/* Chế độ API: hỏi tên rồi tạo task gốc (POST /nodes) hoặc task con / hội tụ (POST /nodes + /dependencies) */}
       <AddRootTaskModal
-        isOpen={isRootTaskModalOpen && canEdit && graphWritesUseApi}
-        onClose={() => setIsRootTaskModalOpen(false)}
+        isOpen={taskModal !== null && canEdit && graphWritesUseApi}
+        onClose={() => setTaskModal(null)}
         phaseId={selectedPhaseId ?? ''}
+        {...(taskModal?.kind === 'child'
+          ? taskModal.parentIds.length > 1
+            ? {
+                heading: 'Tạo task hội tụ',
+                description: `Task mới chờ ${taskModal.parentIds.length} task đã chọn.`,
+                placeholder: 'Ví dụ: Tích hợp và kiểm thử',
+              }
+            : {
+                heading: 'Thêm subtask',
+                description: `Subtask của ${taskTitle(taskModal.parentIds[0])}.`,
+                placeholder: 'Ví dụ: Viết API đăng nhập',
+              }
+          : {})}
         onCreated={async (title) => {
-          if (!selectedPhaseId) return
+          if (!selectedPhaseId || !taskModal) return
           try {
-            await addRootTaskViaApi(selectedPhaseId, title)
+            if (taskModal.kind === 'root') {
+              await addRootTaskViaApi(selectedPhaseId, title)
+            } else {
+              await addChildTaskViaApi(selectedPhaseId, taskModal.parentIds, title)
+              if (taskModal.parentIds.length > 1) setMergeSelection(new Set())
+            }
           } catch (error) {
             // Hiện lỗi ngay trong hộp nhập (giữ tên đã gõ), câu báo theo ApiError.code
             throw new Error(graphErrorMessage(error))
