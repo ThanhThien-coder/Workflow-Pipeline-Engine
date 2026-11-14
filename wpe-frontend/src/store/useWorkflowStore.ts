@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { workflowService } from '../services/container'
-import type { CreatePhaseDto, IWorkflowService } from '../services/contracts/IWorkflowService'
+import type { CreatePhaseDto, IWorkflowService, TaskNodePatch } from '../services/contracts/IWorkflowService'
+import type { ProjectSettingsDto } from '../types/settings.types'
 import type { GraphNodeMap, MacroPhase } from '../types/workflow.types'
 import { ApiError } from '../services/http/ApiError'
 import { computePhaseProgress, syncTrackProgress, withPhaseProgress } from '../domain/phaseProgress'
@@ -55,22 +56,36 @@ export interface WorkflowState
   attachGhostNode: (phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }) => Promise<void>
   /** B5: nối 2 node cùng phase qua API. Thành công mới vẽ cạnh. Tạo vòng thì ném ApiError 422. */
   connectNodes: (phaseId: string, parentId: string, childId: string) => Promise<void>
+  /** T3: thêm task con dưới các task cha (1 cha = subtask, nhiều cha = task hội tụ) qua API rồi đọc lại cây. */
+  addChildTask: (phaseId: string, parentTaskIds: string[], title: string) => Promise<void>
+  /** T3: sửa thông tin task (không sửa trạng thái) qua API rồi đọc lại cây. */
+  updateNodeInfo: (phaseId: string, nodeId: string, patch: TaskNodePatch) => Promise<void>
+  /** T3: xóa task qua API rồi đọc lại cây. */
+  removeNode: (phaseId: string, nodeId: string) => Promise<void>
   setActiveTab: (tab: NavigationTab) => void
+}
+
+/** Thông tin dự án đang mở có vai trò của tôi: bản ở Settings nếu đã tải, không thì bản tải lúc vào dự án. */
+function currentProjectInfo(state: Pick<WorkflowState, 'settings' | 'project' | 'currentProjectId'>): ProjectSettingsDto | null {
+  const matches = (info: ProjectSettingsDto | null): info is ProjectSettingsDto =>
+    info != null && (!state.currentProjectId || String(info.id) === String(state.currentProjectId))
+  if (matches(state.settings.settings)) return state.settings.settings
+  if (matches(state.project.info)) return state.project.info
+  return null
 }
 
 /**
  * B5 — Có được sửa đồ thị không. Quy ước giống GeneralSettingsSection: isOwner = myRole === 'OWNER'.
  * - Dự án ARCHIVED: owner cũng chỉ xem (backend trả 409 PROJECT_ARCHIVED).
- * - Chưa nạp vai trò (settings chưa tải, hoặc settings đang là của dự án khác): KHÔNG khóa,
- *   để owner vào thẳng canvas vẫn làm được; backend vẫn chặn bằng 403 và UI hiện toast.
- *   Xem "Điều chưa chắc" của B5.
+ * - Vai trò lấy từ Settings hoặc từ thông tin dự án tải khi vào dự án (T3).
+ * - Chưa nạp vai trò của đúng dự án này: KHÔNG khóa, để owner vào thẳng canvas vẫn làm được;
+ *   backend vẫn chặn bằng 403 và UI hiện toast.
  */
-export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'currentProjectId'>): boolean {
-  const settings = state.settings.settings
-  if (!settings?.myRole) return true
-  if (state.currentProjectId && String(settings.id) !== String(state.currentProjectId)) return true
-  if (settings.status === 'ARCHIVED') return false
-  return settings.myRole === 'OWNER'
+export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'project' | 'currentProjectId'>): boolean {
+  const info = currentProjectInfo(state)
+  if (!info?.myRole) return true
+  if (info.status === 'ARCHIVED') return false
+  return info.myRole === 'OWNER'
 }
 
 export const GRAPH_READ_ONLY_MESSAGE = 'Chỉ chủ dự án được sửa đồ thị'
@@ -300,6 +315,24 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
       if (!child || child.parentIds.includes(parentId)) return nodes
       return { ...nodes, [childId]: { ...child, parentIds: [...child.parentIds, parentId] } }
     })
+  },
+  addChildTask: async (phaseId, parentTaskIds, title) => {
+    ensureCanEditGraph(get())
+    if (!service.addChildTask) throw new Error('Service hiện tại không hỗ trợ thêm task con qua API.')
+    await service.addChildTask(phaseId, parentTaskIds, { title })
+    await get().resetPhaseTree(phaseId)
+  },
+  updateNodeInfo: async (phaseId, nodeId, patch) => {
+    ensureCanEditGraph(get())
+    if (!service.updateTaskNode) throw new Error('Service hiện tại không hỗ trợ sửa task qua API.')
+    await service.updateTaskNode(nodeId, patch)
+    await get().resetPhaseTree(phaseId)
+  },
+  removeNode: async (phaseId, nodeId) => {
+    ensureCanEditGraph(get())
+    if (!service.deleteTaskNode) throw new Error('Service hiện tại không hỗ trợ xóa task qua API.')
+    await service.deleteTaskNode(nodeId)
+    await get().resetPhaseTree(phaseId)
   },
   setActiveTab: (activeTab) => set({ activeTab }),
 }))
