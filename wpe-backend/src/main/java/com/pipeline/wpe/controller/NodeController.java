@@ -19,8 +19,11 @@ import java.util.List;
 
 /**
  * Người thực hiện thao tác luôn lấy từ {@link CurrentUserProvider#requireCurrentUserId()} (token đăng nhập,
- * hoặc header X-Debug-User-Id ở chế độ dev). Không còn nhận {@code ?currentUserId=} và không còn rơi về user 2:
- * trước đây Cộng sự gửi {@code ?currentUserId=<id Owner>} là tự duyệt được bài của mình (X1 bước 3, phần NodeController).
+ * hoặc header X-Debug-User-Id ở chế độ dev). Không còn nhận {@code ?currentUserId=}: trước đây Cộng sự gửi
+ * {@code ?currentUserId=<id Owner>} là tự duyệt được bài của mình (X1 bước 3, phần NodeController).
+ * Có gửi token mà token sai → 401, không rơi về user 2. Lưu ý: khi bật chế độ dev
+ * ({@code app.security.debug-user-id-enabled=true}), request KHÔNG gửi header nào vẫn được coi là
+ * {@code default-debug-user-id} (2); phải tắt chế độ dev (X1) trước khi nộp hoặc deploy.
  */
 @RestController
 @RequestMapping({"/api/v1", "/api"})
