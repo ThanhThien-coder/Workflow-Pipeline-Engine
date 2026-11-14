@@ -57,6 +57,7 @@ public class ProjectActivityService {
         }
         for (NodeEntity n : nodes) {
             if (n.getAssignedUserId() != null) userIds.add(n.getAssignedUserId());
+            if (n.getForceUnlockedBy() != null) userIds.add(n.getForceUnlockedBy());
         }
         for (ArtifactEntity a : artifacts) {
             if (a.getUploadedBy() != null) userIds.add(a.getUploadedBy());
@@ -215,6 +216,20 @@ public class ProjectActivityService {
                     "Task " + node.getCode() + " (" + node.getTitle() + ") ở trạng thái " + node.getStatus() + " (lần cập nhật gần nhất)",
                     node.getCode(),
                     node.getUpdatedAt()
+            ));
+        }
+
+        // 5b. Chủ dự án mở khóa sớm task (V15: node.force_unlocked_by / force_unlocked_at)
+        for (NodeEntity node : nodes) {
+            if (node.getForceUnlockedAt() == null) continue;
+            String unlockerName = resolveUserDisplayName(userMap.get(node.getForceUnlockedBy()), node.getForceUnlockedBy(), ownerName);
+            events.add(new ProjectActivityItemResponse(
+                    "node-" + node.getId() + "-force-unlocked",
+                    "TASK_FORCE_UNLOCKED",
+                    unlockerName,
+                    "Đã mở khóa sớm task " + node.getCode() + " (" + node.getTitle() + ") khi task trước chưa xong",
+                    node.getCode(),
+                    node.getForceUnlockedAt()
             ));
         }
 

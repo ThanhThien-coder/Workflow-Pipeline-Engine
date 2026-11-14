@@ -172,6 +172,42 @@ class ProjectActivityServiceTest {
     }
 
     @Test
+    @DisplayName("T6: task được chủ dự án mở khóa sớm có dòng 'mở khóa sớm' đúng người, đúng thời điểm")
+    void getProjectActivity_includesForceUnlock() {
+        Long projectId = 1L;
+        Long ownerId = 2L;
+        Instant t0 = Instant.parse("2026-11-01T08:00:00Z");
+        Instant unlockedAt = Instant.parse("2026-11-05T09:30:00Z");
+
+        ProjectEntity project = ProjectEntity.builder()
+                .id(projectId).ownerId(ownerId).name("P").status(ProjectStatus.ACTIVE).createdAt(t0).updatedAt(t0).build();
+        UserEntity alex = UserEntity.builder().id(ownerId).username("alex.kim").fullName("Alex Kim").build();
+        NodeEntity node = NodeEntity.builder()
+                .id(7L).projectId(projectId).code("WPE-007").title("Deploy").status(NodeStatus.TODO)
+                .createdAt(t0).updatedAt(t0).forceUnlockedBy(ownerId).forceUnlockedAt(unlockedAt).build();
+
+        when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, ownerId)).thenReturn(project);
+        when(projectMemberRepository.findByProjectIdOrderByJoinedAtAsc(projectId)).thenReturn(List.of());
+        when(projectInvitationRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of(node));
+        when(artifactRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+        when(guestLinkRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+        when(projectFeedbackRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+        when(userRepository.findAllById(any())).thenReturn(List.of(alex));
+
+        List<ProjectActivityItemResponse> events = projectActivityService.getProjectActivity(projectId, ownerId, 50);
+
+        assertThat(events).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo("node-7-force-unlocked");
+            assertThat(item.type()).isEqualTo("TASK_FORCE_UNLOCKED");
+            assertThat(item.actorName()).isEqualTo("Alex Kim");
+            assertThat(item.message()).contains("mở khóa sớm").contains("WPE-007");
+            assertThat(item.targetCode()).isEqualTo("WPE-007");
+            assertThat(item.createdAt()).isEqualTo(unlockedAt);
+        });
+    }
+
+    @Test
     @DisplayName("Tổng hợp đầy đủ lời mời, minh chứng, link khách và góp ý")
     void getProjectActivity_includesInvitationsArtifactsGuestLinksAndFeedbacks() {
         Long projectId = 1L;

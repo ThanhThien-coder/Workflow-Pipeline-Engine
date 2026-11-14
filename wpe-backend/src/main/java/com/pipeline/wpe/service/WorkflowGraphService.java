@@ -634,7 +634,8 @@ public class WorkflowGraphService {
                 ? parents.stream().anyMatch(p -> p.getStatus() == NodeStatus.DONE)
                 : parents.stream().allMatch(p -> p.getStatus() == NodeStatus.DONE));
 
-        if (child.getStatus() == NodeStatus.TODO && !satisfied) {
+        // Task chủ dự án đã mở khóa sớm thì giữ TODO dù điều kiện chưa thỏa (T6)
+        if (child.getStatus() == NodeStatus.TODO && !satisfied && child.getForceUnlockedAt() == null) {
             child.setStatus(NodeStatus.LOCKED);
             nodeRepository.save(child);
             log.info("Node {} chuyển TODO -> LOCKED vì điều kiện hội tụ không còn thỏa.", child.getCode());
@@ -732,19 +733,6 @@ public class WorkflowGraphService {
     }
 
     private GraphNodeResponse mapToGraphNodeResponse(NodeEntity n, Map<String, Object> uiMetadata) {
-        return new GraphNodeResponse(
-            String.valueOf(n.getId()),
-            n.getPhaseId() != null ? String.valueOf(n.getPhaseId()) : null,
-            n.getCode(),
-            n.getTitle(),
-            n.getDescription(),
-            n.getStatus().name(),
-            n.getJoinPolicy().name(),
-            n.getAssignedUserId() != null ? String.valueOf(n.getAssignedUserId()) : null,
-            n.getDueDate(),
-            n.getEstimatedHours(),
-            n.getVersion(),
-            uiMetadata
-        );
+        return GraphNodeResponse.from(n, uiMetadata);
     }
 }

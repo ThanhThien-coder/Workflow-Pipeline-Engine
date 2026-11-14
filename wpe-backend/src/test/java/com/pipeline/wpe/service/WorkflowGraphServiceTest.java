@@ -760,6 +760,23 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
+    @DisplayName("T6: node đã được chủ dự án mở khóa sớm, thêm một cha chưa DONE vẫn giữ TODO (không khóa lại)")
+    void testCreateDependencyKeepsForceUnlockedChildTodo() {
+        NodeEntity parent = node(10L, "WPE-010", NodeStatus.TODO);
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.TODO);
+        child.setForceUnlockedBy(2L);
+        child.setForceUnlockedAt(Instant.now());
+        when(nodeRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        lenient().when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(parent, child));
+        lenient().when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        workflowGraphService.createDependency(1L, new CreateDependencyRequest(10L, 11L), 2L);
+
+        assertEquals(NodeStatus.TODO, child.getStatus());
+    }
+
+    @Test
     @DisplayName("B3 lỗ hổng 4b: gỡ cạnh làm node LOCKED mất hết cha thì chuyển sang TODO và gửi TASK_UNLOCKED")
     void testDeleteDependencyUnlocksChildWithoutParents() {
         NodeEntity child = node(11L, "WPE-011", NodeStatus.LOCKED);

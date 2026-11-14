@@ -273,6 +273,18 @@ class StateMachineServiceMatrixTest {
     }
 
     @Test
+    @DisplayName("T6 Force unlock bởi Owner: LOCKED → TODO và ghi lại ai mở, lúc nào")
+    void forceUnlock_byOwner_recordsWhoAndWhen() {
+        node.setStatus(NodeStatus.LOCKED);
+
+        stateMachineService.forceUnlock(TASK_ID, Role.OWNER.userId);
+
+        assertThat(node.getStatus()).isEqualTo(NodeStatus.TODO);
+        assertThat(node.getForceUnlockedBy()).isEqualTo(Role.OWNER.userId);
+        assertThat(node.getForceUnlockedAt()).isNotNull();
+    }
+
+    @Test
     @DisplayName("Force unlock: thành viên khác → 403")
     void forceUnlock_byOtherMember_forbidden() {
         node.setStatus(NodeStatus.LOCKED);

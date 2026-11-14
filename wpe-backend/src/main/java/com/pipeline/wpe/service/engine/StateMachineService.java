@@ -95,22 +95,7 @@ public class StateMachineService {
             ))
             .toList();
 
-        return new KanbanTaskResponse(
-            base.id(),
-            base.phaseId(),
-            base.code(),
-            base.title(),
-            base.description(),
-            base.status(),
-            base.assignedUserId(),
-            base.joinPolicy(),
-            base.rejectReason(),
-            base.dueDate(),
-            base.isOverdue(),
-            base.version(),
-            base.uiMetadata(),
-            artifactResponses
-        );
+        return base.withArtifacts(artifactResponses);
     }
 
     /**
@@ -375,10 +360,12 @@ public class StateMachineService {
         }
 
         node.setStatus(NodeStatus.TODO);
+        // Lưu ai mở, lúc nào: không bị khóa lại khi sửa dây phụ thuộc, và hiện trong nhật ký hoạt động
+        node.setForceUnlockedBy(currentUserId);
+        node.setForceUnlockedAt(Instant.now());
         NodeEntity saved = nodeRepository.save(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
 
-        // Ghi lại ai đã mở khóa sớm (audit)
         log.info("Force unlock: task ID {} ({}) trong dự án {} được user {} mở khóa sớm LOCKED -> TODO",
             saved.getId(), saved.getCode(), saved.getProjectId(), currentUserId);
 

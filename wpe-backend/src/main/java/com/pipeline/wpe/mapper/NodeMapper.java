@@ -13,5 +13,6 @@ public interface NodeMapper {
     @Mapping(target = "assignedUserId", expression = "java(entity.getAssignedUserId() != null ? String.valueOf(entity.getAssignedUserId()) : null)")
     @Mapping(target = "status", expression = "java(entity.getStatus().name())")
     @Mapping(target = "joinPolicy", expression = "java(entity.getJoinPolicy().name())")
+    @Mapping(target = "forceUnlockedBy", expression = "java(entity.getForceUnlockedBy() != null ? String.valueOf(entity.getForceUnlockedBy()) : null)")
     KanbanTaskResponse toKanbanTaskResponse(NodeEntity entity);
 }
