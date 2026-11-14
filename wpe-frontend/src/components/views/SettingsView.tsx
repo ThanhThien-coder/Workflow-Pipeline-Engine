@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { useRouter } from '../../router/useRouter'
+import { isMockMode } from '../../services/env'
 import { SettingsHeader } from '../settings/SettingsHeader'
 import { GeneralSettingsSection } from '../settings/GeneralSettingsSection'
 import { WorkspaceMembersSection } from '../settings/WorkspaceMembersSection'
@@ -56,12 +57,16 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
     setKahnCycleErrors,
     closeModals,
   } = useWorkflowStore((state) => state.settings)
+  const currentUserId = useWorkflowStore((state) => state.auth.currentUser?.id ?? null)
 
+  // Mỗi lần mở màn Settings, đổi dự án hoặc đổi người đăng nhập đều tải lại từ backend.
+  // Trước đây chỉ tải khi status 'idle' hoặc khác dự án, nên quay lại đúng dự án cũ thì dùng dữ liệu cũ
+  // (quyền của tài khoản trước, nhật ký chưa cập nhật).
+  // Chế độ API mà chưa đăng nhập (đang đăng xuất) thì không tải: request không có token sẽ rơi về user debug.
   useEffect(() => {
-    if (status === 'idle' || (settings && String(settings.id) !== String(projectId))) {
-      void loadSettings(projectId)
-    }
-  }, [status, loadSettings, projectId, settings])
+    if (!isMockMode && !currentUserId) return
+    void loadSettings(projectId)
+  }, [loadSettings, projectId, currentUserId])
 
   if (status === 'loading' && !settings) {
     return (

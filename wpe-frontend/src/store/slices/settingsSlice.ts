@@ -12,6 +12,13 @@ import type {
 } from '../../types/settings.types'
 import { workflowService } from '../../services/container'
 import { isApiError } from '../../services/http/ApiError'
+import { isMockMode } from '../../services/env'
+
+/**
+ * Số thứ tự lần gọi loadSettings mới nhất. Để ở cấp module (không nằm trong slice) vì đăng xuất
+ * tạo lại slice: request của slice cũ trả về muộn vẫn phải bị bỏ qua.
+ */
+let latestSettingsLoadId = 0
 
 export type SettingsLoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -72,6 +79,8 @@ export const createSettingsSlice = (
   const refreshLogs = async (projectId: string) => {
     try {
       const logs = await workflowService.getProjectAuditLogs(projectId)
+      // Đã chuyển sang dự án khác (hoặc đăng xuất) trong lúc chờ: không ghi nhật ký cũ vào.
+      if (String(get().settings.settings?.id) !== String(projectId)) return
       set((state) =>
         produce(state, (draft) => {
           draft.settings.auditLogs = logs
@@ -79,6 +88,60 @@ export const createSettingsSlice = (
       )
     } catch {
       // Silently keep current logs on minor sync error
+    }
+  }
+
+  const loadSettings = async (projectId = '1') => {
+    const loadId = ++latestSettingsLoadId
+    // Kết quả chỉ được ghi khi đây vẫn là lần tải mới nhất và slice chưa bị tạo lại (đăng xuất).
+    const isStale = () => loadId !== latestSettingsLoadId || get().settings.loadSettings !== loadSettings
+
+    set((state) =>
+      produce(state, (draft) => {
+        draft.settings.status = 'loading'
+        draft.settings.error = null
+        // Đổi sang dự án khác: xóa dữ liệu dự án cũ (cả bộ lọc nhật ký) để không hiện nhầm trong lúc tải.
+        if (draft.settings.settings && String(draft.settings.settings.id) !== String(projectId)) {
+          draft.settings.settings = null
+          draft.settings.members = []
+          draft.settings.memberHistory = []
+          draft.settings.pendingInvitations = []
+          draft.settings.auditLogs = []
+          draft.settings.auditFilter = 'All Events'
+          draft.settings.searchQuery = ''
+        }
+      }),
+    )
+
+    try {
+      const [settingsData, membersData, logsData, pendingData, historyData] = await Promise.all([
+        workflowService.getProjectSettings(projectId),
+        workflowService.getProjectMembersDetailed(projectId),
+        workflowService.getProjectAuditLogs(projectId),
+        workflowService.getProjectPendingInvitations ? workflowService.getProjectPendingInvitations(projectId) : Promise.resolve([]),
+        workflowService.getProjectMemberHistory ? workflowService.getProjectMemberHistory(projectId) : Promise.resolve([]),
+      ])
+      if (isStale()) return
+
+      set((state) =>
+        produce(state, (draft) => {
+          draft.settings.settings = settingsData
+          draft.settings.members = membersData
+          draft.settings.memberHistory = historyData || []
+          draft.settings.pendingInvitations = pendingData || []
+          draft.settings.auditLogs = logsData
+          draft.settings.status = 'ready'
+        }),
+      )
+    } catch (error) {
+      if (isStale()) return
+      const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to load project settings')
+      set((state) =>
+        produce(state, (draft) => {
+          draft.settings.status = 'error'
+          draft.settings.error = msg
+        }),
+      )
     }
   }
 
@@ -101,43 +164,7 @@ export const createSettingsSlice = (
       kahnCycleErrors: null,
       toast: null,
 
-      loadSettings: async (projectId = '1') => {
-        set((state) =>
-          produce(state, (draft) => {
-            draft.settings.status = 'loading'
-            draft.settings.error = null
-          }),
-        )
-
-        try {
-          const [settingsData, membersData, logsData, pendingData, historyData] = await Promise.all([
-            workflowService.getProjectSettings(projectId),
-            workflowService.getProjectMembersDetailed(projectId),
-            workflowService.getProjectAuditLogs(projectId),
-            workflowService.getProjectPendingInvitations ? workflowService.getProjectPendingInvitations(projectId) : Promise.resolve([]),
-            workflowService.getProjectMemberHistory ? workflowService.getProjectMemberHistory(projectId) : Promise.resolve([]),
-          ])
-
-          set((state) =>
-            produce(state, (draft) => {
-              draft.settings.settings = settingsData
-              draft.settings.members = membersData
-              draft.settings.memberHistory = historyData || []
-              draft.settings.pendingInvitations = pendingData || []
-              draft.settings.auditLogs = logsData
-              draft.settings.status = 'ready'
-            }),
-          )
-        } catch (error) {
-          const msg = isApiError(error) ? error.message : (error instanceof Error ? error.message : 'Failed to load project settings')
-          set((state) =>
-            produce(state, (draft) => {
-              draft.settings.status = 'error'
-              draft.settings.error = msg
-            }),
-          )
-        }
-      },
+      loadSettings,
 
       setSimulatedRole: (role: ProjectRole) => {
         set((state) =>
@@ -532,6 +559,13 @@ export const createSettingsSlice = (
       },
 
       addMockAuditLog: (log) => {
+        // Chế độ API: nhật ký lấy từ backend (FC5). Không tự chèn dòng giả với người thực hiện ghi cứng,
+        // chỉ tải lại nhật ký thật của dự án đang mở.
+        if (!isMockMode) {
+          const pid = get().settings.settings?.id
+          if (pid) void refreshLogs(String(pid))
+          return
+        }
         set((state) =>
           produce(state, (draft) => {
             draft.settings.auditLogs.unshift({
