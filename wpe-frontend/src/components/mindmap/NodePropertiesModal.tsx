@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Trash2, Check, Calendar, User, AlignLeft, Layers } from 'lucide-react'
 import type { BranchGraphNode, NodeStatus } from '../../types/workflow.types'
 import type { UserSummary } from '../../types/kanban.types'
+import { findMember } from '../../utils/memberLookup'
 
 const INPUT =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] text-slate-800 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs'
@@ -26,17 +27,14 @@ export function NodePropertiesModal({
 }: NodePropertiesModalProps) {
   const [title, setTitle] = useState(node.title)
   const [status, setStatus] = useState<NodeStatus>(node.status)
-  const [assignee, setAssignee] = useState(node.assignee ?? 'Unassigned')
+  const memberList = members ?? []
+  const currentAssignee = findMember(memberList, node.assignee)
+  // Người đang được giao không còn trong danh sách (đã rời dự án): giữ nguyên id để lưu không tự bỏ giao
+  const missingAssigneeId = node.assignee && !currentAssignee ? node.assignee : null
+  const [assignee, setAssignee] = useState(currentAssignee?.id ?? missingAssigneeId ?? '')
   const [due, setDue] = useState(node.due ?? '')
   const [join, setJoin] = useState(node.joinPolicy === 'ANY_COMPLETED' ? 'ANY' : 'ALL')
   const [description, setDescription] = useState(node.description || '')
-
-  const memberNames =
-    members && members.length > 0
-      ? members.map((m) => m.name)
-      : ['Alex Kim', 'Sarah Chen', 'Marcus Liu', 'Jamie Doe']
-
-  const assigneeList = Array.from(new Set([...memberNames, 'Unassigned']))
 
   const handleSave = () => {
     let newProgress = node.progress
@@ -52,7 +50,7 @@ export function NodePropertiesModal({
       title: title.trim() || node.title,
       status,
       progress: newProgress,
-      assignee: assignee === 'Unassigned' ? null : assignee,
+      assignee: assignee || null,
       due: due || null,
       joinPolicy: join === 'ANY' ? 'ANY_COMPLETED' : 'ALL_COMPLETED',
       description: description.trim(),
@@ -117,15 +115,19 @@ export function NodePropertiesModal({
               onChange={(event) => setAssignee(event.target.value)}
               className={INPUT}
             >
-              {assigneeList.map((name) => (
-                <option
-                  key={name}
-                  value={name}
-                  className="bg-white text-slate-900 py-1"
-                >
-                  {name}
+              <option value="" className="bg-white text-slate-900 py-1">
+                Chưa giao
+              </option>
+              {memberList.map((member) => (
+                <option key={member.id} value={member.id} className="bg-white text-slate-900 py-1">
+                  {member.name}
                 </option>
               ))}
+              {missingAssigneeId && (
+                <option value={missingAssigneeId} className="bg-white text-slate-500 py-1">
+                  Người dùng không còn trong dự án
+                </option>
+              )}
             </select>
           </label>
 
