@@ -1,5 +1,5 @@
 import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency } from '../../types/workflow.types'
-import type { GuestAccessState, OverviewData } from '../../types/overview.types'
+import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import type {
   ProjectSettingsDto,
@@ -66,6 +66,8 @@ export interface IWorkflowService {
   deletePhase(phaseId: string, projectId?: string): Promise<void>
   updatePhasePosition?(phaseId: string, pos: { x: number; y: number }, projectId?: string): Promise<void>
   getOverviewData(projectId: string): Promise<OverviewData>
+  /** Kích hoạt chẩn đoán AI mới (POST /projects/{id}/ai-diagnostics). Cooldown 180s: lỗi 429 COOLDOWN_ACTIVE. */
+  triggerAiDiagnostics(projectId: string): Promise<AiDiagnosticReport>
   resolveFeedback(projectId: string, feedbackId: string): Promise<void>
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState>
   generateGuestToken(projectId: string): Promise<GuestAccessState>

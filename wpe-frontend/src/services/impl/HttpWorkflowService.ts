@@ -42,7 +42,7 @@ import type {
   UpdateProjectCommand,
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
-import type { GuestAccessState, OverviewData } from '../../types/overview.types'
+import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
 // Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
 import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
@@ -412,6 +412,11 @@ export class HttpWorkflowService implements IWorkflowService {
       aiRaw,
       guestAccess,
     })
+  }
+
+  /** POST /projects/{id}/ai-diagnostics — xem impl/http/overview.ts */
+  triggerAiDiagnostics(projectId: string): Promise<AiDiagnosticReport> {
+    return overviewApi.triggerAiDiagnostics(projectId)
   }
 
   async resolveFeedback(projectId: string, feedbackId: string): Promise<void> {

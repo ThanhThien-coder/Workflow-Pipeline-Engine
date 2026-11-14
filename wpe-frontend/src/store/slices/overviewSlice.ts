@@ -1,6 +1,7 @@
 import type { OverviewData } from '../../types/overview.types'
 import type { IWorkflowService } from '../../services/contracts/IWorkflowService'
 import { workflowService } from '../../services/container'
+import { isApiError } from '../../services/http/ApiError'
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -13,6 +14,8 @@ export interface OverviewSlice {
     toast: string | null
     load: (projectId: string) => Promise<void>
     resolveFeedback: (feedbackId: string, projectId?: string) => Promise<void>
+    /** Chạy chẩn đoán AI mới. Trả true nếu có kết quả mới; false nếu lỗi (đã hiện toast). */
+    runAiDiagnosis: (projectId?: string) => Promise<boolean>
     revokeGuest: (projectId?: string) => Promise<void>
     generateGuest: (projectId?: string) => Promise<void>
     showToast: (message: string) => void
@@ -97,6 +100,28 @@ export const createOverviewSlice = (
         get().overview.showToast(
           extractErrorMessage(error, 'Không thể giải quyết phản hồi. Vui lòng thử lại.'),
         )
+      }
+    },
+    runAiDiagnosis: async (projectId?: string) => {
+      const targetProjectId = resolveOverviewProjectId(get, projectId)
+      if (!targetProjectId) return false
+      try {
+        const aiReport = await service.triggerAiDiagnostics(targetProjectId)
+        set((state) => {
+          if (!state.overview.data || state.overview.projectId !== targetProjectId) return state
+          return { overview: { ...state.overview, data: { ...state.overview.data, aiReport } } }
+        })
+        return true
+      } catch (error) {
+        if (isApiError(error) && error.code === 'COOLDOWN_ACTIVE') {
+          const wait = error.retryAfterSeconds
+          get().overview.showToast(
+            wait ? `Vừa chẩn đoán xong. Vui lòng thử lại sau ${wait} giây.` : 'Vừa chẩn đoán xong. Vui lòng thử lại sau ít phút.',
+          )
+        } else {
+          get().overview.showToast(extractErrorMessage(error, 'Không chạy được chẩn đoán AI. Vui lòng thử lại.'))
+        }
+        return false
       }
     },
     revokeGuest: async (projectId?: string) => {

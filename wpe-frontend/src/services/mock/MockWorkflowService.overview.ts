@@ -1,5 +1,5 @@
 import type { IWorkflowService } from '../contracts/IWorkflowService'
-import type { GuestAccessState, OverviewData } from '../../types/overview.types'
+import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { ProjectStatus } from '../../types/settings.types'
 import { mockDelay } from './MockConfig'
 import { getSavedAvatar } from '../../utils/avatarUtils'
@@ -44,7 +44,7 @@ export const MOCK_OVERVIEW: OverviewData = {
   ],
 }
 
-export class MockOverviewApi implements Pick<IWorkflowService, 'getOverviewData' | 'resolveFeedback' | 'toggleGuestAccess' | 'generateGuestToken'> {
+export class MockOverviewApi implements Pick<IWorkflowService, 'getOverviewData' | 'triggerAiDiagnostics' | 'resolveFeedback' | 'toggleGuestAccess' | 'generateGuestToken'> {
   private data: OverviewData = structuredClone(MOCK_OVERVIEW)
 
   async getOverviewData(_projectId: string): Promise<OverviewData> {
@@ -61,6 +61,18 @@ export class MockOverviewApi implements Pick<IWorkflowService, 'getOverviewData'
       }
     })
     return overview
+  }
+
+  async triggerAiDiagnostics(_projectId: string): Promise<AiDiagnosticReport> {
+    await mockDelay(400)
+    const report: AiDiagnosticReport = {
+      ...structuredClone(this.data.aiReport),
+      generatedAt: new Date().toISOString(),
+      hasAnalysis: true,
+      source: 'MOCK',
+    }
+    this.data.aiReport = report
+    return structuredClone(report)
   }
 
   async resolveFeedback(_projectId: string, feedbackId: string): Promise<void> {

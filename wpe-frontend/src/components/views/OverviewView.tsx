@@ -15,6 +15,7 @@ export function OverviewView({ projectId }: { projectId: string }) {
   const load = useWorkflowStore((state) => state.overview.load)
   const revokeGuest = useWorkflowStore((state) => state.overview.revokeGuest)
   const generateGuest = useWorkflowStore((state) => state.overview.generateGuest)
+  const runAiDiagnosis = useWorkflowStore((state) => state.overview.runAiDiagnosis)
   const resolveFeedback = useWorkflowStore((state) => state.overview.resolveFeedback)
   const toast = useWorkflowStore((state) => state.overview.toast)
   const showToast = useWorkflowStore((state) => state.overview.showToast)
@@ -58,6 +59,7 @@ export function OverviewView({ projectId }: { projectId: string }) {
         guestAccess={data.guestAccess}
         onRevoke={() => revokeGuest(projectId)}
         onGenerate={() => generateGuest(projectId)}
+        onRunAiDiagnosis={() => runAiDiagnosis(projectId)}
         notify={showToast}
       />
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-6 pb-16">

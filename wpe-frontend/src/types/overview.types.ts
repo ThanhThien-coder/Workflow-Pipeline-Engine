@@ -62,6 +62,10 @@ export interface AiDiagnosticReport {
   insights: AiDiagnosticInsight[]
   hasAnalysis?: boolean
   emptyMessage?: string
+  /** Nguồn dữ liệu backend trả: AI_SERVICE (AI thật), MOCK (giả lập trong Java), MOCK_FALLBACK (AI lỗi nên dùng dữ liệu giả). */
+  source?: string
+  /** Cảnh báo kèm theo khi dùng dữ liệu dự phòng. */
+  warning?: string
 }
 
 export interface GuestAccessState {

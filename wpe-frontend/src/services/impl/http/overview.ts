@@ -257,12 +257,18 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
         ? record.generatedAt
         : fallbackTimestamp
 
+  const provenance = {
+    ...(typeof record.source === 'string' && record.source ? { source: record.source } : {}),
+    ...(typeof record.warning === 'string' && record.warning ? { warning: record.warning } : {}),
+  }
+
   if (Array.isArray(record.insights) && record.insights.length > 0) {
     return {
       engine: 'Gemini',
       generatedAt: analyzedAt,
       insights: record.insights as AiDiagnosticInsight[],
       hasAnalysis: true,
+      ...provenance,
     }
   }
 
@@ -341,7 +347,17 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
     generatedAt: analyzedAt,
     insights,
     hasAnalysis: true,
+    ...provenance,
   }
+}
+
+/**
+ * POST /projects/{id}/ai-diagnostics — kích hoạt chẩn đoán mới (backend có cooldown 180 giây).
+ * Lỗi 429 ném ApiError code COOLDOWN_ACTIVE kèm retryAfterSeconds; lỗi khác cũng ném lên để UI báo.
+ */
+export async function triggerAiDiagnostics(projectId: string | number): Promise<AiDiagnosticReport> {
+  const raw = await apiRequest<unknown>('POST', `/projects/${projectId}/ai-diagnostics`)
+  return mapAiAnalysisToReport(raw, new Date().toISOString())
 }
 
 function toInitials(name: string): string {
