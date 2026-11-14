@@ -1,0 +1,117 @@
+' Nguồn: wpe-frontend/src/ (views, components, store, hooks, services/container.ts, services/env.ts, services/impl/*,
+'        services/http/apiClient.ts, services/template/*, services/mock/*);
+'        wpe-backend/src/main/java/com/pipeline/wpe/ (security, controller, service/**, repository, config/RabbitMQConfig.java),
+'        wpe-backend/src/main/resources/application.yml (server.port, app.ai), wpe-backend/docker-compose.yml,
+'        docs/specs/backend-architecture.md, docs/FRONTEND_BACKEND_INTEGRATION_MAP.md chương I
+' Component diagram toàn hệ thống (X3 — phần của C). Vẽ theo code thật trên main 7d5a5b1.
+
+@startuml component
+!pragma layout smetana
+skinparam shadowing false
+skinparam componentStyle uml2
+left to right direction
+
+package "Frontend — React 18 + Vite (trình duyệt)" {
+  component "Views & Components\n(views/, components/)" as FE_View
+  component "Zustand Store & Hooks\n(useWorkflowStore + slices,\nusePhaseKanban)" as FE_Store
+  component "Service Container\n(services/container.ts)" as FE_Container
+  component "Http Services\n(HttpWorkflowService,\nHttpGuestService, HttpTemplateService)" as FE_Http
+  component "Mock Services\n(services/mock/*)" as FE_Mock
+  component "API Client\n(services/http/apiClient.ts:\ngắn JWT, tự làm mới token)" as FE_Api
+  component "Realtime Client\n(EventSource trong\nconnectRealtime)" as FE_Sse
+
+  () "IWorkflowService\nIGuestService\nITemplateService\nINotificationService ..." as FE_Contracts
+}
+
+package "Backend — Spring Boot 3 (JVM, cổng 8080)" {
+  component "Security\n(JwtAuthFilter, SecurityConfig,\nCurrentUserProvider)" as BE_Sec
+  component "REST Controllers\n(@RestController)" as BE_Ctl
+  component "Realtime\n(RealtimeController,\nSseEmitterService)" as BE_Rt
+  component "Auth\n(AuthService, JwtService,\nRefreshTokenService)" as BE_Auth
+  component "Dự án & Thành viên\n(ProjectService, ProjectMemberService,\nProjectInvitationService, TemplateCloneService,\nPipelineTemplateService)" as BE_Proj
+  component "Đồ thị DAG\n(WorkflowGraphService,\nKahnDagService)" as BE_Graph
+  component "Chạy task\n(StateMachineService, NodeAssignmentService,\nTaskOverdueScanner)" as BE_Task
+  component "Tài nguyên & Khách\n(ArtifactService, GuestGatewayService,\nFeedbackQueueService)" as BE_Art
+  component "AI chẩn đoán\n(AiDiagnosticService,\nAiServiceClient)" as BE_Ai
+  component "Event Publisher\n(WorkflowEventPublisher)" as BE_Pub
+  component "Event Consumers\n(WorkflowEventConsumer,\nInvitationEventConsumer)" as BE_Cons
+  component "Repositories\n(Spring Data JPA)" as BE_Repo
+
+  () "REST /api/v1\n(JSON, Bearer JWT)" as REST
+  () "SSE /api/v1/realtime/subscribe\n(text/event-stream)" as SSE
+}
+
+database "PostgreSQL 15\n(cổng 5432)" as DB {
+}
+() "JDBC" as JDBC
+
+queue "RabbitMQ 3.13\n(cổng 5672)\nexchange wpe.workflow.exchange" as MQ
+() "AMQP" as AMQP
+
+component "AI microservice (Python)\n(cổng 8081, chỉ khi app.ai.mode=http)" as AI
+() "HTTP POST /api/ai/diagnose" as AIAPI
+
+' --- Bên trong Frontend ---
+FE_View --> FE_Store : gọi action
+FE_Store --> FE_Contracts : dùng qua DI
+FE_Container - FE_Contracts
+FE_Http ..|> FE_Contracts
+FE_Mock ..|> FE_Contracts
+FE_Container ..> FE_Http : VITE_USE_MOCK=false
+FE_Container ..> FE_Mock : mặc định (mock)
+FE_Http --> FE_Api
+FE_Http --> FE_Sse
+FE_Sse ..> FE_Store : sự kiện → tải lại dữ liệu
+
+' --- Interface giữa FE và BE ---
+BE_Ctl - REST
+BE_Rt - SSE
+FE_Api ..> REST : yêu cầu
+FE_Sse ..> SSE : yêu cầu
+
+' --- Bên trong Backend ---
+BE_Sec ..> BE_Ctl : lọc request, xác định user
+BE_Ctl --> BE_Auth
+BE_Ctl --> BE_Proj
+BE_Ctl --> BE_Graph
+BE_Ctl --> BE_Task
+BE_Ctl --> BE_Art
+BE_Ctl --> BE_Ai
+BE_Task --> BE_Pub : gửi sự kiện sau commit
+BE_Task --> BE_Rt : đẩy SSE sau commit
+BE_Graph --> BE_Rt
+BE_Proj --> BE_Pub
+BE_Ai --> BE_Pub
+BE_Cons --> BE_Task : mở khóa task con
+BE_Cons --> BE_Rt : NOTIFICATION_RECEIVED
+BE_Auth --> BE_Repo
+BE_Proj --> BE_Repo
+BE_Graph --> BE_Repo
+BE_Task --> BE_Repo
+BE_Art --> BE_Repo
+BE_Cons --> BE_Repo
+
+' --- Hạ tầng ---
+DB - JDBC
+BE_Repo ..> JDBC : yêu cầu
+MQ - AMQP
+BE_Pub ..> AMQP : convertAndSend
+BE_Cons ..> AMQP : @RabbitListener
+AI - AIAPI
+BE_Ai ..> AIAPI : yêu cầu (RestClient)
+
+note right of MQ
+  Queue: wpe.task.completed.queue, wpe.notification.queue,
+  wpe.invitation.queue, wpe.ai.diagnostics.queue;
+  lỗi quá số lần thử → wpe.workflow.dlq (qua wpe.workflow.dlx).
+end note
+
+note bottom of FE_Container
+  Profile, Admin, Notification hiện luôn dùng Mock
+  (chưa có controller tương ứng ở backend).
+  Integration map chương I còn ghi PhaseController,
+  UserProfileController, AdminPortalController,
+  NotificationController: chưa có trong code.
+end note
+
+@enduml
