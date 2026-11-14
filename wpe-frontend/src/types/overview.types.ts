@@ -24,6 +24,8 @@ export interface DailyVelocity {
 export interface WeeklyVelocity {
   periodLabel: string
   days: DailyVelocity[]
+  hasData?: boolean
+  unavailableNote?: string
 }
 
 export interface TaskStatusBreakdownItem {
@@ -58,6 +60,8 @@ export interface AiDiagnosticReport {
   engine: 'Gemini'
   generatedAt: ISODateTime
   insights: AiDiagnosticInsight[]
+  hasAnalysis?: boolean
+  emptyMessage?: string
 }
 
 export interface GuestAccessState {

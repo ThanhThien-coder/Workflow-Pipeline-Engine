@@ -803,4 +803,28 @@ class TemplateCloneServiceTest {
         assertThat(savedPhaseDeps.get(0).getParentPhaseId()).isEqualTo(502L);
         assertThat(savedPhaseDeps.get(0).getChildPhaseId()).isEqualTo(503L);
     }
+
+    @Test
+    @DisplayName("cloneTemplate: template ẩn -> ném ResourceNotFoundException và KHÔNG tăng/lưu cloneCount")
+    void shouldThrowResourceNotFoundException_whenTemplateIsHidden() {
+        PipelineTemplateEntity hiddenTemplate = PipelineTemplateEntity.builder()
+            .id(templateId)
+            .name("Hidden Template")
+            .visibility(TemplateVisibility.PUBLIC)
+            .isHidden(true)
+            .cloneCount(5)
+            .build();
+
+        when(pipelineTemplateRepository.findById(templateId)).thenReturn(Optional.of(hiddenTemplate));
+
+        CloneTemplateRequest req = new CloneTemplateRequest(templateId, "Clone Hidden", "Desc", "PUBLIC");
+
+        assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: " + templateId);
+
+        assertThat(hiddenTemplate.getCloneCount()).isEqualTo(5);
+        verify(pipelineTemplateRepository, never()).save(any());
+        verify(projectRepository, never()).save(any());
+    }
 }

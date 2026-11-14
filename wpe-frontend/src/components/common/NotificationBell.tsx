@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { AlertCircle, Bell, CheckCheck, CheckCircle2, GitPullRequest, MessageSquare, Sparkles, UserPlus } from 'lucide-react'
 import { navigate } from '../../router/useRouter'
+import { workflowService } from '../../services/container'
+import { getStoredUserId } from '../../services/http/apiClient'
 import { useNotificationStore } from '../../store/useNotificationStore'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
 import type { NotificationDto, NotificationKind } from '../../types/notification.types'
 import { getSavedAvatar } from '../../utils/avatarUtils'
 
@@ -34,7 +37,8 @@ export function formatNotificationTime(iso: string): string {
 export function NotificationSender({ n }: { n: NotificationDto }) {
   // System events (no sender) or alerts get a kind icon; people get an initials avatar
   if (!n.actorName || n.kind === 'overdue') {
-    const { icon: Icon, tone } = KIND_ICON[n.kind]
+    const kindCfg = KIND_ICON[n.kind] || KIND_ICON.system
+    const { icon: Icon, tone } = kindCfg
     return <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', tone)}><Icon size={17} /></span>
   }
   const savedAvatar = getSavedAvatar(n.actorName)
@@ -51,17 +55,47 @@ export function NotificationSender({ n }: { n: NotificationDto }) {
 }
 
 export default function NotificationBell() {
-  const { items, unreadCount, loading, error, load, markRead, markAllRead } = useNotificationStore()
+  const { items, unreadCount, loading, error, load, markRead, markAllRead, receiveRealtime } = useNotificationStore()
+  const currentUserId = useWorkflowStore((state) => state.auth.currentUser?.id)
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  // Initial load + light polling so the badge stays fresh
+  const resolvedUserId = currentUserId != null ? String(currentUserId) : getStoredUserId()
+
+  // Initial load on login / mount + light polling so the badge stays fresh
   useEffect(() => {
     void load()
     const t = setInterval(() => void load(), 60000)
     return () => clearInterval(t)
-  }, [load])
+  }, [load, resolvedUserId])
+
+  // Real-time SSE subscription for NOTIFICATION_RECEIVED (and invitation events)
+  useEffect(() => {
+    if (!resolvedUserId) return
+    const connectFn = (workflowService as { connectRealtime?: (uid: string, cb: (event: string, data: any) => void) => () => void }).connectRealtime
+    if (typeof connectFn !== 'function') return
+
+    try {
+      const unsubscribe = connectFn.call(workflowService, resolvedUserId, (eventName: string, data: any) => {
+        if (
+          eventName === 'NOTIFICATION_RECEIVED' ||
+          eventName === 'INVITATION_CREATED' ||
+          eventName === 'INVITATION_RECEIVED'
+        ) {
+          if (data && data.id != null && typeof receiveRealtime === 'function') {
+            receiveRealtime(data)
+          }
+          void load()
+        }
+      })
+      return () => {
+        if (typeof unsubscribe === 'function') unsubscribe()
+      }
+    } catch {
+      return undefined
+    }
+  }, [resolvedUserId, load, receiveRealtime])
 
   // Close on outside click / Escape
   useEffect(() => {
@@ -87,7 +121,7 @@ export default function NotificationBell() {
     setOpen(false)
     void markRead(n.id)
 
-    const path = n.targetPath || ''
+    const path = n.linkUrl || n.targetPath || ''
     if (path) {
       navigate(path)
     }
@@ -134,7 +168,8 @@ export default function NotificationBell() {
                     <NotificationSender n={n} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm leading-snug text-slate-600">
-                        {n.actorName && n.kind !== 'overdue' && <b className="font-semibold text-slate-900">{n.actorName} </b>}{n.text}
+                        {n.actorName && n.kind !== 'overdue' && <b className="font-semibold text-slate-900">{n.actorName} </b>}
+                        {n.text || n.message || n.title}
                       </p>
                       <p className="mt-0.5 text-[11px] text-slate-400">{formatNotificationTime(n.createdAt)}</p>
                     </div>

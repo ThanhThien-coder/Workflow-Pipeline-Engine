@@ -1,7 +1,7 @@
 # FA3 — Nhật ký hệ thống (System log) của admin: ghi thật, hiện rõ ràng
 
 Người làm: A
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L22
 Nhánh git: fix-fa3-nhat-ky-admin
 Làm trước: FA2
@@ -48,4 +48,25 @@ Tab System log của admin hiện dữ liệu giả, không rõ dòng nào nói 
 1. Đăng nhập sai alex 1 lần, đúng 1 lần, admin khóa rồi mở khóa sarah.
 2. Mở tab System log: thấy đủ 4 dòng, đúng thứ tự mới nhất trước, đúng người, đúng nhãn.
 
-## Kết quả (Claude ghi, dán output thật)
+## Kết quả (ThanhThien-coder ghi)
+- Đã hoàn thành toàn bộ yêu cầu của FA3 và mục 4 của FD3:
+  + Backend:
+    - Tạo file migration `wpe-backend/src/main/resources/db/migration/V13__admin_audit_log.sql` với bảng `admin_audit_log` và 2 index `created_at DESC` và `action` (không FK tới users).
+    - Tạo `AdminAuditLogEntity`, `AdminAuditLogRepository`.
+    - Tạo `AdminAuditAction` với 10 hằng số và 3 nhóm `LOGIN`, `ADMIN`, `TEMPLATE`.
+    - Tạo `AdminAuditService`: hàm `record` chạy transaction `REQUIRES_NEW`, tự động tra cứu username, lấy IP client từ request, cắt detail tối đa 1000 ký tự và bọc try-catch không ném exception; hàm `search` hỗ trợ lọc theo nhóm, hành động, khoảng thời gian ISO, phân trang và hàm che IP `maskIp`.
+    - Tạo DTO `AdminAuditLogResponse`, `AdminAuditLogPageResponse`.
+    - Thêm `RefreshTokenService.findUserIdByRawToken`.
+    - Ghi sự kiện trong `AuthService` (`LOGIN_SUCCESS`, `LOGIN_FAILED`, `ACCOUNT_LOCKED_LOGIN`, `REGISTER`, `LOGOUT`), `AdminUserService` (`USER_SUSPENDED`, `USER_UNBANNED`), `PipelineTemplateService` (`TEMPLATE_CREATED`, `TEMPLATE_UPDATED`, `TEMPLATE_DELETED`). **Đợt này chưa ghi WORKSPACE_ARCHIVED vì phần workspace chưa làm**.
+    - Thêm endpoint `GET /api/v1/admin/audit-logs` trong `AdminController` có `@PreAuthorize("hasRole('ADMIN')")`.
+    - Viết đầy đủ unit tests: `AuthServiceTest`, `AdminAuditServiceTest`, `AdminUserServiceTest`, `AdminControllerTest`, `PipelineTemplateServiceTest`.
+  + Frontend:
+    - `admin.types.ts`: Cập nhật `SecurityAuditLogDto` và type `AuditLogGroup`.
+    - Cập nhật `IAdminService`, cài đặt `HttpAdminService.getSecurityAuditLogs`, cập nhật `MockAdminService` lọc theo group.
+    - Cập nhật `useAdminPortal`: state `auditGroup`, hàm `setAuditGroup`.
+    - Viết lại `AuditLogsTab`: hiển thị mô tả, bộ lọc nhóm nút bấm, cột bảng chuẩn, nhãn tiếng Việt, màu Tailwind xanh lá/đỏ, bỏ hiệu ứng click dòng, xử lý errorMessage và empty state.
+    - `AdminPortalView`: truyền `group`, `onGroupChange`, `errorMessage` cho `AuditLogsTab`.
+    - Viết đầy đủ unit tests: `HttpAdminService.test.ts`, `MockAdminService.test.ts`, `AuditLogsTab.test.tsx` (dùng `toBeTruthy()` / `queryByText(...).toBeNull()`, không dùng jest-dom).
+  + Tài liệu:
+    - Cập nhật mục 3.13 bảng `ADMIN_AUDIT_LOG` trong `docs/specs/database-schema.md`.
+- Bổ sung theo de-xuat-lam-lai-admin.md: ghi ADMIN_ACCESS_DENIED cho request 403 vào /api/v1/admin/**; LOGIN_SUCCESS đã ghi cho mọi tài khoản, gồm admin.

@@ -1,0 +1,47 @@
+' Nguồn: docs/tasks/A-tai-khoan/A5-ho-so-ca-nhan.md (đặc tả đã chốt: POST /api/v1/users/me/password),
+'        docs/ooad/A-tai-khoan/dac-ta-uc.md (UC "Đổi mật khẩu").
+' Sơ đồ activity "Đổi mật khẩu" (A7, giai đoạn phân tích)
+
+@startuml activity-doi-mat-khau
+skinparam shadowing false
+
+|Người dùng|
+start
+:Mở mục "Bảo mật" trong hồ sơ;
+:Nhập mật khẩu hiện tại và mật khẩu mới;
+:Gửi yêu cầu đổi mật khẩu;
+
+|Hệ thống|
+:Kiểm tra độ dài mật khẩu mới;
+if (Đủ 8 ký tự?) then (không)
+  :Báo lỗi VALIDATION_FAILED;
+  |Người dùng|
+  :Xem thông báo lỗi;
+  stop
+else (có)
+endif
+
+|Hệ thống|
+:So khớp mật khẩu hiện tại với mật khẩu đã băm;
+if (Khớp?) then (sai)
+  :Báo lỗi WRONG_PASSWORD;
+  |Người dùng|
+  :Xem thông báo lỗi;
+  stop
+else (đúng)
+endif
+
+|Hệ thống|
+:Băm và lưu mật khẩu mới;
+fork
+  :Thu hồi mọi phiên làm mới của người dùng;
+fork again
+  :Tăng phiên bản token;
+end fork
+:Xác nhận đổi mật khẩu thành công;
+
+|Người dùng|
+:Đăng nhập lại bằng mật khẩu mới;
+stop
+
+@enduml

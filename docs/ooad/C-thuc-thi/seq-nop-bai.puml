@@ -1,0 +1,118 @@
+' Nguồn: wpe-frontend/src/components/kanban/SubmitArtifactModal.tsx, components/workflow/MindmapDrawer.tsx, hooks/usePhaseKanban.ts,
+'        services/impl/HttpWorkflowService.ts;
+'        wpe-backend/.../controller/NodeController.java, service/engine/StateMachineService.java (submitTaskArtifact, afterCommit),
+'        dto/artifact/ArtifactUrlValidator.java (C4), service/event/WorkflowEventPublisher.java, service/event/WorkflowEventConsumer.java
+'        (handleNotification), service/event/SseEmitterService.java
+' Sequence "Nộp bài kèm minh chứng" (C8). Ví dụ seed: sarah (người phụ trách) nộp WPE-002 kèm link PR; alex (Owner) nhận thông báo.
+' Số dòng của từng message: xem nhat-quan.md mục 2. Sơ đồ communication tương ứng: comm-nop-bai.puml.
+
+@startuml seq-nop-bai
+skinparam shadowing false
+skinparam sequenceMessageAlign left
+autonumber
+
+actor "Cộng sự\n(người phụ trách)" as Collab
+boundary ":SubmitArtifactModal" as Modal
+control ":usePhaseKanban" as Hook
+control ":HttpWorkflowService" as Http
+control ":NodeController" as Ctl
+control ":StateMachineService" as Svc
+entity ":NodeRepository" as NodeRepo
+entity ":ProjectRepository" as ProjRepo
+control ":ArtifactUrlValidator" as Val
+entity ":ArtifactRepository" as ArtRepo
+control ":WorkflowEventPublisher" as Pub
+control ":TransactionSynchronizationManager" as Tx
+queue "RabbitMQ\nwpe.notification.queue" as MQ
+control ":WorkflowEventConsumer" as Cons
+entity ":NotificationRepository" as NotiRepo
+control ":SseEmitterService" as Sse
+boundary ":EventSource\n(trình duyệt Chủ dự án)" as ES
+
+Collab -> Modal : chọn loại, dán link, ghi chú, bấm "Submit"
+activate Modal
+Modal -> Modal : isValidArtifactUrl(url)
+note right of Modal : link sai thì báo lỗi ngay trên giao diện,\nkhông gọi API
+Modal -> Hook : submitArtifact(taskId, {type, url, note})\n(qua prop onSubmit của MindmapDrawer)
+activate Hook
+Hook -> Http : submitTaskArtifact({taskId, type, url, note})
+activate Http
+Http -> Ctl : POST /api/v1/nodes/{taskId}/submit\n{type, url, note, version}
+activate Ctl
+Ctl -> Svc : submitTaskArtifact(taskId, request, actorId)
+activate Svc
+note right of Svc : @Transactional: mở transaction
+Svc -> NodeRepo : findById(taskId)
+activate NodeRepo
+NodeRepo --> Svc : NodeEntity (IN_PROGRESS)
+deactivate NodeRepo
+note right of Svc
+  không IN_PROGRESS → 400; version khác → 409;
+  không phải người phụ trách hoặc Owner → 403
+  (rút gọn, không vẽ nhánh lỗi)
+end note
+Svc -> ProjRepo : findById(projectId)
+activate ProjRepo
+ProjRepo --> Svc : ProjectEntity
+deactivate ProjRepo
+Svc -> Svc : ensureNotArchived(project)
+opt có link minh chứng
+  Svc -> Val : isValid(artifactUrl)
+  activate Val
+  Val --> Svc : true
+  deactivate Val
+  note right of Val : false → 400 BAD_REQUEST, task vẫn IN_PROGRESS\n(kiểm TRƯỚC khi đổi trạng thái — C4)
+end
+Svc -> NodeRepo : save(node)  [status = REVIEW, rejectReason = null]
+activate NodeRepo
+NodeRepo --> Svc : NodeEntity (version + 1)
+deactivate NodeRepo
+opt có link minh chứng
+  Svc -> ArtRepo : save(artifact)  [isPublicForGuest mặc định true]
+  activate ArtRepo
+  ArtRepo --> Svc : ArtifactEntity
+  deactivate ArtRepo
+end
+Svc -> Pub : publishNotification(NotificationEvent "REVIEW_REQUESTED" cho Owner)
+activate Pub
+Pub -> Tx : registerSynchronization(afterCompletion)
+Pub --> Svc
+deactivate Pub
+Svc -> Svc : afterCommit(gửi SSE TASK_SUBMITTED cho Owner)
+Svc -> Tx : registerSynchronization(afterCompletion)
+
+== Proxy @Transactional commit khi submitTaskArtifact trả về ==
+Tx -> Pub : afterCompletion(STATUS_COMMITTED)
+activate Pub
+Pub ->> MQ : convertAndSend("wpe.workflow.exchange",\n"wpe.notification.review_requested", event)
+deactivate Pub
+Tx -> Svc : afterCompletion(STATUS_COMMITTED)
+Svc -> Sse : sendToUser(ownerId, "TASK_SUBMITTED", taskResponse)
+activate Sse
+Sse ->> ES : event TASK_SUBMITTED
+deactivate Sse
+note left of ES : giao diện hiện chưa nghe sự kiện này\n(connectRealtime chỉ nghe INIT, TASK_UNLOCKED,\nTASK_STATUS_CHANGED, NOTIFICATION_RECEIVED)
+Svc --> Ctl : SubmitTaskArtifactResponse(task, artifact)
+deactivate Svc
+Ctl --> Http : 200 SubmitTaskArtifactResponse
+deactivate Ctl
+Http --> Hook : {task, artifact}
+deactivate Http
+Hook --> Modal : true (đóng hộp thoại, thẻ sang In Review)
+deactivate Hook
+deactivate Modal
+
+== Bất đồng bộ: RabbitMQ giao thông báo cho consumer ==
+MQ ->> Cons : handleNotification(NotificationEvent)
+activate Cons
+Cons -> NotiRepo : save(NotificationEntity)  [isRead = false]
+activate NotiRepo
+NotiRepo --> Cons : NotificationEntity (có id)
+deactivate NotiRepo
+Cons -> Sse : sendToUser(ownerId, "NOTIFICATION_RECEIVED", NotificationResponse.from(saved))
+activate Sse
+Sse ->> ES : event NOTIFICATION_RECEIVED (mọi tab của Owner)
+deactivate Sse
+deactivate Cons
+
+@enduml

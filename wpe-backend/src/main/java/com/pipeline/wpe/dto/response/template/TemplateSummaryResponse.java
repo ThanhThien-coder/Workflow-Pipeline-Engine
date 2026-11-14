@@ -15,5 +15,6 @@ public record TemplateSummaryResponse(
     Instant createdAt,
     Instant updatedAt,
     String visibility,
-    Long sourceProjectId
+    Long sourceProjectId,
+    Boolean isHidden
 ) {}

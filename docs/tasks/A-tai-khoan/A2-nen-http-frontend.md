@@ -3,7 +3,7 @@
 Người làm: A
 Người review: B
 Trạng thái: chờ kiểm
-Vòng hiểu: chưa làm (A vắng, làm bù khi A quay lại).
+Vòng hiểu: đã làm (12/11/2026, qua remote). Câu bảo vệ 3 (composition vs kế thừa): lần 1 thiếu (chỉ nêu "thấy rõ chỗ dùng mock", chưa nêu nguyên tắc SOLID), lần 2 sai (nhầm kế thừa thì TypeScript báo lỗi), lần 3 đúng: kế thừa làm hàm quên override lặng lẽ chạy mock; vi phạm Liskov (L).
 Cần có trước: T0
 Cần trước bước frontend: không
 Mở khóa: A4, A5, A6, B5, C3, C4, C6, D4 (và bước frontend của D1, D5)

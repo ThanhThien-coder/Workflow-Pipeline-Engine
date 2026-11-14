@@ -84,7 +84,7 @@ Người dán file này là **người làm** task. Mục tiêu kép: task chạ
 > Viết bằng lời của bạn. Người review đọc phần này trước khi đọc code.
 
 ### Trả lời Bước 0
-Bỏ qua (chế độ sprint). Vòng hiểu: chưa làm (A vắng, làm bù khi A quay lại).
+Bỏ qua (chế độ sprint). Vòng hiểu: đã làm (12/11/2026, qua remote). Câu bảo vệ 3 (vòng lặp vô hạn): lần 1 sai (nhầm với cơ chế backend hủy phiên khi token bị dùng lại), lần 2 đúng: request `/auth/refresh` bị 401 mà lại đem đi refresh sẽ lặp vô hạn; chặn bằng không refresh cho `/auth/refresh`, `/auth/login` và chỉ gửi lại request gốc đúng 1 lần.
 
 > Phần dưới do Claude ghi (chế độ sprint, A vắng mặt). Nhánh `a4-auth-ui` tách từ `origin/a2-api-client` (PR #26, chưa merge).
 

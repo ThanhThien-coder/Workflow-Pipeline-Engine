@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
     List<NodeEntity> findByProjectIdAndAssignedUserIdAndStatusNot(Long projectId, Long assignedUserId, NodeStatus status);
 
     List<NodeEntity> findByProjectIdAndStatus(Long projectId, NodeStatus status);
+    long countByAssignedUserId(Long assignedUserId);
     long countByProjectIdAndStatus(Long projectId, NodeStatus status);
     long countByProjectId(Long projectId);
 
@@ -38,8 +40,12 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
     @Query("UPDATE NodeEntity n SET n.uiMetadata = :uiMetadata WHERE n.id = :id")
     int updateUiMetadata(@Param("id") Long id, @Param("uiMetadata") Map<String, Object> uiMetadata);
 
-    List<NodeEntity> findByStatusAndDueDateBeforeAndIsOverdueFalse(NodeStatus status, java.time.Instant now);
+    List<NodeEntity> findByStatusAndDueDateBeforeAndIsOverdueFalse(NodeStatus status, Instant now);
 
     @Query("SELECT n.projectId, n.status, COUNT(n) FROM NodeEntity n WHERE n.projectId IN :projectIds GROUP BY n.projectId, n.status")
     List<Object[]> countByProjectIdsGroupByStatus(@Param("projectIds") Collection<Long> projectIds);
+
+    @Modifying
+    @Query("DELETE FROM NodeEntity n WHERE n.projectId = :projectId")
+    void deleteByProjectId(@Param("projectId") Long projectId);
 }

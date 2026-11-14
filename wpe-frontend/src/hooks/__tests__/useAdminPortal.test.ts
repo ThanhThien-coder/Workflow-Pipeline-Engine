@@ -19,7 +19,7 @@ describe('useAdminPortal Hook DI & Business Logic Tests', () => {
     });
 
     expect(result.current.currentTab).toBe('overview');
-    expect(result.current.kpis?.totalUsers).toBe(1284);
+    expect(result.current.stats?.users.total).toBe(6);
     expect(result.current.users.length).toBeGreaterThan(0);
     expect(result.current.trends.length).toBe(7);
   });
@@ -72,31 +72,31 @@ describe('useAdminPortal Hook DI & Business Logic Tests', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    const userToSuspend = result.current.users.find((u) => u.id === 'usr_02JQ71')!;
+    const userToSuspend = result.current.users.find((u) => u.id === 'usr_04DV88')!;
 
     // Open ban modal
     act(() => {
       result.current.openBanModal(userToSuspend);
     });
     expect(result.current.isBanModalOpen).toBe(true);
-    expect(result.current.selectedUserToBan?.id).toBe('usr_02JQ71');
+    expect(result.current.selectedUserToBan?.id).toBe('usr_04DV88');
 
     // Suspend user
     await act(async () => {
-      await result.current.handleSuspendUser('usr_02JQ71', 'SECURITY_RISK');
+      await result.current.handleSuspendUser('usr_04DV88', 'SECURITY_RISK');
     });
 
     expect(result.current.isBanModalOpen).toBe(false);
-    const updated = result.current.users.find((u) => u.id === 'usr_02JQ71');
+    const updated = result.current.users.find((u) => u.id === 'usr_04DV88');
     expect(updated?.status).toBe('SUSPENDED');
     expect(result.current.toasts.length).toBeGreaterThan(0);
     expect(result.current.toasts[result.current.toasts.length - 1].tone).toBe('rose');
 
     // Unban user
     await act(async () => {
-      await result.current.handleUnbanUser('usr_02JQ71');
+      await result.current.handleUnbanUser('usr_04DV88');
     });
-    const unbanned = result.current.users.find((u) => u.id === 'usr_02JQ71');
+    const unbanned = result.current.users.find((u) => u.id === 'usr_04DV88');
     expect(unbanned?.status).toBe('ACTIVE');
     expect(result.current.toasts[result.current.toasts.length - 1].tone).toBe('emerald');
   });
@@ -113,6 +113,7 @@ describe('useAdminPortal Hook DI & Business Logic Tests', () => {
     });
 
     expect(result.current.trendRange).toBe('30D');
-    expect(result.current.trends[0].label).toBe('Sep 7');
+    expect(result.current.trends).toHaveLength(30);
+    expect(result.current.trends[0].date).toBeDefined();
   });
 });

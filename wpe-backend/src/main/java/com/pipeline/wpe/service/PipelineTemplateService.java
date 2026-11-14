@@ -14,6 +14,8 @@ import com.pipeline.wpe.exception.CycleDetectedException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
+import com.pipeline.wpe.service.admin.AdminAuditAction;
+import com.pipeline.wpe.service.admin.AdminAuditService;
 import com.pipeline.wpe.service.engine.KahnDagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,22 +38,57 @@ public class PipelineTemplateService {
     private final NodeRepository nodeRepository;
     private final NodeDependencyRepository nodeDependencyRepository;
     private final PhaseDependencyRepository phaseDependencyRepository;
+    private final AdminAuditService adminAuditService;
 
     /**
      * 10.3.1 Lấy danh mục quy trình mẫu
      */
     @Transactional(readOnly = true)
     public List<TemplateSummaryResponse> getTemplates(String category, String search, Boolean isSystemStandard) {
-        return getTemplates(category, search, isSystemStandard, null);
+        return getTemplates(category, search, isSystemStandard, null, null, false);
     }
 
     @Transactional(readOnly = true)
     public List<TemplateSummaryResponse> getTemplates(String category, String search, Boolean isSystemStandard, Long currentUserId) {
+        return getTemplates(category, search, isSystemStandard, currentUserId, null, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TemplateSummaryResponse> getTemplates(String category, String search, Boolean isSystemStandard, Long currentUserId, String visibility) {
+        return getTemplates(category, search, isSystemStandard, currentUserId, visibility, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TemplateSummaryResponse> getTemplates(String category, String search, Boolean isSystemStandard, Long currentUserId, String visibility, Boolean includeHidden) {
+        final TemplateVisibility targetVisibility;
+        if (visibility != null && !visibility.trim().isEmpty()) {
+            String v = visibility.trim();
+            if ("PUBLIC".equalsIgnoreCase(v)) {
+                targetVisibility = TemplateVisibility.PUBLIC;
+            } else if ("PRIVATE".equalsIgnoreCase(v)) {
+                targetVisibility = TemplateVisibility.PRIVATE;
+            } else {
+                throw new IllegalArgumentException("visibility chỉ nhận PUBLIC hoặc PRIVATE");
+            }
+        } else {
+            targetVisibility = null;
+        }
+
+        boolean allowHidden = Boolean.TRUE.equals(includeHidden) && isAdmin(currentUserId);
+
         List<PipelineTemplateEntity> all = templateRepository.findAll();
 
         return all.stream()
             .filter(t -> canView(t, currentUserId))
             .filter(t -> {
+                boolean isHidden = Boolean.TRUE.equals(t.getIsHidden());
+                if (isHidden && !allowHidden) {
+                    return false;
+                }
+                if (targetVisibility != null) {
+                    TemplateVisibility v = t.getVisibility() != null ? t.getVisibility() : TemplateVisibility.PUBLIC;
+                    if (v != targetVisibility) return false;
+                }
                 if (category != null && !category.isBlank() && !"All".equalsIgnoreCase(category)) {
                     if (!category.equalsIgnoreCase(t.getCategory())) return false;
                 }
@@ -83,7 +120,8 @@ public class PipelineTemplateService {
         PipelineTemplateEntity template = templateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với ID: " + id));
 
-        if (!canView(template, currentUserId)) {
+        boolean isHidden = Boolean.TRUE.equals(template.getIsHidden());
+        if ((isHidden && !isAdmin(currentUserId)) || !canView(template, currentUserId)) {
             throw new ResourceNotFoundException("Không tìm thấy Template với ID: " + id);
         }
 
@@ -98,7 +136,8 @@ public class PipelineTemplateService {
     @Transactional(readOnly = true)
     public TemplateDetailResponse getTemplateByIdOrSlug(String idOrSlug, Long currentUserId) {
         PipelineTemplateEntity template = findTemplateEntity(idOrSlug);
-        if (!canView(template, currentUserId)) {
+        boolean isHidden = Boolean.TRUE.equals(template.getIsHidden());
+        if ((isHidden && !isAdmin(currentUserId)) || !canView(template, currentUserId)) {
             try {
                 Long.parseLong(idOrSlug.trim());
                 throw new ResourceNotFoundException("Không tìm thấy Template với ID: " + idOrSlug);
@@ -165,6 +204,7 @@ public class PipelineTemplateService {
 
         PipelineTemplateEntity saved = templateRepository.save(entity);
         log.info("Template #{} ('{}') created by user #{}", saved.getId(), saved.getName(), currentUserId);
+        adminAuditService.record(currentUserId, null, AdminAuditAction.TEMPLATE_CREATED, "TEMPLATE", String.valueOf(saved.getId()), saved.getName());
         return mapToDetailResponse(saved);
     }
 
@@ -198,6 +238,7 @@ public class PipelineTemplateService {
         template.setUpdatedAt(Instant.now());
 
         PipelineTemplateEntity saved = templateRepository.save(template);
+        adminAuditService.record(currentUserId, null, AdminAuditAction.TEMPLATE_UPDATED, "TEMPLATE", String.valueOf(saved.getId()), saved.getName());
         return mapToDetailResponse(saved);
     }
 
@@ -211,12 +252,28 @@ public class PipelineTemplateService {
 
         requireCanManage(template, currentUserId);
 
-        if (Boolean.TRUE.equals(template.getIsSystemStandard())) {
-            throw new ConflictException("SYSTEM_TEMPLATE_LOCKED", "Không thể xóa template chuẩn của hệ thống.");
-        }
-
         templateRepository.delete(template);
         log.info("Template #{} deleted by user #{}", id, currentUserId);
+        adminAuditService.record(currentUserId, null, AdminAuditAction.TEMPLATE_DELETED, "TEMPLATE", String.valueOf(id), template.getName());
+    }
+
+    @Transactional
+    public TemplateSummaryResponse setTemplateHidden(String idOrSlug, Boolean hidden, Long currentUserId) {
+        requireAdmin(currentUserId);
+
+        PipelineTemplateEntity template = findTemplateEntity(idOrSlug);
+        if (template.getVisibility() == TemplateVisibility.PRIVATE) {
+            throw new ConflictException("TEMPLATE_NOT_PUBLIC", "Chỉ ẩn/hiện được template công khai.");
+        }
+
+        template.setIsHidden(Boolean.TRUE.equals(hidden));
+        template.setUpdatedAt(Instant.now());
+
+        PipelineTemplateEntity saved = templateRepository.save(template);
+        String action = Boolean.TRUE.equals(hidden) ? AdminAuditAction.TEMPLATE_HIDDEN : AdminAuditAction.TEMPLATE_SHOWN;
+        adminAuditService.record(currentUserId, null, action, "TEMPLATE", String.valueOf(saved.getId()), saved.getName());
+
+        return mapToSummaryResponse(saved);
     }
 
     /**
@@ -427,7 +484,7 @@ public class PipelineTemplateService {
             t.getName(),
             t.getDescription(),
             t.getCategory(),
-            t.getIsSystemStandard(),
+            t.getIsSystemStandard() != null && t.getIsSystemStandard(),
             phaseCount,
             nodeCount,
             t.getCloneCount() != null ? t.getCloneCount() : 0,
@@ -435,7 +492,8 @@ public class PipelineTemplateService {
             t.getCreatedAt(),
             t.getUpdatedAt(),
             visibilityStr,
-            t.getSourceProjectId()
+            t.getSourceProjectId(),
+            Boolean.TRUE.equals(t.getIsHidden())
         );
     }
 
@@ -455,7 +513,8 @@ public class PipelineTemplateService {
             summary.updatedAt(),
             t.getGraphData() != null ? t.getGraphData() : Collections.emptyMap(),
             summary.visibility(),
-            summary.sourceProjectId()
+            summary.sourceProjectId(),
+            summary.isHidden()
         );
     }
 }

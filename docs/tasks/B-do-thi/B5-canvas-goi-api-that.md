@@ -2,7 +2,7 @@
 
 Người làm: B
 Người review: C
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: A2, B3
 Cần trước bước frontend: không
 Mở khóa: B6
@@ -248,3 +248,6 @@ dự án 5 đổi ARCHIVED bằng SQL, alex PUT phase         → HTTP 409 {"err
 - **File chính đã sửa:**
 - **Vì sao làm vậy** (tự viết):
 - **Cần học lại:**
+
+## Review của C (12/11/2026, chế độ sprint)
+Đạt 2 tiêu chí review sprint: (1) test xanh: C chạy `npm run typecheck` pass và `npx vitest run` 248/248 pass (33 file) sau khi #32 merge; (2) PR #32 sửa 20 file trong "Được ghi". `services/impl/http/__tests__/graph.test.ts` là test của `graph.ts` (được ghi), mục "Được ghi" không ghi rõ "và test" như `graphMapper`; chấp nhận.

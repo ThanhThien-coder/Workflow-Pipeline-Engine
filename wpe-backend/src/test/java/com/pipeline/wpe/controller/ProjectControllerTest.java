@@ -6,7 +6,10 @@ import com.pipeline.wpe.dto.project.CreateProjectRequest;
 import com.pipeline.wpe.dto.project.ProjectDetailResponse;
 import com.pipeline.wpe.dto.project.ProjectSummaryResponse;
 import com.pipeline.wpe.dto.project.UpdateProjectStatusRequest;
+import com.pipeline.wpe.exception.AccessDeniedException;
 import com.pipeline.wpe.exception.ConflictException;
+import com.pipeline.wpe.exception.ForbiddenException;
+import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.ProjectService;
 import com.pipeline.wpe.service.TemplateCloneService;
@@ -25,6 +28,8 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -207,5 +212,75 @@ class ProjectControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidReq)))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("FC4: PATCH /api/v1/projects/{id}/status - Archive dự án DRAFT trả về 200 ARCHIVED")
+    void testArchiveDraftProject_returns200() throws Exception {
+        UpdateProjectStatusRequest request = new UpdateProjectStatusRequest("ARCHIVED");
+        ProjectSummaryResponse archivedSummary = new ProjectSummaryResponse(
+            1L, "Draft Pipeline", "Desc", "ARCHIVED",
+            2L, "Alex Kim", 0, 0, 0, 0.0, now, now,
+            0, 0, 0
+        );
+
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(2L);
+        when(projectService.updateProjectStatus(eq(1L), any(UpdateProjectStatusRequest.class), eq(2L)))
+            .thenReturn(archivedSummary);
+
+        mockMvc.perform(patch("/api/v1/projects/1/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("ARCHIVED"));
+    }
+
+    @Test
+    @DisplayName("FC4: PATCH /api/v1/projects/{id}/status - Người không phải owner trả về 403")
+    void testUpdateProjectStatus_returns403_whenNotOwner() throws Exception {
+        UpdateProjectStatusRequest request = new UpdateProjectStatusRequest("ARCHIVED");
+
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
+        when(projectService.updateProjectStatus(eq(1L), any(UpdateProjectStatusRequest.class), eq(99L)))
+            .thenThrow(new AccessDeniedException("Chỉ chủ sở hữu dự án mới có quyền đổi trạng thái"));
+
+        mockMvc.perform(patch("/api/v1/projects/1/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("FC4: DELETE /api/v1/projects/{id} - Chủ dự án xóa trả về 204 NO CONTENT")
+    void testDeleteProject_byOwner_returns204() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(2L);
+        doNothing().when(projectService).deleteProject(1L, 2L);
+
+        mockMvc.perform(delete("/api/v1/projects/1"))
+            .andExpect(status().isNoContent());
+
+        verify(projectService).deleteProject(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("FC4: DELETE /api/v1/projects/{id} - Người không phải chủ dự án trả về 403 FORBIDDEN")
+    void testDeleteProject_byNonOwner_returns403() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
+        doThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."))
+            .when(projectService).deleteProject(1L, 99L);
+
+        mockMvc.perform(delete("/api/v1/projects/1"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("FC4: DELETE /api/v1/projects/{id} - Dự án không tồn tại trả về 404 NOT FOUND")
+    void testDeleteProject_notFound_returns404() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(2L);
+        doThrow(new ResourceNotFoundException("Không tìm thấy dự án với ID: 999"))
+            .when(projectService).deleteProject(999L, 2L);
+
+        mockMvc.perform(delete("/api/v1/projects/999"))
+            .andExpect(status().isNotFound());
     }
 }

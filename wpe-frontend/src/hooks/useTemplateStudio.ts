@@ -851,7 +851,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       };
 
       // Check if updating existing template
-      const existingList = await container.templateService.getTemplates();
+      const existingList = await container.templateService.getTemplates({ includeHidden: true });
       const exists = existingList.some((t) => t.id === currentDraft.id);
 
       if (exists) {

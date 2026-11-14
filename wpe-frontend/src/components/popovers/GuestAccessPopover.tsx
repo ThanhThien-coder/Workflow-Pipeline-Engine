@@ -48,17 +48,20 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="dialog"
         aria-expanded={open}
+        title={!canManage ? 'Chỉ chủ dự án mới tạo được link khách' : undefined}
         className={`relative flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
           open
             ? 'border-slate-400 bg-slate-50 text-slate-800 ring-2 ring-slate-100'
             : state.isActive
               ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-              : 'border-red-200 bg-white text-red-700 hover:border-red-300 hover:bg-red-50'
+              : canManage
+                ? 'border-red-200 bg-white text-red-700 hover:border-red-300 hover:bg-red-50'
+                : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
         }`}
       >
         <Link size={16} />
-        {state.isActive ? 'Share Guest Link' : 'Guest Link (Revoked)'}
-        {!state.isActive && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />}
+        {state.isActive ? 'Share Guest Link' : canManage ? 'Guest Link (Revoked)' : 'Guest Link (Owner only)'}
+        {!state.isActive && canManage && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />}
       </button>
 
       {open && (
@@ -105,36 +108,48 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
                 <li>Expires: {state.expiresLabel}</li>
                 <li className="font-mono text-[11px]">token: {state.token}</li>
               </ul>
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCopied(false)
-                    void onRevoke()
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-300 bg-white py-2 text-xs font-semibold text-red-600 hover:border-red-400 hover:bg-red-50"
-                >
-                  <XCircle size={14} />
-                  Revoke Guest Access (Deactivate Token)
-                </button>
+              <button
+                type="button"
+                disabled={!canManage}
+                title={!canManage ? 'Chỉ chủ dự án mới thu hồi được link khách' : undefined}
+                onClick={() => {
+                  setCopied(false)
+                  void onRevoke()
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-300 bg-white py-2 text-xs font-semibold text-red-600 hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                <XCircle size={14} />
+                Revoke Guest Access (Deactivate Token)
+              </button>
+              {!canManage && (
+                <p data-testid="guest-owner-only-note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Chỉ chủ dự án mới tạo hoặc thu hồi được link khách.
+                </p>
               )}
             </div>
           ) : (
             <div className="fade-up space-y-4 px-5 py-4">
               <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
-                🔴 Link Revoked
+                🔴 {canManage ? 'Link Revoked' : 'Owner Only'}
               </span>
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                External guests can no longer access this project using previous links.
+                {canManage
+                  ? 'External guests can no longer access this project using previous links.'
+                  : state.expiresLabel || 'Chỉ chủ dự án mới có quyền quản lý link khách.'}
               </p>
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => void onGenerate()}
-                  className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700"
-                >
-                  Generate New Token
-                </button>
+              <button
+                type="button"
+                disabled={!canManage}
+                title={!canManage ? 'Chỉ chủ dự án mới tạo được link khách' : undefined}
+                onClick={() => void onGenerate()}
+                className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
+              >
+                Generate New Token
+              </button>
+              {!canManage && (
+                <p data-testid="guest-owner-only-note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Chỉ chủ dự án mới tạo được link khách.
+                </p>
               )}
             </div>
           )}

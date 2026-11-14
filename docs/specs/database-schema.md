@@ -123,6 +123,7 @@ erDiagram
         varchar category "Software Engineering Marketing DevOps General"
         bigint created_by FK
         boolean is_system_standard "DEFAULT FALSE"
+        boolean is_hidden "DEFAULT FALSE (V14)"
         jsonb graph_data "nodes edges metadata"
         int clone_count "DEFAULT 0"
         timestamp created_at
@@ -320,6 +321,7 @@ Lưu trữ các mẫu quy trình tiêu chuẩn do Quản trị viên thiết l�
 | `category` | `varchar(50)` | NOT NULL | `'General'` | Phân loại: `'Software Engineering'`, `'DevOps'`, `'Marketing'`, `'General'`. |
 | `created_by` | `bigint` | FK (USERS.id), NOT NULL | | Quản trị viên khởi tạo mẫu. |
 | `is_system_standard` | `boolean` | NOT NULL | `FALSE` | `TRUE` = Mẫu hệ thống công khai; `FALSE` = Bản nháp DRAFT. |
+| `is_hidden` | `boolean` | NOT NULL | `FALSE` | Cờ ẩn template mẫu do Admin quản lý (thêm ở **V14**). Template bị ẩn không hiện ở màn tạo dự án của user và không clone được, chỉ Admin thấy trong catalog để hiện lại. |
 | `graph_data` | `jsonb` | NOT NULL | | Cấu trúc đồ thị mẫu 2 tầng (phases, phaseEdges, nodes, edges). |
 | `clone_count` | `int` | NOT NULL | `0` | Số lượt dự án đã nhân bản từ mẫu này. |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm tạo mẫu. |
@@ -469,6 +471,28 @@ Lưu trữ thông báo in-app phục vụ icon quả chuông trên thanh Topbar 
 | `link_url` | `varchar(500)` | NULLABLE | | Đường dẫn điều hướng nhanh khi click vào thông báo. |
 | `is_read` | `boolean` | NOT NULL | `FALSE` | Cờ đã đọc (`FALSE` = hiển thị chấm đỏ). |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm sinh thông báo. |
+
+---
+
+### 3.13 Bảng `ADMIN_AUDIT_LOG` (Nhật ký Hệ thống Admin)
+Lưu vết các thao tác quản trị và sự kiện bảo mật cấp hệ thống (đăng nhập, quản trị tài khoản, template).
+Ghi chú: V13 migration, không đặt FK tới `users` để log vẫn còn khi user bị xóa.
+
+| Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mặc Định | Ý Nghĩa Nghiệp Vụ |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `bigint` | PK, Auto Increment | | Khóa chính nhật ký hệ thống. |
+| `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm phát sinh sự kiện. |
+| `actor_user_id` | `bigint` | NULLABLE | `NULL` | ID người thực hiện (`NULL` khi đăng nhập sai user không tồn tại). |
+| `actor_username` | `varchar(100)` | NULLABLE | | Tên tài khoản người thực hiện. |
+| `action` | `varchar(50)` | NOT NULL | | Mã hành vi (`LOGIN_SUCCESS`, `LOGIN_FAILED`, `USER_SUSPENDED`, v.v.). |
+| `target_type` | `varchar(30)` | NULLABLE | | Loại đối tượng chịu tác động (`USER`, `TEMPLATE`). |
+| `target_id` | `varchar(50)` | NULLABLE | | Định danh đối tượng chịu tác động. |
+| `detail` | `text` | NULLABLE | | Chi tiết sự kiện (lý do khóa, ghi chú, tên template, v.v.). |
+| `ip_address` | `varchar(64)` | NULLABLE | | Địa chỉ IP của client gửi request. |
+
+* **Chỉ mục (Indexes)**:
+  - `idx_admin_audit_log_created_at`: `CREATE INDEX idx_admin_audit_log_created_at ON admin_audit_log (created_at DESC);`
+  - `idx_admin_audit_log_action`: `CREATE INDEX idx_admin_audit_log_action ON admin_audit_log (action);`
 
 ---
 

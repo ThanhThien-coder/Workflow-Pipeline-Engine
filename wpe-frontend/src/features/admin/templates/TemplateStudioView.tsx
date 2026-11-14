@@ -13,18 +13,27 @@ export interface SaveErrorDescription {
   keepOpen: boolean;
 }
 
-export function describeSaveError(err: unknown): SaveErrorDescription {
+export function describeSaveError(
+  err: unknown,
+  nameOf?: (id: string) => string | undefined
+): SaveErrorDescription {
   if (isApiError(err)) {
     if (err.status === 422) {
+      const cycleIds = err.cycleNodes ?? [];
+      let message = 'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.';
+      if (cycleIds.length > 0) {
+        const names = cycleIds.map((id) => (nameOf ? nameOf(id) ?? id : id));
+        message = 'Đồ thị có chu trình lặp ở: ' + names.join(', ');
+      }
       return {
-        message: 'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.',
-        cycleIds: err.cycleNodes ?? [],
+        message,
+        cycleIds,
         keepOpen: true,
       };
     }
     if (err.status === 403) {
       return {
-        message: 'Chỉ quản trị viên được chỉnh sửa template',
+        message: 'Chỉ quản trị viên mới lưu được template',
         cycleIds: [],
         keepOpen: true,
       };
@@ -142,7 +151,14 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
       onToast(msg, 'emerald');
       onClose();
     } catch (err: unknown) {
-      const desc = describeSaveError(err);
+      const nameOf = (id: string): string | undefined => {
+        const phase = draft.graphData?.phases?.find((p) => p && p.id === id);
+        if (phase?.name) return phase.name;
+        const node = draft.graphData?.nodes?.find((n) => n && n.id === id);
+        if (node?.title) return node.title;
+        return undefined;
+      };
+      const desc = describeSaveError(err, nameOf);
       if (desc.cycleIds.length > 0) {
         draftAtErrorRef.current = draft;
         setServerCycleIds(desc.cycleIds);

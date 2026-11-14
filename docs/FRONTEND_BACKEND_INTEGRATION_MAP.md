@@ -1058,75 +1058,329 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 
 ## Cụm 10: Quản Trị Hệ Thống & Template Studio (Admin Portal)
 
-### 10.1 Quản lý người dùng, che email/IP, khóa/mở tài khoản (`GET/POST /api/admin/users/*`)
-1. **Mục tiêu Nghiệp vụ**: Quản trị viên hệ thống (Super Admin) xem danh sách người dùng toàn sàn với cơ chế che dữ liệu nhạy cảm (Data Masking: `a***@domain.com`), tạm khóa tài khoản vi phạm và mở khóa.
+### 10.1 Quản lý người dùng, phân quyền & chuyển giao tài khoản (`GET/POST/PATCH/DELETE /api/v1/admin/users/*`)
+1. **Mục tiêu Nghiệp vụ**: Quản trị viên hệ thống (Super Admin) quản lý danh sách người dùng toàn sàn với cơ chế che dữ liệu nhạy cảm (Data Masking email dạng `a***@pipeline.engine`). Hỗ trợ tra cứu, tạm khóa tài khoản vi phạm, mở khóa, chuyển đổi vai trò `USER ↔ ADMIN`, xóa tài khoản trắng chưa phát sinh dữ liệu, và kiểm tra danh sách dự án do người dùng sở hữu.
+   - **Quy tắc phân quyền & kiểm soát an toàn**:
+     - **Không khóa / xóa tài khoản Quản trị viên**: Thao tác khóa tài khoản có vai trò `ADMIN` bị từ chối với HTTP 403 `CANNOT_SUSPEND_ADMIN`. Thao tác xóa tài khoản `ADMIN` bị từ chối với HTTP 403 `CANNOT_DELETE_ADMIN` (bắt buộc hạ quyền về USER trước khi xóa).
+     - **Không tự thao tác trên chính mình**: Quản trị viên không được phép tự hạ quyền của chính mình (HTTP 403 `CANNOT_DEMOTE_SELF`) và không được phép tự xóa tài khoản của chính mình (HTTP 403 `CANNOT_DELETE_SELF`).
+     - **Bảo vệ Quản trị viên hoạt động cuối cùng**: Khi thực hiện hạ quyền `ADMIN -> USER`, hệ thống kích hoạt khóa hàng `PESSIMISTIC_WRITE` qua `userRepository.lockActiveAdmins()`. Nếu người dùng này là quản trị viên đang hoạt động duy nhất còn lại trong hệ thống, yêu cầu bị từ chối với HTTP 409 `LAST_ADMIN`.
+     - **Điều kiện nâng quyền Quản trị viên**: Tài khoản đang bị khóa (`is_locked = TRUE`) không được phép nâng quyền lên `ADMIN`, hệ thống từ chối với HTTP 409 `USER_LOCKED` (yêu cầu mở khóa tài khoản trước).
+     - **Thu hồi phiên làm việc tức thì khi hạ quyền**: Khi hạ quyền từ `ADMIN` xuống `USER`, hệ thống tự động tăng `token_version += 1` và thu hồi toàn bộ refresh token qua `RefreshTokenService.revokeAllForUser(userId)` nhằm vô hiệu hóa ngay lập tức các phiên đăng nhập quản trị đang mở.
+     - **Chỉ xóa tài khoản trắng (Empty Account)**: Hệ thống đếm đủ 6 loại dữ liệu nghiệp vụ liên kết trước khi cho phép xóa vĩnh viễn:
+       1. Số dự án đang sở hữu (`projectRepository.countByOwnerId`)
+       2. Số template quy trình đã tạo (`pipelineTemplateRepository.countByCreatedBy`)
+       3. Số tài nguyên minh chứng đã tải lên (`artifactRepository.countByUploadedBy`)
+       4. Số lời mời tham gia gửi đi hoặc nhận về (`projectInvitationRepository.countByInviterIdOrInviteeId`)
+       5. Số lần tham gia vào các dự án (`projectMemberRepository.countByUserId`)
+       6. Số tác vụ được phân công thực hiện (`nodeRepository.countByAssignedUserId`)
+       Nếu tổng số liên kết lớn hơn 0, hệ thống từ chối xóa với HTTP 409 `USER_HAS_DATA` kèm thông điệp chi tiết số lượng dữ liệu đang gắn, yêu cầu quản trị viên chuyển sang thao tác khóa tài khoản thay vì xóa.
+     - **Các chức năng KHÔNG cung cấp tại Admin Portal (theo đề xuất đã duyệt)**:
+       - *Không có thêm tài khoản từ Admin*: Không có thêm tài khoản từ admin: người dùng tự đăng ký (UC1), nhóm đã quyết 14/11. Nếu admin tạo tài khoản kèm mật khẩu tạm thì admin biết mật khẩu đó và có thể đăng nhập xem trộm dữ liệu task của người dùng, vi phạm nguyên tắc bảo mật.
+       - *Không có đặt lại mật khẩu bằng mật khẩu tạm*: Admin biết mật khẩu tạm sẽ đăng nhập được vào tài khoản người khác và xem trộm nội dung công việc bên trong workspace, vi phạm đặc tả kiến trúc (system-overview dòng 79).
+       - *Không sửa email trong Admin*: Email thuộc quyền riêng tư của người dùng, người dùng tự đổi trong Hồ sơ cá nhân. Ngoài ra, giao diện Admin hiển thị email đã che (`a***@domain.com`), nếu cho gửi cập nhật sẽ vô tình ghi đè email bị che lên email thật trong DB.
 2. **Luồng Mã Nguồn**:
-   - `src/features/admin/tabs/AdminUsersTab.tsx` -> `useAdminPortal` (`suspendUser`, `unbanUser`) -> `container.adminService.getUsers()`, `suspendUser()`, `unbanUser()` -> `IAdminService`.
+   - `src/features/admin/tabs/UserManagementTab.tsx`, `ConfirmActionModal.tsx`, `BanConfirmModal.tsx`, `OwnedProjectsDrawer.tsx` -> `useAdminPortal` (`filteredUsers`, `handleSuspendUser`, `handleUnbanUser`, `handleChangeRole`, `handleDeleteUser`, `loadOwnedProjects`) -> `container.adminService` (`getUsers`, `suspendUser`, `unbanUser`, `changeUserRole`, `deleteUser`, `getOwnedProjects`) -> `HttpAdminService` -> `AdminController` (`AdminUserService`, `AdminProjectOwnerService`).
 3. **Request DTO**:
-   - Lấy danh sách: `GET /api/admin/users?query=&status=`, Headers: `Authorization: Bearer <jwt>` (Role: ADMIN).
-   - Tạm khóa: `POST /api/admin/users/{id}/suspend`, Body: `{ "reason": "Vi phạm chính sách bảo mật", "durationDays": 7 }`.
-   - Mở khóa: `POST /api/admin/users/{id}/unban`.
+   - Lấy danh sách người dùng:
+     - **Method & URL**: `GET /api/v1/admin/users?query=&status=ACTIVE|SUSPENDED`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Query Params**:
+       - `query`: Chuỗi tìm kiếm theo họ tên (`fullName`) hoặc tên tài khoản (`username`), không phân biệt hoa thường. **Tuyệt đối KHÔNG tìm kiếm theo email** (tránh làm lộ hoặc suy đoán email người dùng).
+       - `status`: `ACTIVE` (người dùng không bị khóa) hoặc `SUSPENDED` (người dùng đang bị khóa).
+   - Tạm khóa tài khoản:
+     - **Method & URL**: `POST /api/v1/admin/users/{id}/suspend`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Body JSON**:
+       ```json
+       {
+         "reason": "TERMS_VIOLATION",
+ 
+         "note": "Vi phạm chính sách nội dung cộng đồng"
+       }
+       ```
+   - Mở khóa tài khoản:
+     - **Method & URL**: `POST /api/v1/admin/users/{id}/unban`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+   - Đổi vai trò (Nâng / Hạ quyền):
+     - **Method & URL**: `PATCH /api/v1/admin/users/{id}/role`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Body JSON**: `{ "role": "ADMIN" }` hoặc `{ "role": "USER" }`
+   - Xóa tài khoản trắng:
+     - **Method & URL**: `DELETE /api/v1/admin/users/{id}`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+   - Xem danh sách dự án người dùng đang sở hữu:
+     - **Method & URL**: `GET /api/v1/admin/users/{id}/owned-projects`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `USERS`, `REFRESH_TOKEN`.
-   - Kiểm tra quyền: Caller bắt buộc có `system_role == 'ADMIN'`. Không cho phép khóa tài khoản Super Admin.
-   - Khi Suspend: Cập nhật `USERS.is_locked = TRUE`, tăng `USERS.token_version += 1` (thu hồi tức thì mọi phiên đăng nhập). Đánh dấu toàn bộ `REFRESH_TOKEN.revoked = TRUE`.
-   - Khi Unban: Cập nhật `USERS.is_locked = FALSE`.
+   - Bảng tác động: `USERS`, `REFRESH_TOKEN`, `PROJECT`, `PROJECT_MEMBER`, `PIPELINE_TEMPLATE`, `ARTIFACTS`, `PROJECT_INVITATION`, `NODE`, `ADMIN_AUDIT_LOG`.
+   - `GET /api/v1/admin/users`: Nạp danh sách `UserEntity`, lọc theo `query` (username, fullName) và `status`, đếm số dự án sở hữu (`countByOwnerId`), số dự án tham gia không phải OWNER (`countByUserIdAndRemovedAtIsNullAndRoleNot`), che email qua `EmailMasker.mask(email)`.
+   - `POST /api/v1/admin/users/{id}/suspend`: Kiểm tra `systemRole != ADMIN` -> đặt `is_locked = TRUE`, tăng `token_version += 1`, thu hồi toàn bộ refresh token, ghi audit log `USER_SUSPENDED`.
+   - `POST /api/v1/admin/users/{id}/unban`: Đặt `is_locked = FALSE`, ghi audit log `USER_UNBANNED`.
+   - `PATCH /api/v1/admin/users/{id}/role`:
+     - Nâng lên `ADMIN`: kiểm tra `is_locked == FALSE` (nếu true ném `ConflictException("USER_LOCKED")`). Cập nhật `system_role = 'ADMIN'`, ghi audit log `USER_ROLE_CHANGED` ("USER -> ADMIN").
+     - Hạ xuống `USER`: kiểm tra `userId != actorUserId` (`CANNOT_DEMOTE_SELF`), khóa hàng các active admin bằng `PESSIMISTIC_WRITE` và kiểm tra không phải admin cuối cùng (`LAST_ADMIN`), cập nhật `system_role = 'USER'`, tăng `token_version += 1`, thu hồi refresh token, ghi audit log `USER_ROLE_CHANGED` ("ADMIN -> USER").
+   - `DELETE /api/v1/admin/users/{id}`: Kiểm tra `userId != actorUserId` (`CANNOT_DELETE_SELF`), `systemRole != ADMIN` (`CANNOT_DELETE_ADMIN`), kiểm tra tổng 6 loại liên kết bằng 0 (`USER_HAS_DATA`), ghi audit log `USER_DELETED`, xóa bản ghi khỏi bảng `USERS`.
+   - `GET /api/v1/admin/users/{id}/owned-projects`: Trả về danh sách dự án do user sở hữu kèm số lượng thành viên và danh sách ứng viên chuyển chủ hợp lệ (`candidates`).
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `200 OK`. Body: `AdminUserDto`.
-   - **UI Mutation**: Cập nhật badge trạng thái người dùng (Active / Suspended), hiển thị Toast thông báo.
+   - **GET /users**: `200 OK`. Body: `AdminUserResponse[]` (`id`, `name`, `username`, `maskedEmail`, `role`, `status`, `ownedProjectCount`, `joinedProjectCount`, `createdAt`).
+   - **POST /suspend**, **POST /unban**, **PATCH /role**: `200 OK`. Body: `AdminUserResponse`.
+   - **DELETE /users/{id}**: `204 No Content`.
+   - **GET /owned-projects**: `200 OK`. Body: `OwnedProjectResponse[]` (`projectId`, `name`, `status`, `memberCount`, `candidates: [{ userId, name, username }]`).
+   - **UI Mutation**: Cập nhật badge trạng thái (Active / Suspended) và vai trò (USER / ADMIN) ngay trên hàng của bảng người dùng; mở drawer danh sách dự án sở hữu `OwnedProjectsDrawer`; hiển thị modal cảnh báo xác nhận `ConfirmActionModal` / `BanConfirmModal`; hiển thị Toast thông báo kết quả hoặc Toast đỏ với mã lỗi rõ ràng khi vi phạm quy tắc.
 
 ---
 
-### 10.2 Admin lưu trữ/dọn dẹp dự án không hoạt động (`POST /api/admin/workspaces/{id}/archive`)
-1. **Mục tiêu Nghiệp vụ**: Quản trị viên rà soát các dự án không hoạt động và chuyển sang trạng thái lưu trữ (`ARCHIVED`). Tuyệt đối không đọc trộm nội dung Task bên trong dự án.
+### 10.2 Quản trị Không gian Làm việc & Chuyển Chủ Dự án (`GET/POST /api/v1/admin/workspaces/*`, `/projects/*/transfer-owner`)
+1. **Mục tiêu Nghiệp vụ**: Quản trị viên rà soát toàn bộ các Không gian Làm việc (Workspace / Project) trên hệ thống ở mức **Metadata Quản trị**. Hỗ trợ xem danh sách, xem chi tiết trong ngăn kéo (Drawer), chuyển trạng thái lưu trữ (`ARCHIVED`) cho dự án không hoạt động, và chuyển quyền sở hữu dự án (`transfer-owner`) khi chủ cũ bị khóa hoặc rời nhóm mà dự án cần người tiếp quản.
+   - **Nguyên tắc Quản trị Metadata**: Quản trị viên chỉ xem các thông số tổng hợp (tên, mô tả, trạng thái, chủ sở hữu, cơ cấu vai trò thành viên, tiến độ %, task quá hạn, hạn link khách). **Tuyệt đối KHÔNG trả nội dung task, tiêu đề task, mô tả task, file artifact hay đồ thị DAG Canvas**.
+   - **Quy tắc Chuyển quyền Sở hữu (Transfer Owner)**:
+      - Luật `PROJECT_CLOSED` (Nhóm đã quyết 14/11): Nếu dự án đã ở trạng thái lưu trữ (`ARCHIVED`) hoặc hoàn thành (`COMPLETED`) -> hệ thống từ chối chuyển chủ với HTTP 409 `PROJECT_CLOSED` ("Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."). Kiểm tra ngay sau khi tìm thấy dự án, trước mọi kiểm tra khác về chủ mới. Giao diện (OwnedProjectsDrawer, WorkspaceDetailDrawer) không hiện select/nút chuyển chủ mà thay bằng thông báo này.
+     - Chủ mới phải là thành viên đang hoạt động trong dự án (`removed_at IS NULL`) và tài khoản không bị khóa (`is_locked = FALSE`), nếu không thỏa mãn từ chối với HTTP 409 `NEW_OWNER_NOT_ACTIVE_MEMBER`.
+     - Nếu chỉ định chủ mới trùng với chủ sở hữu hiện tại -> từ chối với HTTP 409 `ALREADY_OWNER`.
+     - Sau khi chuyển chủ thành công: `project.owner_id` đổi sang ID chủ mới, vai trò của chủ mới trong bảng `project_member` chuyển thành `OWNER`, vai trò của chủ cũ tự động chuyển thành `COLLABORATOR`.
+     - Dự án chỉ có 1 người (không có thành viên nào khác thỏa mãn điều kiện, danh sách ứng viên `candidates` rỗng): hệ thống không cho phép chuyển quyền sở hữu, chỉ cho phép lưu trữ (`ARCHIVED`).
+     - Lưu trữ dự án: Chuyển `project.status = 'ARCHIVED'`. Nếu dự án đã ở trạng thái ARCHIVED từ trước -> từ chối với HTTP 409 `ALREADY_ARCHIVED`.
 2. **Luồng Mã Nguồn**:
-   - `src/features/admin/tabs/AdminWorkspacesTab.tsx` -> `useAdminPortal.archiveWorkspace` -> `container.adminService.archiveWorkspace(workspaceId)`.
+   - `src/features/admin/tabs/WorkspacesTab.tsx`, `WorkspaceDetailDrawer.tsx` -> `useAdminPortal` (`workspaces`, `workspaceDetail`, `loadWorkspaceDetail`, `handleArchiveWorkspace`, `handleTransferOwner`) -> `container.adminService` (`getWorkspaces`, `getWorkspaceDetail`, `archiveWorkspace`, `transferProjectOwner`) -> `HttpAdminService` -> `AdminController` (`AdminWorkspaceService`, `AdminProjectOwnerService`).
 3. **Request DTO**:
-   - **Method & URL**: `POST /api/admin/workspaces/{workspaceId}/archive`
-   - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+   - Danh sách Workspaces:
+     - **Method & URL**: `GET /api/v1/admin/workspaces?query=&status=`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Query Params**: `query` (lọc theo tên dự án hoặc họ tên/username của chủ sở hữu; KHÔNG lọc email), `status` (DRAFT, PLANNING, ACTIVE, PAUSED, COMPLETED, ARCHIVED).
+   - Chi tiết Workspace (Metadata Drawer):
+     - **Method & URL**: `GET /api/v1/admin/workspaces/{id}`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+   - Lưu trữ Workspace:
+     - **Method & URL**: `POST /api/v1/admin/workspaces/{id}/archive`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+   - Chuyển quyền sở hữu dự án:
+     - **Method & URL**: `POST /api/v1/admin/projects/{projectId}/transfer-owner`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Body JSON**: `{ "newOwnerId": 456 }`
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `PROJECT`.
-   - Kiểm tra quyền ADMIN. Cập nhật `PROJECT.status = 'ARCHIVED'`, `updated_at = NOW()`.
+   - Bảng tác động: `PROJECT`, `PROJECT_MEMBER`, `WORK_PHASE`, `NODE`, `GUEST_LINK`, `PROJECT_INVITATION`, `USERS`, `ADMIN_AUDIT_LOG`.
+   - `GET /api/v1/admin/workspaces`: Tập hợp metadata dự án từ các bảng, tính toán số thành viên active, số phase, số node, số node DONE, tỷ lệ phần trăm hoàn thành `%`, che email của owner dạng `EmailMasker.mask(owner.getEmail())`.
+   - `GET /api/v1/admin/workspaces/{id}`: Tập hợp chi tiết: thông tin owner (id, name, maskedEmail), phân bố thành viên `membersByRole` đủ 4 role (OWNER, MANAGER, COLLABORATOR, VIEWER), số lời mời đang chờ `pendingInvitationCount`, số phase, tổng số node, phân bố `nodesByStatus` đủ 5 trạng thái (LOCKED, TODO, IN_PROGRESS, REVIEW, DONE), tiến độ hoàn thành %, số task quá hạn `overdueCount` (`dueDate < NOW()` và `status != DONE`), trạng thái link khách `guestLinkActive` / `guestLinkExpiresAt`, thời điểm hoạt động cuối cùng `lastActivityAt` (lấy max `updated_at` của nodes hoặc của project), và danh sách `ownerCandidates` hợp lệ.
+   - `POST /api/v1/admin/workspaces/{id}/archive`: Kiểm tra `project.status != ARCHIVED`, cập nhật `PROJECT.status = 'ARCHIVED'`, `updated_at = NOW()`, ghi audit log `WORKSPACE_ARCHIVED`.
+   - `POST /api/v1/admin/projects/{projectId}/transfer-owner`: Kiểm tra chủ mới hợp lệ -> Trong cùng 1 transaction: cập nhật `PROJECT.owner_id = newOwnerId`, cập nhật chủ mới `role = OWNER`, cập nhật chủ cũ `role = COLLABORATOR`, ghi audit log `PROJECT_OWNER_TRANSFERRED`.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `200 OK`. Body: `WorkspaceOverviewDto`.
-   - **UI Mutation**: Cập nhật trạng thái workspace thành ARCHIVED, cập nhật số liệu KPI hệ thống.
+   - **GET /workspaces**: `200 OK`. Body: `AdminWorkspaceResponse[]` (`id`, `name`, `ownerId`, `ownerName`, `ownerMaskedEmail`, `status`, `memberCount`, `phaseCount`, `nodeCount`, `doneNodeCount`, `progressPercentage`, `createdAt`, `updatedAt`).
+   - **GET /workspaces/{id}**: `200 OK`. Body: `AdminWorkspaceDetailResponse` (`id`, `name`, `description`, `status`, `createdAt`, `updatedAt`, `owner`, `membersByRole`, `pendingInvitationCount`, `phaseCount`, `nodeCount`, `nodesByStatus`, `progressPercentage`, `overdueCount`, `guestLinkActive`, `guestLinkExpiresAt`, `lastActivityAt`, `ownerCandidates`).
+   - **POST /archive**: `200 OK`. Body: `AdminWorkspaceResponse`.
+   - **POST /transfer-owner**: `200 OK`. Body: `OwnedProjectResponse`.
+   - **UI Mutation**: Bảng WorkspacesTab hiển thị danh sách dự án với badge trạng thái; nút "Xem chi tiết" mở `WorkspaceDetailDrawer` bên phải màn hình hiển thị đầy đủ 4 nhóm thông tin (Tổng quan, Thành viên, Tiến độ, Chia sẻ khách) mà không điều hướng vào đồ thị DAG; nút "Lưu trữ" trong bảng hoặc Drawer cập nhật trạng thái workspace thành ARCHIVED; modal chuyển chủ cho phép chọn ứng viên từ dropdown và cập nhật giao diện ngay lập tức.
 
 ---
 
-### 10.3 CRUD Template chuẩn hệ thống & Lưu đồ thị DAG 2 tầng (`GET/POST/PUT/DELETE /api/templates/*`)
-1. **Mục tiêu Nghiệp vụ**: Quản trị viên thiết kế, lưu trữ, chỉnh sửa và nhân bản các mẫu quy trình công việc chuẩn 2 tầng (Macro Phases và Detail Nodes) với danh mục đa dạng (Software Engineering, Marketing, DevOps, General).
+### 10.3 Thiết kế & Thư viện Quy trình Mẫu Hệ thống (Template Studio & Catalog) (`GET/POST/PUT/DELETE /api/v1/templates/*`)
+1. **Mục tiêu Nghiệp vụ**: Quản trị viên thiết kế, thẩm định, lưu trữ và quản lý các mẫu quy trình công việc chuẩn 2 tầng (Macro Phases và Detail Nodes) cho toàn hệ thống.
+   - **Bộ lọc Catalog Admin (Chỉ hiển thị PUBLIC)**: Danh mục Template trong giao diện Admin Portal chỉ hiển thị các template `PUBLIC` (`visibility == 'PUBLIC'`) do Admin tạo dùng chung toàn sàn. Tuyệt đối không hiển thị các template cá nhân `PRIVATE` do người dùng tự lưu từ dự án của họ.
+   - **Thẩm định Đồ thị Kahn 2 tầng bắt buộc**: Mọi thao tác tạo mới hoặc cập nhật template đều bắt buộc chạy thuật toán Kahn thẩm định cấu trúc `graphData` không có chu trình. Nếu phát hiện chu trình, từ chối với HTTP 422 `CYCLE_DETECTED`.
+   - **Quyền xóa Template Chuẩn Hệ thống (Nhóm đã quyết 14/11)**: Admin được xóa cả template mẫu của hệ thống (`is_system_standard == TRUE`), bỏ khóa `SYSTEM_TEMPLATE_LOCKED`. Khi xóa, người dùng không chọn được mẫu này khi tạo dự án nữa; các dự án đã tạo trước đó không bị ảnh hưởng. User thường cố xóa vẫn bị 403 Forbidden.
 2. **Luồng Mã Nguồn**:
-   - `src/features/admin/templates/TemplateStudioView.tsx` / `TemplateCatalogView.tsx` -> `useTemplateStudio` (`save`, `loadTemplate`, `validate`) -> `container.templateService` (`getTemplates`, `createTemplate`, `updateTemplate`, `deleteTemplate`, `validateGraph`) -> `ITemplateService`.
+   - `src/features/admin/templates/TemplateCatalogView.tsx`, `TemplateStudioView.tsx` -> `useTemplateStudio` (`save`, `loadTemplate`, `validate`, `deleteTemplate`) -> `container.templateService` (`getTemplates`, `createTemplate`, `updateTemplate`, `deleteTemplate`, `validateGraph`) -> `ITemplateService` -> `PipelineTemplateController` -> `PipelineTemplateService` (`KahnDagService`).
 3. **Request DTO**:
-   - **Method & URL**: `POST /api/templates`, `PUT /api/templates/{id}`
-   - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
+   - Lấy danh mục Template:
+     - **Method & URL**: `GET /api/v1/templates?visibility=PUBLIC&category=&search=&isSystemStandard=&includeHidden=`
+     - **Headers**: `Authorization: Bearer <jwt>`
+     - **Query Params**: `includeHidden` (`true` hoặc `false`): chỉ ADMIN mới có thể xem template đang ẩn khi truyền `includeHidden=true`; mặc định hoặc với user thường thì luôn loại bỏ template ẩn.
+   - Chi tiết Template:
+     - **Method & URL**: `GET /api/v1/templates/{id}`
+     - **Quy tắc**: Template ẩn mà người gọi không phải ADMIN sẽ trả về `404 Not Found`.
+   - Tạo mới Template:
+     - **Method & URL**: `POST /api/v1/templates`
+     - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
+     - **Body JSON**:
+       ```json
+       {
+         "name": "Standard Software Development (SDLC)",
+         "description": "Quy trình chuẩn 4 giai đoạn phát triển phần mềm Agile",
+         "category": "Software Engineering",
+         "isSystemStandard": true,
+         "graphData": {
+           "phases": [
+             { "id": "ph-1", "name": "Foundation", "order": 0, "rootNodeId": "nd-1", "uiMetadata": { "position": { "x": 40, "y": 60 } } }
+           ],
+           "phaseEdges": [],
+           "nodes": [
+             { "id": "nd-1", "phaseId": "ph-1", "parentId": null, "trackId": null, "title": "System Architecture", "description": "", "level": 0, "joinPolicy": "ALL_COMPLETED", "uiMetadata": { "position": { "x": 0, "y": 0 } } }
+           ],
+           "edges": [],
+           "metadata": { "version": "1.0" }
+         }
+       }
+       ```
+   - Cập nhật Template:
+     - **Method & URL**: `PUT /api/v1/templates/{id}`
+   - Ẩn hoặc Hiện Template mẫu (Admin):
+     - **Method & URL**: `PATCH /api/v1/templates/{id}/hidden`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Body JSON**:
+       ```json
+       {
+         "hidden": true
+       }
+       ```
+     - **Luật Ẩn/Hiện (V14)**:
+       - Template bị ẩn KHÔNG hiện ở màn tạo dự án của người dùng và KHÔNG clone được (`TemplateCloneService` ném `ResourceNotFoundException`), nhưng vẫn hiện trong catalog admin (có nhãn "Đang ẩn") để hiện lại; chỉ ADMIN thấy template ẩn khi gửi `includeHidden=true`.
+       - Giữ nguyên PUBLIC/PRIVATE ở bên trong hệ thống (PRIVATE = template riêng user lưu từ dự án, TASK_11), chỉ bỏ nhãn PUBLIC/PRIVATE khỏi giao diện Admin.
+       - Chỉ áp dụng ẩn/hiện cho template `PUBLIC`; nếu ẩn template `PRIVATE` sẽ trả `409 Conflict` (`errorCode: TEMPLATE_NOT_PUBLIC`).
+       - Ghi nhật ký audit `TEMPLATE_HIDDEN` (khi hidden=true) hoặc `TEMPLATE_SHOWN` (khi hidden=false).
+   - Xóa Template:
+     - **Method & URL**: `DELETE /api/v1/templates/{id}`
+   - Thẩm định đồ thị DAG (Dry Run):
+     - **Method & URL**: `POST /api/v1/templates/validate`
+     - **Body JSON**: `{ "graphData": { ... } }`
+4. **Xử lý Backend & Bảng CSDL Tác động**:
+   - Bảng tác động: `PIPELINE_TEMPLATE` (thêm cột `is_hidden boolean DEFAULT FALSE` ở migration `V14__template_hidden.sql`), `ADMIN_AUDIT_LOG`.
+   - `GET /templates`: Nhận tham số `visibility=PUBLIC` và `includeHidden=true` (chỉ admin được xem template ẩn). Mặc định luôn lọc bỏ template có `is_hidden = TRUE`.
+   - `POST /templates`, `PUT /templates/{id}`: Thẩm định cấu trúc graphData qua `kahnDagService.validateTemplateGraph(graphData)`. Nếu vi phạm chu trình lặp thì ném `CycleDetectedException`. Sau khi lưu thành công, ghi audit log `TEMPLATE_CREATED` hoặc `TEMPLATE_UPDATED`.
+   - `PATCH /templates/{id}/hidden`: Yêu cầu quyền ADMIN (`requireAdmin`). Cập nhật `is_hidden`, `updated_at = now`. Ghi audit log `TEMPLATE_HIDDEN` hoặc `TEMPLATE_SHOWN`. Trả về `TemplateSummaryResponse`.
+   - `DELETE /templates/{id}`: Kiểm tra quyền quản trị (`requireCanManage`). Admin được phép xóa cả template hệ thống và template thường (không còn `SYSTEM_TEMPLATE_LOCKED`), xóa khỏi `PIPELINE_TEMPLATE`, ghi audit log `TEMPLATE_DELETED`.
+5. **Response DTO & UI Mutation**:
+   - **GET /templates**: `200 OK`. Body: `TemplateSummaryResponse[]` (bổ sung trường `isHidden: boolean`).
+   - **GET /templates/{id}**: `200 OK`. Body: `TemplateDetailResponse` (bổ sung trường `isHidden: boolean`).
+   - **POST /templates**: `201 Created`. Body: `TemplateDetailResponse`.
+   - **PUT /templates/{id}**: `200 OK`. Body: `TemplateDetailResponse`.
+   - **PATCH /templates/{id}/hidden**: `200 OK`. Body: `TemplateSummaryResponse`.
+   - **DELETE /templates/{id}**: `204 No Content`.
+   - **POST /templates/validate**: `200 OK`. Body: `DagValidationResponse` (`{ "valid": true, "violations": [] }`).
+   - **UI Mutation**: TemplateCatalogView gọi API với `visibility=PUBLIC&includeHidden=true`; hiển thị mô tả "Template đang ẩn sẽ không hiện ở màn tạo dự án của người dùng."; bỏ nhãn PUBLIC/PRIVATE và thay bằng nhãn "Template mẫu hệ thống" khi `isSystemStandard` và nhãn xám "Đang ẩn" khi `isHidden` (thẻ ẩn mờ hơn với `opacity-60`); mỗi thẻ có nút "Ẩn" / "Hiện" gọi `setTemplateHidden` và cập nhật trực tiếp state; khi bấm Xóa template hệ thống, hiển thị ConfirmDialog cảnh báo template mẫu hệ thống và cho phép xóa vĩnh viễn.
+
+---
+
+### 10.4 Tổng quan Chỉ số & Xu hướng Hệ thống (Admin Overview & Analytics) (`GET /api/v1/admin/stats*`)
+1. **Mục tiêu Nghiệp vụ**: Quản trị viên theo dõi các chỉ số hoạt động then chốt (KPI) và xu hướng tăng trưởng của toàn bộ nền tảng qua thời gian.
+   - **Nguyên tắc Số liệu Thực tế 100%**: Tất cả các chỉ số trên tab Overview đều được tính toán trực tiếp từ cơ sở dữ liệu thật (PostgreSQL). Loại bỏ hoàn toàn các số liệu giả định, số liệu không đo lường được từ DB (doanh thu, uptime ảo, phần trăm CPU/RAM, "AI score" giả lập).
+   - **Quy tắc Tính toán Xu hướng**: Chỉ số tác vụ hoàn thành (`tasksDone`) trong biểu đồ xu hướng được tính toán dựa trên ngày cập nhật cuối cùng (`updated_at`) của các node có trạng thái `DONE`, do hệ thống không duy trì cột thời điểm hoàn thành riêng biệt.
+2. **Luồng Mã Nguồn**:
+   - `src/features/admin/tabs/AnalyticsTab.tsx` -> `useAdminPortal` (`stats`, `trends`, `trendRange`, `handleTrendRangeChange`) -> `container.adminService` (`getStats`, `getTrends`) -> `HttpAdminService` -> `AdminController` (`AdminStatsService`).
+3. **Request DTO**:
+   - Lấy tổng quan số liệu thống kê:
+     - **Method & URL**: `GET /api/v1/admin/stats`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+   - Lấy chuỗi dữ liệu xu hướng theo ngày:
+     - **Method & URL**: `GET /api/v1/admin/stats/trends?range=7D|30D`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Query Params**: `range` nhận giá trị `7D` (7 ngày gần nhất, mặc định) hoặc `30D` (30 ngày gần nhất).
+4. **Xử lý Backend & Bảng CSDL Tác động**:
+   - Bảng tác động: `USERS`, `PROJECT`, `NODE`, `PIPELINE_TEMPLATE`, `PROJECT_MEMBER`.
+   - `GET /api/v1/admin/stats`:
+     - `users`: đếm tổng số user, số user active (`is_locked = FALSE`), số user suspended (`is_locked = TRUE`), số user mới tạo trong 7 ngày gần nhất.
+     - `projects`: đếm tổng số dự án, phân nhóm theo trạng thái `byStatus` (DRAFT, PLANNING, ACTIVE, PAUSED, COMPLETED, ARCHIVED), số dự án mới tạo trong 7 ngày gần nhất.
+     - `tasks`: đếm tổng số node, phân nhóm theo trạng thái `byStatus` (LOCKED, TODO, IN_PROGRESS, REVIEW, DONE), số node trễ hạn `overdue` (`dueDate < NOW()` và `status != DONE`).
+     - `templates`: đếm số template `PUBLIC`, số template `PRIVATE`, tổng lượt nhân bản `totalClones` (tổng cột `clone_count`).
+     - `roles`: đếm số user theo vai trò hệ thống `systemRoles` (ADMIN, USER), đếm số thành viên active theo vai trò dự án `projectRoles` (OWNER, MANAGER, COLLABORATOR, VIEWER).
+   - `GET /api/v1/admin/stats/trends`:
+     - Nhóm dữ liệu theo ngày (theo múi giờ `Asia/Ho_Chi_Minh`): số người dùng đăng ký theo `created_at`, số dự án tạo mới theo `created_at`, và số tác vụ hoàn thành theo `updated_at` của các task `DONE`.
+     - Tạo danh sách đầy đủ các ngày trong khoảng thời gian (7 hoặc 30 ngày), điền 0 cho những ngày không có phát sinh dữ liệu.
+5. **Response DTO & UI Mutation**:
+   - **GET /stats**: `200 OK`. Body: `AdminStatsResponse`:
+     ```json
+     {
+       "users": { "total": 12, "active": 11, "suspended": 1, "newLast7Days": 3 },
+       "projects": { "total": 8, "byStatus": { "DRAFT": 1, "PLANNING": 1, "ACTIVE": 4, "PAUSED": 0, "COMPLETED": 1, "ARCHIVED": 1 }, "newLast7Days": 2 },
+       "tasks": { "total": 45, "byStatus": { "LOCKED": 10, "TODO": 15, "IN_PROGRESS": 8, "REVIEW": 4, "DONE": 8 }, "overdue": 3 },
+       "templates": { "publicCount": 4, "privateCount": 2, "totalClones": 14 },
+       "roles": { "systemRoles": { "ADMIN": 2, "USER": 10 }, "projectRoles": { "OWNER": 8, "MANAGER": 4, "COLLABORATOR": 12, "VIEWER": 2 } }
+     }
+     ```
+   - **GET /stats/trends**: `200 OK`. Body: `AdminTrendPointResponse[]` (`[{ "date": "2026-11-01", "newUsers": 1, "newProjects": 0, "tasksDone": 3 }, ...]`).
+   - **UI Mutation**: Tab Analytics (Overview) hiển thị 4 khối thẻ KPI chính (Người dùng, Dự án đang chạy, Tác vụ trễ hạn, Quy trình mẫu), đồ thị xu hướng theo thời gian (chuyển đổi 7D/30D), biểu đồ phân bố trạng thái dự án và vai trò; nếu API lỗi hiển thị thông báo lỗi rõ ràng thay vì nạp dữ liệu giả.
+
+---
+
+### 10.5 Nhật ký Vận hành & Giám sát An ninh (System & Security Audit Logs) (`GET /api/v1/admin/audit-logs`)
+1. **Mục tiêu Nghiệp vụ**: Ghi nhận và truy vết toàn diện mọi hoạt động quản trị, thay đổi cấu hình, sự kiện xác thực tài khoản và các hành vi xâm nhập trái phép vào hệ thống nhằm phục vụ mục đích kiểm toán an ninh (tuân thủ khuyến nghị OWASP Logging Cheat Sheet).
+   - **Phân nhóm Nhật ký theo 3 Cụm Hành động (AdminAuditAction)**:
+     - Nhóm Xác thực (`LOGIN`): `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `REGISTER`, `ACCOUNT_LOCKED_LOGIN`.
+     - Nhóm Quản trị (`ADMIN`): `USER_SUSPENDED`, `USER_UNBANNED`, `ADMIN_ACCESS_DENIED`, `USER_ROLE_CHANGED`, `USER_DELETED`, `PROJECT_OWNER_TRANSFERRED`, `WORKSPACE_ARCHIVED`.
+     - Nhóm Quy trình mẫu (`TEMPLATE`): `TEMPLATE_CREATED`, `TEMPLATE_UPDATED`, `TEMPLATE_DELETED`, `TEMPLATE_HIDDEN`, `TEMPLATE_SHOWN`.
+   - **Giám sát Truy cập Trái phép (Request 403 vào `/api/v1/admin/**`)**:
+     - Mọi yêu cầu HTTP gửi tới các đường dẫn quản trị `/api/v1/admin/**` bị từ chối truy cập (HTTP 403 Forbidden) đều tự động được bắt tại `GlobalExceptionHandler` và ghi lại vào nhật ký với hành động `ADMIN_ACCESS_DENIED`, lưu chi tiết method, URI và lý do từ chối.
+   - **Cơ chế Ghi Độc lập & Cách ly Tuyệt đối**:
+     - Hoạt động ghi audit log được thực hiện trong một Transaction hoàn toàn độc lập với mức lan truyền `PROPAGATION_REQUIRES_NEW` qua `TransactionTemplate`.
+     - Toàn bộ thao tác ghi log được bao bọc bởi khối `try-catch`, đảm bảo sự cố ghi log không bao giờ làm rollback hay phá hỏng giao dịch nghiệp vụ chính.
+   - **Bảo vệ Tràn CSDL & Che Thông tin Nhạy cảm**:
+     - Cắt chuỗi độ dài tối đa trước khi lưu xuống CSDL: `actorUsername` (100 ký tự), `action` (50 ký tự), `targetType` (30 ký tự), `targetId` (50 ký tự), `detail` (1000 ký tự), `ipAddress` (64 ký tự).
+     - Địa chỉ IP client được trích xuất thông minh từ header `X-Forwarded-For` (hỗ trợ môi trường Reverse Proxy như Vercel/Nginx) hoặc `remoteAddr`, và luôn được che phần cuối (`maskIp`: ví dụ `192.168.1.***` hoặc `fe80:0:0:0:***`) khi trả về cho UI.
+     - Tuyệt đối không ghi mật khẩu, JWT token hay nội dung chi tiết công việc vào log.
+2. **Luồng Mã Nguồn**:
+   - `src/features/admin/tabs/AuditLogsTab.tsx` -> `useAdminPortal` (`auditLogs`, `auditGroup`, `setAuditGroup`) -> `container.adminService.getSecurityAuditLogs(group)` -> `HttpAdminService` -> `AdminController.searchAuditLogs` -> `AdminAuditService` -> `AdminAuditLogRepository`.
+3. **Request DTO**:
+   - Tìm kiếm và Lọc Nhật ký:
+     - **Method & URL**: `GET /api/v1/admin/audit-logs?group=LOGIN|ADMIN|TEMPLATE&action=&from=&to=&page=0&size=50`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Query Params**:
+       - `group`: Nhóm hành động (`LOGIN`, `ADMIN`, `TEMPLATE`, hoặc `ALL` / bỏ trống).
+       - `action`: Tên hành động cụ thể thuộc nhóm (ví dụ `USER_SUSPENDED`, `ADMIN_ACCESS_DENIED`).
+       - `from`, `to`: Khoảng thời gian dạng chuẩn ISO-8601 (`Instant`).
+       - `page`, `size`: Phân trang kết quả (mặc định trang 0, kích thước 50).
+4. **Xử lý Backend & Bảng CSDL Tác động**:
+   - Bảng tác động: `ADMIN_AUDIT_LOG` (được tạo bởi Flyway Migration `V13__admin_audit_log.sql`, có index trên `created_at DESC` và `action`).
+   - Xây dựng JPA `Specification`: Lọc theo tập danh sách action của nhóm tương ứng (`actionsOfGroup(group)`), kiểm tra hợp lệ nhóm trước khi truy vấn, kết hợp bộ lọc thời gian và action cụ thể.
+   - Sắp xếp kết quả theo `created_at DESC` và phân trang qua `PageRequest`.
+   - Che địa chỉ IP qua `AdminAuditService.maskIp()` trước khi trả response về Frontend.
+5. **Response DTO & UI Mutation**:
+   - **Status Code**: `200 OK`. Body: `AdminAuditLogPageResponse`:
+     ```json
+     {
+       "items": [
+         {
+           "id": "1",
+           "timestamp": "2026-11-14T08:30:00Z",
+           "actorUsername": "admin",
+           "action": "USER_SUSPENDED",
+           "targetType": "USER",
+           "targetId": "15",
+           "detail": "reason=TERMS_VIOLATION, note=Vi phạm quy định",
+           "maskedIp": "192.168.1.***"
+         }
+       ],
+       "page": 0,
+       "size": 50,
+       "totalElements": 1
+     }
+     ```
+   - **UI Mutation**: AuditLogsTab hiển thị bảng nhật ký hệ thống gồm các cột Thời gian, Tác tử, Hành động, Đối tượng, Chi tiết, và IP; hỗ trợ bộ lọc nhanh theo nhóm hành động (Tất cả, Đăng nhập, Thao tác Quản trị, Quy trình mẫu); hiển thị badge trạng thái với màu sắc chuyên biệt (đỏ cho `ADMIN_ACCESS_DENIED`, cam cho `USER_SUSPENDED`, xanh cho `USER_UNBANNED` và các hành động tạo mới).
+
+---
+
+### 10.6 Xác thực Đăng nhập Quản trị & Cơ chế Bảo vệ Tuyến đường (`POST /api/v1/auth/login`, `adminGuard.ts`)
+1. **Mục tiêu Nghiệp vụ**: Đảm bảo quy trình đăng nhập an toàn, cơ chế bảo vệ phân quyền trên giao diện Frontend, ngăn chặn người dùng thông thường hoặc khách vãng lai truy cập trái phép vào các trang quản trị `/admin`.
+   - **Sửa Hash Mật khẩu Seed Mẫu (Migration V12)**:
+     - Migration `V12__fix_seed_password_hash.sql` chuẩn hóa lại mã băm BCrypt của các tài khoản mặc định (`admin`, `alex.kim`, `sarah.chen`) để khớp chính xác với mật khẩu quy chuẩn `Password123!`, chỉ cập nhật khi hash còn ở giá trị seed cũ nhằm tránh ghi đè mật khẩu đã thay đổi của người dùng.
+   - **Đăng nhập Linh hoạt bằng Email hoặc Username**:
+     - Cho phép người dùng đăng nhập bằng `username` hoặc địa chỉ `email`. Khi đầu vào chứa ký tự `@`, hệ thống tự động tìm kiếm tài khoản không phân biệt hoa thường qua `userRepository.findByEmailIgnoreCase(identifier)`.
+   - **Cơ chế Chặn Tuyến đường Quản trị (`adminGuard.ts`)**:
+     - Tuyến đường `/admin` trên Frontend được bảo vệ nghiêm ngặt:
+       - Nếu chưa xác thực (`isAuthenticated == FALSE`): Chuyển hướng về trang đăng nhập (`TO_SIGNIN`).
+       - Nếu đã xác thực nhưng không có vai trò Admin (`systemRole !== 'ADMIN'`): Chuyển hướng về danh sách dự án `/workspaces` (`TO_WORKSPACES`) kèm thông báo cảnh báo "Chỉ quản trị viên mới vào được trang này".
+       - Nếu có vai trò `systemRole == 'ADMIN'`: Cho phép truy cập vào Admin Portal (`ALLOW`).
+   - **Điều hướng Tự động Sau Đăng nhập**:
+     - Hàm định tuyến `homePathFor(systemRole)` tự động đưa tài khoản có quyền `ADMIN` vào thẳng `/admin` ngay sau khi đăng nhập thành công, trong khi tài khoản người dùng thông thường (`USER`) được đưa vào danh sách không gian làm việc `/workspaces`.
+2. **Luồng Mã Nguồn**:
+   - `src/features/auth/AuthModal.tsx` / `AuthView.tsx` -> `useWorkflowStore.auth.login` -> `container.workflowService.login` -> `HttpWorkflowService` -> `AuthController.login` -> `AuthService.login`.
+   - Bảo vệ Route: `src/router/adminGuard.ts` (`resolveAdminAccess`, `homePathFor`) -> `src/App.tsx` / `AdminPortalView.tsx`.
+3. **Request DTO**:
+   - **Method & URL**: `POST /api/v1/auth/login`
+   - **Headers**: `Content-Type: application/json`
    - **Body JSON**:
      ```json
      {
-       "name": "Standard Software Development (SDLC)",
-       "description": "Standard 4-phase agile software delivery workflow",
-       "category": "Software Engineering",
-       "isSystemStandard": true,
-       "graphData": {
-         "phases": [
-           { "id": "ph-1", "name": "Foundation", "order": 0, "rootNodeId": "nd-1", "uiMetadata": { "position": { "x": 40, "y": 60 } } }
-         ],
-         "phaseEdges": [],
-         "nodes": [
-           { "id": "nd-1", "phaseId": "ph-1", "parentId": null, "trackId": null, "title": "System Architecture", "description": "", "level": 0, "joinPolicy": "ALL_COMPLETED", "uiMetadata": { "position": { "x": 0, "y": 0 } } }
-         ],
-         "edges": [],
-         "metadata": { "version": "1.0" }
-       }
+       "username": "admin@pipeline.engine",
+       "password": "Password123!"
      }
      ```
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `PIPELINE_TEMPLATE`.
-   - Chạy Thuật toán Kahn trên `graphData` để thẩm định không có chu trình.
-   - Lưu trữ toàn bộ đồ thị 2 tầng vào cột JSONB `PIPELINE_TEMPLATE.graph_data`.
+   - Bảng tác động: `USERS`, `REFRESH_TOKEN`, `ADMIN_AUDIT_LOG`.
+   - Kiểm tra `identifier`: nếu có ký tự `@`, gọi `userRepository.findByEmailIgnoreCase()`, ngược lại gọi `userRepository.findByUsername()`.
+   - So khớp mật khẩu với BCrypt `passwordEncoder.matches()`. Nếu user không tồn tại, thực hiện so khớp giả định với dummy BCrypt hash để phòng chống tấn công dò tìm tài khoản qua độ trễ thời gian (Timing Attack).
+   - Kiểm tra cờ `is_locked`: Nếu tài khoản đang bị khóa, ghi audit log `ACCOUNT_LOCKED_LOGIN` và ném `ForbiddenException(ACCOUNT_LOCKED)`.
+   - Nếu đăng nhập thành công: Nếu tài khoản có vai trò `SystemRole.ADMIN`, ghi audit log `LOGIN_SUCCESS`. Sinh cặp JWT Access Token và Refresh Token, lưu Refresh Token vào CSDL.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `201 Created` / `200 OK`. Body: `TemplateDetailDto`.
-   - **UI Mutation**: Cập nhật Catalog, phát sự kiện `wpe_template_updated` làm mới danh mục, hiển thị Toast xanh.
+   - **Status Code**: `200 OK`. Body: `AuthResponse` (`accessToken`, `refreshToken`, `user: { id, username, email, fullName, systemRole, ... }`).
+   - **UI Mutation**: Frontend lưu Access Token vào bộ nhớ, cập nhật `systemRole` vào Auth state; kiểm tra `homePathFor(user.systemRole)` và tự động chuyển hướng Admin vào `/admin`, kích hoạt nạp dữ liệu thống kê Overview; người dùng thường chuyển vào `/workspaces`.
 
 ---
 

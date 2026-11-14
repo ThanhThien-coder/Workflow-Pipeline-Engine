@@ -17,5 +17,6 @@ public record TemplateDetailResponse(
     Instant updatedAt,
     Map<String, Object> graphData,
     String visibility,
-    Long sourceProjectId
+    Long sourceProjectId,
+    Boolean isHidden
 ) {}

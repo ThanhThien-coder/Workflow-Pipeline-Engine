@@ -15,6 +15,7 @@ import com.pipeline.wpe.entity.UserEntity;
 import com.pipeline.wpe.entity.WorkPhaseEntity;
 import com.pipeline.wpe.exception.AccessDeniedException;
 import com.pipeline.wpe.exception.ConflictException;
+import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
 import org.junit.jupiter.api.DisplayName;
@@ -343,7 +344,10 @@ class ProjectServiceTest {
         "ACTIVE, PAUSED",
         "PAUSED, ACTIVE",
         "ACTIVE, ARCHIVED",
-        "ARCHIVED, ACTIVE",
+        "DRAFT, ARCHIVED",
+        "PLANNING, ARCHIVED",
+        "COMPLETED, ARCHIVED",
+        "ARCHIVED, DRAFT",
         "ACTIVE, COMPLETED"
     })
     @DisplayName("updateProjectStatus: Cho phép chuyển trạng thái hợp lệ")
@@ -371,6 +375,95 @@ class ProjectServiceTest {
 
         assertThat(resp.status()).isEqualTo(to.name());
         verify(projectRepository, times(1)).save(any(ProjectEntity.class));
+    }
+
+    @Test
+    @DisplayName("FC4: Archive dự án DRAFT thành công -> ARCHIVED")
+    void shouldArchiveDraftProjectSuccessfully() {
+        Instant now = Instant.now();
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .name("Draft Project")
+            .status(ProjectStatus.DRAFT)
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(List.of(projectId))).thenReturn(List.of());
+
+        ProjectSummaryResponse resp = projectService.updateProjectStatus(
+            projectId, new UpdateProjectStatusRequest("ARCHIVED"), userId
+        );
+
+        assertThat(resp.status()).isEqualTo("ARCHIVED");
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.ARCHIVED);
+    }
+
+    @Test
+    @DisplayName("FC4: Khôi phục dự án chưa từng xuất bản (không có node hoặc toàn bộ LOCKED) -> về DRAFT thay vì ACTIVE")
+    void shouldRestoreUnpublishedArchivedProjectToDraft() {
+        Instant now = Instant.now();
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .name("Unpublished Archived Project")
+            .status(ProjectStatus.ARCHIVED)
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(List.of(projectId))).thenReturn(List.<Object[]>of(
+            new Object[]{projectId, NodeStatus.LOCKED, 3L}
+        ));
+
+        ProjectSummaryResponse resp = projectService.updateProjectStatus(
+            projectId, new UpdateProjectStatusRequest("ACTIVE"), userId
+        );
+
+        assertThat(resp.status()).isEqualTo("DRAFT");
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("FC4: Khôi phục dự án đã xuất bản (có node khác LOCKED) -> về ACTIVE")
+    void shouldRestorePublishedArchivedProjectToActive() {
+        Instant now = Instant.now();
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .name("Published Archived Project")
+            .status(ProjectStatus.ARCHIVED)
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(List.of(projectId))).thenReturn(List.<Object[]>of(
+            new Object[]{projectId, NodeStatus.TODO, 2L},
+            new Object[]{projectId, NodeStatus.LOCKED, 1L}
+        ));
+
+        ProjectSummaryResponse resp = projectService.updateProjectStatus(
+            projectId, new UpdateProjectStatusRequest("ACTIVE"), userId
+        );
+
+        assertThat(resp.status()).isEqualTo("ACTIVE");
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
     }
 
     @ParameterizedTest
@@ -404,8 +497,7 @@ class ProjectServiceTest {
     @CsvSource({
         "COMPLETED, ACTIVE",
         "ARCHIVED, PAUSED",
-        "ACTIVE, ACTIVE",
-        "DRAFT, ARCHIVED"
+        "ACTIVE, ACTIVE"
     })
     @DisplayName("updateProjectStatus: Chuyển trạng thái không hợp lệ ném ConflictException INVALID_PROJECT_STATUS")
     void shouldThrowConflictExceptionWithInvalidStatus_whenTransitionNotAllowed(ProjectStatus from, ProjectStatus to) {
@@ -454,6 +546,32 @@ class ProjectServiceTest {
     }
 
     @Test
+    @DisplayName("FC4: Chặn người không phải OWNER lưu trữ (archive) hoặc khôi phục dự án -> ném AccessDeniedException (403)")
+    void shouldThrowAccessDeniedWhenNonOwnerTriesToArchiveOrRestore() {
+        ProjectEntity draftProject = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .status(ProjectStatus.DRAFT)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(draftProject));
+        when(userRepository.findById(otherUserId)).thenReturn(Optional.of(
+            UserEntity.builder().id(otherUserId).systemRole(SystemRole.USER).build()
+        ));
+
+        assertThatThrownBy(() -> projectService.updateProjectStatus(
+            projectId, new UpdateProjectStatusRequest("ARCHIVED"), otherUserId
+        )).isInstanceOf(AccessDeniedException.class);
+
+        draftProject.setStatus(ProjectStatus.ARCHIVED);
+        assertThatThrownBy(() -> projectService.updateProjectStatus(
+            projectId, new UpdateProjectStatusRequest("ACTIVE"), otherUserId
+        )).isInstanceOf(AccessDeniedException.class);
+
+        verify(projectRepository, never()).save(any(ProjectEntity.class));
+    }
+
+    @Test
     @DisplayName("updateProjectStatus: Ném ResourceNotFoundException nếu projectId không tồn tại")
     void shouldThrowNotFoundWhenProjectDoesNotExist() {
         when(projectRepository.findById(999L)).thenReturn(Optional.empty());
@@ -463,5 +581,53 @@ class ProjectServiceTest {
         assertThatThrownBy(() -> projectService.updateProjectStatus(999L, req, userId))
             .isInstanceOf(ResourceNotFoundException.class)
             .hasMessageContaining("Không tìm thấy dự án với ID: 999");
+    }
+
+    @Test
+    @DisplayName("FC4: deleteProject bởi OWNER xóa toàn bộ node, work_phase, project_member và project")
+    void shouldDeleteProjectAndChildrenWhenCalledByOwner() {
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .name("To Delete")
+            .status(ProjectStatus.DRAFT)
+            .build();
+
+        when(projectAuthorizationService.verifyProjectOwner(projectId, userId)).thenReturn(project);
+
+        projectService.deleteProject(projectId, userId);
+
+        verify(projectAuthorizationService).verifyProjectOwner(projectId, userId);
+        verify(nodeRepository).deleteByProjectId(projectId);
+        verify(workPhaseRepository).deleteByProjectId(projectId);
+        verify(projectMemberRepository).deleteByProjectId(projectId);
+        verify(projectRepository).delete(project);
+    }
+
+    @Test
+    @DisplayName("FC4: deleteProject bởi người không phải OWNER ném ForbiddenException (403)")
+    void shouldThrowForbiddenWhenNonOwnerDeletesProject() {
+        when(projectAuthorizationService.verifyProjectOwner(projectId, otherUserId))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."));
+
+        assertThatThrownBy(() -> projectService.deleteProject(projectId, otherUserId))
+            .isInstanceOf(ForbiddenException.class);
+
+        verify(nodeRepository, never()).deleteByProjectId(any());
+        verify(workPhaseRepository, never()).deleteByProjectId(any());
+        verify(projectMemberRepository, never()).deleteByProjectId(any());
+        verify(projectRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("FC4: deleteProject khi dự án không tồn tại ném ResourceNotFoundException (404)")
+    void shouldThrowNotFoundWhenDeletingNonExistentProject() {
+        when(projectAuthorizationService.verifyProjectOwner(999L, userId))
+            .thenThrow(new ResourceNotFoundException("Không tìm thấy dự án với ID: 999"));
+
+        assertThatThrownBy(() -> projectService.deleteProject(999L, userId))
+            .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(projectRepository, never()).delete(any());
     }
 }

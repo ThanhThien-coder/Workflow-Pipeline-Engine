@@ -15,4 +15,5 @@ public interface ArtifactRepository extends JpaRepository<ArtifactEntity, Long> 
     List<ArtifactEntity> findByProjectIdAndIsInRepositoryTrueOrderByCreatedAtDesc(Long projectId);
     List<ArtifactEntity> findByProjectIdAndNodeIdOrderByCreatedAtDesc(Long projectId, Long nodeId);
     List<ArtifactEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
+    long countByUploadedBy(Long uploadedBy);
 }

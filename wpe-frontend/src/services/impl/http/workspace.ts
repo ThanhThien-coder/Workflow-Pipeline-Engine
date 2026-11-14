@@ -87,3 +87,8 @@ export function setProjectStatus(
     body: { status },
   })
 }
+
+/** DELETE /projects/{projectId} */
+export function deleteProject(projectId: string | number): Promise<void> {
+  return apiRequest<void>('DELETE', `/projects/${projectId}`)
+}

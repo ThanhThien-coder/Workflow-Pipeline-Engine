@@ -2,6 +2,7 @@ package com.pipeline.wpe.controller;
 
 import com.pipeline.wpe.dto.request.template.CreateTemplateRequest;
 import com.pipeline.wpe.dto.request.template.SaveProjectAsTemplateRequest;
+import com.pipeline.wpe.dto.request.template.SetTemplateHiddenRequest;
 import com.pipeline.wpe.dto.request.template.ValidateTemplateGraphRequest;
 import com.pipeline.wpe.dto.response.template.DagValidationResponse;
 import com.pipeline.wpe.dto.response.template.TemplateDetailResponse;
@@ -40,10 +41,13 @@ public class PipelineTemplateController {
         @RequestParam(required = false) String search,
         @Parameter(description = "Lọc mẫu chuẩn hệ thống")
         @RequestParam(required = false) Boolean isSystemStandard,
-        @RequestParam(required = false) Long currentUserId
+        @Parameter(description = "Lọc theo phạm vi: PUBLIC hoặc PRIVATE")
+        @RequestParam(required = false) String visibility,
+        @Parameter(description = "Bao gồm cả template ẩn (chỉ có tác dụng với ADMIN)")
+        @RequestParam(required = false) Boolean includeHidden
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(null);
-        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard, callerId);
+        Long callerId = currentUserProvider.getCurrentUserId().orElse(null);
+        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard, callerId, visibility, includeHidden);
         return ResponseEntity.ok(list);
     }
 
@@ -53,10 +57,9 @@ public class PipelineTemplateController {
         description = "Trả về thông tin chi tiết của Template bao gồm toàn bộ cấu trúc đồ thị JSONB 2 tầng (graphData)."
     )
     public ResponseEntity<TemplateDetailResponse> getTemplateById(
-        @PathVariable String id,
-        @RequestParam(required = false) Long currentUserId
+        @PathVariable String id
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(null);
+        Long callerId = currentUserProvider.getCurrentUserId().orElse(null);
         TemplateDetailResponse response = templateService.getTemplateByIdOrSlug(id, callerId);
         return ResponseEntity.ok(response);
     }
@@ -67,10 +70,9 @@ public class PipelineTemplateController {
         description = "Quản trị viên tạo mẫu quy trình mới. Hệ thống tự động chạy thuật toán Kahn 2 tầng thẩm định cấu trúc graphData không có chu trình trước khi lưu."
     )
     public ResponseEntity<TemplateDetailResponse> createTemplate(
-        @Valid @RequestBody CreateTemplateRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody CreateTemplateRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
+        Long callerId = currentUserProvider.requireCurrentUserId();
         TemplateDetailResponse response = templateService.createTemplate(request, callerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -82,10 +84,9 @@ public class PipelineTemplateController {
     )
     public ResponseEntity<TemplateDetailResponse> updateTemplate(
         @PathVariable String id,
-        @Valid @RequestBody CreateTemplateRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody CreateTemplateRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
+        Long callerId = currentUserProvider.requireCurrentUserId();
         TemplateDetailResponse response = templateService.updateTemplateBySlugOrId(id, request, callerId);
         return ResponseEntity.ok(response);
     }
@@ -96,12 +97,25 @@ public class PipelineTemplateController {
         description = "Xóa vĩnh viễn template mẫu khỏi Catalog."
     )
     public ResponseEntity<Void> deleteTemplate(
-        @PathVariable String id,
-        @RequestParam(required = false) Long currentUserId
+        @PathVariable String id
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
+        Long callerId = currentUserProvider.requireCurrentUserId();
         templateService.deleteTemplateBySlugOrId(id, callerId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/templates/{id}/hidden")
+    @Operation(
+        summary = "Ẩn hoặc hiện template mẫu (Admin)",
+        description = "Chỉ áp dụng với template PUBLIC. Template bị ẩn sẽ không hiển thị ở màn tạo dự án của người dùng và không clone được."
+    )
+    public ResponseEntity<TemplateSummaryResponse> setTemplateHidden(
+        @PathVariable String id,
+        @Valid @RequestBody SetTemplateHiddenRequest request
+    ) {
+        Long callerId = currentUserProvider.requireCurrentUserId();
+        TemplateSummaryResponse response = templateService.setTemplateHidden(id, request.hidden(), callerId);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/projects/{id}/save-as-template")

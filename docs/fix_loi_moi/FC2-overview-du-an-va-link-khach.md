@@ -1,7 +1,7 @@
 # FC2 — Overview dự án dùng dữ liệu thật, sửa lỗi không sinh được link khách
 
 Người làm: C
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm
 Lỗi xử lý: L6, L7 (ảnh 2 và ảnh 3 trong `test sơ.md`)
 Nhánh git: fix-fc2-overview-that
 Làm trước: FC5 (dùng `fetchProjectActivity` cho Recent activity)
@@ -47,3 +47,28 @@ Làm trước: FC5 (dùng `fetchProjectActivity` cho Recent activity)
 3. sarah (không phải owner) → nút tạo link bị vô hiệu, có chú thích.
 
 ## Kết quả (Claude ghi, dán output thật)
+
+**File đã sửa** (nhánh này đã chứa FC5)
+- `FE/services/impl/http/overview.ts` (mới):
+  - Tính tổng node, node xong, % hoàn thành, số trễ hạn (`isOverdue`/`dueDate`), số chờ duyệt (REVIEW), số node chặn, đường găng và phân bố trạng thái từ `GET /projects/{id}/graph`.
+  - Velocity 7 ngày theo `updatedAt` của node DONE; node không có `updatedAt` thì `hasData: false` kèm ghi chú.
+  - Ánh xạ `GET /projects/{id}/ai-analysis`: lỗi hoặc rỗng thì "Chưa có chẩn đoán", không có insight giả.
+  - Recent activity lấy từ `fetchProjectActivity(projectId, 10)` (FC5).
+- `FE/services/impl/HttpWorkflowService.ts`: `getOverviewData` dựng toàn bộ từ API thật (`fetchProjectSettings`, `fetchGraph`, activity, góp ý, AI, guest), xóa dòng `getOverviewData` khỏi `METHODS_STILL_MOCKED`; API chính lỗi thì ném lỗi, không rơi về mock.
+- `FE/store/slices/overviewSlice.ts`: lưu `overview.projectId`; `generateGuest`, `revokeGuest`, `resolveFeedback` dùng `projectId` của route, không dùng `data.project.id`; toast lỗi hiện message backend; đổi dự án thì xóa dữ liệu cũ.
+- `FE/components/views/OverviewView.tsx`: tải lại khi đổi `projectId`, truyền `projectId` của route xuống, ẩn Weekly Velocity kèm ghi chú khi không có dữ liệu. `FE/views/OverviewView.tsx`: bỏ chữ cứng "Marketing Q4".
+- `FE/components/overview/OverviewHeader.tsx`, `MetricRibbon.tsx`, `WeeklyVelocityCard.tsx`, `RecentActivityCard.tsx`: trạng thái rỗng, không vẽ số giả.
+- `FE/components/popovers/GuestAccessPopover.tsx`: người không phải owner thấy nút tạo/thu hồi bị vô hiệu kèm chú thích "Chỉ chủ dự án mới tạo được link khách".
+- `FE/types/overview.types.ts`: chỉ thêm trường tùy chọn `hasData`, `unavailableNote`, `hasAnalysis`, `emptyMessage`.
+- Lưu ý: DTO node của `/graph` hiện không có `updatedAt`, nên trên app thật card Weekly Velocity luôn ẩn kèm ghi chú.
+
+**Test đã thêm**: `FE/services/impl/http/__tests__/overview.test.tsx` (`getOverviewData('5')` trả `project.id === '5'` và không gọi mock; hàm tính số liệu: 4 node, 2 DONE, 1 trễ hạn → 50%, overdue 1; `generateGuest`/`revokeGuest`/`resolveFeedback` dùng projectId của route; API chính lỗi thì ném lỗi; AI lỗi thì rỗng; popover vô hiệu với người không phải owner; OverviewView ẩn velocity và hiện "Chưa có chẩn đoán"). Cập nhật `guest.test.ts`.
+
+**Output test thật** (13/11/2026)
+- Trước khi sửa (hoàn lại các file nguồn, giữ `overview.ts` và test): 6 test fail. Trong đó có "getOverviewData('5') trả project.id === '5'…": mock bị gọi, trả `project.id: '1'`.
+- Sau khi sửa:
+```text
+./mvnw test       → 441 test, Failures 0, Errors 0, Skipped 1
+npm run typecheck → tsc -b, exit 0
+npm test          → Test Files 49 passed (49) | Tests 373 passed (373)
+```

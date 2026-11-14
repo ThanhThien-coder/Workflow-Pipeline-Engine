@@ -92,3 +92,18 @@ Làm lại đúng danh sách trong `test sơ.md`, đánh dấu từng dòng L1�
 | # | Đạt? | Ghi chú |
 | :--- | :--- | :--- |
 | L1–L24 | | |
+
+## 7. Task mới phát hiện khi kiểm tay (14/11), chờ nhóm xem rồi chia người
+
+Nguồn: kiểm tay bản gộp FC1–FC5 trên app thật (backend + DB + trình duyệt). Các lỗi này nằm ngoài file mà task C được sửa nên tách thành task mới. **Chưa chia người**, cột "Đề xuất" chỉ để nhóm tham khảo.
+
+| # | Lỗi | Nguyên nhân (tóm tắt) | Task | Đề xuất |
+| :--- | :--- | :--- | :--- | :--- |
+| L25 | Mở link khách báo "Link unavailable"; trang khách còn số giả | `HttpGuestService.getLinkInfo` (và 6 phương thức khác) vẫn gọi mock; backend chưa có API thông tin link; `velocity`/`recentActivity` của `/guest/{token}/overview` là mảng cứng | [FN1](FN1-trang-khach-dung-api-that.md) | C |
+| L26 | Mở thẳng URL dự án hoặc F5: thanh bên ghi "Marketing Campaign Q4", thành viên giả | `ProjectWorkspaceView` rơi về chuỗi cứng và `DEV_PERSONAS` khi danh sách workspace chưa tải | [FN2](FN2-thanh-ben-du-an-ten-va-thanh-vien-gia.md) | C |
+| L27 | Workflow: "Failed to load phase tasks", gọi `/projects/1/my-tasks` | `MindmapDrawer` gọi `usePhaseKanban(phase)` không truyền `projectId`, hook mặc định `'1'` | [FN3](FN3-kanban-phase-dinh-du-an-1.md) | B (chung file FB4) |
+| L28 | Đăng xuất: console báo lỗi tải hồ sơ (người dùng không thấy) | `GlobalProfileMenu` vẫn gọi `loadProfile()` khi `currentUserId` về rỗng | [FN4](FN4-profile-loi-console-khi-dang-xuat.md) | C |
+
+Ghi chú:
+- FN1 bước 6 (đánh giá của khách) cần bảng mới, tức **migration mới**: nhóm quyết có làm đợt này không, nếu làm thì đặt số migration như mục 4.
+- Kết quả kiểm tay FC1–FC5: 9/11 bước đạt; 2 bước còn lại của FC2 chính là L25 và L26.
