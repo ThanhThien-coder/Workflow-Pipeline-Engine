@@ -24,6 +24,8 @@ public final class AdminAuditAction {
     public static final String TEMPLATE_CREATED = "TEMPLATE_CREATED";
     public static final String TEMPLATE_UPDATED = "TEMPLATE_UPDATED";
     public static final String TEMPLATE_DELETED = "TEMPLATE_DELETED";
+    public static final String TEMPLATE_HIDDEN = "TEMPLATE_HIDDEN";
+    public static final String TEMPLATE_SHOWN = "TEMPLATE_SHOWN";
 
     public static final List<String> LOGIN_ACTIONS = List.of(
         LOGIN_SUCCESS,
@@ -46,7 +48,9 @@ public final class AdminAuditAction {
     public static final List<String> TEMPLATE_ACTIONS = List.of(
         TEMPLATE_CREATED,
         TEMPLATE_UPDATED,
-        TEMPLATE_DELETED
+        TEMPLATE_DELETED,
+        TEMPLATE_HIDDEN,
+        TEMPLATE_SHOWN
     );
 
     public static List<String> actionsOfGroup(String group) {

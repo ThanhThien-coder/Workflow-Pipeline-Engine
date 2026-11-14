@@ -2,6 +2,7 @@ package com.pipeline.wpe.controller;
 
 import com.pipeline.wpe.dto.request.template.CreateTemplateRequest;
 import com.pipeline.wpe.dto.request.template.SaveProjectAsTemplateRequest;
+import com.pipeline.wpe.dto.request.template.SetTemplateHiddenRequest;
 import com.pipeline.wpe.dto.request.template.ValidateTemplateGraphRequest;
 import com.pipeline.wpe.dto.response.template.DagValidationResponse;
 import com.pipeline.wpe.dto.response.template.TemplateDetailResponse;
@@ -42,10 +43,12 @@ public class PipelineTemplateController {
         @RequestParam(required = false) Boolean isSystemStandard,
         @Parameter(description = "Lọc theo phạm vi: PUBLIC hoặc PRIVATE")
         @RequestParam(required = false) String visibility,
+        @Parameter(description = "Bao gồm cả template ẩn (chỉ có tác dụng với ADMIN)")
+        @RequestParam(required = false) Boolean includeHidden,
         @RequestParam(required = false) Long currentUserId
     ) {
         Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(null);
-        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard, callerId, visibility);
+        List<TemplateSummaryResponse> list = templateService.getTemplates(category, search, isSystemStandard, callerId, visibility, includeHidden);
         return ResponseEntity.ok(list);
     }
 
@@ -104,6 +107,21 @@ public class PipelineTemplateController {
         Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
         templateService.deleteTemplateBySlugOrId(id, callerId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/templates/{id}/hidden")
+    @Operation(
+        summary = "Ẩn hoặc hiện template mẫu (Admin)",
+        description = "Chỉ áp dụng với template PUBLIC. Template bị ẩn sẽ không hiển thị ở màn tạo dự án của người dùng và không clone được."
+    )
+    public ResponseEntity<TemplateSummaryResponse> setTemplateHidden(
+        @PathVariable String id,
+        @Valid @RequestBody SetTemplateHiddenRequest request,
+        @RequestParam(required = false) Long currentUserId
+    ) {
+        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.requireCurrentUserId();
+        TemplateSummaryResponse response = templateService.setTemplateHidden(id, request.hidden(), callerId);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/projects/{id}/save-as-template")

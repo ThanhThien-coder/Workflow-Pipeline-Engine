@@ -87,6 +87,21 @@ class AdminAuditServiceTest {
     }
 
     @Test
+    @DisplayName("actionsOfGroup: nhóm TEMPLATE trả về đúng 5 action quản trị template")
+    void actionsOfGroup_templateGroup_returns5Actions() {
+        List<String> actions = AdminAuditAction.actionsOfGroup("TEMPLATE");
+
+        assertThat(actions).hasSize(5);
+        assertThat(actions).containsExactly(
+            AdminAuditAction.TEMPLATE_CREATED,
+            AdminAuditAction.TEMPLATE_UPDATED,
+            AdminAuditAction.TEMPLATE_DELETED,
+            AdminAuditAction.TEMPLATE_HIDDEN,
+            AdminAuditAction.TEMPLATE_SHOWN
+        );
+    }
+
+    @Test
     @DisplayName("record: targetId dài 80 ký tự -> entity được save có targetId dài đúng 50")
     void record_targetIdLongerThan50_truncatedTo50() {
         TransactionStatus status = mock(TransactionStatus.class);

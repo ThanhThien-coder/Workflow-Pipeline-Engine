@@ -44,6 +44,10 @@ public class PipelineTemplateEntity {
     @Builder.Default
     private Boolean isSystemStandard = false;
 
+    @Column(name = "is_hidden", nullable = false)
+    @Builder.Default
+    private Boolean isHidden = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility", nullable = false, length = 20)
     @Builder.Default
