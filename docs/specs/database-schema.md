@@ -123,6 +123,7 @@ erDiagram
         varchar category "Software Engineering Marketing DevOps General"
         bigint created_by FK
         boolean is_system_standard "DEFAULT FALSE"
+        boolean is_hidden "DEFAULT FALSE (V14)"
         jsonb graph_data "nodes edges metadata"
         int clone_count "DEFAULT 0"
         timestamp created_at
@@ -320,6 +321,7 @@ Lưu trữ các mẫu quy trình tiêu chuẩn do Quản trị viên thiết l�
 | `category` | `varchar(50)` | NOT NULL | `'General'` | Phân loại: `'Software Engineering'`, `'DevOps'`, `'Marketing'`, `'General'`. |
 | `created_by` | `bigint` | FK (USERS.id), NOT NULL | | Quản trị viên khởi tạo mẫu. |
 | `is_system_standard` | `boolean` | NOT NULL | `FALSE` | `TRUE` = Mẫu hệ thống công khai; `FALSE` = Bản nháp DRAFT. |
+| `is_hidden` | `boolean` | NOT NULL | `FALSE` | Cờ ẩn template mẫu do Admin quản lý (thêm ở **V14**). Template bị ẩn không hiện ở màn tạo dự án của user và không clone được, chỉ Admin thấy trong catalog để hiện lại. |
 | `graph_data` | `jsonb` | NOT NULL | | Cấu trúc đồ thị mẫu 2 tầng (phases, phaseEdges, nodes, edges). |
 | `clone_count` | `int` | NOT NULL | `0` | Số lượt dự án đã nhân bản từ mẫu này. |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm tạo mẫu. |

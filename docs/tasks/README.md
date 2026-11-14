@@ -242,7 +242,8 @@ Các task còn lại để sau hạn nộp nếu nhóm còn làm tiếp.
 | V11 | D (template riêng của user, chờ nhóm xác nhận) | Cột `visibility`, `source_project_id` của `pipeline_template` |
 | V12 | A (fix FA1, đợt fix lỗi 13/11) | Đặt lại hash mật khẩu seed `admin`, `alex.kim`, `sarah.chen` |
 | V13 | A (fix FA3, đợt fix lỗi 13/11) | Bảng `admin_audit_log` (nhật ký hệ thống của admin) |
-| V14 trở đi | xin trong nhóm chat, rồi ghi thêm dòng vào bảng này bằng 1 commit nhỏ **trước** khi tạo file | |
+| V14 | D (ẩn/hiện template mẫu, quyết định nhóm 14/11) | Cột `pipeline_template.is_hidden` |
+| V15 trở đi | xin trong nhóm chat, rồi ghi thêm dòng vào bảng này bằng 1 commit nhỏ **trước** khi tạo file | |
 
 A1 bật `spring.flyway.out-of-order: true` cho giai đoạn dev, nên merge lệch thứ tự (ví dụ V9 vào trước V8) vẫn chạy được. Gặp lỗi Flyway lạ trên máy mình thì có thể làm lại DB bằng `docker compose down -v && docker compose up -d` (**xóa sạch dữ liệu local**).
 

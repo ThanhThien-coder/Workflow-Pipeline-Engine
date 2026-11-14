@@ -1181,10 +1181,12 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - `src/features/admin/templates/TemplateCatalogView.tsx`, `TemplateStudioView.tsx` -> `useTemplateStudio` (`save`, `loadTemplate`, `validate`, `deleteTemplate`) -> `container.templateService` (`getTemplates`, `createTemplate`, `updateTemplate`, `deleteTemplate`, `validateGraph`) -> `ITemplateService` -> `PipelineTemplateController` -> `PipelineTemplateService` (`KahnDagService`).
 3. **Request DTO**:
    - Lấy danh mục Template:
-     - **Method & URL**: `GET /api/v1/templates?visibility=PUBLIC&category=&search=&isSystemStandard=`
+     - **Method & URL**: `GET /api/v1/templates?visibility=PUBLIC&category=&search=&isSystemStandard=&includeHidden=`
      - **Headers**: `Authorization: Bearer <jwt>`
+     - **Query Params**: `includeHidden` (`true` hoặc `false`): chỉ ADMIN mới có thể xem template đang ẩn khi truyền `includeHidden=true`; mặc định hoặc với user thường thì luôn loại bỏ template ẩn.
    - Chi tiết Template:
      - **Method & URL**: `GET /api/v1/templates/{id}`
+     - **Quy tắc**: Template ẩn mà người gọi không phải ADMIN sẽ trả về `404 Not Found`.
    - Tạo mới Template:
      - **Method & URL**: `POST /api/v1/templates`
      - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
@@ -1210,24 +1212,40 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
        ```
    - Cập nhật Template:
      - **Method & URL**: `PUT /api/v1/templates/{id}`
+   - Ẩn hoặc Hiện Template mẫu (Admin):
+     - **Method & URL**: `PATCH /api/v1/templates/{id}/hidden`
+     - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
+     - **Body JSON**:
+       ```json
+       {
+         "hidden": true
+       }
+       ```
+     - **Luật Ẩn/Hiện (V14)**:
+       - Template bị ẩn KHÔNG hiện ở màn tạo dự án của người dùng và KHÔNG clone được (`TemplateCloneService` ném `ResourceNotFoundException`), nhưng vẫn hiện trong catalog admin (có nhãn "Đang ẩn") để hiện lại; chỉ ADMIN thấy template ẩn khi gửi `includeHidden=true`.
+       - Giữ nguyên PUBLIC/PRIVATE ở bên trong hệ thống (PRIVATE = template riêng user lưu từ dự án, TASK_11), chỉ bỏ nhãn PUBLIC/PRIVATE khỏi giao diện Admin.
+       - Chỉ áp dụng ẩn/hiện cho template `PUBLIC`; nếu ẩn template `PRIVATE` sẽ trả `409 Conflict` (`errorCode: TEMPLATE_NOT_PUBLIC`).
+       - Ghi nhật ký audit `TEMPLATE_HIDDEN` (khi hidden=true) hoặc `TEMPLATE_SHOWN` (khi hidden=false).
    - Xóa Template:
      - **Method & URL**: `DELETE /api/v1/templates/{id}`
    - Thẩm định đồ thị DAG (Dry Run):
      - **Method & URL**: `POST /api/v1/templates/validate`
      - **Body JSON**: `{ "graphData": { ... } }`
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `PIPELINE_TEMPLATE`, `ADMIN_AUDIT_LOG`.
-   - `GET /templates`: Nhận tham số `visibility=PUBLIC` để lọc chỉ template công khai dùng chung hệ thống.
+   - Bảng tác động: `PIPELINE_TEMPLATE` (thêm cột `is_hidden boolean DEFAULT FALSE` ở migration `V14__template_hidden.sql`), `ADMIN_AUDIT_LOG`.
+   - `GET /templates`: Nhận tham số `visibility=PUBLIC` và `includeHidden=true` (chỉ admin được xem template ẩn). Mặc định luôn lọc bỏ template có `is_hidden = TRUE`.
    - `POST /templates`, `PUT /templates/{id}`: Thẩm định cấu trúc graphData qua `kahnDagService.validateTemplateGraph(graphData)`. Nếu vi phạm chu trình lặp thì ném `CycleDetectedException`. Sau khi lưu thành công, ghi audit log `TEMPLATE_CREATED` hoặc `TEMPLATE_UPDATED`.
+   - `PATCH /templates/{id}/hidden`: Yêu cầu quyền ADMIN (`requireAdmin`). Cập nhật `is_hidden`, `updated_at = now`. Ghi audit log `TEMPLATE_HIDDEN` hoặc `TEMPLATE_SHOWN`. Trả về `TemplateSummaryResponse`.
    - `DELETE /templates/{id}`: Kiểm tra quyền quản trị (`requireCanManage`). Admin được phép xóa cả template hệ thống và template thường (không còn `SYSTEM_TEMPLATE_LOCKED`), xóa khỏi `PIPELINE_TEMPLATE`, ghi audit log `TEMPLATE_DELETED`.
 5. **Response DTO & UI Mutation**:
-   - **GET /templates**: `200 OK`. Body: `TemplateSummaryResponse[]`.
-   - **GET /templates/{id}**: `200 OK`. Body: `TemplateDetailResponse`.
+   - **GET /templates**: `200 OK`. Body: `TemplateSummaryResponse[]` (bổ sung trường `isHidden: boolean`).
+   - **GET /templates/{id}**: `200 OK`. Body: `TemplateDetailResponse` (bổ sung trường `isHidden: boolean`).
    - **POST /templates**: `201 Created`. Body: `TemplateDetailResponse`.
    - **PUT /templates/{id}**: `200 OK`. Body: `TemplateDetailResponse`.
+   - **PATCH /templates/{id}/hidden**: `200 OK`. Body: `TemplateSummaryResponse`.
    - **DELETE /templates/{id}**: `204 No Content`.
    - **POST /templates/validate**: `200 OK`. Body: `DagValidationResponse` (`{ "valid": true, "violations": [] }`).
-   - **UI Mutation**: TemplateCatalogView chỉ hiển thị danh sách các template PUBLIC; khi bấm Xóa template hệ thống, hiển thị ConfirmDialog cảnh báo template mẫu hệ thống và cho phép xóa vĩnh viễn; khi lưu đồ thị có chu trình lặp, mở modal KahnCycleModal hiển thị danh sách node gây vòng lặp với viền đỏ nổi bật.
+   - **UI Mutation**: TemplateCatalogView gọi API với `visibility=PUBLIC&includeHidden=true`; hiển thị mô tả "Template đang ẩn sẽ không hiện ở màn tạo dự án của người dùng."; bỏ nhãn PUBLIC/PRIVATE và thay bằng nhãn "Template mẫu hệ thống" khi `isSystemStandard` và nhãn xám "Đang ẩn" khi `isHidden` (thẻ ẩn mờ hơn với `opacity-60`); mỗi thẻ có nút "Ẩn" / "Hiện" gọi `setTemplateHidden` và cập nhật trực tiếp state; khi bấm Xóa template hệ thống, hiển thị ConfirmDialog cảnh báo template mẫu hệ thống và cho phép xóa vĩnh viễn.
 
 ---
 
@@ -1277,7 +1295,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - **Phân nhóm Nhật ký theo 3 Cụm Hành động (AdminAuditAction)**:
      - Nhóm Xác thực (`LOGIN`): `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `REGISTER`, `ACCOUNT_LOCKED_LOGIN`.
      - Nhóm Quản trị (`ADMIN`): `USER_SUSPENDED`, `USER_UNBANNED`, `ADMIN_ACCESS_DENIED`, `USER_ROLE_CHANGED`, `USER_DELETED`, `PROJECT_OWNER_TRANSFERRED`, `WORKSPACE_ARCHIVED`.
-     - Nhóm Quy trình mẫu (`TEMPLATE`): `TEMPLATE_CREATED`, `TEMPLATE_UPDATED`, `TEMPLATE_DELETED`.
+     - Nhóm Quy trình mẫu (`TEMPLATE`): `TEMPLATE_CREATED`, `TEMPLATE_UPDATED`, `TEMPLATE_DELETED`, `TEMPLATE_HIDDEN`, `TEMPLATE_SHOWN`.
    - **Giám sát Truy cập Trái phép (Request 403 vào `/api/v1/admin/**`)**:
      - Mọi yêu cầu HTTP gửi tới các đường dẫn quản trị `/api/v1/admin/**` bị từ chối truy cập (HTTP 403 Forbidden) đều tự động được bắt tại `GlobalExceptionHandler` và ghi lại vào nhật ký với hành động `ADMIN_ACCESS_DENIED`, lưu chi tiết method, URI và lý do từ chối.
    - **Cơ chế Ghi Độc lập & Cách ly Tuyệt đối**:

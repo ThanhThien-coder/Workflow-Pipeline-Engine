@@ -168,7 +168,7 @@ Rút ra 6 nguyên tắc:
   - `AdminProjectOwnerService.java`: chủ mới phải là thành viên active và không bị khóa (`NEW_OWNER_NOT_ACTIVE_MEMBER` 409); chủ cũ chuyển thành `COLLABORATOR`; dự án 1 người không chuyển được (chỉ lưu trữ). Nhóm quyết 14/11: dự án đã lưu trữ (`ARCHIVED`) hoặc đã hoàn thành (`COMPLETED`) thì admin KHÔNG được chuyển chủ (`PROJECT_CLOSED` 409).
   - Drawer `OwnedProjectsDrawer.tsx` và modal chuyển chủ trên giao diện Frontend.
 - **Cắt độ dài trường an toàn**: Cắt chuỗi trước khi lưu `admin_audit_log` tránh lỗi tràn độ dài cột SQL.
+- **Ẩn/hiện template (V14 — Đã làm)**: Admin có nút Ẩn/Hiện template mẫu (`PATCH /api/v1/templates/{id}/hidden`). Template bị ẩn KHÔNG hiện ở màn tạo dự án của người dùng và KHÔNG clone được, nhưng vẫn hiện trong catalog admin (có nhãn "Đang ẩn") để hiện lại. Giữ nguyên PUBLIC/PRIVATE ở bên trong, bỏ nhãn PUBLIC/PRIVATE khỏi giao diện admin. Ghi nhật ký `TEMPLATE_HIDDEN`, `TEMPLATE_SHOWN`.
 
 ### 7.3 Chưa làm
-- **Ẩn template bằng cờ riêng (đợt 2, nếu cần)**.
 *(Lưu ý: "Thêm tài khoản từ admin" nhóm đã quyết 14/11 là không làm, người dùng tự đăng ký).*
