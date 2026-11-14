@@ -138,6 +138,26 @@ describe('graphMapper.toPhaseTree', () => {
     })
   })
 
+  it('cạnh cùng phase: node con treo dưới node cha (subtask), không treo dưới root', () => {
+    const tree = toPhaseTree(GRAPH, '20')!
+    expect(tree['3'].parentIds).toEqual(['2'])
+    // cha của node 2 ở phase khác (ghost) nên node 2 vẫn treo dưới root
+    expect(tree['2'].parentIds).toEqual([rootIdOf('20')])
+  })
+
+  it('node có nhiều cha cùng phase giữ đủ các cha theo thứ tự cạnh (hội tụ)', () => {
+    const graph: BackendGraphResponse = {
+      phases: [{ id: 1, name: 'P' }],
+      nodes: [
+        { id: 11, phaseId: 1, code: 'A', title: 'A' },
+        { id: 12, phaseId: 1, code: 'B', title: 'B' },
+        { id: 13, phaseId: 1, code: 'C', title: 'C' },
+      ],
+      dependencies: [{ parentNodeId: 11, childNodeId: 13 }, { parentNodeId: 12, childNodeId: 13 }],
+    }
+    expect(toPhaseTree(graph, '1')!['13'].parentIds).toEqual(['11', '12'])
+  })
+
   it('cạnh cùng phase không tạo ghost', () => {
     const tree = toPhaseTree(GRAPH, '20')!
     expect(Object.values(tree).filter((n) => n.kind === 'ghost').map((n) => n.id)).toEqual(['ghost_1_to_2'])

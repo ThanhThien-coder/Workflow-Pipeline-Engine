@@ -64,6 +64,30 @@ export function createDependency(projectId: string, parentNodeId: number, childN
   return apiRequest<BackendDependencyDto>('POST', `/projects/${projectId}/dependencies`, { body: { parentNodeId, childNodeId } })
 }
 
+export interface UpdateNodeBody {
+  /** Backend bắt buộc có title và version (sai version trả 409). */
+  title: string
+  version: number
+  description?: string
+  joinPolicy?: 'ALL_COMPLETED' | 'ANY_COMPLETED'
+  assignedUserId?: number
+  /** ISO instant. Không gửi thì giữ nguyên. */
+  dueDate?: string
+  /** true thì bỏ người phụ trách / hạn chót (null không có nghĩa là xóa). */
+  clearAssignee?: boolean
+  clearDueDate?: boolean
+}
+
+/** PUT /nodes/{id}. Không sửa trạng thái (trạng thái chỉ đổi qua state machine). */
+export function updateNode(nodeId: number, body: UpdateNodeBody): Promise<BackendGraphNodeDto> {
+  return apiRequest<BackendGraphNodeDto>('PUT', `/nodes/${nodeId}`, { body })
+}
+
+/** DELETE /nodes/{id}. Backend chỉ cho xóa node LOCKED hoặc TODO. */
+export async function deleteNode(nodeId: number): Promise<void> {
+  await apiRequest<void>('DELETE', `/nodes/${nodeId}`)
+}
+
 /** POST /projects/{id}/publish */
 export function publishProject(projectId: string): Promise<{ status?: string; unlockedTaskCount?: number }> {
   return apiRequest('POST', `/projects/${projectId}/publish`)

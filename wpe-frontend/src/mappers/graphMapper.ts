@@ -112,7 +112,7 @@ function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
     blocker: null,
     joinPolicy,
     phaseId,
-    // Mọi node của phase treo dưới root (giữ như cũ, cạnh cùng phase chưa vẽ: xem "Điều chưa chắc" của B5)
+    // Mặc định treo dưới root; toPhaseTree đổi sang node cha nếu có cạnh phụ thuộc cùng phase
     parentIds: [rootIdOf(phaseId)],
     x: n.uiMetadata?.position?.x ?? NODE_DEFAULT_X,
     y: n.uiMetadata?.position?.y ?? NODE_DEFAULT_Y,
@@ -124,7 +124,7 @@ function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
 /**
  * Cây Root/Branch/Ghost của một phase.
  * - Root: chính phase đó (id `root_<phaseId>`).
- * - Branch: mỗi node có phaseId = phase này.
+ * - Branch: mỗi node có phaseId = phase này. Cạnh phụ thuộc cùng phase thì node con treo dưới node cha (subtask).
  * - Ghost: mỗi cạnh phụ thuộc có cha ở phase khác (parent.phaseId !== child.phaseId), gắn vào node con.
  * Không tìm thấy phase thì trả null để lớp gọi API quyết định báo lỗi gì.
  */
@@ -150,7 +150,16 @@ export function toPhaseTree(graph: BackendGraphResponse | null | undefined, phas
     const childId = String(dep.childNodeId)
     if (!phaseNodeIds.has(childId)) continue
     const parentNode = allNodes.find((n) => String(n.id) === String(dep.parentNodeId))
-    if (!parentNode || String(parentNode.phaseId) === String(phaseId)) continue
+    if (!parentNode) continue
+
+    // Cạnh cùng phase: node con là subtask của node cha (bỏ treo dưới root)
+    if (String(parentNode.phaseId) === String(phaseId)) {
+      const child = tree[childId]
+      const parentId = String(parentNode.id)
+      const parentIds = child.parentIds[0] === rootId ? [] : child.parentIds
+      if (!parentIds.includes(parentId)) tree[childId] = { ...child, parentIds: [...parentIds, parentId] }
+      continue
+    }
 
     const ghostId = ghostIdOf(String(dep.parentNodeId), childId)
     const sourcePhase = phases.find((p) => String(p.id) === String(parentNode.phaseId))

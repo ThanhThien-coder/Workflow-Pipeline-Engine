@@ -1,5 +1,5 @@
 import { MockWorkflowService } from '../MockWorkflowService'
-import type { CreatePhaseDto, IWorkflowService } from '../contracts/IWorkflowService'
+import type { CreatePhaseDto, IWorkflowService, TaskNodePatch } from '../contracts/IWorkflowService'
 import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
 import * as authApi from './http/auth'
@@ -43,7 +43,7 @@ import type {
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
 import type { GuestAccessState, OverviewData } from '../../types/overview.types'
-import type { BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
+import type { BackendGraphNodeDto, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
 // Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
 import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
 
@@ -582,7 +582,7 @@ export class HttpWorkflowService implements IWorkflowService {
    * Cần vì contract chỉ truyền phaseId cho addRootTask/attachGhostNode, và PUT /phases bắt buộc có name.
    */
   private readonly phaseIndex = new Map<string, { projectId: string; name: string }>()
-  private readonly nodeIndex = new Map<string, { title: string; phaseId: string | null; status: string | null }>()
+  private readonly nodeIndex = new Map<string, { title: string; phaseId: string | null; status: string | null; version: number }>()
   private readonly schedulePhaseSave = graphApi.createKeyedDebounce(graphApi.PHASE_POSITION_DEBOUNCE_MS)
 
   private async loadGraph(projectId: string): Promise<BackendGraphResponse> {
@@ -595,6 +595,7 @@ export class HttpWorkflowService implements IWorkflowService {
         title: n.title,
         phaseId: n.phaseId != null ? String(n.phaseId) : null,
         status: n.status ?? null,
+        version: n.version ?? 0,
       })
     }
     return graph
@@ -702,13 +703,76 @@ export class HttpWorkflowService implements IWorkflowService {
       phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
       title: payload.title.trim(),
     })
-    this.nodeIndex.set(String(created.id), { title: created.title, phaseId: String(phaseId), status: created.status ?? null })
+    this.rememberNode(created, String(phaseId))
     return {
       id: String(created.id),
       title: created.title,
       status: ((created.status as TaskStatus) || 'LOCKED'),
       parentId: rootIdOf(String(phaseId)),
     }
+  }
+
+  /**
+   * POST /projects/{id}/nodes rồi POST /dependencies từ từng task cha (subtask = 1 cha, task hội tụ = nhiều cha).
+   * Nối lỗi (vd. 422 chu trình) thì xóa node vừa tạo để không để lại task mồ côi, rồi ném lỗi gốc.
+   */
+  async addChildTask(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode> {
+    const pid = this.projectIdOfPhase(phaseId)
+    const parentIds = parentTaskIds.map((id) => graphApi.toBackendId(id, 'Task cha'))
+    const created = await graphApi.createNode(pid, {
+      phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
+      title: payload.title.trim(),
+    })
+    const childId = graphApi.toBackendId(String(created.id), 'Task mới')
+    try {
+      for (const parentId of parentIds) {
+        await graphApi.createDependency(pid, parentId, childId)
+      }
+    } catch (error) {
+      // Dọn node vừa tạo; dọn lỗi thì vẫn báo lỗi nối (nguyên nhân chính) cho người dùng
+      await graphApi.deleteNode(childId).catch(() => undefined)
+      throw error
+    }
+    this.rememberNode(created, String(phaseId))
+    return {
+      id: String(created.id),
+      title: created.title,
+      status: ((created.status as TaskStatus) || 'LOCKED'),
+      parentId: parentTaskIds[0],
+    }
+  }
+
+  /** PUT /nodes/{id} với version đang giữ. Bỏ người làm / hạn chót bằng clearAssignee / clearDueDate. */
+  async updateTaskNode(taskId: string, patch: TaskNodePatch): Promise<void> {
+    const nodeId = graphApi.toBackendId(taskId, 'Task')
+    const known = this.nodeIndex.get(String(taskId))
+    if (!known) {
+      throw new ApiError({ status: 400, code: 'NODE_NOT_LOADED', message: `Chưa tải task ${taskId}. Tải lại đồ thị rồi thử lại.` })
+    }
+    const updated = await graphApi.updateNode(nodeId, {
+      title: patch.title.trim(),
+      description: patch.description,
+      joinPolicy: patch.joinPolicy,
+      version: known.version,
+      ...(patch.assigneeId ? { assignedUserId: graphApi.toBackendId(patch.assigneeId, 'Người làm') } : { clearAssignee: true }),
+      ...(patch.dueDate ? { dueDate: `${patch.dueDate}T00:00:00Z` } : { clearDueDate: true }),
+    })
+    this.rememberNode(updated, known.phaseId)
+  }
+
+  /** DELETE /nodes/{id} */
+  async deleteTaskNode(taskId: string): Promise<void> {
+    await graphApi.deleteNode(graphApi.toBackendId(taskId, 'Task'))
+    this.nodeIndex.delete(String(taskId))
+  }
+
+  private rememberNode(node: BackendGraphNodeDto, phaseId: string | null): void {
+    this.nodeIndex.set(String(node.id), {
+      title: node.title,
+      phaseId,
+      status: node.status ?? null,
+      version: node.version ?? 0,
+    })
   }
 
   /**
