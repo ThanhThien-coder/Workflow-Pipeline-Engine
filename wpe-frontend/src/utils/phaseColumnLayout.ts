@@ -64,21 +64,27 @@ export function arrangePhases(
 
 /**
  * Auto Layout: giữ cột theo DAG, sắp thứ tự trong mỗi cột theo trung bình y của các phase cha
- * (heuristic barycenter) để ít dây cắt nhau, rồi xếp sát nhau từ trên xuống.
+ * (heuristic barycenter) để ít dây cắt nhau, xếp sát nhau trong cột, và căn giữa mỗi cột theo chiều dọc
+ * so với cột cao nhất (G19: trước đây mọi cột dồn lên đầu).
  */
 export function autoLayoutColumns(phases: Pick<MacroPhase, 'id' | 'parentPhaseIds'>[], currentY: Record<string, number>): Positions {
   const cols = phaseColumns(phases)
   const maxCol = Math.max(0, ...Object.values(cols))
+  const step = MACRO_CARD_H + MACRO_GAP_Y
+  const countOf = (col: number) => phases.filter((p) => cols[p.id] === col).length
+  const tallest = Math.max(1, ...Array.from({ length: maxCol + 1 }, (_, col) => countOf(col)))
   const result: Positions = {}
   for (let col = 0; col <= maxCol; col++) {
     const inCol = phases.filter((p) => cols[p.id] === col)
+    // Cột ít thẻ hơn cột cao nhất thì đẩy xuống nửa phần chênh lệch
+    const top = TOP + ((tallest - inCol.length) * step) / 2
     const key = (p: (typeof inCol)[number]) => {
       const placedParents = p.parentPhaseIds.map((id) => result[id]?.y).filter((y): y is number => y != null)
       return placedParents.length ? placedParents.reduce((a, b) => a + b, 0) / placedParents.length : currentY[p.id] ?? TOP
     }
     inCol.sort((a, b) => key(a) - key(b) || a.id.localeCompare(b.id))
     inCol.forEach((p, i) => {
-      result[p.id] = { x: columnX(col), y: TOP + i * (MACRO_CARD_H + MACRO_GAP_Y) }
+      result[p.id] = { x: columnX(col), y: top + i * step }
     })
   }
   return result

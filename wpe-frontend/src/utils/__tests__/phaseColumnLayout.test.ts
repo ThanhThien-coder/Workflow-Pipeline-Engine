@@ -71,6 +71,36 @@ describe('autoLayoutColumns', () => {
     expect(pos.y.y).toBeLessThan(pos.x.y) // y có cha a ở trên → y ở trên
     expect(pos.x.x).toBe(columnX(1))
   })
+
+  it('G19: cột ít thẻ được căn giữa theo chiều dọc so với cột cao nhất (không dồn lên đầu)', () => {
+    // Sơ đồ như ảnh: A → P2, P3, P4; P2, P3 → P5; P5 → P6; P2 → P6 (vượt cột)
+    const phases = [p('a'), p('p2', ['a']), p('p3', ['a']), p('p4', ['a']), p('p5', ['p2', 'p3']), p('p6', ['p5', 'p2'])]
+    const pos = autoLayoutColumns(phases, {})
+    const cols = phaseColumns(phases)
+
+    const middleRow = pos.p3.y
+    expect(pos.p2.y).toBeLessThan(middleRow)
+    expect(pos.p4.y).toBeGreaterThan(middleRow)
+    expect(pos.a.y).toBe(middleRow)
+    expect(pos.p5.y).toBe(middleRow)
+    expect(pos.p6.y).toBe(middleRow)
+
+    // Dây vẫn không cắt qua thẻ nào
+    const edges: [string, string][] = [['a', 'p2'], ['a', 'p3'], ['a', 'p4'], ['p2', 'p5'], ['p3', 'p5'], ['p5', 'p6'], ['p2', 'p6']]
+    const offsets = channelOffsets(edges, pos, cols)
+    for (const [from, to] of edges) {
+      const middle = phases.filter((ph) => cols[ph.id] > cols[from] && cols[ph.id] < cols[to]).map((ph) => pos[ph.id])
+      const route = routeEdge(pos[from], pos[to], cols[from], cols[to], middle, offsets[from])
+      const others = phases.filter((ph) => ph.id !== from && ph.id !== to).map((ph) => pos[ph.id])
+      expect(crossesAnyCard(route.points, others)).toBe(false)
+    }
+  })
+
+  it('G19: hai cột bằng nhau thì không lệch', () => {
+    const pos = autoLayoutColumns([p('a'), p('b'), p('x', ['a']), p('y', ['b'])], {})
+    expect(pos.a.y).toBe(pos.x.y)
+    expect(pos.b.y).toBe(pos.y.y)
+  })
 })
 
 describe('routeEdge', () => {
