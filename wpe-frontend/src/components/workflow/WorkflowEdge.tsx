@@ -1,70 +1,56 @@
-import type { MacroPhase } from '../../types/workflow.types'
-import { MACRO_CARD_H, MACRO_CARD_W } from '../../utils/macroLayout'
+import type { EdgeRoute } from '../../utils/phaseColumnLayout'
 
+/** Id marker mũi tên khai báo trong <defs> của SVG canvas (MacroWorkflow). */
+export const EDGE_ARROW_ID = 'phase-edge-arrow'
+export const EDGE_ARROW_ACTIVE_ID = 'phase-edge-arrow-active'
+
+export type EdgeHighlight = 'normal' | 'on' | 'dim'
+
+/**
+ * Dây nối 2 phase. Đường đi tính sẵn ở utils/phaseColumnLayout (vuông góc, chạy trong khe giữa các cột).
+ * highlight: 'on' khi dây ra/vào phase đang chọn hoặc rê chuột, 'dim' cho các dây còn lại lúc đó.
+ */
 export function WorkflowEdge({
-  a,
-  b,
-  positions,
+  sourceId,
+  targetId,
+  route,
+  highlight = 'normal',
   onDisconnect,
 }: {
-  a?: MacroPhase
-  b?: MacroPhase
-  positions: Record<string, { x: number; y: number }>
+  sourceId: string
+  targetId: string
+  route: EdgeRoute
+  highlight?: EdgeHighlight
   onDisconnect?: (sourceId: string, targetId: string) => void
 }) {
-  if (!a || !b) return null
-  const aPosition = positions[a.id]
-  const bPosition = positions[b.id]
-  if (!aPosition || !bPosition) return null
-  if (
-    !Number.isFinite(aPosition.x) ||
-    !Number.isFinite(aPosition.y) ||
-    !Number.isFinite(bPosition.x) ||
-    !Number.isFinite(bPosition.y) ||
-    isNaN(aPosition.x) ||
-    isNaN(aPosition.y) ||
-    isNaN(bPosition.x) ||
-    isNaN(bPosition.y)
-  ) {
-    return null
-  }
-  const x1 = aPosition.x + MACRO_CARD_W
-  const y1 = aPosition.y + MACRO_CARD_H / 2
-  const x2 = bPosition.x
-  const y2 = bPosition.y + MACRO_CARD_H / 2
-  const dx = Math.max((x2 - x1) * 0.5, 40)
-  if (!Number.isFinite(dx) || isNaN(dx)) return null
-  const pathData = `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`
-  if (pathData.includes('NaN') || pathData.includes('undefined')) return null
-
-  const midX = (x1 + x2) / 2
-  const midY = (y1 + y2) / 2
-
+  const active = highlight === 'on'
   return (
-    <g className="group/edge">
+    <g
+      className="group/edge transition-opacity"
+      data-edge={`${sourceId}->${targetId}`}
+      data-highlight={highlight}
+      opacity={highlight === 'dim' ? 0.25 : 1}
+    >
       <path
-        d={pathData}
+        d={route.d}
         fill="none"
-        stroke="#94a3b8"
-        strokeWidth="2.5"
-        strokeDasharray="5 5"
+        stroke={active ? '#4f46e5' : '#94a3b8'}
+        strokeWidth={active ? 3 : 2}
+        strokeDasharray={active ? undefined : '6 5'}
+        strokeLinejoin="round"
+        markerEnd={`url(#${active ? EDGE_ARROW_ACTIVE_ID : EDGE_ARROW_ID})`}
         className="transition-colors group-hover/edge:stroke-blue-500"
       />
-      <path
-        d={pathData}
-        fill="none"
-        stroke="transparent"
-        strokeWidth="16"
-        className="pointer-events-auto cursor-pointer"
-      />
+      {/* Vùng bấm rộng để rê chuột / gỡ dây dễ hơn */}
+      <path d={route.d} fill="none" stroke="transparent" strokeWidth="16" className="pointer-events-auto cursor-pointer" />
       {onDisconnect && (
         <g
-          transform={`translate(${midX}, ${midY})`}
+          transform={`translate(${route.mid.x}, ${route.mid.y})`}
           className="pointer-events-auto cursor-pointer opacity-30 group-hover/edge:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation()
             e.preventDefault()
-            onDisconnect(a.id, b.id)
+            onDisconnect(sourceId, targetId)
           }}
         >
           <circle

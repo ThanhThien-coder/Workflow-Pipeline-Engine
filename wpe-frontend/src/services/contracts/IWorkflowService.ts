@@ -40,6 +40,16 @@ export interface CreatePhaseDto {
   y?: number
 }
 
+/** Thông tin task sửa được trong hộp chi tiết. Gửi đủ trạng thái mong muốn: null là bỏ người làm / hạn chót. */
+export interface TaskNodePatch {
+  title: string
+  description: string
+  joinPolicy: 'ALL_COMPLETED' | 'ANY_COMPLETED'
+  assigneeId: string | null
+  /** YYYY-MM-DD */
+  dueDate: string | null
+}
+
 export interface IWorkflowService {
   // Auth contracts
   login(credentials: AuthCredentialsDto): Promise<AuthResponseDto>
@@ -59,6 +69,14 @@ export interface IWorkflowService {
   getPhaseGraph(phaseId: string, projectId?: string): Promise<PhaseTreeData>
   addRootTask?(phaseId: string, payload: { title: string }): Promise<PhaseNode>
   attachGhostNode?(phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }): Promise<GhostDependency>
+  /** Chế độ API: tạo task trong phase rồi nối từ các task cha (1 cha = subtask, nhiều cha = task hội tụ). */
+  addChildTask?(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode>
+  /** Chế độ API: sửa thông tin task (không sửa trạng thái). */
+  updateTaskNode?(taskId: string, patch: TaskNodePatch): Promise<void>
+  /** Chế độ API: xóa task (backend chỉ cho xóa task LOCKED hoặc TODO). */
+  deleteTaskNode?(taskId: string): Promise<void>
+  /** Chế độ API: chủ dự án mở khóa sớm task đang LOCKED (LOCKED → TODO dù task trước chưa xong). */
+  forceUnlockTask?(taskId: string): Promise<void>
   resetPhaseTree?(phaseId: string): Promise<void>
   createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase>
   connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void>
@@ -70,6 +88,10 @@ export interface IWorkflowService {
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState>
   generateGuestToken(projectId: string): Promise<GuestAccessState>
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]>
+  /** Mọi task của một phase cho Kanban theo phase (kể cả LOCKED, chưa giao). */
+  getPhaseTasks(projectId: string, phaseId: string): Promise<KanbanTask[]>
+  /** G18: hàng chờ duyệt: mọi task REVIEW của dự án (chỉ chủ dự án / quản lý gọi được). */
+  getReviewTasks(projectId: string): Promise<KanbanTask[]>
   updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask>
   submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }>
   updateTaskAssignment(taskId: string, cmd: { assignedUserId?: string; dueDate?: string; version: number }): Promise<Pick<KanbanTask, 'assignedUserId' | 'dueDate' | 'version'>>

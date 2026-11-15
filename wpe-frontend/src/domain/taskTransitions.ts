@@ -5,6 +5,9 @@ export function evaluateTransition(task: Pick<KanbanTask, 'status' | 'assignedUs
   const canReview = actor.projectRole === 'OWNER' || actor.projectRole === 'MANAGER'
   if (from === to) return { kind: 'deny', message: '' }
   if (from === 'DONE') return { kind: 'deny', message: 'Task đã DONE nên bị đóng băng, không thể thay đổi.' }
+  // Mở khóa chỉ do backend làm (đủ điều kiện task trước, hoặc chủ dự án mở khóa sớm); không kéo vào/ra cột Đang khóa
+  if (from === 'LOCKED') return { kind: 'deny', message: 'This task is locked: its prerequisites must be done first (or the project owner can unlock it early).' }
+  if (to === 'LOCKED') return { kind: 'deny', message: 'A task cannot be moved back to Locked.' }
 
   // Owner or Manager review actions (Approve to DONE or Reject back to IN_PROGRESS) can be performed on any member's task
   const isReviewAction = canReview && (to === 'DONE' || (from === 'REVIEW' && to === 'IN_PROGRESS'))

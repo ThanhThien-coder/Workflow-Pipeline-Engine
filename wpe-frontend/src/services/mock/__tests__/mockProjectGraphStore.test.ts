@@ -48,22 +48,23 @@ describe('mockProjectGraphStore: Auto-Layout on Template Creation', () => {
     result.phases.forEach((p) => {
       expect(p.w).toBe(MACRO_CARD_W)
       expect(p.h).toBe(MACRO_CARD_H)
+      expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true)
     })
 
     // Verify vertical spacing: no two cards in the same column overlap
     const cols = new Map<number, typeof result.phases>()
     result.phases.forEach((p) => {
-      const colKey = Math.round((p.x - 40) / (MACRO_CARD_W + MACRO_GAP_X))
+      const colKey = Math.round((p.x! - 40) / (MACRO_CARD_W + MACRO_GAP_X))
       if (!cols.has(colKey)) cols.set(colKey, [])
       cols.get(colKey)!.push(p)
     })
 
     cols.forEach((phasesInCol) => {
-      phasesInCol.sort((a, b) => a.y - b.y)
+      phasesInCol.sort((a, b) => a.y! - b.y!)
       for (let i = 1; i < phasesInCol.length; i++) {
         const prev = phasesInCol[i - 1]
         const curr = phasesInCol[i]
-        const actualGap = curr.y - (prev.y + MACRO_CARD_H)
+        const actualGap = curr.y! - (prev.y! + MACRO_CARD_H)
         expect(actualGap).toBeGreaterThanOrEqual(MACRO_GAP_Y)
       }
     })

@@ -88,4 +88,11 @@ public class NodeEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /** Chủ dự án mở khóa sớm (V15): ai mở và lúc nào. Có giá trị thì không bị khóa lại khi sửa dây phụ thuộc. */
+    @Column(name = "force_unlocked_by")
+    private Long forceUnlockedBy;
+
+    @Column(name = "force_unlocked_at")
+    private Instant forceUnlockedAt;
 }

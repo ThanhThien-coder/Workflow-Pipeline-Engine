@@ -1,5 +1,5 @@
 import { MockWorkflowService } from '../MockWorkflowService'
-import type { CreatePhaseDto, IWorkflowService } from '../contracts/IWorkflowService'
+import type { CreatePhaseDto, IWorkflowService, TaskNodePatch } from '../contracts/IWorkflowService'
 import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
 import * as authApi from './http/auth'
@@ -16,7 +16,6 @@ import type {
   ArtifactItem,
   ArtifactType,
   KanbanTask,
-  PhaseId,
   SubmitArtifactDto,
   TaskStatus,
   UserSummary,
@@ -43,7 +42,7 @@ import type {
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
 import type { GuestAccessState, OverviewData } from '../../types/overview.types'
-import type { BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
+import type { BackendGraphNodeDto, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
 // Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
 import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
 
@@ -54,7 +53,6 @@ import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '..
  * (không còn tự chuyển sang dữ liệu giả).
  */
 export const METHODS_STILL_MOCKED = [
-  'getProjectMembers', // C6
   'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
 ] as const satisfies readonly (keyof IWorkflowService)[]
 
@@ -68,6 +66,7 @@ interface BackendTaskResponse {
   assignedUserId?: string
   joinPolicy: string
   rejectReason?: string
+  forceUnlockedAt?: string | null
   dueDate?: string
   isOverdue: boolean
   version: number
@@ -79,6 +78,15 @@ interface BackendTaskResponse {
     label?: string
     uploadedAt: string
   }>
+}
+
+/**
+ * templateId gửi lên backend: template tự lưu có id số, template mẫu có id là slug (vd. `tpl-sdlc`).
+ * Backend nhận cả hai, nên chuỗi toàn chữ số thì đổi sang số, còn lại giữ nguyên slug.
+ */
+function toTemplateIdPayload(templateId: string | number): string | number {
+  const id = String(templateId).trim()
+  return /^\d+$/.test(id) ? Number(id) : id
 }
 
 /**
@@ -123,6 +131,22 @@ export class HttpWorkflowService implements IWorkflowService {
     })
     const items = data ?? []
     // Lưu version vào cache để phục vụ Optimistic Locking khi update
+    items.forEach((item) => this.taskVersionCache.set(String(item.id), item.version))
+    return items.map((item) => this.mapBackendTaskToKanban(item))
+  }
+
+  /** GET /projects/{id}/phases/{phaseId}/tasks: mọi task của phase (kể cả LOCKED, chưa giao) */
+  async getPhaseTasks(projectId: string, phaseId: string): Promise<KanbanTask[]> {
+    const data = await apiRequest<BackendTaskResponse[]>('GET', `/projects/${projectId}/phases/${phaseId}/tasks`)
+    const items = data ?? []
+    items.forEach((item) => this.taskVersionCache.set(String(item.id), item.version))
+    return items.map((item) => this.mapBackendTaskToKanban(item))
+  }
+
+  /** G18 — GET /projects/{id}/review-tasks: mọi task REVIEW của dự án (chủ dự án / quản lý) */
+  async getReviewTasks(projectId: string): Promise<KanbanTask[]> {
+    const data = await apiRequest<BackendTaskResponse[]>('GET', `/projects/${projectId}/review-tasks`)
+    const items = data ?? []
     items.forEach((item) => this.taskVersionCache.set(String(item.id), item.version))
     return items.map((item) => this.mapBackendTaskToKanban(item))
   }
@@ -178,8 +202,9 @@ export class HttpWorkflowService implements IWorkflowService {
     return res
   }
 
+  /** GET /projects/{id}/members */
   getProjectMembers(projectId: string): Promise<UserSummary[]> {
-    return this.mock.getProjectMembers(projectId) // C6
+    return membersApi.listMemberSummaries(projectId)
   }
 
   // ───────────────────────── Artifact (C) ─────────────────────────
@@ -276,7 +301,7 @@ export class HttpWorkflowService implements IWorkflowService {
       body: {
         name: cmd.name,
         description: cmd.desc ?? cmd.description ?? '',
-        templateId: cmd.templateId ? Number(cmd.templateId) : null,
+        templateId: cmd.templateId ? toTemplateIdPayload(cmd.templateId) : null,
         visibility: cmd.visibility || 'PRIVATE',
       },
     })
@@ -313,7 +338,7 @@ export class HttpWorkflowService implements IWorkflowService {
   }): Promise<ProjectDetailDto> {
     const item = await apiRequest<any>('POST', '/projects/clone-template', {
       body: {
-        templateId: Number(req.templateId),
+        templateId: toTemplateIdPayload(req.templateId),
         projectName: req.projectName.trim(),
         description: req.description?.trim() || '',
         visibility: req.visibility || 'PRIVATE',
@@ -573,7 +598,7 @@ export class HttpWorkflowService implements IWorkflowService {
    * Cần vì contract chỉ truyền phaseId cho addRootTask/attachGhostNode, và PUT /phases bắt buộc có name.
    */
   private readonly phaseIndex = new Map<string, { projectId: string; name: string }>()
-  private readonly nodeIndex = new Map<string, { title: string; phaseId: string | null; status: string | null }>()
+  private readonly nodeIndex = new Map<string, { title: string; phaseId: string | null; status: string | null; version: number }>()
   private readonly schedulePhaseSave = graphApi.createKeyedDebounce(graphApi.PHASE_POSITION_DEBOUNCE_MS)
 
   private async loadGraph(projectId: string): Promise<BackendGraphResponse> {
@@ -586,6 +611,7 @@ export class HttpWorkflowService implements IWorkflowService {
         title: n.title,
         phaseId: n.phaseId != null ? String(n.phaseId) : null,
         status: n.status ?? null,
+        version: n.version ?? 0,
       })
     }
     return graph
@@ -636,9 +662,13 @@ export class HttpWorkflowService implements IWorkflowService {
       sub: dto.sub,
       accent: dto.accent,
       parentPhaseId: dto.parentPhaseId ? Number(dto.parentPhaseId) : null,
+      uiMetadata:
+        dto.x != null && dto.y != null
+          ? { x: Math.round(dto.x), y: Math.round(dto.y), w: MACRO_PHASE_W, h: MACRO_PHASE_H }
+          : undefined,
     })
     this.phaseIndex.set(String(item.id), { projectId: pid, name: item.name })
-    return toCreatedMacroPhase(item, { x: dto.x, y: dto.y })
+    return toCreatedMacroPhase(item)
   }
 
   /** POST /projects/{id}/phases/connect?sourcePhaseId=&targetPhaseId= — 422 chu trình ném ApiError có cycleNodes. */
@@ -689,13 +719,83 @@ export class HttpWorkflowService implements IWorkflowService {
       phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
       title: payload.title.trim(),
     })
-    this.nodeIndex.set(String(created.id), { title: created.title, phaseId: String(phaseId), status: created.status ?? null })
+    this.rememberNode(created, String(phaseId))
     return {
       id: String(created.id),
       title: created.title,
       status: ((created.status as TaskStatus) || 'LOCKED'),
       parentId: rootIdOf(String(phaseId)),
     }
+  }
+
+  /**
+   * POST /projects/{id}/nodes rồi POST /dependencies từ từng task cha (subtask = 1 cha, task hội tụ = nhiều cha).
+   * Nối lỗi (vd. 422 chu trình) thì xóa node vừa tạo để không để lại task mồ côi, rồi ném lỗi gốc.
+   */
+  async addChildTask(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode> {
+    const pid = this.projectIdOfPhase(phaseId)
+    const parentIds = parentTaskIds.map((id) => graphApi.toBackendId(id, 'Task cha'))
+    const created = await graphApi.createNode(pid, {
+      phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
+      title: payload.title.trim(),
+    })
+    const childId = graphApi.toBackendId(String(created.id), 'Task mới')
+    try {
+      for (const parentId of parentIds) {
+        await graphApi.createDependency(pid, parentId, childId)
+      }
+    } catch (error) {
+      // Dọn node vừa tạo; dọn lỗi thì vẫn báo lỗi nối (nguyên nhân chính) cho người dùng
+      await graphApi.deleteNode(childId).catch(() => undefined)
+      throw error
+    }
+    this.rememberNode(created, String(phaseId))
+    return {
+      id: String(created.id),
+      title: created.title,
+      status: ((created.status as TaskStatus) || 'LOCKED'),
+      parentId: parentTaskIds[0],
+    }
+  }
+
+  /** PUT /nodes/{id} với version đang giữ. Bỏ người làm / hạn chót bằng clearAssignee / clearDueDate. */
+  async updateTaskNode(taskId: string, patch: TaskNodePatch): Promise<void> {
+    const nodeId = graphApi.toBackendId(taskId, 'Task')
+    const known = this.nodeIndex.get(String(taskId))
+    if (!known) {
+      throw new ApiError({ status: 400, code: 'NODE_NOT_LOADED', message: `Task ${taskId} is not loaded. Reload the graph and try again.` })
+    }
+    const updated = await graphApi.updateNode(nodeId, {
+      title: patch.title.trim(),
+      description: patch.description,
+      joinPolicy: patch.joinPolicy,
+      version: known.version,
+      ...(patch.assigneeId ? { assignedUserId: graphApi.toBackendId(patch.assigneeId, 'Người làm') } : { clearAssignee: true }),
+      ...(patch.dueDate ? { dueDate: `${patch.dueDate}T00:00:00Z` } : { clearDueDate: true }),
+    })
+    this.rememberNode(updated, known.phaseId)
+  }
+
+  /** POST /nodes/{id}/force-unlock — chỉ chủ dự án, chỉ task LOCKED */
+  async forceUnlockTask(taskId: string): Promise<void> {
+    const nodeId = graphApi.toBackendId(taskId, 'Task')
+    const updated = await apiRequest<BackendTaskResponse>('POST', `/nodes/${nodeId}/force-unlock`)
+    this.taskVersionCache.set(String(updated.id), updated.version)
+  }
+
+  /** DELETE /nodes/{id} */
+  async deleteTaskNode(taskId: string): Promise<void> {
+    await graphApi.deleteNode(graphApi.toBackendId(taskId, 'Task'))
+    this.nodeIndex.delete(String(taskId))
+  }
+
+  private rememberNode(node: BackendGraphNodeDto, phaseId: string | null): void {
+    this.nodeIndex.set(String(node.id), {
+      title: node.title,
+      phaseId,
+      status: node.status ?? null,
+      version: node.version ?? 0,
+    })
   }
 
   /**
@@ -765,18 +865,17 @@ export class HttpWorkflowService implements IWorkflowService {
   }
 
   private mapBackendTaskToKanban(item: BackendTaskResponse): KanbanTask {
-    const phaseMap: Record<string, PhaseId> = { '1': 'P1', '2': 'P2A', '3': 'P2B', '4': 'P3' }
-    const phaseId: PhaseId = phaseMap[item.phaseId || '1'] || 'P1'
-
     return {
       id: String(item.id),
       code: item.code,
       title: item.title,
       description: item.description || '',
       status: item.status as TaskStatus,
-      assignedUserId: String(item.assignedUserId || '1'),
-      phaseId,
-      phaseLabel: item.phaseId ? `Phase ${item.phaseId}` : 'Foundation',
+      // Chưa giao thì để rỗng (trước đây rơi về '1', tức một người cụ thể)
+      assignedUserId: item.assignedUserId != null && item.assignedUserId !== '' ? String(item.assignedUserId) : '',
+      // Giữ id phase thật; tên phase do nơi dùng gắn theo danh sách phase của dự án (My Tasks, Kanban phase)
+      phaseId: item.phaseId != null ? String(item.phaseId) : '',
+      phaseLabel: '',
       dueDate: item.dueDate || new Date().toISOString(),
       isOverdue: item.isOverdue || false,
       joinPolicySummary: item.joinPolicy === 'ALL_COMPLETED' ? 'AND-Join: Tất cả tiền đề hoàn thành' : 'OR-Join: 1 tiền đề hoàn thành',
@@ -789,7 +888,8 @@ export class HttpWorkflowService implements IWorkflowService {
         uploadedAt: a.uploadedAt
       })),
       version: item.version,
-      rejectReason: item.rejectReason
+      rejectReason: item.rejectReason,
+      forceUnlocked: Boolean(item.forceUnlockedAt),
     }
   }
 }

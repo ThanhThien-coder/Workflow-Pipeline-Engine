@@ -4,6 +4,8 @@ const badgeShades = ['50', '100', '200', '300', '400', '500']
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  // App chỉ có giao diện sáng và không bao giờ gắn class 'dark': các lớp dark: không theo chế độ tối của hệ điều hành
+  darkMode: 'class',
   safelist: [
     ...badgeColors.flatMap((color) => badgeShades.map((shade) => `bg-${color}-${shade}`)),
     'border-red-200',

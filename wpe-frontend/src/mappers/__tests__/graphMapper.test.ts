@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree, rootIdOf, ghostIdOf } from '../graphMapper'
+import { toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree, toTaskNodePatch, rootIdOf, ghostIdOf } from '../graphMapper'
 import type { BackendGraphResponse, BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
 
 // Dữ liệu giống seed: alex là owner, sarah (id 3) phụ trách WPE-002
@@ -43,10 +43,10 @@ describe('graphMapper.toMacroPhases', () => {
     expect(phases[0].parentPhaseIds).toEqual(['10', '20'])
   })
 
-  it('phase chưa kéo (uiMetadata rỗng) xếp ngang theo orderIndex: x = 60 + orderIndex*360, y = 80', () => {
+  it('phase chưa lưu vị trí (uiMetadata rỗng) không có x, y để canvas dùng bố cục tự động', () => {
     const [p1, p2] = toMacroPhases(GRAPH)
-    expect([p1.x, p1.y]).toEqual([60, 80])
-    expect([p2.x, p2.y]).toEqual([420, 80])
+    expect([p1.x, p1.y]).toEqual([undefined, undefined])
+    expect([p2.x, p2.y]).toEqual([undefined, undefined])
   })
 
   it('phase đã kéo thả (uiMetadata có x, y) dùng đúng vị trí đã lưu, để F5 không mất vị trí', () => {
@@ -54,25 +54,31 @@ describe('graphMapper.toMacroPhases', () => {
     expect([p3.x, p3.y]).toEqual([900, 320])
   })
 
-  it('uiMetadata x/y không phải số thì bỏ qua, dùng vị trí mặc định', () => {
-    const [p] = toMacroPhases({ phases: [{ id: 1, name: 'P', orderIndex: 1, uiMetadata: { x: 'abc', y: null } }] })
-    expect([p.x, p.y]).toEqual([420, 80])
+  it('uiMetadata x/y không phải số, hoặc chỉ có một trong hai, thì coi như chưa lưu vị trí', () => {
+    const [p, q] = toMacroPhases({
+      phases: [
+        { id: 1, name: 'P', orderIndex: 1, uiMetadata: { x: 'abc', y: null } },
+        { id: 2, name: 'Q', orderIndex: 2, uiMetadata: { x: 500 } },
+      ],
+    })
+    expect([p.x, p.y]).toEqual([undefined, undefined])
+    expect([q.x, q.y]).toEqual([undefined, undefined])
   })
 
   it('thiếu sub, accent, status, progressPct thì dùng giá trị mặc định', () => {
     const [p] = toMacroPhases({ phases: [{ id: 7, name: 'P' }] })
-    expect(p).toMatchObject({ sub: '', accent: 'slate', status: 'TODO', pct: 0, parentPhaseIds: [], locked: false, x: 60 })
+    expect(p).toMatchObject({ sub: '', accent: 'slate', status: 'TODO', pct: 0, parentPhaseIds: [], locked: false })
   })
 })
 
 describe('graphMapper.toCreatedMacroPhase', () => {
   it('phase mới có phase cha thì bị khóa, chưa có task nên TODO 0%', () => {
     const p = toCreatedMacroPhase({ id: 40, name: 'PHASE 4', orderIndex: 3, parentPhaseIds: [30] })
-    expect(p).toMatchObject({ id: '40', status: 'TODO', pct: 0, locked: true, parentPhaseIds: ['30'], x: 60 + 3 * 360, y: 80 })
+    expect(p).toMatchObject({ id: '40', status: 'TODO', pct: 0, locked: true, parentPhaseIds: ['30'] })
   })
 
-  it('vị trí truyền vào ưu tiên hơn vị trí mặc định', () => {
-    const p = toCreatedMacroPhase({ id: 40, name: 'PHASE 4', orderIndex: 3 }, { x: 15, y: 25 })
+  it('lấy vị trí backend đã lưu (uiMetadata trong response)', () => {
+    const p = toCreatedMacroPhase({ id: 40, name: 'PHASE 4', orderIndex: 3, uiMetadata: { x: 15, y: 25, w: 380, h: 180 } })
     expect([p.x, p.y, p.locked]).toEqual([15, 25, false])
   })
 })
@@ -129,7 +135,29 @@ describe('graphMapper.toPhaseTree', () => {
     expect(ghost).toEqual({
       id: 'ghost_1_to_2', kind: 'ghost', refPhase: '10', refId: '1', dir: 'up', targetTaskId: '2',
       title: 'Thu thập yêu cầu', parentIds: [], sourceTaskTitle: 'Thu thập yêu cầu', sourcePhaseTitle: 'PHASE 1',
+      // T6: mã và trạng thái task nguồn để biết điều kiện mở khóa đã thỏa chưa
+      sourceTaskCode: 'WPE-001', status: 'DONE',
     })
+  })
+
+  it('cạnh cùng phase: node con treo dưới node cha (subtask), không treo dưới root', () => {
+    const tree = toPhaseTree(GRAPH, '20')!
+    expect(tree['3'].parentIds).toEqual(['2'])
+    // cha của node 2 ở phase khác (ghost) nên node 2 vẫn treo dưới root
+    expect(tree['2'].parentIds).toEqual([rootIdOf('20')])
+  })
+
+  it('node có nhiều cha cùng phase giữ đủ các cha theo thứ tự cạnh (hội tụ)', () => {
+    const graph: BackendGraphResponse = {
+      phases: [{ id: 1, name: 'P' }],
+      nodes: [
+        { id: 11, phaseId: 1, code: 'A', title: 'A' },
+        { id: 12, phaseId: 1, code: 'B', title: 'B' },
+        { id: 13, phaseId: 1, code: 'C', title: 'C' },
+      ],
+      dependencies: [{ parentNodeId: 11, childNodeId: 13 }, { parentNodeId: 12, childNodeId: 13 }],
+    }
+    expect(toPhaseTree(graph, '1')!['13'].parentIds).toEqual(['11', '12'])
   })
 
   it('cạnh cùng phase không tạo ghost', () => {
@@ -145,5 +173,37 @@ describe('graphMapper.toPhaseTree', () => {
   it('cạnh trỏ tới node cha không tồn tại thì bỏ qua, không tạo ghost rỗng', () => {
     const graph: BackendGraphResponse = { ...GRAPH, dependencies: [{ parentNodeId: '999', childNodeId: '2' }] }
     expect(Object.values(toPhaseTree(graph, '20')!).some((n) => n.kind === 'ghost')).toBe(false)
+  })
+})
+
+describe('graphMapper: mở khóa sớm (T6)', () => {
+  it('node có forceUnlockedAt thì forceUnlocked = true, không có thì false', () => {
+    const graph: BackendGraphResponse = {
+      phases: [{ id: 1, name: 'P' }],
+      nodes: [
+        { id: 11, phaseId: 1, code: 'A', title: 'A', status: 'TODO', forceUnlockedAt: '2026-11-14T10:00:00Z', forceUnlockedBy: 9 },
+        { id: 12, phaseId: 1, code: 'B', title: 'B', status: 'TODO' },
+      ],
+    }
+    const tree = toPhaseTree(graph, '1')!
+    expect((tree['11'] as BranchGraphNode).forceUnlocked).toBe(true)
+    expect((tree['12'] as BranchGraphNode).forceUnlocked).toBe(false)
+  })
+})
+
+describe('graphMapper.toTaskNodePatch', () => {
+  const base = toPhaseTree(GRAPH, '10')!['1'] as BranchGraphNode
+
+  it('đổi node trên cây sang dữ liệu sửa task (không có trạng thái)', () => {
+    expect(toTaskNodePatch(base)).toEqual({
+      title: 'Thu thập yêu cầu', description: '', joinPolicy: 'ALL_COMPLETED', assigneeId: '2', dueDate: '2026-11-20',
+    })
+  })
+
+  it('join policy kiểu cũ "AND" hoặc null coi là ALL_COMPLETED; chưa giao, chưa có hạn thì null', () => {
+    const patch = toTaskNodePatch({ ...base, joinPolicy: 'AND', assignee: null, due: null, description: '' })
+    expect(patch).toMatchObject({ joinPolicy: 'ALL_COMPLETED', assigneeId: null, dueDate: null })
+    expect(toTaskNodePatch({ ...base, joinPolicy: null }).joinPolicy).toBe('ALL_COMPLETED')
+    expect(toTaskNodePatch({ ...base, joinPolicy: 'ANY_COMPLETED' }).joinPolicy).toBe('ANY_COMPLETED')
   })
 })

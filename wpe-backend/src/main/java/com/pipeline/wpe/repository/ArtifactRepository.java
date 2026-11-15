@@ -16,4 +16,7 @@ public interface ArtifactRepository extends JpaRepository<ArtifactEntity, Long> 
     List<ArtifactEntity> findByProjectIdAndNodeIdOrderByCreatedAtDesc(Long projectId, Long nodeId);
     List<ArtifactEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
     long countByUploadedBy(Long uploadedBy);
+
+    /** G17: tìm bản "trùng hoàn toàn" (cùng dự án, cùng tên, cùng link) để không thêm dòng lặp. */
+    List<ArtifactEntity> findByProjectIdAndNameAndUrl(Long projectId, String name, String url);
 }

@@ -38,7 +38,7 @@ public class NodeController {
     @GetMapping("/projects/{projectId}/my-tasks")
     @Operation(
         summary = "5.1 Lấy danh sách My Tasks cá nhân hóa",
-        description = "Hiển thị bảng Kanban cá nhân hóa với 4 cột (TODO, IN_PROGRESS, REVIEW, DONE). Tự động loại bỏ các tác vụ đang bị LOCKED. "
+        description = "Hiển thị bảng Kanban cá nhân hóa với 5 cột (LOCKED, TODO, IN_PROGRESS, REVIEW, DONE). Gồm cả task đang LOCKED của người đó. "
             + "Người gọi phải đăng nhập và là thành viên dự án (401 / 403)."
     )
     public ResponseEntity<List<KanbanTaskResponse>> getMyTasks(
@@ -54,6 +54,21 @@ public class NodeController {
         return ResponseEntity.ok(tasks);
     }
 
+    @GetMapping("/projects/{projectId}/phases/{phaseId}/tasks")
+    @Operation(
+        summary = "5.1b Lấy mọi task của một phase cho bảng Kanban theo phase",
+        description = "Khác my-tasks: trả cả task LOCKED và task chưa giao. "
+            + "Người gọi phải đăng nhập và là thành viên dự án (401 / 403)."
+    )
+    public ResponseEntity<List<KanbanTaskResponse>> getPhaseTasks(
+        @PathVariable Long projectId,
+        @PathVariable Long phaseId
+    ) {
+        Long callerId = currentUserProvider.requireCurrentUserId();
+        projectAuthorizationService.verifyProjectMemberOrOwner(projectId, callerId);
+        return ResponseEntity.ok(stateMachineService.getPhaseTasks(projectId, phaseId));
+    }
+
     @PatchMapping("/nodes/{taskId}/status")
     @Operation(
         summary = "5.2/5.4/5.5 Cập nhật trạng thái tác vụ Kanban & Cổng nghiệm thu",
@@ -66,6 +81,17 @@ public class NodeController {
         Long actorId = currentUserProvider.requireCurrentUserId();
         KanbanTaskResponse response = stateMachineService.updateStatus(taskId, request, actorId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/projects/{projectId}/review-tasks")
+    @Operation(
+        summary = "5.1c Hàng chờ duyệt: mọi task đang REVIEW của dự án",
+        description = "Dùng cho nút \"Chờ duyệt\" ở My Tasks. Chỉ Chủ dự án hoặc Quản lý gọi được (401 / 403)."
+    )
+    public ResponseEntity<List<KanbanTaskResponse>> getReviewTasks(@PathVariable Long projectId) {
+        Long callerId = currentUserProvider.requireCurrentUserId();
+        projectAuthorizationService.verifyProjectOwnerOrManager(projectId, callerId);
+        return ResponseEntity.ok(stateMachineService.getReviewTasks(projectId));
     }
 
     @PostMapping("/nodes/{taskId}/submit")

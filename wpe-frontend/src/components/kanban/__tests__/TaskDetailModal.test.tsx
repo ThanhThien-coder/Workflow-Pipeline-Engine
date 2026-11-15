@@ -110,7 +110,7 @@ describe('TaskDetailModal Component', () => {
 
     expect(screen.queryByRole('button', { name: /Approve/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /Request Changes/i })).toBeNull()
-    expect(screen.getByText(/Pending Review \(Awaiting Owner\/Quản lý\)/i)).toBeDefined()
+    expect(screen.getByText(/Pending Review \(Awaiting Owner\/Manager\)/i)).toBeDefined()
   })
 
   it('actor MANAGER thấy khối "Phân công" khi có onUpdateAssignment và task chưa DONE', async () => {
@@ -129,10 +129,10 @@ describe('TaskDetailModal Component', () => {
     )
 
     // Thấy khối Phân công
-    expect(screen.getByText('Phân công')).toBeDefined()
-    const assigneeSelect = screen.getByLabelText('Người làm')
-    const dueDateInput = screen.getByLabelText('Hạn chót')
-    const saveButton = screen.getByRole('button', { name: /Lưu phân công/i })
+    expect(screen.getByText('Assignment')).toBeDefined()
+    const assigneeSelect = screen.getByLabelText('Assignee')
+    const dueDateInput = screen.getByLabelText('Due date')
+    const saveButton = screen.getByRole('button', { name: /Save assignment/i })
 
     expect(assigneeSelect).toBeDefined()
     expect(dueDateInput).toBeDefined()
@@ -165,8 +165,8 @@ describe('TaskDetailModal Component', () => {
       />
     )
 
-    const dueDateInput = screen.getByLabelText('Hạn chót')
-    const saveButton = screen.getByRole('button', { name: /Lưu phân công/i })
+    const dueDateInput = screen.getByLabelText('Due date')
+    const saveButton = screen.getByRole('button', { name: /Save assignment/i })
 
     // Đổi ngày hạn chót
     fireEvent.change(dueDateInput, { target: { value: '2026-11-20' } })
@@ -194,8 +194,8 @@ describe('TaskDetailModal Component', () => {
       />
     )
 
-    expect(screen.queryByText('Phân công')).toBeNull()
-    expect(screen.queryByRole('button', { name: /Lưu phân công/i })).toBeNull()
+    expect(screen.queryByText('Assignment')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Save assignment/i })).toBeNull()
   })
 
   it('không thấy khối "Phân công" khi task ở trạng thái DONE', () => {
@@ -212,8 +212,8 @@ describe('TaskDetailModal Component', () => {
       />
     )
 
-    expect(screen.queryByText('Phân công')).toBeNull()
-    expect(screen.queryByRole('button', { name: /Lưu phân công/i })).toBeNull()
+    expect(screen.queryByText('Assignment')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Save assignment/i })).toBeNull()
   })
 
   it('không thấy khối "Phân công" khi không truyền prop onUpdateAssignment', () => {
@@ -227,7 +227,7 @@ describe('TaskDetailModal Component', () => {
       />
     )
 
-    expect(screen.queryByText('Phân công')).toBeNull()
-    expect(screen.queryByRole('button', { name: /Lưu phân công/i })).toBeNull()
+    expect(screen.queryByText('Assignment')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Save assignment/i })).toBeNull()
   })
 })

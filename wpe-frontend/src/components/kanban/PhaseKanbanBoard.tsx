@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import type { KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { TaskCard } from './TaskCard'
 
-const COLUMNS: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']
+// Cột "Đang khóa" đứng đầu: task chờ task trước xong. Không kéo ra khỏi cột này, cũng không thả vào.
+const COLUMNS: TaskStatus[] = ['LOCKED', 'TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']
 
 const COLUMN_CONFIG: Record<
   TaskStatus,
@@ -14,6 +15,13 @@ const COLUMN_CONFIG: Record<
     dotClass: string
   }
 > = {
+  LOCKED: {
+    title: '🔒 Locked',
+    headClass: 'bg-slate-100 text-slate-600',
+    badgeClass: 'bg-slate-200 text-slate-600',
+    ringClass: 'ring-slate-300',
+    dotClass: 'bg-slate-400',
+  },
   TODO: {
     title: 'To Do',
     headClass: 'bg-sky-100 text-sky-800',
@@ -73,17 +81,14 @@ export function PhaseKanbanBoard({
 
   const groupedTasks = useMemo(() => {
     const map: Record<TaskStatus, KanbanTask[]> = {
+      LOCKED: [],
       TODO: [],
       IN_PROGRESS: [],
       REVIEW: [],
       DONE: [],
     }
     for (const task of tasks) {
-      if (map[task.status]) {
-        map[task.status].push(task)
-      } else {
-        map.TODO.push(task)
-      }
+      map[task.status]?.push(task)
     }
     return map
   }, [tasks])
@@ -98,6 +103,10 @@ export function PhaseKanbanBoard({
           <span className="font-medium text-slate-600">{tasks.length} total tasks</span>
         </div>
         <div className="flex items-center gap-3 text-[11px]">
+          <span className="flex items-center gap-1.5 font-medium text-slate-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+            {groupedTasks.LOCKED.length} Locked
+          </span>
           <span className="flex items-center gap-1.5 font-medium text-sky-700">
             <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
             {groupedTasks.TODO.length} To Do
@@ -117,18 +126,22 @@ export function PhaseKanbanBoard({
         </div>
       </div>
 
-      {/* 2. 4 Kanban Columns */}
-      <div className="flex-1 min-h-0 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 h-full min-w-[700px]">
+      {/* 2. 5 cột: Đang khóa · To Do · In Progress · In Review · Done (hẹp thì cuộn ngang) */}
+      <div className="flex-1 min-h-0 overflow-x-auto pb-1">
+        <div className="grid grid-cols-5 gap-3.5 h-full min-w-[880px]">
           {COLUMNS.map((column) => {
             const config = COLUMN_CONFIG[column]
             const columnTasks = groupedTasks[column]
             const isOver = overCol === column
+            const isLockedColumn = column === 'LOCKED'
 
             return (
               <section
                 key={column}
+                data-testid={`kanban-column-${column}`}
                 onDragOver={(e) => {
+                  // Cột Đang khóa không nhận thả: không gọi preventDefault thì trình duyệt không cho drop
+                  if (isLockedColumn) return
                   e.preventDefault()
                   setOverCol(column)
                 }}
@@ -140,7 +153,7 @@ export function PhaseKanbanBoard({
                 onDrop={(e) => {
                   e.preventDefault()
                   const id = e.dataTransfer.getData('text/plain') || dragId
-                  if (id && onMoveTask) {
+                  if (id && onMoveTask && !isLockedColumn) {
                     onMoveTask(id, column)
                   }
                   setDragId(null)
@@ -171,10 +184,12 @@ export function PhaseKanbanBoard({
                 <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                   {columnTasks.length === 0 ? (
                     <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300/80 bg-white/40 text-center text-xs text-slate-400">
-                      <span>Chưa có task</span>
-                      <span className="text-[10px] text-slate-400/80 mt-0.5">
-                        Kéo thả task vào đây
-                      </span>
+                      <span>No tasks yet</span>
+                      {!isLockedColumn && (
+                        <span className="text-[10px] text-slate-400/80 mt-0.5">
+                          Drop tasks here
+                        </span>
+                      )}
                     </div>
                   ) : (
                     columnTasks.map((task) => {
@@ -190,7 +205,7 @@ export function PhaseKanbanBoard({
                             task={task}
                             member={assignee}
                             onOpenDetails={onOpenTaskDetails}
-                            onDragStart={(id) => setDragId(id)}
+                            onDragStart={isLockedColumn ? undefined : (id) => setDragId(id)}
                             dragging={dragId === task.id}
                           />
                         </div>

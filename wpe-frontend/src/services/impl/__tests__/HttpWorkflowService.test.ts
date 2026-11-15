@@ -184,3 +184,68 @@ describe('HttpWorkflowService: auth gọi backend thật (A4)', () => {
     expect(JSON.parse(String(init.body))).toEqual({ refreshToken: 'rt_5' })
   })
 })
+
+describe('HttpWorkflowService: tạo dự án từ template gửi đúng templateId', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: 99, name: 'Dự án mới', status: 'DRAFT' }))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  function sentBody(): Record<string, unknown> {
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    return JSON.parse(init.body as string)
+  }
+
+  it('cloneTemplate với template mẫu (slug) gửi nguyên slug, không gửi null', async () => {
+    await new HttpWorkflowService().cloneTemplate({ templateId: 'tpl-sdlc', projectName: 'Dự án mới' })
+
+    expect(sentBody().templateId).toBe('tpl-sdlc')
+  })
+
+  it('cloneTemplate với template tự lưu (id số dạng chuỗi) gửi số', async () => {
+    await new HttpWorkflowService().cloneTemplate({ templateId: '12', projectName: 'Dự án mới' })
+
+    expect(sentBody().templateId).toBe(12)
+  })
+
+  it('createProject có templateId là slug thì gửi nguyên slug', async () => {
+    await new HttpWorkflowService().createProject({ name: 'Dự án mới', templateId: 'tpl-devops' })
+
+    expect(sentBody().templateId).toBe('tpl-devops')
+  })
+})
+
+describe('HttpWorkflowService.createPhase: lưu vị trí thẻ phase khi tạo', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(201, { id: 50, name: 'PHASE 2', orderIndex: 1, parentPhaseIds: [42], uiMetadata: { x: 510, y: 280, w: 380, h: 180 } }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('có x, y thì gửi uiMetadata trong POST /phases và trả về đúng vị trí backend lưu', async () => {
+    const phase = await new HttpWorkflowService().createPhase({ name: 'PHASE 2', parentPhaseId: '42', x: 510.4, y: 280 }, '15')
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(JSON.parse(init.body as string).uiMetadata).toEqual({ x: 510, y: 280, w: 380, h: 180 })
+    expect([phase.x, phase.y]).toEqual([510, 280])
+  })
+})

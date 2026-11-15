@@ -760,6 +760,23 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
+    @DisplayName("T6: node đã được chủ dự án mở khóa sớm, thêm một cha chưa DONE vẫn giữ TODO (không khóa lại)")
+    void testCreateDependencyKeepsForceUnlockedChildTodo() {
+        NodeEntity parent = node(10L, "WPE-010", NodeStatus.TODO);
+        NodeEntity child = node(11L, "WPE-011", NodeStatus.TODO);
+        child.setForceUnlockedBy(2L);
+        child.setForceUnlockedAt(Instant.now());
+        when(nodeRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findById(11L)).thenReturn(Optional.of(child));
+        lenient().when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(parent, child));
+        lenient().when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        workflowGraphService.createDependency(1L, new CreateDependencyRequest(10L, 11L), 2L);
+
+        assertEquals(NodeStatus.TODO, child.getStatus());
+    }
+
+    @Test
     @DisplayName("B3 lỗ hổng 4b: gỡ cạnh làm node LOCKED mất hết cha thì chuyển sang TODO và gửi TASK_UNLOCKED")
     void testDeleteDependencyUnlocksChildWithoutParents() {
         NodeEntity child = node(11L, "WPE-011", NodeStatus.LOCKED);
@@ -900,6 +917,42 @@ class WorkflowGraphServiceTest {
         assertThrows(OptimisticLockingFailureException.class,
             () -> workflowGraphService.updateNode(100L, new UpdateNodeRequest("X", null, null, null, null, null, null, 2L), 2L));
         verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("T3 updateNode: clearAssignee / clearDueDate = true thì bỏ người phụ trách và hạn chót")
+    void testUpdateNodeClearAssigneeAndDueDate() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setVersion(3L);
+        n.setAssignedUserId(3L);
+        n.setDueDate(Instant.now().minusSeconds(3600));
+        n.setIsOverdue(true);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        workflowGraphService.updateNode(100L,
+            new UpdateNodeRequest("WPE-100", null, null, null, null, null, null, 3L, true, true), 2L);
+
+        assertNull(n.getAssignedUserId());
+        assertNull(n.getDueDate());
+        assertFalse(n.getIsOverdue());
+    }
+
+    @Test
+    @DisplayName("T3 updateNode: không gửi cờ clear (constructor cũ) thì null vẫn là giữ nguyên")
+    void testUpdateNodeNullKeepsAssigneeAndDueDate() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        Instant due = Instant.now().plusSeconds(86400);
+        n.setVersion(3L);
+        n.setAssignedUserId(3L);
+        n.setDueDate(due);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        workflowGraphService.updateNode(100L, new UpdateNodeRequest("WPE-100", null, null, null, null, null, null, 3L), 2L);
+
+        assertEquals(3L, n.getAssignedUserId());
+        assertEquals(due, n.getDueDate());
     }
 
     @Test

@@ -63,14 +63,28 @@ public class ArtifactService {
 
         ArtifactType resolvedType = resolveType(req.type(), req.url());
         boolean isInRepo = (req.isInRepository() != null) ? req.isInRepository() : (req.nodeId() == null);
+        String name = req.name().trim();
+        String url = req.url().trim();
+
+        // G17: trùng hoàn toàn (cùng dự án, tên, link) ở cùng chỗ (cùng trong kho, hoặc cùng task) thì trả bản có sẵn.
+        // Cùng link mà khác tên vẫn thêm bình thường.
+        java.util.Optional<ArtifactEntity> identical = artifactRepository.findByProjectIdAndNameAndUrl(projectId, name, url).stream()
+                .filter(a -> isInRepo
+                        ? Boolean.TRUE.equals(a.getIsInRepository())
+                        : java.util.Objects.equals(a.getNodeId(), req.nodeId()))
+                .findFirst();
+        if (identical.isPresent()) {
+            log.info("[ArtifactService] Bỏ qua artifact trùng (ID có sẵn: {}) cho Project: {}", identical.get().getId(), projectId);
+            return ArtifactResponse.from(identical.get());
+        }
 
         ArtifactEntity entity = ArtifactEntity.builder()
                 .projectId(projectId)
                 .nodeId(req.nodeId())
                 .uploadedBy(currentUserId)
-                .name(req.name().trim())
+                .name(name)
                 .type(resolvedType)
-                .url(req.url().trim())
+                .url(url)
                 .isInRepository(isInRepo)
                 .isPublicForGuest(true)
                 .build();

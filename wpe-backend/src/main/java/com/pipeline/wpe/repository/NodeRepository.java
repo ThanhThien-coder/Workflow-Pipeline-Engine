@@ -20,10 +20,8 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
     List<NodeEntity> findByPhaseId(Long phaseId);
     Optional<NodeEntity> findByProjectIdAndCode(Long projectId, String code);
 
-    // My Tasks: lọc theo project, người phụ trách và khác LOCKED
-    List<NodeEntity> findByProjectIdAndAssignedUserIdAndStatusNotOrderByDueDateAsc(
-        Long projectId, Long assignedUserId, NodeStatus status
-    );
+    // My Tasks: mọi task của người phụ trách trong dự án (kể cả LOCKED: cột "Đang khóa")
+    List<NodeEntity> findByProjectIdAndAssignedUserIdOrderByDueDateAsc(Long projectId, Long assignedUserId);
 
     List<NodeEntity> findByProjectIdAndAssignedUserIdAndStatusNot(Long projectId, Long assignedUserId, NodeStatus status);
 

@@ -74,19 +74,6 @@ public class NodeAssignmentService {
     }
 
     private GraphNodeResponse mapToGraphNodeResponse(NodeEntity n) {
-        return new GraphNodeResponse(
-            String.valueOf(n.getId()),
-            n.getPhaseId() != null ? String.valueOf(n.getPhaseId()) : null,
-            n.getCode(),
-            n.getTitle(),
-            n.getDescription(),
-            n.getStatus().name(),
-            n.getJoinPolicy().name(),
-            n.getAssignedUserId() != null ? String.valueOf(n.getAssignedUserId()) : null,
-            n.getDueDate(),
-            n.getEstimatedHours(),
-            n.getVersion(),
-            n.getUiMetadata()
-        );
+        return GraphNodeResponse.from(n, n.getUiMetadata());
     }
 }

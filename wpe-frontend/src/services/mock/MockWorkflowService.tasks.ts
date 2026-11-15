@@ -3,9 +3,11 @@ import type { ArtifactItem, ArtifactType, KanbanTask, PhaseId, SubmitArtifactDto
 import { evaluateTransition } from '../../domain/taskTransitions'
 import { mockDelay } from './MockConfig'
 import { getSavedAvatar } from '../../utils/avatarUtils'
+import { isTaskInPhase } from '../../utils/phaseTaskMatcher'
 
 export const MOCK_NOW = Date.parse('2026-10-02T00:00:00+07:00')
-const PHASE_LABEL: Record<PhaseId, string> = { P1: 'Phase 1 · Foundation', P2A: 'Phase 2A · Auth', P2B: 'Phase 2B · Core', P3: 'Phase 3 · QA & Release' }
+type MockPhaseId = 'P1' | 'P2A' | 'P2B' | 'P3'
+const PHASE_LABEL: Record<MockPhaseId, string> = { P1: 'Phase 1 · Foundation', P2A: 'Phase 2A · Auth', P2B: 'Phase 2B · Core', P3: 'Phase 3 · QA & Release' }
 
 export const DEV_USERS: Omit<UserSummary, 'assignedTaskCount'>[] = [
   { id: '1', name: 'Alex Kim', roleTitle: 'Project Lead / Owner', initials: 'AK', avatarClass: 'bg-emerald-500', projectRole: 'OWNER' },
@@ -16,7 +18,7 @@ export const DEV_USERS: Omit<UserSummary, 'assignedTaskCount'>[] = [
 
 const due = (day: string) => `${day}T23:59:59+07:00`
 const art = (id: string, type: ArtifactType, url: string, label?: string, note = ''): ArtifactItem => ({ id, type, url, note, uploadedAt: '2026-09-30T09:00:00+07:00', ...(label ? { label } : {}) })
-const mk = (id: string, code: string, title: string, description: string, phaseId: PhaseId, status: TaskStatus, assignedUserId: string, dueDay: string, joinPolicySummary: string, artifacts: ArtifactItem[] = []): KanbanTask => ({ id, code, title, description, status, assignedUserId, phaseId, phaseLabel: PHASE_LABEL[phaseId], dueDate: due(dueDay), isOverdue: status !== 'DONE' && Date.parse(due(dueDay)) < MOCK_NOW, joinPolicySummary, artifacts, version: 0 })
+const mk = (id: string, code: string, title: string, description: string, phaseId: MockPhaseId, status: TaskStatus, assignedUserId: string, dueDay: string, joinPolicySummary: string, artifacts: ArtifactItem[] = []): KanbanTask => ({ id, code, title, description, status, assignedUserId, phaseId, phaseLabel: PHASE_LABEL[phaseId], dueDate: due(dueDay), isOverdue: status !== 'DONE' && Date.parse(due(dueDay)) < MOCK_NOW, joinPolicySummary, artifacts, version: 0 })
 
 // ─── Alex Kim    (id: '1') — 17 tasks: 5 TODO, 4 IN_PROGRESS, 4 REVIEW, 4 DONE ───
 // ─── Sarah Chen (id: '2') — 17 tasks: 5 TODO, 5 IN_PROGRESS, 4 REVIEW, 3 DONE ───
@@ -124,12 +126,23 @@ const SEED: KanbanTask[] = [
   mk('m18', 'WPE-035', 'CI Pipeline cho Backend', 'GitHub Actions: lint, test, build Docker image, push registry.', 'P1', 'DONE', '3', '2026-09-12', 'Artifact: PR Merged', [art('a-m18', 'PR', 'https://github.com/wpe/api/pull/12', 'PR #12')]),
 ]
 
-export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'updateTaskStatus' | 'submitTaskArtifact' | 'getProjectMembers' | 'updateTaskAssignment'> {
+export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'getPhaseTasks' | 'getReviewTasks' | 'updateTaskStatus' | 'submitTaskArtifact' | 'getProjectMembers' | 'updateTaskAssignment'> {
   private tasks = structuredClone(SEED)
 
   async getMyTasks(_projectId: string, userId: string): Promise<KanbanTask[]> {
     await mockDelay()
     return structuredClone(this.tasks.filter((task) => task.assignedUserId === userId))
+  }
+
+  /** Dữ liệu mẫu: task có phaseId dạng P1/P2A…, khớp phase theo cùng quy tắc chuẩn hóa tên như giao diện cũ. */
+  async getPhaseTasks(_projectId: string, phaseId: string): Promise<KanbanTask[]> {
+    await mockDelay()
+    return structuredClone(this.tasks.filter((task) => isTaskInPhase(task, { id: phaseId })))
+  }
+
+  async getReviewTasks(_projectId: string): Promise<KanbanTask[]> {
+    await mockDelay()
+    return structuredClone(this.tasks.filter((task) => task.status === 'REVIEW'))
   }
 
   async getProjectMembers(_projectId: string): Promise<UserSummary[]> {

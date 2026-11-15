@@ -87,6 +87,15 @@ describe('Domain: evaluateTransition', () => {
     expect(decision.kind).toBe('needs-artifact')
   })
 
+  it('T4: task LOCKED không chuyển được (kể cả owner), cũng không chuyển về LOCKED', () => {
+    const lockedTask = { status: 'LOCKED' as const, assignedUserId: 'user-owner' }
+    expect(evaluateTransition(lockedTask, 'IN_PROGRESS', owner).kind).toBe('deny')
+    expect(evaluateTransition(lockedTask, 'TODO', owner).kind).toBe('deny')
+
+    const todoTask = { status: 'TODO' as const, assignedUserId: 'user-owner' }
+    expect(evaluateTransition(todoTask, 'LOCKED', owner).kind).toBe('deny')
+  })
+
   it('denies modification when task is already DONE', () => {
     const doneTask = { status: 'DONE' as const, assignedUserId: 'user-collab' }
     const decision = evaluateTransition(doneTask, 'IN_PROGRESS', owner)

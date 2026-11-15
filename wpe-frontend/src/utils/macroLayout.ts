@@ -149,6 +149,18 @@ export function computeMacroGraphLayout(phases: Record<string, MacroPhase>, root
   return result
 }
 
+/**
+ * Vị trí cho phase sắp tạo, tính theo vị trí đang hiển thị của các phase hiện có
+ * (phase chưa lưu vị trí thì lấy từ bố cục tự động) để phase mới không đè lên phase nào.
+ */
+export function computeNewPhasePosition(phases: MacroPhase[], parentPhaseId?: string): { x: number; y: number } {
+  const layout = computeMacroGraphLayout(Object.fromEntries(phases.map((phase) => [phase.id, phase])))
+  const displayed = phases.map((phase) =>
+    phase.x != null && phase.y != null ? phase : { ...phase, ...(layout[phase.id] ?? { x: 40, y: 60 }) }
+  )
+  return computeSmartMacroPhasePosition(displayed, parentPhaseId)
+}
+
 export function computeSmartMacroPhasePosition(
   existingPhases: MacroPhase[],
   parentPhaseId?: string

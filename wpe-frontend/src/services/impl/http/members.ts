@@ -6,6 +6,7 @@ import type {
   ProjectMemberHistoryItem,
   ProjectRole,
 } from '../../../types/settings.types'
+import type { UserSummary } from '../../../types/kanban.types'
 
 const AVATAR_CLASSES = [
   'bg-indigo-500',
@@ -108,6 +109,28 @@ export function mapInvitationResponse(item: BackendInvitationResponse): ProjectI
 export async function listMembers(projectId: string | number): Promise<ProjectMemberDetail[]> {
   const data = await apiRequest<BackendMemberResponse[]>('GET', `/projects/${projectId}/members`)
   return (data || []).map(mapMemberResponse)
+}
+
+/** Thành viên dạng gọn (UserSummary) cho chọn người làm, Kanban, thanh bên. Tên hiển thị ưu tiên fullName. */
+export function toUserSummary(item: BackendMemberResponse): UserSummary {
+  const detail = mapMemberResponse(item)
+  const role = item.role as UserSummary['projectRole']
+  return {
+    id: detail.userId,
+    name: item.fullName?.trim() || detail.username,
+    roleTitle: role,
+    initials: detail.initials,
+    avatarClass: detail.avatarClass,
+    projectRole: role,
+    assignedTaskCount: detail.activeNodeCount,
+    avatarUrl: detail.avatarUrl,
+  }
+}
+
+/** GET /projects/{projectId}/members, trả dạng UserSummary */
+export async function listMemberSummaries(projectId: string | number): Promise<UserSummary[]> {
+  const data = await apiRequest<BackendMemberResponse[]>('GET', `/projects/${projectId}/members`)
+  return (data || []).map(toUserSummary)
 }
 
 /** PATCH /projects/{projectId}/members/{userId} */

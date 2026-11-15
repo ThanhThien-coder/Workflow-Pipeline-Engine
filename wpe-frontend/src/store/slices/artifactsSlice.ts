@@ -1,190 +1,88 @@
-import { produce } from 'immer'
-import {
-  type ProjectArtifact,
-  INITIAL_PROJECT_ARTIFACTS,
-} from '../../types/artifact.types'
-import type { SettingsSlice } from './settingsSlice'
+import type { IWorkflowService } from '../../services/contracts/IWorkflowService'
 import { workflowService } from '../../services/container'
+import { isApiError } from '../../services/http/ApiError'
+import type { ProjectArtifact } from '../../types/artifact.types'
+import type { LoadStatus } from './overviewSlice'
 
+/**
+ * Artifact (tài nguyên) của dự án đang mở: nút Artifacts trên Workflow, drawer, Settings → Resources.
+ * Dữ liệu chỉ lấy từ service (chế độ API: backend; chế độ mock: MockWorkflowService).
+ * Ghi xong ở service mới đổi danh sách; lỗi thì ném để giao diện báo.
+ */
 export interface ArtifactsSlice {
   artifacts: {
+    projectId: string | null
     items: ProjectArtifact[]
+    status: LoadStatus
+    error: string | null
     isDrawerOpen: boolean
-    loadArtifacts: (projectId?: string) => Promise<void> | void
-    addArtifact: (
-      artifact: { title?: string; name?: string; url: string; createdBy?: string },
-      projectId?: string,
-    ) => ProjectArtifact
-    removeArtifact: (id: string, projectId?: string) => void
+    loadArtifacts: (projectId: string) => Promise<void>
+    addArtifact: (projectId: string, input: { name: string; url: string }) => Promise<ProjectArtifact>
+    removeArtifact: (projectId: string, artifactId: string) => Promise<void>
     openDrawer: () => void
     closeDrawer: () => void
     toggleDrawer: () => void
   }
 }
 
-const getStorageKey = (projectId = '1') => `wpe_artifacts_${projectId}`
+type ArtifactsSetter = (update: (state: ArtifactsSlice) => Partial<ArtifactsSlice>) => void
 
-const getInitialItems = (projectId = '1'): ProjectArtifact[] => {
-  if (typeof window === 'undefined') return INITIAL_PROJECT_ARTIFACTS
-  try {
-    const raw = localStorage.getItem(getStorageKey(projectId))
-    if (raw) {
-      const parsed = JSON.parse(raw) as ProjectArtifact[]
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
-    }
-  } catch (err) {
-    console.warn('Failed to parse artifacts from localStorage:', err)
-  }
-  return INITIAL_PROJECT_ARTIFACTS
+function errorMessage(error: unknown, fallback: string): string {
+  return isApiError(error) || error instanceof Error ? error.message : fallback
 }
 
 export const createArtifactsSlice = (
-  set: (update: (state: ArtifactsSlice & Partial<SettingsSlice>) => ArtifactsSlice & Partial<SettingsSlice>) => void,
-  get: () => ArtifactsSlice & Partial<SettingsSlice>,
+  set: ArtifactsSetter,
+  get: () => ArtifactsSlice,
+  service: IWorkflowService = workflowService,
 ): ArtifactsSlice => {
+  const patch = (changes: Partial<Omit<ArtifactsSlice['artifacts'], 'loadArtifacts' | 'addArtifact' | 'removeArtifact' | 'openDrawer' | 'closeDrawer' | 'toggleDrawer'>>) =>
+    set((state) => ({ artifacts: { ...state.artifacts, ...changes } }))
+  const isCurrent = (projectId: string) => get().artifacts.projectId === projectId
+
   return {
     artifacts: {
-      items: getInitialItems('1'),
+      projectId: null,
+      items: [],
+      status: 'idle',
+      error: null,
       isDrawerOpen: false,
 
-      loadArtifacts: async (projectId = '1') => {
+      loadArtifacts: async (projectId) => {
+        const switching = !isCurrent(projectId)
+        patch({ projectId, status: 'loading', error: null, ...(switching ? { items: [] } : {}) })
         try {
-          if (workflowService && workflowService.getProjectArtifacts) {
-            const items = await workflowService.getProjectArtifacts(projectId)
-            if (Array.isArray(items) && items.length > 0) {
-              set((state) =>
-                produce(state, (draft) => {
-                  draft.artifacts.items = items
-                }),
-              )
-              return
-            }
-          }
-        } catch {
-          // fallback to storage
+          const items = await service.getProjectArtifacts(projectId)
+          if (!isCurrent(projectId)) return
+          patch({ items, status: 'ready' })
+        } catch (error) {
+          if (!isCurrent(projectId)) return
+          patch({ items: [], status: 'error', error: errorMessage(error, 'Could not load resources') })
         }
-
-        const items = getInitialItems(projectId)
-        set((state) =>
-          produce(state, (draft) => {
-            draft.artifacts.items = items
-          }),
-        )
       },
 
-      addArtifact: ({ title, name, url, createdBy }, projectId = '1') => {
-        const artifactName = (name || title || '').trim()
-        const newArtifact: ProjectArtifact = {
-          id: Math.random().toString(36).substring(2, 9),
-          projectId,
-          name: artifactName,
-          title: artifactName,
-          type: 'OTHER_LINK',
+      addArtifact: async (projectId, input) => {
+        const created = await service.createArtifact(projectId, {
+          name: input.name.trim(),
+          url: input.url.trim(),
           isInRepository: true,
-          isPublicForGuest: true,
-          url: url.trim(),
-          createdAt: new Date().toLocaleDateString('en-US', {
-            month: 'short',
-            day: '2-digit',
-            year: 'numeric',
-          }),
-          uploadedBy: createdBy || 'Owner',
+        })
+        if (isCurrent(projectId)) {
+          patch({ items: [created, ...get().artifacts.items.filter((a) => String(a.id) !== String(created.id))] })
         }
-
-        set((state) =>
-          produce(state, (draft) => {
-            draft.artifacts.items.unshift(newArtifact)
-            try {
-              localStorage.setItem(
-                getStorageKey(projectId),
-                JSON.stringify(draft.artifacts.items),
-              )
-            } catch {
-              // ignore storage errors
-            }
-          }),
-        )
-
-        // Async sync with backend service
-        if (workflowService && workflowService.createArtifact) {
-          workflowService.createArtifact(projectId, {
-            name: artifactName,
-            url: url.trim(),
-            isInRepository: true,
-          }).catch(() => {})
-        }
-
-        // Audit log integration
-        const addAudit = get().settings?.addMockAuditLog
-        if (typeof addAudit === 'function') {
-          addAudit({
-            action: 'RESOURCE_ADDED',
-            details: `Added new project resource: ${newArtifact.name}`,
-            scope: 'Governance',
-          })
-        }
-
-        return newArtifact
+        return created
       },
 
-      removeArtifact: (id: string, projectId = '1') => {
-        const target = get().artifacts.items.find((item) => String(item.id) === String(id))
-        set((state) =>
-          produce(state, (draft) => {
-            draft.artifacts.items = draft.artifacts.items.filter(
-              (item) => String(item.id) !== String(id),
-            )
-            try {
-              localStorage.setItem(
-                getStorageKey(projectId),
-                JSON.stringify(draft.artifacts.items),
-              )
-            } catch {
-              // ignore storage errors
-            }
-          }),
-        )
-
-        // Async sync with backend service
-        if (workflowService && workflowService.deleteArtifact) {
-          workflowService.deleteArtifact(projectId, id).catch(() => {})
-        }
-
-        if (target) {
-          const addAudit = get().settings?.addMockAuditLog
-          if (typeof addAudit === 'function') {
-            addAudit({
-              action: 'RESOURCE_REMOVED',
-              details: `Removed project resource: ${target.name || target.title}`,
-              scope: 'Governance',
-            })
-          }
+      removeArtifact: async (projectId, artifactId) => {
+        await service.deleteArtifact(projectId, artifactId)
+        if (isCurrent(projectId)) {
+          patch({ items: get().artifacts.items.filter((a) => String(a.id) !== String(artifactId)) })
         }
       },
 
-      openDrawer: () => {
-        set((state) =>
-          produce(state, (draft) => {
-            draft.artifacts.isDrawerOpen = true
-          }),
-        )
-      },
-
-      closeDrawer: () => {
-        set((state) =>
-          produce(state, (draft) => {
-            draft.artifacts.isDrawerOpen = false
-          }),
-        )
-      },
-
-      toggleDrawer: () => {
-        set((state) =>
-          produce(state, (draft) => {
-            draft.artifacts.isDrawerOpen = !draft.artifacts.isDrawerOpen
-          }),
-        )
-      },
+      openDrawer: () => set((state) => ({ artifacts: { ...state.artifacts, isDrawerOpen: true } })),
+      closeDrawer: () => set((state) => ({ artifacts: { ...state.artifacts, isDrawerOpen: false } })),
+      toggleDrawer: () => set((state) => ({ artifacts: { ...state.artifacts, isDrawerOpen: !state.artifacts.isDrawerOpen } })),
     },
   }
 }

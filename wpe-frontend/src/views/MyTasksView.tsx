@@ -4,6 +4,7 @@ import { KanbanToolbar } from '../components/kanban/KanbanToolbar'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { SubmitArtifactModal } from '../components/kanban/SubmitArtifactModal'
 import { TaskDetailModal } from '../components/kanban/TaskDetailModal'
+import { ReviewQueueButton } from '../components/kanban/ReviewQueueButton'
 import { workflowService } from '../services/container'
 import { HttpWorkflowService } from '../services/impl/HttpWorkflowService'
 
@@ -19,6 +20,7 @@ export function MyTasksView({
   const userId = useWorkflowStore((state) => state.kanban.currentUserId)
   const currentUser = useWorkflowStore((state) => state.auth.currentUser)
   const projects = useWorkflowStore((state) => state.workspace.projects)
+  const boardProjectName = projectName || projects.find((p) => String(p.id) === String(projectId))?.name
   const phase = useWorkflowStore((state) => state.kanban.filterPhaseId)
   const query = useWorkflowStore((state) => state.kanban.searchQuery)
   const status = useWorkflowStore((state) => state.kanban.status)
@@ -27,6 +29,10 @@ export function MyTasksView({
   const modal = useWorkflowStore((state) => state.kanban.isSubmitModalOpen)
   const submittingId = useWorkflowStore((state) => state.kanban.submittingTaskId)
   const pending = useWorkflowStore((state) => state.kanban.pendingTaskIds)
+  const reviewTasks = useWorkflowStore((state) => state.kanban.reviewTasks)
+  const reviewStatus = useWorkflowStore((state) => state.kanban.reviewStatus)
+  const loadReviewTasks = useWorkflowStore((state) => state.kanban.loadReviewTasks)
+  const reviewTask = useWorkflowStore((state) => state.kanban.reviewTask)
 
   const loadMembers = useWorkflowStore((state) => state.kanban.loadMembers)
   const loadTasks = useWorkflowStore((state) => state.kanban.loadTasks)
@@ -50,17 +56,32 @@ export function MyTasksView({
     void setUserId(projectId, defaultUserId)
   }, [projectId, currentUser?.id, setUserId])
 
+  // G18: chủ dự án / quản lý có nút "Chờ duyệt"
+  const viewer = members.find((m) => m.id === String(currentUser?.id || userId))
+  const isReviewer = viewer?.projectRole === 'OWNER' || viewer?.projectRole === 'MANAGER'
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null)
+  // Số task của chính mình đang REVIEW: đổi (vd. tự nộp task của mình) thì hàng chờ duyệt cũng đổi
+  const myReviewCount = tasks.filter((task) => task.status === 'REVIEW').length
+
+  useEffect(() => {
+    if (isReviewer) void loadReviewTasks(projectId)
+  }, [isReviewer, projectId, myReviewCount, loadReviewTasks])
+
   // Tự động kết nối đường ống Real-time SSE để nhận sự kiện Task Unlocked/Status Changed
   useEffect(() => {
     if (workflowService instanceof HttpWorkflowService) {
-      const unsubscribe = workflowService.connectRealtime(userId, (eventName, data) => {
+      const unsubscribe = workflowService.connectRealtime(userId, (eventName) => {
         if (eventName === 'TASK_UNLOCKED' || eventName === 'TASK_STATUS_CHANGED' || eventName === 'TASK_REJECTED') {
           void loadTasks(projectId)
+        }
+        // G18: có người nộp bài / đổi trạng thái → cập nhật số "Chờ duyệt"
+        if (isReviewer && (eventName === 'TASK_SUBMITTED' || eventName === 'TASK_STATUS_CHANGED')) {
+          void loadReviewTasks(projectId)
         }
       })
       return () => unsubscribe()
     }
-  }, [userId, projectId, loadTasks])
+  }, [userId, projectId, loadTasks, isReviewer, loadReviewTasks])
 
   const visible = useMemo(() => {
     const keyword = query.trim().toLowerCase()
@@ -81,6 +102,8 @@ export function MyTasksView({
     () => (selectedTaskId ? tasks.find((item) => item.id === selectedTaskId) || null : null),
     [tasks, selectedTaskId],
   )
+  // Duyệt xong task rời hàng chờ → hộp chi tiết tự đóng
+  const selectedReviewTask = selectedReviewId ? reviewTasks.find((item) => item.id === selectedReviewId) || null : null
 
   if (status === 'loading' && !tasks.length) {
     return (
@@ -107,9 +130,20 @@ export function MyTasksView({
         <div>
           <h1 className="text-lg font-bold tracking-tight text-slate-900">My Tasks</h1>
           <p className="mt-0.5 text-xs text-slate-500">
-            Personal Kanban Board · {projectName || projects.find((p) => String(p.id) === String(projectId))?.name || 'Marketing Campaign Q4'}
+            Personal Kanban Board{boardProjectName ? ` · ${boardProjectName}` : ''}
           </p>
         </div>
+        <div className="flex items-center gap-3">
+        {isReviewer && (
+          <ReviewQueueButton
+            tasks={reviewTasks}
+            members={members}
+            loading={reviewStatus === 'loading'}
+            error={reviewStatus === 'error'}
+            onOpen={() => void loadReviewTasks(projectId)}
+            onOpenTask={(task) => setSelectedReviewId(task.id)}
+          />
+        )}
         {actor && (
           <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-white pl-2 pr-3 py-1.5 text-sm shadow-xs">
             {actor.avatarUrl ? (
@@ -131,6 +165,7 @@ export function MyTasksView({
             </span>
           </div>
         )}
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -162,6 +197,20 @@ export function MyTasksView({
           onClose={() => setSelectedTaskId(null)}
           onMove={(to, rejectReason) => void moveTask(selectedTask.id, to, rejectReason)}
           onSubmitArtifact={(dto) => submitTaskArtifact(selectedTask.id, dto)}
+        />
+      )}
+
+      {/* G18: task trong hàng chờ duyệt: cùng hộp chi tiết, Approve / Request Changes đi qua reviewTask */}
+      {selectedReviewTask && viewer && (
+        <TaskDetailModal
+          task={selectedReviewTask}
+          actor={viewer}
+          members={members}
+          pending={pending.includes(selectedReviewTask.id)}
+          onClose={() => setSelectedReviewId(null)}
+          onMove={(to, rejectReason) => {
+            if (to === 'DONE' || to === 'IN_PROGRESS') void reviewTask(selectedReviewTask.id, to, rejectReason)
+          }}
         />
       )}
 

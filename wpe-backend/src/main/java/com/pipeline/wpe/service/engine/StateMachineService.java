@@ -37,6 +37,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,45 +57,67 @@ public class StateMachineService {
 
     /**
      * Lấy danh sách My Tasks cho bảng Kanban cá nhân hóa.
-     * Tự động loại trừ các task LOCKED và gán kèm danh sách artifacts của từng task.
+     * Gồm cả task LOCKED (G15: My Tasks có cột "Đang khóa"), kèm danh sách artifacts của từng task.
      */
     @Transactional(readOnly = true)
     public List<KanbanTaskResponse> getMyTasks(Long projectId, Long userId) {
-        List<NodeEntity> nodes = nodeRepository.findByProjectIdAndAssignedUserIdAndStatusNotOrderByDueDateAsc(
-            projectId, userId, NodeStatus.LOCKED
-        );
+        List<NodeEntity> nodes = nodeRepository.findByProjectIdAndAssignedUserIdOrderByDueDateAsc(projectId, userId);
 
-        return nodes.stream().map(node -> {
-            KanbanTaskResponse base = nodeMapper.toKanbanTaskResponse(node);
-            List<ArtifactEntity> artifacts = artifactRepository.findByNodeId(node.getId());
-            List<NodeArtifactResponse> artifactResponses = artifacts.stream()
-                .map(a -> new NodeArtifactResponse(
-                    String.valueOf(a.getId()),
-                    a.getType().name(),
-                    a.getUrl(),
-                    a.getName(),
-                    a.getName(),
-                    a.getCreatedAt()
-                ))
-                .toList();
+        return nodes.stream().map(this::toKanbanTaskWithArtifacts).toList();
+    }
 
-            return new KanbanTaskResponse(
-                base.id(),
-                base.phaseId(),
-                base.code(),
-                base.title(),
-                base.description(),
-                base.status(),
-                base.assignedUserId(),
-                base.joinPolicy(),
-                base.rejectReason(),
-                base.dueDate(),
-                base.isOverdue(),
-                base.version(),
-                base.uiMetadata(),
-                artifactResponses
-            );
-        }).toList();
+    /**
+     * Mọi task của một phase cho bảng Kanban theo phase: kể cả task LOCKED và task chưa giao
+     * (my-tasks bỏ hai loại này). Chỉ lấy task thuộc đúng dự án; sắp theo id để thứ tự ổn định.
+     */
+    @Transactional(readOnly = true)
+    public List<KanbanTaskResponse> getPhaseTasks(Long projectId, Long phaseId) {
+        return nodeRepository.findByPhaseId(phaseId).stream()
+            .filter(node -> projectId.equals(node.getProjectId()))
+            .sorted(Comparator.comparing(NodeEntity::getId))
+            .map(this::toKanbanTaskWithArtifacts)
+            .toList();
+    }
+
+    /**
+     * G18: hàng chờ duyệt của dự án: mọi task đang REVIEW (của mọi người), sắp theo id.
+     * Kiểm quyền chủ dự án / quản lý ở controller.
+     */
+    @Transactional(readOnly = true)
+    public List<KanbanTaskResponse> getReviewTasks(Long projectId) {
+        return nodeRepository.findByProjectIdAndStatus(projectId, NodeStatus.REVIEW).stream()
+            .sorted(Comparator.comparing(NodeEntity::getId))
+            .map(this::toKanbanTaskWithArtifacts)
+            .toList();
+    }
+
+    /** Người duyệt được của dự án: chủ dự án + các quản lý còn trong dự án (không trùng). */
+    private List<Long> reviewerIds(ProjectEntity project) {
+        List<Long> ids = new java.util.ArrayList<>();
+        ids.add(project.getOwnerId());
+        projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId()).stream()
+            .filter(m -> m.getRole() == ProjectRole.MANAGER)
+            .map(m -> m.getUserId())
+            .filter(id -> id != null && !ids.contains(id))
+            .forEach(ids::add);
+        return ids;
+    }
+
+    private KanbanTaskResponse toKanbanTaskWithArtifacts(NodeEntity node) {
+        KanbanTaskResponse base = nodeMapper.toKanbanTaskResponse(node);
+        List<ArtifactEntity> artifacts = artifactRepository.findByNodeId(node.getId());
+        List<NodeArtifactResponse> artifactResponses = artifacts.stream()
+            .map(a -> new NodeArtifactResponse(
+                String.valueOf(a.getId()),
+                a.getType().name(),
+                a.getUrl(),
+                a.getName(),
+                a.getName(),
+                a.getCreatedAt()
+            ))
+            .toList();
+
+        return base.withArtifacts(artifactResponses);
     }
 
     /**
@@ -222,15 +245,16 @@ public class StateMachineService {
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
 
         // Bắn tín hiệu real-time cập nhật trạng thái tới tất cả các bên (sau commit)
+        // Người làm + mọi người duyệt (chủ dự án, quản lý; G18) trừ chính người thao tác
         Long assigneeId = saved.getAssignedUserId();
-        Long ownerId = project.getOwnerId();
+        List<Long> reviewers = reviewerIds(project);
         afterCommit(() -> {
             if (assigneeId != null) {
                 sseEmitterService.sendToUser(assigneeId, "TASK_STATUS_CHANGED", response);
             }
-            if (!isOwner) {
-                sseEmitterService.sendToUser(ownerId, "TASK_STATUS_CHANGED", response);
-            }
+            reviewers.stream()
+                .filter(id -> !id.equals(currentUserId) && !id.equals(assigneeId))
+                .forEach(id -> sseEmitterService.sendToUser(id, "TASK_STATUS_CHANGED", response));
         });
 
         return response;
@@ -297,17 +321,40 @@ public class StateMachineService {
                 }
             }
 
-            ArtifactEntity artifact = ArtifactEntity.builder()
-                .projectId(node.getProjectId())
-                .nodeId(node.getId())
-                .uploadedBy(currentUserId)
-                .name(artifactTitle != null && !artifactTitle.isBlank() ? artifactTitle : "Minh chứng " + node.getCode())
-                .type(artifactType)
-                .url(artifactUrl.trim())
-                .isPublicForGuest(isPublicForGuest)
-                .build();
+            String artifactName = artifactTitle != null && !artifactTitle.isBlank()
+                ? artifactTitle.trim()
+                : "Minh chứng " + node.getCode();
+            String url = artifactUrl.trim();
 
-            ArtifactEntity savedArtifact = artifactRepository.save(artifact);
+            // G17: minh chứng vào kho Artifacts. Trùng hoàn toàn (cùng dự án, tên, link) thì không thêm dòng lặp:
+            // - task này đã có đúng bản đó: dùng lại;
+            // - bản trùng nằm chỗ khác trong kho: vẫn gắn cho task nhưng không đưa thêm vào kho.
+            List<ArtifactEntity> identical = artifactRepository.findByProjectIdAndNameAndUrl(node.getProjectId(), artifactName, url);
+            boolean alreadyInRepo = identical.stream().anyMatch(a -> Boolean.TRUE.equals(a.getIsInRepository()));
+            ArtifactEntity sameOnTask = identical.stream()
+                .filter(a -> node.getId().equals(a.getNodeId()))
+                .findFirst()
+                .orElse(null);
+
+            ArtifactEntity savedArtifact;
+            if (sameOnTask != null) {
+                if (!alreadyInRepo) {
+                    sameOnTask.setIsInRepository(true);
+                    sameOnTask = artifactRepository.save(sameOnTask);
+                }
+                savedArtifact = sameOnTask;
+            } else {
+                savedArtifact = artifactRepository.save(ArtifactEntity.builder()
+                    .projectId(node.getProjectId())
+                    .nodeId(node.getId())
+                    .uploadedBy(currentUserId)
+                    .name(artifactName)
+                    .type(artifactType)
+                    .url(url)
+                    .isInRepository(!alreadyInRepo)
+                    .isPublicForGuest(isPublicForGuest)
+                    .build());
+            }
             artifactResponse = new NodeArtifactResponse(
                 String.valueOf(savedArtifact.getId()),
                 savedArtifact.getType().name(),
@@ -332,8 +379,9 @@ public class StateMachineService {
         KanbanTaskResponse taskResponse = nodeMapper.toKanbanTaskResponse(savedNode);
 
         // Bắn SSE real-time cho Owner (sau commit)
-        Long ownerId = project.getOwnerId();
-        afterCommit(() -> sseEmitterService.sendToUser(ownerId, "TASK_SUBMITTED", taskResponse));
+        // G18: cả quản lý cũng duyệt được nên cũng nhận tín hiệu (cập nhật số "Chờ duyệt")
+        List<Long> reviewers = reviewerIds(project);
+        afterCommit(() -> reviewers.forEach(id -> sseEmitterService.sendToUser(id, "TASK_SUBMITTED", taskResponse)));
 
         return new SubmitTaskArtifactResponse(taskResponse, artifactResponse);
     }
@@ -359,10 +407,12 @@ public class StateMachineService {
         }
 
         node.setStatus(NodeStatus.TODO);
+        // Lưu ai mở, lúc nào: không bị khóa lại khi sửa dây phụ thuộc, và hiện trong nhật ký hoạt động
+        node.setForceUnlockedBy(currentUserId);
+        node.setForceUnlockedAt(Instant.now());
         NodeEntity saved = nodeRepository.save(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
 
-        // Ghi lại ai đã mở khóa sớm (audit)
         log.info("Force unlock: task ID {} ({}) trong dự án {} được user {} mở khóa sớm LOCKED -> TODO",
             saved.getId(), saved.getCode(), saved.getProjectId(), currentUserId);
 

@@ -271,6 +271,8 @@ export class MockWorkflowService implements IWorkflowService {
   }
 
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]> { return this.taskApi.getMyTasks(projectId, userId) }
+  getPhaseTasks(projectId: string, phaseId: string): Promise<KanbanTask[]> { return this.taskApi.getPhaseTasks(projectId, phaseId) }
+  getReviewTasks(projectId: string): Promise<KanbanTask[]> { return this.taskApi.getReviewTasks(projectId) }
   updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask> { return this.taskApi.updateTaskStatus(taskId, newStatus, rejectReason) }
   submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }> { return this.taskApi.submitTaskArtifact(dto) }
   updateTaskAssignment(taskId: string, cmd: { assignedUserId?: string; dueDate?: string; version: number }): Promise<Pick<KanbanTask, 'assignedUserId' | 'dueDate' | 'version'>> { return this.taskApi.updateTaskAssignment(taskId, cmd) }

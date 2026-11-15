@@ -11,6 +11,7 @@ import type {
   PhaseStatus,
   PhaseTreeData,
 } from '../types/workflow.types'
+import type { TaskNodePatch } from '../services/contracts/IWorkflowService'
 
 /**
  * B5 — Đổi dữ liệu phẳng của backend (phases, nodes, dependencies) sang mô hình FE.
@@ -23,10 +24,6 @@ import type {
  * thêm duy nhất một điểm: phase có uiMetadata.x/y (đã kéo thả, lưu qua PUT /phases/{id}) thì dùng vị trí đó.
  */
 
-// Vị trí mặc định của thẻ phase khi chưa từng kéo: xếp ngang theo orderIndex (giữ như cũ)
-const PHASE_DEFAULT_X0 = 60
-const PHASE_DEFAULT_GAP_X = 360
-const PHASE_DEFAULT_Y = 80
 const PHASE_W = 260
 const PHASE_H = 128
 
@@ -52,8 +49,14 @@ function finiteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-function toMacroPhase(p: BackendPhaseDto, idx: number): MacroPhase {
-  const ui = p.uiMetadata ?? {}
+/** Vị trí đã lưu của phase. Thiếu x hoặc y thì trả rỗng để canvas tự xếp bằng bố cục tự động. */
+function savedPosition(uiMetadata: BackendPhaseDto['uiMetadata']): { x?: number; y?: number } {
+  const x = finiteNumber(uiMetadata?.x)
+  const y = finiteNumber(uiMetadata?.y)
+  return x !== undefined && y !== undefined ? { x, y } : {}
+}
+
+function toMacroPhase(p: BackendPhaseDto): MacroPhase {
   return {
     id: String(p.id),
     name: p.name,
@@ -62,8 +65,7 @@ function toMacroPhase(p: BackendPhaseDto, idx: number): MacroPhase {
     // Backend tính sẵn tiến độ và trạng thái phase từ task (cùng công thức với domain/phaseProgress)
     status: (p.status || 'TODO') as PhaseStatus,
     pct: typeof p.progressPct === 'number' ? p.progressPct : 0,
-    x: finiteNumber(ui.x) ?? PHASE_DEFAULT_X0 + (p.orderIndex ?? idx) * PHASE_DEFAULT_GAP_X,
-    y: finiteNumber(ui.y) ?? PHASE_DEFAULT_Y,
+    ...savedPosition(p.uiMetadata),
     w: PHASE_W,
     h: PHASE_H,
     parentPhaseIds: (p.parentPhaseIds || []).map(String),
@@ -73,19 +75,17 @@ function toMacroPhase(p: BackendPhaseDto, idx: number): MacroPhase {
 
 /** Danh sách thẻ phase cho canvas Macro. Đồ thị rỗng thì trả []. */
 export function toMacroPhases(graph: BackendGraphResponse | null | undefined): MacroPhase[] {
-  return (graph?.phases || []).map(toMacroPhase)
+  return (graph?.phases || []).map((p) => toMacroPhase(p))
 }
 
-/** Một phase vừa tạo (POST /phases trả 1 PhaseResponse). x/y truyền vào ưu tiên hơn vị trí mặc định. */
-export function toCreatedMacroPhase(p: BackendPhaseDto, pos?: { x?: number; y?: number }): MacroPhase {
+/** Một phase vừa tạo (POST /phases trả 1 PhaseResponse, kèm uiMetadata đã lưu). */
+export function toCreatedMacroPhase(p: BackendPhaseDto): MacroPhase {
   const parents = (p.parentPhaseIds || []).map(String)
   return {
-    ...toMacroPhase({ ...p, uiMetadata: {} }, p.orderIndex ?? 0),
+    ...toMacroPhase(p),
     // Phase mới chưa có task: hiển thị TODO, 0%, bị khóa nếu có phase cha (giữ như cũ)
     status: 'TODO',
     pct: 0,
-    x: pos?.x ?? PHASE_DEFAULT_X0 + (p.orderIndex ?? 0) * PHASE_DEFAULT_GAP_X,
-    y: pos?.y ?? PHASE_DEFAULT_Y,
     parentPhaseIds: parents,
     locked: parents.length > 0,
   }
@@ -112,8 +112,9 @@ function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
     due: n.dueDate ? n.dueDate.split('T')[0] : null,
     blocker: null,
     joinPolicy,
+    forceUnlocked: Boolean(n.forceUnlockedAt),
     phaseId,
-    // Mọi node của phase treo dưới root (giữ như cũ, cạnh cùng phase chưa vẽ: xem "Điều chưa chắc" của B5)
+    // Mặc định treo dưới root; toPhaseTree đổi sang node cha nếu có cạnh phụ thuộc cùng phase
     parentIds: [rootIdOf(phaseId)],
     x: n.uiMetadata?.position?.x ?? NODE_DEFAULT_X,
     y: n.uiMetadata?.position?.y ?? NODE_DEFAULT_Y,
@@ -125,7 +126,7 @@ function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
 /**
  * Cây Root/Branch/Ghost của một phase.
  * - Root: chính phase đó (id `root_<phaseId>`).
- * - Branch: mỗi node có phaseId = phase này.
+ * - Branch: mỗi node có phaseId = phase này. Cạnh phụ thuộc cùng phase thì node con treo dưới node cha (subtask).
  * - Ghost: mỗi cạnh phụ thuộc có cha ở phase khác (parent.phaseId !== child.phaseId), gắn vào node con.
  * Không tìm thấy phase thì trả null để lớp gọi API quyết định báo lỗi gì.
  */
@@ -151,7 +152,16 @@ export function toPhaseTree(graph: BackendGraphResponse | null | undefined, phas
     const childId = String(dep.childNodeId)
     if (!phaseNodeIds.has(childId)) continue
     const parentNode = allNodes.find((n) => String(n.id) === String(dep.parentNodeId))
-    if (!parentNode || String(parentNode.phaseId) === String(phaseId)) continue
+    if (!parentNode) continue
+
+    // Cạnh cùng phase: node con là subtask của node cha (bỏ treo dưới root)
+    if (String(parentNode.phaseId) === String(phaseId)) {
+      const child = tree[childId]
+      const parentId = String(parentNode.id)
+      const parentIds = child.parentIds[0] === rootId ? [] : child.parentIds
+      if (!parentIds.includes(parentId)) tree[childId] = { ...child, parentIds: [...parentIds, parentId] }
+      continue
+    }
 
     const ghostId = ghostIdOf(String(dep.parentNodeId), childId)
     const sourcePhase = phases.find((p) => String(p.id) === String(parentNode.phaseId))
@@ -166,10 +176,24 @@ export function toPhaseTree(graph: BackendGraphResponse | null | undefined, phas
       title: parentNode.title || 'Upstream Prerequisite',
       parentIds: [],
       sourceTaskTitle: parentNode.title,
+      sourceTaskCode: parentNode.code,
+      // Trạng thái task nguồn ở phase khác: để biết điều kiện mở khóa đã thỏa chưa
+      status: ((parentNode.status as NodeStatus) || 'LOCKED') as NodeStatus,
       sourcePhaseTitle: sourcePhase?.name,
     }
     tree[ghostId] = ghost
   }
 
   return tree
+}
+
+/** Node trên cây → dữ liệu sửa task gửi API (PUT /nodes/{id}). Không mang trạng thái: trạng thái đi theo state machine. */
+export function toTaskNodePatch(node: BranchGraphNode): TaskNodePatch {
+  return {
+    title: node.title,
+    description: node.description,
+    joinPolicy: node.joinPolicy === 'ANY_COMPLETED' ? 'ANY_COMPLETED' : 'ALL_COMPLETED',
+    assigneeId: node.assignee,
+    dueDate: node.due,
+  }
 }

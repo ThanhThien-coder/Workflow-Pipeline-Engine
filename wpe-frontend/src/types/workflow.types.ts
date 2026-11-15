@@ -28,6 +28,8 @@ export interface BranchGraphNode extends GraphNodeBase {
   due: string | null
   blocker: string | null
   joinPolicy: JoinPolicy | 'AND' | null
+  /** T6: chủ dự án đã mở khóa sớm */
+  forceUnlocked?: boolean
   phaseId?: string
   trackId?: string | null
   parentId?: string | null
@@ -73,6 +75,7 @@ export interface GhostGraphNode extends GraphNodeBase {
   status?: TaskStatus
   sourcePhaseTitle?: string
   sourceTaskTitle?: string
+  sourceTaskCode?: string
 }
 
 export type GraphNode = RootGraphNode | BranchGraphNode | GhostGraphNode
@@ -86,8 +89,9 @@ export interface MacroPhase {
   status: PhaseStatus
   pct: number
   accent: PhaseAccent
-  x: number
-  y: number
+  /** Vị trí đã lưu trên canvas. Không có thì canvas dùng bố cục tự động (computeMacroGraphLayout). */
+  x?: number
+  y?: number
   w: number
   h: number
   parentPhaseIds: string[]
@@ -126,6 +130,8 @@ export interface BackendGraphNodeDto {
   dueDate?: string | null
   estimatedHours?: number | null
   version?: number | null
+  forceUnlockedBy?: string | number | null
+  forceUnlockedAt?: string | null
   uiMetadata?: {
     position?: { x?: number; y?: number }
     width?: number

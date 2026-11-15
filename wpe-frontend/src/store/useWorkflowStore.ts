@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import { workflowService } from '../services/container'
-import type { CreatePhaseDto, IWorkflowService } from '../services/contracts/IWorkflowService'
+import type { CreatePhaseDto, IWorkflowService, TaskNodePatch } from '../services/contracts/IWorkflowService'
+import type { ProjectSettingsDto } from '../types/settings.types'
 import type { GraphNodeMap, MacroPhase } from '../types/workflow.types'
 import { ApiError } from '../services/http/ApiError'
 import { computePhaseProgress, syncTrackProgress, withPhaseProgress } from '../domain/phaseProgress'
 import { deleteNodeCascade } from '../utils/spanningTreeLayout'
+import { computeNewPhasePosition } from '../utils/macroLayout'
 import { getStoredProjectGraph, saveStoredProjectGraph } from '../services/mock/mockProjectGraphStore'
 import { TREES } from '../services/MockWorkflowService'
 import { createOverviewSlice, type OverviewSlice } from './slices/overviewSlice'
@@ -15,6 +17,7 @@ import { createAuthSlice, type AuthSlice } from './slices/authSlice'
 import { createWorkspaceSlice, type WorkspaceSlice } from './slices/workspaceSlice'
 import { createUiSlice, type UiSlice } from './slices/uiSlice'
 import { createArtifactsSlice, type ArtifactsSlice } from './slices/artifactsSlice'
+import { createProjectSlice, type ProjectSlice } from './slices/projectSlice'
 
 export type NavigationTab = 'overview' | 'workflow' | 'my-tasks' | 'settings'
 
@@ -26,7 +29,8 @@ export interface WorkflowState
     AuthSlice,
     WorkspaceSlice,
     UiSlice,
-    ArtifactsSlice {
+    ArtifactsSlice,
+    ProjectSlice {
   activeTab: NavigationTab
   currentProjectId: string | null
   macroPhases: MacroPhase[]
@@ -52,25 +56,41 @@ export interface WorkflowState
   attachGhostNode: (phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }) => Promise<void>
   /** B5: nối 2 node cùng phase qua API. Thành công mới vẽ cạnh. Tạo vòng thì ném ApiError 422. */
   connectNodes: (phaseId: string, parentId: string, childId: string) => Promise<void>
+  /** T3: thêm task con dưới các task cha (1 cha = subtask, nhiều cha = task hội tụ) qua API rồi đọc lại cây. */
+  addChildTask: (phaseId: string, parentTaskIds: string[], title: string) => Promise<void>
+  /** T3: sửa thông tin task (không sửa trạng thái) qua API rồi đọc lại cây. */
+  updateNodeInfo: (phaseId: string, nodeId: string, patch: TaskNodePatch) => Promise<void>
+  /** T3: xóa task qua API rồi đọc lại cây. */
+  removeNode: (phaseId: string, nodeId: string) => Promise<void>
+  /** T6: chủ dự án mở khóa sớm task đang khóa, rồi đọc lại cây. */
+  forceUnlockNode: (phaseId: string, nodeId: string) => Promise<void>
   setActiveTab: (tab: NavigationTab) => void
+}
+
+/** Thông tin dự án đang mở có vai trò của tôi: bản ở Settings nếu đã tải, không thì bản tải lúc vào dự án. */
+function currentProjectInfo(state: Pick<WorkflowState, 'settings' | 'project' | 'currentProjectId'>): ProjectSettingsDto | null {
+  const matches = (info: ProjectSettingsDto | null): info is ProjectSettingsDto =>
+    info != null && (!state.currentProjectId || String(info.id) === String(state.currentProjectId))
+  if (matches(state.settings.settings)) return state.settings.settings
+  if (matches(state.project.info)) return state.project.info
+  return null
 }
 
 /**
  * B5 — Có được sửa đồ thị không. Quy ước giống GeneralSettingsSection: isOwner = myRole === 'OWNER'.
  * - Dự án ARCHIVED: owner cũng chỉ xem (backend trả 409 PROJECT_ARCHIVED).
- * - Chưa nạp vai trò (settings chưa tải, hoặc settings đang là của dự án khác): KHÔNG khóa,
- *   để owner vào thẳng canvas vẫn làm được; backend vẫn chặn bằng 403 và UI hiện toast.
- *   Xem "Điều chưa chắc" của B5.
+ * - Vai trò lấy từ Settings hoặc từ thông tin dự án tải khi vào dự án (T3).
+ * - Chưa nạp vai trò của đúng dự án này: KHÔNG khóa, để owner vào thẳng canvas vẫn làm được;
+ *   backend vẫn chặn bằng 403 và UI hiện toast.
  */
-export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'currentProjectId'>): boolean {
-  const settings = state.settings.settings
-  if (!settings?.myRole) return true
-  if (state.currentProjectId && String(settings.id) !== String(state.currentProjectId)) return true
-  if (settings.status === 'ARCHIVED') return false
-  return settings.myRole === 'OWNER'
+export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'project' | 'currentProjectId'>): boolean {
+  const info = currentProjectInfo(state)
+  if (!info?.myRole) return true
+  if (info.status === 'ARCHIVED') return false
+  return info.myRole === 'OWNER'
 }
 
-export const GRAPH_READ_ONLY_MESSAGE = 'Chỉ chủ dự án được sửa đồ thị'
+export const GRAPH_READ_ONLY_MESSAGE = 'Only the project owner can edit the graph'
 
 /** Lớp chặn cuối ở store: không phải owner thì không gửi request ghi đồ thị nào. */
 function ensureCanEditGraph(state: WorkflowState): void {
@@ -87,7 +107,8 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   ...createAuthSlice(set, get),
   ...createWorkspaceSlice(set, get),
   ...createUiSlice(set, get),
-  ...createArtifactsSlice(set, get),
+  ...createArtifactsSlice(set, get, service),
+  ...createProjectSlice(set, get, service),
   activeTab: 'workflow',
   currentProjectId: null,
   macroPhases: [],
@@ -109,7 +130,12 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   createPhase: async (dto) => {
     ensureCanEditGraph(get())
     const currentProjectId = get().currentProjectId
-    const phase = await service.createPhase({ ...dto, projectId: currentProjectId || undefined }, currentProjectId || undefined)
+    const position =
+      dto.x != null && dto.y != null ? { x: dto.x, y: dto.y } : computeNewPhasePosition(get().macroPhases, dto.parentPhaseId)
+    const phase = await service.createPhase(
+      { ...dto, ...position, projectId: currentProjectId || undefined },
+      currentProjectId || undefined
+    )
     const rootTree = syncTrackProgress(await service.getPhaseGraph(phase.id, currentProjectId || undefined))
     set((state) => ({
       macroPhases: [...state.macroPhases, withPhaseProgress(phase, rootTree)],
@@ -291,6 +317,30 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
       if (!child || child.parentIds.includes(parentId)) return nodes
       return { ...nodes, [childId]: { ...child, parentIds: [...child.parentIds, parentId] } }
     })
+  },
+  addChildTask: async (phaseId, parentTaskIds, title) => {
+    ensureCanEditGraph(get())
+    if (!service.addChildTask) throw new Error('The current service does not support adding child tasks.')
+    await service.addChildTask(phaseId, parentTaskIds, { title })
+    await get().resetPhaseTree(phaseId)
+  },
+  updateNodeInfo: async (phaseId, nodeId, patch) => {
+    ensureCanEditGraph(get())
+    if (!service.updateTaskNode) throw new Error('The current service does not support editing tasks.')
+    await service.updateTaskNode(nodeId, patch)
+    await get().resetPhaseTree(phaseId)
+  },
+  removeNode: async (phaseId, nodeId) => {
+    ensureCanEditGraph(get())
+    if (!service.deleteTaskNode) throw new Error('The current service does not support deleting tasks.')
+    await service.deleteTaskNode(nodeId)
+    await get().resetPhaseTree(phaseId)
+  },
+  forceUnlockNode: async (phaseId, nodeId) => {
+    ensureCanEditGraph(get())
+    if (!service.forceUnlockTask) throw new Error('The current service does not support early unlock.')
+    await service.forceUnlockTask(nodeId)
+    await get().resetPhaseTree(phaseId)
   },
   setActiveTab: (activeTab) => set({ activeTab }),
 }))

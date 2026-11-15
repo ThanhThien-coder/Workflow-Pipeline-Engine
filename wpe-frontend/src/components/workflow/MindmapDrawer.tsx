@@ -14,6 +14,8 @@ import { GhostInfo } from '../popovers/GhostInfo'
 import { GhostPicker } from '../popovers/GhostPicker'
 import type { BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
 import { isAncestor, TASK_H, W } from '../../utils/spanningTreeLayout'
+import { toTaskNodePatch } from '../../mappers/graphMapper'
+import { prerequisitesOf } from '../../utils/taskPrerequisites'
 import { PhaseKanbanBoard } from '../kanban/PhaseKanbanBoard'
 import { TaskDetailModal } from '../kanban/TaskDetailModal'
 import { SubmitArtifactModal } from '../kanban/SubmitArtifactModal'
@@ -34,15 +36,25 @@ export function MindmapDrawer() {
   const updateTree = useWorkflowStore((state) => state.updateTree)
   const deleteNode = useWorkflowStore((state) => state.deleteNode)
   const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
+  const currentProjectId = useWorkflowStore((state) => state.currentProjectId)
+  // Tên dự án thật (tải lúc vào dự án), chưa có thì bỏ khỏi breadcrumb
+  const projectName = useWorkflowStore((state) =>
+    state.project.projectId === state.currentProjectId ? state.project.info?.name : undefined
+  )
   // B5: quyền sửa và các thao tác ghi đồ thị qua API (chế độ API thật)
   const canEdit = useWorkflowStore(selectCanEditGraph)
   const graphWritesUseApi = useWorkflowStore((state) => state.graphWritesUseApi)
   const addRootTaskViaApi = useWorkflowStore((state) => state.addRootTask)
   const attachGhostViaApi = useWorkflowStore((state) => state.attachGhostNode)
   const connectNodesViaApi = useWorkflowStore((state) => state.connectNodes)
+  const addChildTaskViaApi = useWorkflowStore((state) => state.addChildTask)
+  const updateNodeInfoViaApi = useWorkflowStore((state) => state.updateNodeInfo)
+  const removeNodeViaApi = useWorkflowStore((state) => state.removeNode)
+  const forceUnlockViaApi = useWorkflowStore((state) => state.forceUnlockNode)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
   const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
-  const [isRootTaskModalOpen, setIsRootTaskModalOpen] = useState(false)
+  // Chế độ API: hộp nhập tên trước khi tạo task gốc, subtask (1 cha) hoặc task hội tụ (nhiều cha)
+  const [taskModal, setTaskModal] = useState<{ kind: 'root' } | { kind: 'child'; parentIds: string[] } | null>(null)
 
   const { w, dragging, onMouseDown } = useResizable(
     Math.round(window.innerWidth * 0.5)
@@ -72,7 +84,7 @@ export function MindmapDrawer() {
     setMergeSelection(new Set())
     setIsGhostModalOpen(false)
     setGhostAnchorTaskId(undefined)
-    setIsRootTaskModalOpen(false)
+    setTaskModal(null)
   }, [selectedPhaseId])
 
   // Automatically ensure phase tree data is loaded if missing
@@ -96,7 +108,7 @@ export function MindmapDrawer() {
     submitArtifact,
     closeSubmitModal,
     updateAssignment,
-  } = usePhaseKanban(phase)
+  } = usePhaseKanban(phase, currentProjectId)
 
   // Active selected task kept up to date with updates
   const activeSelectedTask = useMemo(() => {
@@ -155,11 +167,11 @@ export function MindmapDrawer() {
     const source = tree[parentId]
     const target = tree[childId]
     if (!source || !target || target.kind !== 'branch') {
-      showToast('Chỉ nối được vào một node công việc.', 3000)
+      showToast('You can only connect to a task node.', 3000)
       return
     }
     if (source.kind === 'root') {
-      showToast('Không nối từ gốc phase. Hãy kéo từ một node công việc.', 3000)
+      showToast('Cannot connect from the phase root. Drag from a task node instead.', 3000)
       return
     }
     if (source.kind === 'ghost') {
@@ -173,9 +185,31 @@ export function MindmapDrawer() {
     void connectNodesViaApi(selectedPhaseId, parentId, childId).catch(handleError)
   }
 
+  const taskTitle = (id: string) => {
+    const node = tree?.[id]
+    return node && node.kind !== 'ghost' ? `"${node.title}"` : 'the selected task'
+  }
+
+  /** Chế độ API: đổi tên trên thẻ = sửa task (PUT /nodes/{id}) với các trường còn lại giữ nguyên. */
+  const renameTask = (id: string, title: string) => {
+    const node = tree?.[id]
+    if (!selectedPhaseId || node?.kind !== 'branch') return
+    void updateNodeInfoViaApi(selectedPhaseId, id, { ...toTaskNodePatch(node), title }).catch(handleError)
+  }
+
+  const removeTask = (id: string) => {
+    if (!selectedPhaseId) return
+    if (graphWritesUseApi) void removeNodeViaApi(selectedPhaseId, id).catch(handleError)
+    else deleteNode(selectedPhaseId, id)
+  }
+
   const createMerge = () => {
     if (!selectedPhaseId || mergeSelection.size < 2) return
     const parents = [...mergeSelection]
+    if (graphWritesUseApi) {
+      setTaskModal({ kind: 'child', parentIds: parents })
+      return
+    }
     const childId = `task-${Date.now()}`
     const code = `WPE-${Math.floor(100 + Math.random() * 900)}`
     const firstParent = tree?.[parents[0]]
@@ -218,6 +252,8 @@ export function MindmapDrawer() {
 
   if (!phase) return null
 
+  const breadcrumb = [projectName, 'Workflow', phase.name].filter(Boolean).join(' › ')
+
   return (
     <aside
       style={{ width: Math.max(w, viewMode === 'kanban' ? 540 : 380) }}
@@ -235,8 +271,8 @@ export function MindmapDrawer() {
       {/* ── Header ── */}
       <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 shrink-0">
         <div className="min-w-0">
-          <div className="text-[11px] text-slate-400 truncate max-w-[200px] xl:max-w-none" title={`Marketing Q4 › Workflow › ${phase.name}`}>
-            Marketing Q4 › Workflow › {phase.name}
+          <div className="text-[11px] text-slate-400 truncate max-w-[200px] xl:max-w-none" title={breadcrumb}>
+            {breadcrumb}
           </div>
           <h2 className="mt-1 truncate text-base font-semibold text-slate-800">
             {phase.sub}
@@ -349,7 +385,7 @@ export function MindmapDrawer() {
                 selectedId={selectedNodeId}
                 onSelect={(id) => setSelectedNodeId(id || null)}
                 onDelete={(id) => {
-                  if (selectedPhaseId) deleteNode(selectedPhaseId, id)
+                  removeTask(id)
                   setSelectedNodeId(null)
                 }}
                 mergeSelection={mergeSelection}
@@ -374,7 +410,9 @@ export function MindmapDrawer() {
                 readOnly={!canEdit}
                 // Chế độ API: "+ Add Root Task" mở hộp nhập tên rồi POST /nodes; kéo-nối gọi POST /dependencies.
                 // Chế độ mock: giữ cách cũ (thêm và nối cục bộ).
-                onAddRootTask={graphWritesUseApi ? () => setIsRootTaskModalOpen(true) : undefined}
+                onAddRootTask={graphWritesUseApi ? () => setTaskModal({ kind: 'root' }) : undefined}
+                onAddChildTask={graphWritesUseApi ? (parentId) => setTaskModal({ kind: 'child', parentIds: [parentId] }) : undefined}
+                onRenameNode={graphWritesUseApi ? renameTask : undefined}
                 onConnectNodes={graphWritesUseApi ? connectNodes : undefined}
               />
             ) : (
@@ -395,7 +433,7 @@ export function MindmapDrawer() {
                 phaseId={phase.id}
                 tasks={phaseTasks}
                 members={members}
-                actor={actor}
+                actor={actor ?? undefined}
                 pendingIds={pendingTaskIds}
                 onMoveTask={moveTask}
                 onOpenTaskDetails={(task) => setSelectedTask(task)}
@@ -430,9 +468,24 @@ export function MindmapDrawer() {
             node={tree[selectedNodeId] as BranchGraphNode}
             members={members}
             readOnly={!canEdit}
+            prerequisites={prerequisitesOf(tree, selectedNodeId)}
+            viewerId={actor?.id ?? null}
+            isOwner={canEdit}
+            canReview={actor?.projectRole === 'OWNER' || actor?.projectRole === 'MANAGER'}
+            onForceUnlock={
+              graphWritesUseApi && selectedPhaseId
+                ? () => void forceUnlockViaApi(selectedPhaseId, selectedNodeId).catch(handleError)
+                : undefined
+            }
+            // Đổi trạng thái đi qua Kanban của phase: cùng luật chuyển, cùng hộp nộp minh chứng khi sang Chờ duyệt
+            onMoveStatus={(to, reason) => void moveTask(selectedNodeId, to, reason)}
             onClose={() => setSelectedNodeId(null)}
             onSave={(updated) => {
-              if (selectedPhaseId && selectedNodeId) {
+              const current = tree[selectedNodeId]
+              if (selectedPhaseId && graphWritesUseApi && current?.kind === 'branch') {
+                const patch = toTaskNodePatch({ ...current, ...updated })
+                void updateNodeInfoViaApi(selectedPhaseId, selectedNodeId, patch).catch(handleError)
+              } else if (selectedPhaseId && selectedNodeId) {
                 updateTree(selectedPhaseId, (nodes) => {
                   const current = nodes[selectedNodeId]
                   if (!current || current.kind !== 'branch') return nodes
@@ -448,7 +501,7 @@ export function MindmapDrawer() {
               setSelectedNodeId(null)
             }}
             onDelete={() => {
-              if (selectedPhaseId) deleteNode(selectedPhaseId, selectedNodeId)
+              removeTask(selectedNodeId)
               setSelectedNodeId(null)
             }}
           />
@@ -457,7 +510,7 @@ export function MindmapDrawer() {
 
       {/* Task Details Modal in Phase Kanban */}
       <AnimatePresence mode="wait">
-        {activeSelectedTask && (
+        {activeSelectedTask && actor && (
           <TaskDetailModal
             key="task-detail"
             task={activeSelectedTask}
@@ -549,15 +602,33 @@ export function MindmapDrawer() {
         }}
       />
 
-      {/* B5 chế độ API: thêm node vào phase (POST /projects/{id}/nodes) */}
+      {/* Chế độ API: hỏi tên rồi tạo task gốc (POST /nodes) hoặc task con / hội tụ (POST /nodes + /dependencies) */}
       <AddRootTaskModal
-        isOpen={isRootTaskModalOpen && canEdit && graphWritesUseApi}
-        onClose={() => setIsRootTaskModalOpen(false)}
+        isOpen={taskModal !== null && canEdit && graphWritesUseApi}
+        onClose={() => setTaskModal(null)}
         phaseId={selectedPhaseId ?? ''}
+        {...(taskModal?.kind === 'child'
+          ? taskModal.parentIds.length > 1
+            ? {
+                heading: 'Create merge task',
+                description: `The new task waits for the ${taskModal.parentIds.length} selected tasks.`,
+                placeholder: 'e.g. Integrate and test',
+              }
+            : {
+                heading: 'Add subtask',
+                description: `Subtask of ${taskTitle(taskModal.parentIds[0])}.`,
+                placeholder: 'e.g. Build the login API',
+              }
+          : {})}
         onCreated={async (title) => {
-          if (!selectedPhaseId) return
+          if (!selectedPhaseId || !taskModal) return
           try {
-            await addRootTaskViaApi(selectedPhaseId, title)
+            if (taskModal.kind === 'root') {
+              await addRootTaskViaApi(selectedPhaseId, title)
+            } else {
+              await addChildTaskViaApi(selectedPhaseId, taskModal.parentIds, title)
+              if (taskModal.parentIds.length > 1) setMergeSelection(new Set())
+            }
           } catch (error) {
             // Hiện lỗi ngay trong hộp nhập (giữ tên đã gõ), câu báo theo ApiError.code
             throw new Error(graphErrorMessage(error))

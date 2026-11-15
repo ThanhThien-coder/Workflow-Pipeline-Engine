@@ -2,8 +2,11 @@ import { useEffect } from 'react'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import type { ProjectArtifact } from '../types/artifact.types'
 
-export function useProjectArtifacts(projectId = '1') {
+/** Artifact của một dự án (Settings → Resources). Tải khi mở, thêm / xóa qua service. */
+export function useProjectArtifacts(projectId: string) {
   const artifacts = useWorkflowStore((state) => state.artifacts.items)
+  const status = useWorkflowStore((state) => state.artifacts.status)
+  const error = useWorkflowStore((state) => state.artifacts.error)
   const isDrawerOpen = useWorkflowStore((state) => state.artifacts.isDrawerOpen)
   const openDrawer = useWorkflowStore((state) => state.artifacts.openDrawer)
   const closeDrawer = useWorkflowStore((state) => state.artifacts.closeDrawer)
@@ -13,26 +16,20 @@ export function useProjectArtifacts(projectId = '1') {
   const loadArtifacts = useWorkflowStore((state) => state.artifacts.loadArtifacts)
 
   useEffect(() => {
-    loadArtifacts(projectId)
+    void loadArtifacts(projectId)
   }, [projectId, loadArtifacts])
-
-  const addArtifact = (data: { title: string; url: string; createdBy?: string }): ProjectArtifact => {
-    return addArtifactStore(data, projectId)
-  }
-
-  const removeArtifact = (id: string) => {
-    removeArtifactStore(id, projectId)
-  }
 
   return {
     artifacts,
     count: artifacts.length,
+    status,
+    error,
     isDrawerOpen,
     openDrawer,
     closeDrawer,
     toggleDrawer,
-    addArtifact,
-    removeArtifact,
+    addArtifact: (input: { name: string; url: string }): Promise<ProjectArtifact> => addArtifactStore(projectId, input),
+    removeArtifact: (id: string): Promise<void> => removeArtifactStore(projectId, id),
     loadArtifacts: () => loadArtifacts(projectId),
   }
 }

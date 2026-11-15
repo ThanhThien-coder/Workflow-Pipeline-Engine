@@ -8,6 +8,10 @@ export interface AddRootTaskModalProps {
   onClose: () => void
   phaseId: string
   onCreated?: (title: string) => Promise<void> | void
+  /** Dùng lại hộp cho subtask / task hội tụ: đổi tiêu đề, mô tả, gợi ý. Mặc định là task gốc. */
+  heading?: string
+  description?: string
+  placeholder?: string
 }
 
 export function AddRootTaskModal({
@@ -15,6 +19,9 @@ export function AddRootTaskModal({
   onClose,
   phaseId,
   onCreated,
+  heading = 'Add Root Task',
+  description = 'Create a top-level track or milestone under the Phase Root.',
+  placeholder = 'e.g. Track: Core Database & Migration',
 }: AddRootTaskModalProps) {
   const [title, setTitle] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -78,10 +85,10 @@ export function AddRootTaskModal({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Add Root Task
+                    {heading}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Create a top-level track or milestone under the Phase Root.
+                    {description}
                   </p>
                 </div>
               </div>
@@ -114,7 +121,7 @@ export function AddRootTaskModal({
                   id="rootTaskTitle"
                   type="text"
                   autoFocus
-                  placeholder="e.g. Track: Core Database & Migration"
+                  placeholder={placeholder}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-3 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"

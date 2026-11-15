@@ -3,6 +3,8 @@ import { useEffect, useRef, type ChangeEvent, type MouseEvent } from 'react'
 import type { BranchGraphNode } from '../../types/workflow.types'
 import type { GraphNodeMap } from '../../types/workflow.types'
 import { W } from '../../utils/spanningTreeLayout'
+import { findMember } from '../../utils/memberLookup'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
 
 const statusStyles = {
   DONE: { c: 'text-emerald-600 bg-emerald-50 border-emerald-200', bd: 'border-emerald-300', lbl: 'Done' },
@@ -49,7 +51,9 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
   const hasUnfinishedGhost = attachedGhosts.some((g) => g.status !== 'DONE')
   const effectiveStatus = hasUnfinishedGhost ? 'LOCKED' : node.status
   const style = statusStyles[effectiveStatus]
-  const assignee = node.assignee
+  const members = useWorkflowStore((state) => state.project.members)
+  // node.assignee là id người dùng (chế độ API) hoặc tên (dữ liệu mock): hiện tên thành viên nếu tra được
+  const assignee = node.assignee ? findMember(members, node.assignee)?.name ?? node.assignee : null
   const count = node.parentIds.length
 
   return <div
@@ -103,6 +107,11 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
         {node.status === 'LOCKED' && <Lock size={9} />}
         {style.lbl}
       </span>
+      {node.forceUnlocked && (
+        <span className="select-none shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 pointer-events-none">
+          Unlocked early
+        </span>
+      )}
       {!node.isTrack && (
         assignee ? (
           <div className="flex items-center gap-1 min-w-0" title={`Assignee: ${assignee}`}>
