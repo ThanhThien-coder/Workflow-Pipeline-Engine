@@ -549,3 +549,36 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 - FE: cạnh thẻ người dùng ở My Tasks có nút "Chờ duyệt" (chỉ chủ dự án / quản lý thấy) kèm số đếm, tối đa "9+". Bấm mở popup danh sách task chờ duyệt; bấm một task thì mở hộp chi tiết như cũ (Approve / Request Changes). Duyệt xong task rời danh sách, số đếm giảm. Có SSE nộp bài / đổi trạng thái thì tải lại số đếm.
 
 **Đã sửa (15/11/2026), chờ test tay**: BE `GET /projects/{id}/review-tasks` (chủ dự án / quản lý, khác → 403); SSE nộp bài và đổi trạng thái gửi cho cả quản lý. FE `ReviewQueueButton` (huy hiệu tối đa "9+", danh sách, bấm mở `TaskDetailModal`), slice `reviewTasks` / `loadReviewTasks` / `reviewTask`. API thật: nộp → hàng chờ có task; duyệt → hàng chờ rỗng; người ngoài → 403.
+
+---
+
+## G19. Auto Layout dồn các phase lên đầu, không căn giữa
+
+**Ngày phát hiện:** 15/11/2026
+
+**Tái hiện**
+1. Sơ đồ A → Phase 2/3/4 → Phase 5 → Phase 6. Bấm Auto Layout.
+2. Cột chỉ có 1 thẻ (A, Phase 5, Phase 6) nằm sát hàng trên cùng, không thẳng hàng với giữa cột 3 thẻ; dây vượt cột phải vòng lên trên thẻ.
+
+**Nguyên nhân (đã xác định)**
+- FE `utils/phaseColumnLayout.ts` `autoLayoutColumns`: mọi cột bắt đầu từ cùng `TOP`, xếp từ trên xuống.
+
+**Cách sửa**
+- Mỗi cột đẩy xuống nửa phần chênh lệch so với cột cao nhất, nên cột ít thẻ nằm giữa theo chiều dọc.
+
+**Đã sửa (15/11/2026), chờ test tay**: 2 test mới (sơ đồ như ảnh: A, P5, P6 cùng hàng giữa với P3, dây không cắt thẻ; hai cột bằng nhau không lệch). Lưu ý: vị trí cũ đã lưu không tự đổi, cần bấm Auto Layout lại.
+
+---
+
+## G20. Chữ trên giao diện nửa Việt nửa Anh
+
+**Ngày phát hiện:** 15/11/2026
+
+**Hiện trạng**
+- Giao diện chung bằng tiếng Anh, nhưng các phần làm trong đợt sửa này (Chi tiết task, cột Đang khóa, Chờ duyệt, lọc phase, Artifacts, toast…) lại bằng tiếng Việt.
+
+**Cách sửa**
+- Đổi sang tiếng Anh mọi chuỗi hiển thị mà nhánh này thêm vào, cùng vài chỗ có sẵn nằm ngay cạnh (mục "Phân công" trong TaskDetailModal, câu "chỉ xem" của đồ thị `GRAPH_READ_ONLY_MESSAGE`, toast nối dây trong MindmapDrawer).
+- Không đổi: comment, dữ liệu mock, log console, thông báo lỗi do backend trả về, chuỗi tiếng Việt có sẵn của người khác ở chỗ không liên quan.
+
+**Đã sửa (15/11/2026), chờ test tay**: test cập nhật theo chữ mới (test B5 dùng hằng `GRAPH_READ_ONLY_MESSAGE` thay vì viết cứng). `vitest run` 83 file / 554 test qua, typecheck sạch.
