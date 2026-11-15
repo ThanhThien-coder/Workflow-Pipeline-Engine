@@ -4,7 +4,10 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { KanbanToolbar } from '../KanbanToolbar'
 import type { KanbanTask } from '../../../types/kanban.types'
 
-/** G13 — nút lọc phase sinh từ phase thật có trong danh sách task, không viết cứng Phase 1/2A/2B/3. */
+/**
+ * G13: lựa chọn phase sinh từ phase thật có trong danh sách task (không viết cứng Phase 1/2A/2B/3).
+ * G16: lọc bằng một ô chọn (không còn mỗi phase một nút làm tràn dòng).
+ */
 
 function task(id: string, phaseId: string, phaseLabel: string): KanbanTask {
   return {
@@ -22,22 +25,29 @@ describe('KanbanToolbar — lọc theo phase thật', () => {
     task('3', '56', 'PHASE 4 · Cụm công việc 4'),
   ]
 
-  it('mỗi phase có task là một nút (không trùng), có nút All; không còn nút Phase 2A giả', () => {
+  it('một ô chọn: "Tất cả" + mỗi phase có task một mục (không trùng) kèm số task; không có nút phase', () => {
     render(<KanbanToolbar query="" phase="ALL" tasks={TASKS} onQuery={() => {}} onPhase={() => {}} />)
 
-    expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'PHASE 4 · Cụm công việc 4' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'PHASE 5 · Cụm công việc 5' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Phase 2A' })).toBeNull()
-    expect(screen.getAllByRole('button')).toHaveLength(3)
+    const select = screen.getByRole('combobox', { name: 'Lọc theo phase' })
+    const labels = Array.from(select.querySelectorAll('option')).map((option) => option.textContent)
+    expect(labels).toEqual(['Tất cả phase (3)', 'PHASE 4 · Cụm công việc 4 (2)', 'PHASE 5 · Cụm công việc 5 (1)'])
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
 
-  it('bấm một phase thì báo đúng id phase thật', () => {
+  it('chọn một phase thì báo đúng id phase thật', () => {
     const onPhase = vi.fn()
     render(<KanbanToolbar query="" phase="ALL" tasks={TASKS} onQuery={() => {}} onPhase={onPhase} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'PHASE 5 · Cụm công việc 5' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Lọc theo phase' }), { target: { value: '57' } })
 
     expect(onPhase).toHaveBeenCalledWith('57')
+  })
+
+  it('nhiều phase vẫn chỉ một ô chọn', () => {
+    const many = Array.from({ length: 12 }, (_, index) => task(String(index), String(100 + index), `PHASE ${index + 1} · Cụm ${index + 1}`))
+    render(<KanbanToolbar query="" phase="ALL" tasks={many} onQuery={() => {}} onPhase={() => {}} />)
+
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(screen.getAllByRole('option')).toHaveLength(13)
   })
 })
