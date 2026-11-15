@@ -90,7 +90,7 @@ export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'proj
   return info.myRole === 'OWNER'
 }
 
-export const GRAPH_READ_ONLY_MESSAGE = 'Chỉ chủ dự án được sửa đồ thị'
+export const GRAPH_READ_ONLY_MESSAGE = 'Only the project owner can edit the graph'
 
 /** Lớp chặn cuối ở store: không phải owner thì không gửi request ghi đồ thị nào. */
 function ensureCanEditGraph(state: WorkflowState): void {
@@ -320,25 +320,25 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   },
   addChildTask: async (phaseId, parentTaskIds, title) => {
     ensureCanEditGraph(get())
-    if (!service.addChildTask) throw new Error('Service hiện tại không hỗ trợ thêm task con qua API.')
+    if (!service.addChildTask) throw new Error('The current service does not support adding child tasks.')
     await service.addChildTask(phaseId, parentTaskIds, { title })
     await get().resetPhaseTree(phaseId)
   },
   updateNodeInfo: async (phaseId, nodeId, patch) => {
     ensureCanEditGraph(get())
-    if (!service.updateTaskNode) throw new Error('Service hiện tại không hỗ trợ sửa task qua API.')
+    if (!service.updateTaskNode) throw new Error('The current service does not support editing tasks.')
     await service.updateTaskNode(nodeId, patch)
     await get().resetPhaseTree(phaseId)
   },
   removeNode: async (phaseId, nodeId) => {
     ensureCanEditGraph(get())
-    if (!service.deleteTaskNode) throw new Error('Service hiện tại không hỗ trợ xóa task qua API.')
+    if (!service.deleteTaskNode) throw new Error('The current service does not support deleting tasks.')
     await service.deleteTaskNode(nodeId)
     await get().resetPhaseTree(phaseId)
   },
   forceUnlockNode: async (phaseId, nodeId) => {
     ensureCanEditGraph(get())
-    if (!service.forceUnlockTask) throw new Error('Service hiện tại không hỗ trợ mở khóa sớm.')
+    if (!service.forceUnlockTask) throw new Error('The current service does not support early unlock.')
     await service.forceUnlockTask(nodeId)
     await get().resetPhaseTree(phaseId)
   },

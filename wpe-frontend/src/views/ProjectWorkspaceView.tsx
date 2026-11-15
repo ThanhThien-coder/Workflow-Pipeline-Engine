@@ -47,7 +47,7 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
     ? settingsMembers
     : project.projectId === projectId ? project.members : []
 
-  const projectName = projectInfo?.name ?? (project.status === 'error' ? 'Không tải được dự án' : 'Đang tải…')
+  const projectName = projectInfo?.name ?? (project.status === 'error' ? 'Could not load project' : 'Loading…')
   const projectStatus = projectInfo?.status ?? ''
   const currentProject = projects.find((p) => String(p.id) === String(projectId))
 

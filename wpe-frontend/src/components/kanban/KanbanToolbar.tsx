@@ -35,14 +35,14 @@ export function KanbanToolbar({ query, phase, tasks, onQuery, onPhase }: { query
       <label className="relative flex items-center">
         <Layers size={14} className="pointer-events-none absolute left-2.5 text-slate-400" />
         <select
-          aria-label="Lọc theo phase"
+          aria-label="Filter by phase"
           value={phase}
           onChange={(event) => onPhase(event.target.value)}
           className={`w-64 truncate rounded-lg border bg-white py-1.5 pl-8 pr-7 text-xs focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
             phase === 'ALL' ? 'border-slate-200 text-slate-600' : 'border-indigo-300 font-semibold text-indigo-700'
           }`}
         >
-          <option value="ALL">Tất cả phase ({tasks.length})</option>
+          <option value="ALL">All phases ({tasks.length})</option>
           {phases.map((item) => (
             <option key={item.id} value={item.id}>
               {item.label} ({item.count})

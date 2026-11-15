@@ -177,9 +177,9 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     render(<WorkflowArtifactsDrawer isOpen={true} projectId="error-project" />)
 
     await waitFor(() => {
-      expect(screen.getByText('Không tải được danh sách tài nguyên.')).toBeDefined()
+      expect(screen.getByText('Could not load resources.')).toBeDefined()
       expect(screen.getByText('Lỗi máy chủ')).toBeDefined()
-      expect(screen.getByRole('button', { name: 'Thử lại' })).toBeDefined()
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined()
     })
     expect(screen.queryByText('Figma Design System')).toBeNull()
   })

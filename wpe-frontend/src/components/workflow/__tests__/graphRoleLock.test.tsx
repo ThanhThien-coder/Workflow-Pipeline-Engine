@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import { MacroWorkflow } from '../MacroWorkflow'
 import { MindmapTree } from '../../mindmap/MindmapTree'
-import { createWorkflowStore, useWorkflowStore } from '../../../store/useWorkflowStore'
+import { createWorkflowStore, useWorkflowStore, GRAPH_READ_ONLY_MESSAGE } from '../../../store/useWorkflowStore'
 import type { IWorkflowService } from '../../../services/contracts/IWorkflowService'
 import type { ProjectRole, ProjectSettingsDto } from '../../../types/settings.types'
 import type { GraphNodeMap } from '../../../types/workflow.types'
@@ -20,7 +20,7 @@ function settingsFor(myRole: ProjectRole, status: ProjectSettingsDto['status'] =
   }
 }
 
-const READ_ONLY_TITLE = 'Chỉ chủ dự án được sửa đồ thị'
+const READ_ONLY_TITLE = GRAPH_READ_ONLY_MESSAGE
 
 describe('B5: store chặn ghi đồ thị khi không phải owner', () => {
   function fakeService() {

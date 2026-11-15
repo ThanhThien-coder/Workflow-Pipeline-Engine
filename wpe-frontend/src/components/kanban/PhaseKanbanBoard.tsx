@@ -16,7 +16,7 @@ const COLUMN_CONFIG: Record<
   }
 > = {
   LOCKED: {
-    title: '🔒 Đang khóa',
+    title: '🔒 Locked',
     headClass: 'bg-slate-100 text-slate-600',
     badgeClass: 'bg-slate-200 text-slate-600',
     ringClass: 'ring-slate-300',
@@ -105,7 +105,7 @@ export function PhaseKanbanBoard({
         <div className="flex items-center gap-3 text-[11px]">
           <span className="flex items-center gap-1.5 font-medium text-slate-500">
             <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-            {groupedTasks.LOCKED.length} Đang khóa
+            {groupedTasks.LOCKED.length} Locked
           </span>
           <span className="flex items-center gap-1.5 font-medium text-sky-700">
             <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
@@ -184,10 +184,10 @@ export function PhaseKanbanBoard({
                 <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                   {columnTasks.length === 0 ? (
                     <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300/80 bg-white/40 text-center text-xs text-slate-400">
-                      <span>Chưa có task</span>
+                      <span>No tasks yet</span>
                       {!isLockedColumn && (
                         <span className="text-[10px] text-slate-400/80 mt-0.5">
-                          Kéo thả task vào đây
+                          Drop tasks here
                         </span>
                       )}
                     </div>

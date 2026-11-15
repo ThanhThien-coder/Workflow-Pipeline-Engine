@@ -56,7 +56,7 @@ export const createProjectSlice = (
           patch({ info, members, status: 'ready' })
         } catch (error) {
           if (get().project.projectId !== projectId) return
-          const message = isApiError(error) || error instanceof Error ? error.message : 'Không tải được thông tin dự án'
+          const message = isApiError(error) || error instanceof Error ? error.message : 'Could not load project details'
           patch({ info: null, members: [], status: 'error', error: message })
         }
       },

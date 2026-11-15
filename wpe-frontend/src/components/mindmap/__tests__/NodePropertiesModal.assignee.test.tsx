@@ -29,7 +29,7 @@ describe('NodePropertiesModal — người làm', () => {
     render(<NodePropertiesModal node={node(null)} members={[member('9', 'a')]} onClose={() => {}} onDelete={() => {}} />)
 
     const labels = Array.from(assigneeSelect().options).map((o) => o.textContent)
-    expect(labels).toEqual(['Chưa giao', 'a'])
+    expect(labels).toEqual(['Unassigned', 'a'])
     expect(assigneeSelect().value).toBe('')
   })
 

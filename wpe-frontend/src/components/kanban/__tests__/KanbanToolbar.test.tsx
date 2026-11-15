@@ -28,9 +28,9 @@ describe('KanbanToolbar — lọc theo phase thật', () => {
   it('một ô chọn: "Tất cả" + mỗi phase có task một mục (không trùng) kèm số task; không có nút phase', () => {
     render(<KanbanToolbar query="" phase="ALL" tasks={TASKS} onQuery={() => {}} onPhase={() => {}} />)
 
-    const select = screen.getByRole('combobox', { name: 'Lọc theo phase' })
+    const select = screen.getByRole('combobox', { name: 'Filter by phase' })
     const labels = Array.from(select.querySelectorAll('option')).map((option) => option.textContent)
-    expect(labels).toEqual(['Tất cả phase (3)', 'PHASE 4 · Cụm công việc 4 (2)', 'PHASE 5 · Cụm công việc 5 (1)'])
+    expect(labels).toEqual(['All phases (3)', 'PHASE 4 · Cụm công việc 4 (2)', 'PHASE 5 · Cụm công việc 5 (1)'])
     expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
 
@@ -38,7 +38,7 @@ describe('KanbanToolbar — lọc theo phase thật', () => {
     const onPhase = vi.fn()
     render(<KanbanToolbar query="" phase="ALL" tasks={TASKS} onQuery={() => {}} onPhase={onPhase} />)
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Lọc theo phase' }), { target: { value: '57' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by phase' }), { target: { value: '57' } })
 
     expect(onPhase).toHaveBeenCalledWith('57')
   })

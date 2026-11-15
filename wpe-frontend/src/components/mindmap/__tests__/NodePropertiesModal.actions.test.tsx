@@ -34,7 +34,7 @@ describe('NodePropertiesModal — Chi tiết task (T6)', () => {
     render(<NodePropertiesModal node={node('LOCKED')} members={MEMBERS} prerequisites={PREREQS} onClose={noop} onDelete={noop} />)
 
     const box = screen.getByTestId('prerequisites')
-    expect(box.textContent).toContain('Chờ 1/2 task trước xong (cần tất cả)')
+    expect(box.textContent).toContain('Waiting: 1/2 prerequisites done (all required)')
     expect(box.textContent).toContain('WPE-001')
     expect(box.textContent).toContain('WPE-002')
   })
@@ -43,13 +43,13 @@ describe('NodePropertiesModal — Chi tiết task (T6)', () => {
     const onForceUnlock = vi.fn()
     render(<NodePropertiesModal node={node('LOCKED')} members={MEMBERS} prerequisites={PREREQS} isOwner onForceUnlock={onForceUnlock} onClose={noop} onDelete={noop} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /mở khóa sớm/i }))
+    fireEvent.click(screen.getByRole('button', { name: /unlock early/i }))
     expect(onForceUnlock).not.toHaveBeenCalled()
     const dialog = screen.getByRole('alertdialog')
     expect(dialog.textContent).toContain('WPE-002')
     expect(dialog.textContent).not.toContain('WPE-001')
 
-    fireEvent.click(screen.getByRole('button', { name: /vẫn mở khóa/i }))
+    fireEvent.click(screen.getByRole('button', { name: /unlock anyway/i }))
     expect(onForceUnlock).toHaveBeenCalledTimes(1)
   })
 
@@ -58,13 +58,13 @@ describe('NodePropertiesModal — Chi tiết task (T6)', () => {
     const allDone = PREREQS.map((p) => ({ ...p, done: true }))
     render(<NodePropertiesModal node={node('LOCKED')} prerequisites={allDone} isOwner onForceUnlock={onForceUnlock} onClose={noop} onDelete={noop} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /mở khóa sớm/i }))
+    fireEvent.click(screen.getByRole('button', { name: /unlock early/i }))
     expect(onForceUnlock).toHaveBeenCalledTimes(1)
   })
 
   it('không phải chủ dự án thì không thấy nút Mở khóa sớm', () => {
     render(<NodePropertiesModal node={node('LOCKED')} prerequisites={PREREQS} onForceUnlock={vi.fn()} onClose={noop} onDelete={noop} readOnly />)
-    expect(screen.queryByRole('button', { name: /mở khóa sớm/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /unlock early/i })).toBeNull()
   })
 
   it('người được giao: TODO thấy "Bắt đầu", IN_PROGRESS thấy "Nộp để duyệt"; người khác không thấy', () => {
@@ -72,32 +72,32 @@ describe('NodePropertiesModal — Chi tiết task (T6)', () => {
     const { rerender } = render(
       <NodePropertiesModal node={node('TODO')} members={MEMBERS} viewerId="9" onMoveStatus={onMoveStatus} onClose={noop} onDelete={noop} />
     )
-    fireEvent.click(screen.getByRole('button', { name: /bắt đầu/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
     expect(onMoveStatus).toHaveBeenLastCalledWith('IN_PROGRESS', undefined)
 
     rerender(<NodePropertiesModal node={node('IN_PROGRESS')} members={MEMBERS} viewerId="9" onMoveStatus={onMoveStatus} onClose={noop} onDelete={noop} />)
-    fireEvent.click(screen.getByRole('button', { name: /nộp để duyệt/i }))
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
     expect(onMoveStatus).toHaveBeenLastCalledWith('REVIEW', undefined)
 
     rerender(<NodePropertiesModal node={node('TODO')} members={MEMBERS} viewerId="12" onMoveStatus={onMoveStatus} onClose={noop} onDelete={noop} readOnly />)
-    expect(screen.queryByRole('button', { name: /bắt đầu/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
   })
 
   it('chủ dự án + REVIEW: Duyệt → DONE; Trả lại cần lý do → IN_PROGRESS kèm lý do', () => {
     const onMoveStatus = vi.fn()
     render(<NodePropertiesModal node={node('REVIEW')} members={MEMBERS} canReview onMoveStatus={onMoveStatus} onClose={noop} onDelete={noop} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /^trả lại$/i }))
-    const rejectButtons = screen.getAllByRole('button', { name: /trả lại/i })
+    fireEvent.click(screen.getByRole('button', { name: /^request changes$/i }))
+    const rejectButtons = screen.getAllByRole('button', { name: /request changes/i })
     const confirmReject = rejectButtons[rejectButtons.length - 1] as HTMLButtonElement
     expect(confirmReject.disabled).toBe(true)
-    fireEvent.change(screen.getByPlaceholderText('Cần sửa gì…'), { target: { value: 'Thiếu test' } })
+    fireEvent.change(screen.getByPlaceholderText('What needs to change…'), { target: { value: 'Thiếu test' } })
     fireEvent.click(confirmReject)
     expect(onMoveStatus).toHaveBeenLastCalledWith('IN_PROGRESS', 'Thiếu test')
   })
 
   it('task đã mở sớm có nhãn "Mở sớm"', () => {
     render(<NodePropertiesModal node={node('TODO', '9', { forceUnlocked: true })} onClose={noop} onDelete={noop} />)
-    expect(screen.getByText('Mở sớm')).toBeTruthy()
+    expect(screen.getByText('Unlocked early')).toBeTruthy()
   })
 })

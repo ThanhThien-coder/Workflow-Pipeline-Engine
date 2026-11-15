@@ -27,7 +27,7 @@ const statusConfigs: Record<
   { label: string; badgeClass: string; Icon: typeof Clock }
 > = {
   LOCKED: {
-    label: 'Đang khóa',
+    label: 'Locked',
     badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
     Icon: Lock,
   },
@@ -312,17 +312,17 @@ export function TaskDetailModal({
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <User size={14} className="text-indigo-600" />
-                  Phân công
+                  Assignment
                 </h3>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label htmlFor="assignment-assignee-select" className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Người làm
+                    Assignee
                   </label>
                   <select
                     id="assignment-assignee-select"
-                    aria-label="Người làm"
+                    aria-label="Assignee"
                     value={assignedUserId}
                     onChange={(e) => setAssignedUserId(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
@@ -341,11 +341,11 @@ export function TaskDetailModal({
                 </div>
                 <div>
                   <label htmlFor="assignment-due-date-input" className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Hạn chót
+                    Due date
                   </label>
                   <input
                     id="assignment-due-date-input"
-                    aria-label="Hạn chót"
+                    aria-label="Due date"
                     type="date"
                     value={dueDateInput}
                     onChange={(e) => setDueDateInput(e.target.value)}
@@ -361,7 +361,7 @@ export function TaskDetailModal({
                   className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <Check size={13} />
-                  {isSavingAssignment ? 'Đang lưu…' : 'Lưu phân công'}
+                  {isSavingAssignment ? 'Saving…' : 'Save assignment'}
                 </button>
               </div>
             </div>
@@ -610,7 +610,7 @@ export function TaskDetailModal({
               ) : (
                 <span className="flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-1.5 text-xs font-medium text-violet-700">
                   <Clock size={13} />
-                  Pending Review (Awaiting Owner/Quản lý)
+                  Pending Review (Awaiting Owner/Manager)
                 </span>
               ))}
 

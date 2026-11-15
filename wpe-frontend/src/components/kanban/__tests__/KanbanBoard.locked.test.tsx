@@ -22,17 +22,17 @@ describe('KanbanBoard (My Tasks) — cột Đang khóa', () => {
     render(<KanbanBoard tasks={[task('1', 'LOCKED'), task('2', 'TODO')]} actor={ACTOR} pendingIds={[]} onMove={() => {}} filtering={false} onOpenDetails={() => {}} />)
 
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(headings).toEqual(['Đang khóa', 'To Do', 'In Progress', 'In Review', 'Done'])
-    const lockedColumn = screen.getByRole('heading', { name: 'Đang khóa' }).closest('section') as HTMLElement
+    expect(headings).toEqual(['Locked', 'To Do', 'In Progress', 'In Review', 'Done'])
+    const lockedColumn = screen.getByRole('heading', { name: 'Locked' }).closest('section') as HTMLElement
     expect(lockedColumn.textContent).toContain('WPE-1')
-    expect(lockedColumn.textContent).toContain('Chờ task trước')
+    expect(lockedColumn.textContent).toContain('Waiting on prerequisites')
   })
 
   it('thả task vào cột Đang khóa: không gọi onMove', () => {
     const onMove = vi.fn()
     render(<KanbanBoard tasks={[task('2', 'TODO')]} actor={ACTOR} pendingIds={[]} onMove={onMove} filtering={false} onOpenDetails={() => {}} />)
 
-    const lockedColumn = screen.getByRole('heading', { name: 'Đang khóa' }).closest('section') as HTMLElement
+    const lockedColumn = screen.getByRole('heading', { name: 'Locked' }).closest('section') as HTMLElement
     fireEvent.drop(lockedColumn, { dataTransfer: { getData: () => '2' } })
 
     expect(onMove).not.toHaveBeenCalled()

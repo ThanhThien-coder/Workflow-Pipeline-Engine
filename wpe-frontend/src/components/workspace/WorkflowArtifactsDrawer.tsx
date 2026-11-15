@@ -196,7 +196,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
     setSubmitting(true)
     try {
       await addArtifact(projectId, { name: trimmedTitle, url: normalizedUrl })
-      showToast('Đã thêm liên kết tài nguyên thành công.')
+      showToast('Resource link added.')
       setFormTitle('')
       setFormUrl('')
       setErrorMessage(null)
@@ -212,9 +212,9 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const handleDeleteLink = async (artifact: ProjectArtifact) => {
     try {
       await removeArtifact(projectId, String(artifact.id))
-      showToast('Đã xóa liên kết tài nguyên.')
+      showToast('Resource link removed.')
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Xóa tài nguyên thất bại.')
+      showToast(err instanceof Error ? err.message : 'Failed to delete resource.')
     }
   }
 
@@ -368,14 +368,14 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                 </div>
               ) : status === 'error' ? (
                 <div className="grid place-items-center p-7 text-center bg-rose-50/70 rounded-2xl border border-rose-200 my-2" role="alert">
-                  <h3 className="text-sm font-semibold text-rose-700">Không tải được danh sách tài nguyên.</h3>
+                  <h3 className="text-sm font-semibold text-rose-700">Could not load resources.</h3>
                   <p className="text-xs text-rose-600 mt-1 max-w-[260px] leading-relaxed">{loadError}</p>
                   <button
                     type="button"
                     onClick={() => void loadArtifacts(projectId)}
                     className="mt-3 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
                   >
-                    Thử lại
+                    Retry
                   </button>
                 </div>
               ) : artifacts.length === 0 ? (

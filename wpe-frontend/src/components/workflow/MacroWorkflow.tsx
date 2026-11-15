@@ -190,7 +190,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           <p className="text-xs text-slate-400 mt-0.5">
             {canEdit
               ? 'Macro Pipeline · Drag cards to reposition, scroll to zoom, connect from (+)'
-              : `Macro Pipeline · Chế độ chỉ xem (${GRAPH_READ_ONLY_MESSAGE}) · Kéo nền để di chuyển, cuộn để zoom`}
+              : `Macro Pipeline · Read-only (${GRAPH_READ_ONLY_MESSAGE}) · Drag the canvas to pan, scroll to zoom`}
           </p>
         </div>
 

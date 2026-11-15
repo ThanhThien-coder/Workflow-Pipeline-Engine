@@ -56,6 +56,6 @@ describe('BranchCard — nhãn mở sớm (T6)', () => {
 
   it('task đã được chủ dự án mở khóa sớm có nhãn "Mở sớm"', () => {
     renderCard({ ...node('9'), forceUnlocked: true })
-    expect(screen.getByText('Mở sớm')).toBeTruthy()
+    expect(screen.getByText('Unlocked early')).toBeTruthy()
   })
 })

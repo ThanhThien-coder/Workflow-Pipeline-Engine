@@ -35,7 +35,7 @@ export function ReviewQueueButton({
 
   const count = tasks.length
   const nameOf = (userId: string | null | undefined) =>
-    !userId ? 'Chưa giao' : members.find((member) => member.id === userId)?.name ?? 'Thành viên khác'
+    !userId ? 'Unassigned' : members.find((member) => member.id === userId)?.name ?? 'Other member'
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -43,7 +43,7 @@ export function ReviewQueueButton({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={count ? `Chờ duyệt: ${count} task` : 'Chờ duyệt'}
+        aria-label={count ? `Pending review: ${count} tasks` : 'Pending review'}
         onClick={() => {
           const next = !open
           setOpen(next)
@@ -54,7 +54,7 @@ export function ReviewQueueButton({
         }`}
       >
         <ClipboardCheck size={15} className="text-violet-600" />
-        Chờ duyệt
+        Pending review
         {count > 0 && (
           <span
             data-testid="review-badge"
@@ -68,22 +68,22 @@ export function ReviewQueueButton({
       {open && (
         <div
           role="dialog"
-          aria-label="Danh sách task chờ duyệt"
+          aria-label="Tasks pending review"
           className="absolute right-0 top-full z-40 mt-2 w-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
         >
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
-            <b className="text-sm text-slate-900">Task chờ duyệt</b>
-            <span className="text-[11px] text-slate-500">{count} task</span>
+            <b className="text-sm text-slate-900">Pending review</b>
+            <span className="text-[11px] text-slate-500">{count} {count === 1 ? 'task' : 'tasks'}</span>
           </div>
           <div className="max-h-[360px] overflow-y-auto p-2">
             {loading && !count ? (
               <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-500">
-                <Loader2 size={14} className="animate-spin" /> Đang tải…
+                <Loader2 size={14} className="animate-spin" /> Loading…
               </div>
             ) : error && !count ? (
-              <div className="py-8 text-center text-xs text-rose-600">Không tải được danh sách chờ duyệt.</div>
+              <div className="py-8 text-center text-xs text-rose-600">Could not load the review queue.</div>
             ) : !count ? (
-              <div className="py-8 text-center text-xs text-slate-400">Không có task nào chờ duyệt.</div>
+              <div className="py-8 text-center text-xs text-slate-400">No tasks waiting for review.</div>
             ) : (
               <ul className="flex flex-col gap-1">
                 {tasks.map((task) => (
@@ -105,7 +105,7 @@ export function ReviewQueueButton({
                         )}
                       </span>
                       <span className="line-clamp-2 text-xs font-bold text-slate-800">{task.title}</span>
-                      <span className="text-[11px] text-slate-500">Người nộp: {nameOf(task.assignedUserId)}</span>
+                      <span className="text-[11px] text-slate-500">Submitted by: {nameOf(task.assignedUserId)}</span>
                     </button>
                   </li>
                 ))}

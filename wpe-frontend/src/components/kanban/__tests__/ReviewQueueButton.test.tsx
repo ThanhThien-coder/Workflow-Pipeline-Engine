@@ -45,12 +45,12 @@ describe('ReviewQueueButton', () => {
     const onOpenTask = vi.fn()
     render(<ReviewQueueButton tasks={[task('3'), task('5', '')]} members={MEMBERS} onOpen={onOpen} onOpenTask={onOpenTask} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /chờ duyệt/i }))
+    fireEvent.click(screen.getByRole('button', { name: /pending review/i }))
     expect(onOpen).toHaveBeenCalledTimes(1)
-    const list = screen.getByRole('dialog', { name: 'Danh sách task chờ duyệt' })
+    const list = screen.getByRole('dialog', { name: 'Tasks pending review' })
     expect(list.textContent).toContain('WPE-3')
-    expect(list.textContent).toContain('Người nộp: b')
-    expect(list.textContent).toContain('Người nộp: Chưa giao')
+    expect(list.textContent).toContain('Submitted by: b')
+    expect(list.textContent).toContain('Submitted by: Unassigned')
 
     fireEvent.click(screen.getByRole('button', { name: /WPE-5/ }))
     expect(onOpenTask).toHaveBeenCalledWith(expect.objectContaining({ id: '5' }))
@@ -59,7 +59,7 @@ describe('ReviewQueueButton', () => {
 
   it('danh sách rỗng thì báo "Không có task nào chờ duyệt"', () => {
     render(<ReviewQueueButton tasks={[]} members={MEMBERS} onOpenTask={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: /chờ duyệt/i }))
-    expect(screen.getByText('Không có task nào chờ duyệt.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /pending review/i }))
+    expect(screen.getByText('No tasks waiting for review.')).toBeTruthy()
   })
 })

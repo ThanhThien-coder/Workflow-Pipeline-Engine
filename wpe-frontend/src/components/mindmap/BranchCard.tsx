@@ -109,7 +109,7 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
       </span>
       {node.forceUnlocked && (
         <span className="select-none shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 pointer-events-none">
-          Mở sớm
+          Unlocked early
         </span>
       )}
       {!node.isTrack && (

@@ -148,8 +148,8 @@ describe('PhaseKanbanBoard Component', () => {
     const card = screen.getByTestId('task-card-task-locked')
     expect(lockedColumn.contains(card)).toBe(true)
     expect(card.getAttribute('draggable')).toBe('false')
-    expect(screen.getByText('🔒 Chờ task trước')).toBeDefined()
-    expect(screen.getByText('1 Đang khóa')).toBeDefined()
+    expect(screen.getByText('🔒 Waiting on prerequisites')).toBeDefined()
+    expect(screen.getByText('1 Locked')).toBeDefined()
     // Task không khóa vẫn kéo được
     expect(screen.getByTestId('task-card-task-1').getAttribute('draggable')).toBe('true')
   })
@@ -174,7 +174,7 @@ describe('PhaseKanbanBoard Component', () => {
       />
     )
 
-    expect(screen.getByText('Chưa giao')).toBeDefined()
+    expect(screen.getByText('Unassigned')).toBeDefined()
     expect(screen.queryByText('Alex Kim')).toBeNull()
   })
 

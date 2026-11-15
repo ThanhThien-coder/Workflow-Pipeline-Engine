@@ -167,11 +167,11 @@ export function MindmapDrawer() {
     const source = tree[parentId]
     const target = tree[childId]
     if (!source || !target || target.kind !== 'branch') {
-      showToast('Chỉ nối được vào một node công việc.', 3000)
+      showToast('You can only connect to a task node.', 3000)
       return
     }
     if (source.kind === 'root') {
-      showToast('Không nối từ gốc phase. Hãy kéo từ một node công việc.', 3000)
+      showToast('Cannot connect from the phase root. Drag from a task node instead.', 3000)
       return
     }
     if (source.kind === 'ghost') {
@@ -187,7 +187,7 @@ export function MindmapDrawer() {
 
   const taskTitle = (id: string) => {
     const node = tree?.[id]
-    return node && node.kind !== 'ghost' ? `"${node.title}"` : 'task đã chọn'
+    return node && node.kind !== 'ghost' ? `"${node.title}"` : 'the selected task'
   }
 
   /** Chế độ API: đổi tên trên thẻ = sửa task (PUT /nodes/{id}) với các trường còn lại giữ nguyên. */
@@ -610,14 +610,14 @@ export function MindmapDrawer() {
         {...(taskModal?.kind === 'child'
           ? taskModal.parentIds.length > 1
             ? {
-                heading: 'Tạo task hội tụ',
-                description: `Task mới chờ ${taskModal.parentIds.length} task đã chọn.`,
-                placeholder: 'Ví dụ: Tích hợp và kiểm thử',
+                heading: 'Create merge task',
+                description: `The new task waits for the ${taskModal.parentIds.length} selected tasks.`,
+                placeholder: 'e.g. Integrate and test',
               }
             : {
-                heading: 'Thêm subtask',
-                description: `Subtask của ${taskTitle(taskModal.parentIds[0])}.`,
-                placeholder: 'Ví dụ: Viết API đăng nhập',
+                heading: 'Add subtask',
+                description: `Subtask of ${taskTitle(taskModal.parentIds[0])}.`,
+                placeholder: 'e.g. Build the login API',
               }
           : {})}
         onCreated={async (title) => {

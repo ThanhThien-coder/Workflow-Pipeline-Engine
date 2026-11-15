@@ -66,6 +66,6 @@ describe('ProjectWorkspaceView (chế độ API)', () => {
 
     render(<ProjectWorkspaceView projectId="20" subTab="workflow" />)
 
-    await waitFor(() => expect(screen.getByTestId('sidebar').textContent).toBe('Không tải được dự án||'))
+    await waitFor(() => expect(screen.getByTestId('sidebar').textContent).toBe('Could not load project||'))
   })
 })

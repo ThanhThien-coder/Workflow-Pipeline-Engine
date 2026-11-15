@@ -4,7 +4,7 @@ import type { KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.typ
 import { TaskCard } from './TaskCard'
 
 const styles: Record<TaskStatus, { title: string; head: string; badge: string; ring: string }> = {
-  LOCKED: { title: 'Đang khóa', head: 'bg-slate-100 text-slate-600', badge: 'bg-slate-200 text-slate-600', ring: 'ring-slate-300' },
+  LOCKED: { title: 'Locked', head: 'bg-slate-100 text-slate-600', badge: 'bg-slate-200 text-slate-600', ring: 'ring-slate-300' },
   TODO: { title: 'To Do', head: 'bg-sky-100 text-sky-800', badge: 'bg-sky-200 text-sky-800', ring: 'ring-sky-300' },
   IN_PROGRESS: { title: 'In Progress', head: 'bg-blue-600 text-white', badge: 'bg-white/25 text-white', ring: 'ring-blue-300' },
   REVIEW: { title: 'In Review', head: 'bg-violet-100 text-violet-800', badge: 'bg-violet-200 text-violet-800', ring: 'ring-violet-300' },

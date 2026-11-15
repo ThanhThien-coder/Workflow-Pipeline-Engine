@@ -12,11 +12,11 @@ const SECTION_TITLE = 'text-[11px] font-bold uppercase tracking-wider text-slate
 
 /** Nhãn trạng thái chỉ để hiển thị: trạng thái đổi bằng nút hành động theo đúng luồng, không chọn tự do. */
 const STATUS_LABEL: Record<NodeStatus, { text: string; className: string }> = {
-  LOCKED: { text: '🔒 Đang khóa', className: 'bg-slate-100 text-slate-600 border-slate-200' },
-  TODO: { text: 'Chờ làm', className: 'bg-sky-50 text-sky-700 border-sky-200' },
-  IN_PROGRESS: { text: 'Đang làm', className: 'bg-blue-50 text-blue-700 border-blue-200' },
-  REVIEW: { text: 'Chờ duyệt', className: 'bg-violet-50 text-violet-700 border-violet-200' },
-  DONE: { text: 'Xong', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  LOCKED: { text: '🔒 Locked', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+  TODO: { text: 'To Do', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+  IN_PROGRESS: { text: 'In Progress', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  REVIEW: { text: 'In Review', className: 'bg-violet-50 text-violet-700 border-violet-200' },
+  DONE: { text: 'Done', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 }
 
 const ACTION_BUTTON =
@@ -109,7 +109,7 @@ export function NodePropertiesModal({
         {/* Đầu hộp: mã · tên, nhãn trạng thái */}
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-white shrink-0">
           <div className="min-w-0">
-            <h3 className="text-base font-bold text-slate-900 leading-tight">Chi tiết task</h3>
+            <h3 className="text-base font-bold text-slate-900 leading-tight">Task Details</h3>
             <p className="mt-0.5 truncate text-xs text-slate-500">
               <span className="font-mono font-semibold text-indigo-600">{node.code || node.id}</span> · {node.title}
             </p>
@@ -119,7 +119,7 @@ export function NodePropertiesModal({
               </span>
               {node.forceUnlocked && (
                 <span className="inline-block rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                  Mở sớm
+                  Unlocked early
                 </span>
               )}
             </div>
@@ -130,7 +130,7 @@ export function NodePropertiesModal({
               event.stopPropagation()
               onClose()
             }}
-            title="Đóng"
+            title="Close"
             className="grid place-items-center w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer shrink-0"
           >
             <X size={18} />
@@ -139,7 +139,7 @@ export function NodePropertiesModal({
 
         {readOnly && (
           <div className="px-5 py-2 text-xs font-medium text-slate-600 bg-slate-50 border-b border-slate-100 shrink-0">
-            Chỉ chủ dự án được sửa đồ thị
+            Only the project owner can edit the graph
           </div>
         )}
 
@@ -148,9 +148,9 @@ export function NodePropertiesModal({
           {prerequisites.length > 0 && (
             <div data-testid="prerequisites" className="mx-5 mt-4 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3">
               <p className="text-xs font-semibold text-slate-700">
-                {node.status === 'LOCKED' ? '⏳ Chờ ' : 'Task trước: '}
-                {doneCount}/{prerequisites.length} task trước xong ({join === 'ANY' ? 'chỉ cần 1' : 'cần tất cả'})
-                {node.status === 'LOCKED' && satisfied && ' · đã đủ điều kiện (task mở khi dự án được Publish)'}
+                {node.status === 'LOCKED' ? '⏳ Waiting: ' : 'Prerequisites: '}
+                {doneCount}/{prerequisites.length} prerequisites done ({join === 'ANY' ? 'any one' : 'all required'})
+                {node.status === 'LOCKED' && satisfied && ' · ready (unlocks when the project is published)'}
               </p>
               <ul className="mt-2 space-y-1">
                 {prerequisites.map((p) => (
@@ -169,26 +169,26 @@ export function NodePropertiesModal({
           <div className="flex flex-wrap gap-2 px-5 pt-4">
             {node.status === 'LOCKED' && isOwner && onForceUnlock && !confirmUnlock && (
               <button type="button" onClick={requestForceUnlock} className={`${ACTION_BUTTON} bg-amber-500 text-white hover:bg-amber-600`}>
-                <Unlock size={13} /> Mở khóa sớm
+                <Unlock size={13} /> Unlock early
               </button>
             )}
             {node.status === 'TODO' && isAssignee && onMoveStatus && (
               <button type="button" onClick={() => move('IN_PROGRESS')} className={`${ACTION_BUTTON} bg-blue-600 text-white hover:bg-blue-700`}>
-                <Play size={13} /> Bắt đầu
+                <Play size={13} /> Start
               </button>
             )}
             {node.status === 'IN_PROGRESS' && isAssignee && onMoveStatus && (
               <button type="button" onClick={() => move('REVIEW')} className={`${ACTION_BUTTON} bg-violet-600 text-white hover:bg-violet-700`}>
-                <Send size={13} /> Nộp để duyệt
+                <Send size={13} /> Submit for review
               </button>
             )}
             {node.status === 'REVIEW' && canReview && onMoveStatus && !rejecting && (
               <>
                 <button type="button" onClick={() => move('DONE')} className={`${ACTION_BUTTON} bg-emerald-600 text-white hover:bg-emerald-700`}>
-                  <Check size={13} /> Duyệt
+                  <Check size={13} /> Approve
                 </button>
                 <button type="button" onClick={() => setRejecting(true)} className={`${ACTION_BUTTON} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}>
-                  <Undo2 size={13} /> Trả lại
+                  <Undo2 size={13} /> Request changes
                 </button>
               </>
             )}
@@ -197,7 +197,7 @@ export function NodePropertiesModal({
           {/* Xác nhận mở khóa sớm khi còn task trước chưa xong */}
           {confirmUnlock && (
             <div role="alertdialog" className="mx-5 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
-              <p className="font-semibold">Lưu ý: task này còn chờ các việc sau chưa xong:</p>
+              <p className="font-semibold">Heads up: this task is still waiting on:</p>
               <ul className="mt-1 list-disc pl-4">
                 {unfinished.map((p) => (
                   <li key={p.id}>
@@ -205,10 +205,10 @@ export function NodePropertiesModal({
                   </li>
                 ))}
               </ul>
-              <p className="mt-1">Mở khóa sớm thì người làm có thể bắt đầu ngay. Vẫn mở?</p>
+              <p className="mt-1">Unlocking early lets the assignee start right away. Unlock anyway?</p>
               <div className="mt-2 flex justify-end gap-2">
                 <button type="button" onClick={() => setConfirmUnlock(false)} className={`${ACTION_BUTTON} border border-amber-200 bg-white text-amber-800 shadow-none`}>
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -218,7 +218,7 @@ export function NodePropertiesModal({
                   }}
                   className={`${ACTION_BUTTON} bg-amber-500 text-white hover:bg-amber-600`}
                 >
-                  <Unlock size={13} /> Vẫn mở khóa
+                  <Unlock size={13} /> Unlock anyway
                 </button>
               </div>
             </div>
@@ -228,18 +228,18 @@ export function NodePropertiesModal({
           {rejecting && (
             <div className="mx-5 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
               <label className="block text-xs font-semibold text-slate-700">
-                Lý do trả lại
+                Reason for changes
                 <textarea
                   rows={2}
                   value={rejectReason}
                   onChange={(event) => setRejectReason(event.target.value)}
-                  placeholder="Cần sửa gì…"
+                  placeholder="What needs to change…"
                   className={`${INPUT} mt-1 resize-none`}
                 />
               </label>
               <div className="mt-2 flex justify-end gap-2">
                 <button type="button" onClick={() => setRejecting(false)} className={`${ACTION_BUTTON} border border-slate-200 bg-white text-slate-700 shadow-none`}>
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -247,7 +247,7 @@ export function NodePropertiesModal({
                   onClick={() => move('IN_PROGRESS', rejectReason.trim())}
                   className={`${ACTION_BUTTON} bg-rose-600 text-white hover:bg-rose-700`}
                 >
-                  <Undo2 size={13} /> Trả lại
+                  <Undo2 size={13} /> Request changes
                 </button>
               </div>
             </div>
@@ -255,15 +255,15 @@ export function NodePropertiesModal({
 
           {/* Thông tin task: chỉ xem thì fieldset khóa mọi ô */}
           <fieldset disabled={readOnly} className="px-5 py-4 space-y-4 min-w-0">
-            <p className={SECTION_TITLE}>Giao việc</p>
+            <p className={SECTION_TITLE}>Assignment</p>
             <label className="block">
               <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-1.5">
                 <User size={13} className="text-indigo-600" />
-                Người làm
+                Assignee
               </span>
               <select value={assignee} onChange={(event) => setAssignee(event.target.value)} className={INPUT}>
                 <option value="" className="bg-white text-slate-900 py-1">
-                  Chưa giao
+                  Unassigned
                 </option>
                 {memberList.map((member) => (
                   <option key={member.id} value={member.id} className="bg-white text-slate-900 py-1">
@@ -272,7 +272,7 @@ export function NodePropertiesModal({
                 ))}
                 {missingAssigneeId && (
                   <option value={missingAssigneeId} className="bg-white text-slate-500 py-1">
-                    Người dùng không còn trong dự án
+                    User no longer in this project
                   </option>
                 )}
               </select>
@@ -280,42 +280,42 @@ export function NodePropertiesModal({
             <label className="block">
               <span className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5">
                 <Calendar size={13} className="text-indigo-600" />
-                Hạn chót
+                Due date
               </span>
               <input type="date" value={due} onChange={(event) => setDue(event.target.value)} className={INPUT} />
             </label>
 
-            <p className={`${SECTION_TITLE} pt-1`}>Yêu cầu</p>
+            <p className={`${SECTION_TITLE} pt-1`}>Requirements</p>
             <label className="block">
-              <span className="block text-xs font-bold text-slate-700 mb-1.5">Tên task</span>
-              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Tên task…" className={INPUT} />
+              <span className="block text-xs font-bold text-slate-700 mb-1.5">Task title</span>
+              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Task title…" className={INPUT} />
             </label>
             <label className="block">
               <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-1.5">
                 <AlignLeft size={13} className="text-indigo-600" />
-                Mô tả / sản phẩm cần nộp
+                Description / deliverable
               </span>
               <textarea
                 rows={3}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="Mô tả việc cần làm hoặc sản phẩm cần nộp…"
+                placeholder="Describe the work or the deliverable to submit…"
                 className={`${INPUT} resize-none leading-relaxed`}
               />
             </label>
             <div>
               <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-1.5">
                 <Layers size={13} className="text-indigo-600" />
-                Điều kiện mở khóa
+                Unlock condition
               </span>
               <div className="flex gap-4 text-xs text-slate-700">
                 <label className="flex items-center gap-1.5">
                   <input type="radio" name="join" checked={join === 'ALL'} onChange={() => setJoin('ALL')} />
-                  Cần tất cả task trước xong
+                  All prerequisites done
                 </label>
                 <label className="flex items-center gap-1.5">
                   <input type="radio" name="join" checked={join === 'ANY'} onChange={() => setJoin('ANY')} />
-                  Chỉ cần 1 task trước xong
+                  Any one prerequisite done
                 </label>
               </div>
             </div>
@@ -336,7 +336,7 @@ export function NodePropertiesModal({
               className="flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3.5 py-2 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
             >
               <Trash2 size={13} />
-              <span>Xóa task</span>
+              <span>Delete task</span>
             </button>
           )}
           <div className="flex items-center gap-2">
@@ -345,7 +345,7 @@ export function NodePropertiesModal({
               onClick={onClose}
               className="text-xs font-semibold text-slate-600 hover:bg-slate-200/60 border border-slate-200 bg-white rounded-xl px-3.5 py-2 transition-colors cursor-pointer"
             >
-              {readOnly ? 'Đóng' : 'Hủy'}
+              {readOnly ? 'Close' : 'Cancel'}
             </button>
             {!readOnly && (
               <button
@@ -354,7 +354,7 @@ export function NodePropertiesModal({
                 className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer"
               >
                 <Check size={14} />
-                <span>Lưu thay đổi</span>
+                <span>Save changes</span>
               </button>
             )}
           </div>

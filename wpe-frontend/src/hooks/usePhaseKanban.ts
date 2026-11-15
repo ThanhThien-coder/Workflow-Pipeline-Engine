@@ -71,7 +71,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     } catch (err) {
       if (request !== requestRef.current) return
       setTasks([])
-      showToast(errorText(err, 'Không tải được task của phase.'))
+      showToast(errorText(err, 'Could not load tasks for this phase.'))
     } finally {
       if (request === requestRef.current) setLoading(false)
     }
@@ -98,7 +98,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
       const task = tasks.find((t) => t.id === taskId)
       if (!task || pendingTaskIds.includes(taskId)) return
       if (!actor) {
-        showToast('Bạn không phải thành viên dự án nên không đổi được trạng thái task.')
+        showToast('You are not a member of this project, so you cannot change task status.')
         return
       }
 
@@ -125,7 +125,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         await refreshAfterWrite()
       } catch (err) {
         setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)))
-        showToast(errorText(err, 'Không thể cập nhật trạng thái. Vui lòng thử lại.'))
+        showToast(errorText(err, 'Unable to update status. Please try again.'))
       } finally {
         setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
       }
@@ -145,11 +145,11 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         syncMyTasks(taskId, () => result.task)
         setIsSubmitModalOpen(false)
         setSubmittingTaskId(null)
-        showToast(`Đã nộp minh chứng cho ${task.code}: chờ Lead nghiệm thu.`)
+        showToast(`Submitted ${task.code}: awaiting review.`)
         await refreshAfterWrite()
         return true
       } catch (err) {
-        showToast(errorText(err, 'Không thể gửi minh chứng. Vui lòng thử lại.'))
+        showToast(errorText(err, 'Unable to submit deliverable. Please try again.'))
         return false
       } finally {
         setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
@@ -171,11 +171,11 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         })
         setTasks((prev) => prev.map((t) => (t.id === taskId ? apply(t) : t)))
         syncMyTasks(taskId, apply)
-        showToast('Đã cập nhật phân công')
+        showToast('Assignment updated')
         await refreshAfterWrite()
         return true
       } catch (err) {
-        showToast(errorText(err, 'Không thể cập nhật phân công. Vui lòng thử lại.'))
+        showToast(errorText(err, 'Unable to update assignment. Please try again.'))
         return false
       }
     },

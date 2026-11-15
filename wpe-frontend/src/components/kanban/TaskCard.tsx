@@ -28,7 +28,7 @@ export function TaskCard({
     ? undefined
     : member ?? (actor?.id === task.assignedUserId ? actor : undefined)
   // Chưa giao: hiện "Chưa giao", không lấy người đang xem hay tên mặc định
-  const assigneeName = !task.assignedUserId ? 'Chưa giao' : assignee?.name ?? 'Thành viên khác'
+  const assigneeName = !task.assignedUserId ? 'Unassigned' : assignee?.name ?? 'Other member'
   const assigneeInitials = assignee?.initials ?? (task.assignedUserId ? '?' : '–')
   const avatarClass = assignee?.avatarClass ?? 'bg-slate-300'
   const avatarUrl = assignee ? assignee.avatarUrl || getSavedAvatar(assignee.name) : null
@@ -61,12 +61,12 @@ export function TaskCard({
       </h4>
       {locked && (
         <span className="w-fit rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-          🔒 Chờ task trước
+          🔒 Waiting on prerequisites
         </span>
       )}
       {task.forceUnlocked && (
         <span className="w-fit rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-          Mở sớm
+          Unlocked early
         </span>
       )}
 

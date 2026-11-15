@@ -84,7 +84,7 @@ export const createKanbanSlice = (set: (update: (state: KanbanSlice) => KanbanSl
     reviewTask: async (taskId, to, rejectReason) => {
       const task = k().reviewTasks.find((item) => item.id === taskId)
       if (!task || k().pendingTaskIds.includes(taskId)) return
-      if (to === 'IN_PROGRESS' && !rejectReason?.trim()) { k().showToast('Cần nhập lý do trả lại.'); return }
+      if (to === 'IN_PROGRESS' && !rejectReason?.trim()) { k().showToast('Please enter a reason for the requested changes.'); return }
       set((state) => ({ ...state, kanban: { ...state.kanban, pendingTaskIds: [...state.kanban.pendingTaskIds, taskId] } }))
       try {
         const saved = await workflowService.updateTaskStatus(taskId, to, rejectReason)

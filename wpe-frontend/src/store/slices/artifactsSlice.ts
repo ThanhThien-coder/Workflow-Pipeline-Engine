@@ -57,7 +57,7 @@ export const createArtifactsSlice = (
           patch({ items, status: 'ready' })
         } catch (error) {
           if (!isCurrent(projectId)) return
-          patch({ items: [], status: 'error', error: errorMessage(error, 'Không tải được danh sách tài nguyên') })
+          patch({ items: [], status: 'error', error: errorMessage(error, 'Could not load resources') })
         }
       },
 

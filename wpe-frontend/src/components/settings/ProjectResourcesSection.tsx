@@ -56,7 +56,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
     try {
       await removeArtifact(selectedArtifact.id)
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Xóa tài nguyên thất bại.')
+      showToast(err instanceof Error ? err.message : 'Failed to delete resource.')
     }
   }
 
@@ -113,14 +113,14 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
           <ul className="divide-y divide-slate-100">
             {status === 'loading' && artifacts.length === 0 && (
               <li className="p-6 text-center text-sm text-slate-500" role="status">
-                Đang tải tài nguyên…
+                Loading resources…
               </li>
             )}
             {status === 'error' && (
               <li className="p-6 text-center text-sm text-rose-600">
                 {error}{' '}
                 <button type="button" onClick={() => void loadArtifacts()} className="font-semibold underline">
-                  Thử lại
+                  Retry
                 </button>
               </li>
             )}

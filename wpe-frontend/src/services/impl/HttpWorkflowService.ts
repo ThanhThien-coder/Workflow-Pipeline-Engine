@@ -763,7 +763,7 @@ export class HttpWorkflowService implements IWorkflowService {
     const nodeId = graphApi.toBackendId(taskId, 'Task')
     const known = this.nodeIndex.get(String(taskId))
     if (!known) {
-      throw new ApiError({ status: 400, code: 'NODE_NOT_LOADED', message: `Chưa tải task ${taskId}. Tải lại đồ thị rồi thử lại.` })
+      throw new ApiError({ status: 400, code: 'NODE_NOT_LOADED', message: `Task ${taskId} is not loaded. Reload the graph and try again.` })
     }
     const updated = await graphApi.updateNode(nodeId, {
       title: patch.title.trim(),
