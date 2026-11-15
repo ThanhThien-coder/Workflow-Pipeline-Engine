@@ -126,7 +126,7 @@ const SEED: KanbanTask[] = [
   mk('m18', 'WPE-035', 'CI Pipeline cho Backend', 'GitHub Actions: lint, test, build Docker image, push registry.', 'P1', 'DONE', '3', '2026-09-12', 'Artifact: PR Merged', [art('a-m18', 'PR', 'https://github.com/wpe/api/pull/12', 'PR #12')]),
 ]
 
-export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'getPhaseTasks' | 'updateTaskStatus' | 'submitTaskArtifact' | 'getProjectMembers' | 'updateTaskAssignment'> {
+export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'getPhaseTasks' | 'getReviewTasks' | 'updateTaskStatus' | 'submitTaskArtifact' | 'getProjectMembers' | 'updateTaskAssignment'> {
   private tasks = structuredClone(SEED)
 
   async getMyTasks(_projectId: string, userId: string): Promise<KanbanTask[]> {
@@ -138,6 +138,11 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'getPh
   async getPhaseTasks(_projectId: string, phaseId: string): Promise<KanbanTask[]> {
     await mockDelay()
     return structuredClone(this.tasks.filter((task) => isTaskInPhase(task, { id: phaseId })))
+  }
+
+  async getReviewTasks(_projectId: string): Promise<KanbanTask[]> {
+    await mockDelay()
+    return structuredClone(this.tasks.filter((task) => task.status === 'REVIEW'))
   }
 
   async getProjectMembers(_projectId: string): Promise<UserSummary[]> {

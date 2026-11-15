@@ -143,6 +143,14 @@ export class HttpWorkflowService implements IWorkflowService {
     return items.map((item) => this.mapBackendTaskToKanban(item))
   }
 
+  /** G18 — GET /projects/{id}/review-tasks: mọi task REVIEW của dự án (chủ dự án / quản lý) */
+  async getReviewTasks(projectId: string): Promise<KanbanTask[]> {
+    const data = await apiRequest<BackendTaskResponse[]>('GET', `/projects/${projectId}/review-tasks`)
+    const items = data ?? []
+    items.forEach((item) => this.taskVersionCache.set(String(item.id), item.version))
+    return items.map((item) => this.mapBackendTaskToKanban(item))
+  }
+
   /** PATCH /nodes/{taskId}/status */
   async updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask> {
     const currentVersion = this.taskVersionCache.get(taskId) ?? 0
