@@ -126,4 +126,65 @@ class SubmitTaskArtifactTest {
         assertThat(node.getStatus()).isEqualTo(NodeStatus.REVIEW);
         verify(artifactRepository, never()).save(any());
     }
+
+    // ── G17: minh chứng vào kho Artifacts, lọc trùng hoàn toàn (cùng dự án, tên, link) ──
+
+    private static ArtifactEntity existing(Long id, Long nodeId, boolean inRepo) {
+        return ArtifactEntity.builder().id(id).projectId(1L).nodeId(nodeId).uploadedBy(ASSIGNEE).name("PR #42")
+            .type(com.pipeline.wpe.common.enums.ArtifactType.PR).url("https://github.com/org/repo/pull/42")
+            .isInRepository(inRepo).build();
+    }
+
+    @Test
+    @DisplayName("G17: minh chứng mới được đưa vào kho Artifacts")
+    void evidence_goesToRepository() {
+        stateMachineService.submitTaskArtifact(TASK_ID, withArtifact("https://github.com/org/repo/pull/42", null), ASSIGNEE);
+
+        ArtifactEntity saved = savedArtifact();
+        assertThat(saved.getIsInRepository()).isTrue();
+        assertThat(saved.getNodeId()).isEqualTo(TASK_ID);
+    }
+
+    @Test
+    @DisplayName("G17: task đã có đúng bản trùng (đang trong kho) → dùng lại, không lưu dòng mới")
+    void identicalOnSameTask_reused() {
+        when(artifactRepository.findByProjectIdAndNameAndUrl(1L, "PR #42", "https://github.com/org/repo/pull/42"))
+            .thenReturn(java.util.List.of(existing(77L, TASK_ID, true)));
+
+        var response = stateMachineService.submitTaskArtifact(
+            TASK_ID, withArtifact("  https://github.com/org/repo/pull/42  ", null), ASSIGNEE);
+
+        verify(artifactRepository, never()).save(any());
+        assertThat(response.artifact().id()).isEqualTo("77");
+    }
+
+    @Test
+    @DisplayName("G17: bản trùng nằm chỗ khác trong kho → vẫn gắn cho task nhưng không đưa thêm vào kho")
+    void identicalElsewhereInRepo_notDuplicatedInRepo() {
+        when(artifactRepository.findByProjectIdAndNameAndUrl(1L, "PR #42", "https://github.com/org/repo/pull/42"))
+            .thenReturn(java.util.List.of(existing(5L, null, true)));
+
+        stateMachineService.submitTaskArtifact(TASK_ID, withArtifact("https://github.com/org/repo/pull/42", null), ASSIGNEE);
+
+        ArtifactEntity saved = savedArtifact();
+        assertThat(saved.getNodeId()).isEqualTo(TASK_ID);
+        assertThat(saved.getIsInRepository()).isFalse();
+    }
+
+    @Test
+    @DisplayName("G18: nộp bài báo TASK_SUBMITTED cho chủ dự án và cả quản lý")
+    void submit_notifiesOwnerAndManagers() {
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(1L)).thenReturn(java.util.List.of(
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(1L).userId(7L)
+                .role(com.pipeline.wpe.common.enums.ProjectRole.MANAGER).build(),
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(1L).userId(ASSIGNEE)
+                .role(com.pipeline.wpe.common.enums.ProjectRole.COLLABORATOR).build()));
+
+        stateMachineService.submitTaskArtifact(TASK_ID,
+            new SubmitTaskArtifactRequest(null, null, null, null, null, null, 0L), ASSIGNEE);
+
+        verify(sseEmitterService).sendToUser(org.mockito.ArgumentMatchers.eq(2L), org.mockito.ArgumentMatchers.eq("TASK_SUBMITTED"), any());
+        verify(sseEmitterService).sendToUser(org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq("TASK_SUBMITTED"), any());
+        verify(sseEmitterService, never()).sendToUser(org.mockito.ArgumentMatchers.eq(ASSIGNEE), org.mockito.ArgumentMatchers.eq("TASK_SUBMITTED"), any());
+    }
 }

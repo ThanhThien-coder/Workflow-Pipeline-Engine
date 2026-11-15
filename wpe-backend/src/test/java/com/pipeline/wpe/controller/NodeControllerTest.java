@@ -289,4 +289,33 @@ class NodeControllerTest {
             verify(stateMachineService, never()).getPhaseTasks(anyLong(), anyLong());
         }
     }
+
+    @Nested
+    @DisplayName("G18 GET /projects/{id}/review-tasks: hàng chờ duyệt")
+    class ReviewTasks {
+
+        @Test
+        @DisplayName("Chủ dự án / quản lý → 200, trả task REVIEW")
+        void reviewer_ok() throws Exception {
+            when(currentUserProvider.requireCurrentUserId()).thenReturn(2L);
+            when(stateMachineService.getReviewTasks(1L)).thenReturn(List.of(sampleTask));
+
+            mockMvc.perform(get("/api/v1/projects/1/review-tasks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("WPE-010"));
+            verify(projectAuthorizationService).verifyProjectOwnerOrManager(1L, 2L);
+        }
+
+        @Test
+        @DisplayName("Không phải chủ dự án / quản lý → 403, không đọc task")
+        void collaborator_403() throws Exception {
+            when(currentUserProvider.requireCurrentUserId()).thenReturn(3L);
+            when(projectAuthorizationService.verifyProjectOwnerOrManager(1L, 3L))
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới được thực hiện hành động này."));
+
+            mockMvc.perform(get("/api/v1/projects/1/review-tasks"))
+                .andExpect(status().isForbidden());
+            verify(stateMachineService, never()).getReviewTasks(anyLong());
+        }
+    }
 }

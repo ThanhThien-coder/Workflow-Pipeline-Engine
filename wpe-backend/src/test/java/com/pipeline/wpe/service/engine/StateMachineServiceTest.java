@@ -482,4 +482,39 @@ class StateMachineServiceTest {
         assertThat(tasks.get(1).assignedUserId()).isNull();
         verify(nodeMapper, never()).toKanbanTaskResponse(otherProject);
     }
+
+    @Test
+    @DisplayName("G15 getMyTasks: gồm cả task LOCKED của người đó (cột Đang khóa)")
+    void testGetMyTasks_includesLocked() {
+        NodeEntity locked = NodeEntity.builder().id(11L).projectId(projectId).phaseId(5L).code("WPE-011")
+            .title("Khóa").status(NodeStatus.LOCKED).assignedUserId(collaboratorId).version(0L).uiMetadata(Map.of()).build();
+        when(nodeRepository.findByProjectIdAndAssignedUserIdOrderByDueDateAsc(projectId, collaboratorId))
+            .thenReturn(List.of(mockNode, locked));
+        when(nodeMapper.toKanbanTaskResponse(mockNode)).thenReturn(mockResponse);
+        when(nodeMapper.toKanbanTaskResponse(locked)).thenReturn(new KanbanTaskResponse(
+            "11", "5", "WPE-011", "Khóa", null, "LOCKED", String.valueOf(collaboratorId), "ALL_COMPLETED", null, null, false, 0L, Map.of()));
+        when(artifactRepository.findByNodeId(anyLong())).thenReturn(List.of());
+
+        List<KanbanTaskResponse> tasks = stateMachineService.getMyTasks(projectId, collaboratorId);
+
+        assertThat(tasks).extracting(KanbanTaskResponse::status).containsExactly("TODO", "LOCKED");
+    }
+
+    @Test
+    @DisplayName("G18 getReviewTasks: mọi task REVIEW của dự án, sắp theo id")
+    void testGetReviewTasks_sortedById() {
+        NodeEntity r2 = NodeEntity.builder().id(30L).projectId(projectId).code("WPE-030").title("B")
+            .status(NodeStatus.REVIEW).version(0L).uiMetadata(Map.of()).build();
+        NodeEntity r1 = NodeEntity.builder().id(20L).projectId(projectId).code("WPE-020").title("A")
+            .status(NodeStatus.REVIEW).version(0L).uiMetadata(Map.of()).build();
+        when(nodeRepository.findByProjectIdAndStatus(projectId, NodeStatus.REVIEW)).thenReturn(List.of(r2, r1));
+        when(nodeMapper.toKanbanTaskResponse(r1)).thenReturn(new KanbanTaskResponse(
+            "20", "5", "WPE-020", "A", null, "REVIEW", null, "ALL_COMPLETED", null, null, false, 0L, Map.of()));
+        when(nodeMapper.toKanbanTaskResponse(r2)).thenReturn(new KanbanTaskResponse(
+            "30", "5", "WPE-030", "B", null, "REVIEW", null, "ALL_COMPLETED", null, null, false, 0L, Map.of()));
+        when(artifactRepository.findByNodeId(anyLong())).thenReturn(List.of());
+
+        assertThat(stateMachineService.getReviewTasks(projectId))
+            .extracting(KanbanTaskResponse::id).containsExactly("20", "30");
+    }
 }

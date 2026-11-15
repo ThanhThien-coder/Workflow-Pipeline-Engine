@@ -257,4 +257,38 @@ class ArtifactServiceTest {
             verify(artifactRepository, never()).findByProjectIdOrderByCreatedAtDesc(any());
         }
     }
+
+    @Nested
+    @DisplayName("G17: lọc artifact trùng hoàn toàn")
+    class Dedupe {
+
+        private ArtifactEntity inRepo(Long id, String name, String url) {
+            return ArtifactEntity.builder().id(id).projectId(PROJECT_ID).uploadedBy(OWNER).name(name)
+                .type(ArtifactType.FIGMA).url(url).isInRepository(true).build();
+        }
+
+        @Test
+        @DisplayName("Cùng tên + cùng link đã có trong kho → trả bản có sẵn, không lưu thêm")
+        void identical_returnsExisting() {
+            when(artifactRepository.findByProjectIdAndNameAndUrl(PROJECT_ID, "Figma màn hình đăng nhập", "https://www.figma.com/file/abc"))
+                .thenReturn(List.of(inRepo(9L, "Figma màn hình đăng nhập", "https://www.figma.com/file/abc")));
+
+            ArtifactResponse response = artifactService.createArtifact(PROJECT_ID,
+                new CreateArtifactRequest("  Figma màn hình đăng nhập ", " https://www.figma.com/file/abc ", null, null, null), OWNER);
+
+            assertThat(response.id()).isEqualTo(9L);
+            verify(artifactRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Cùng link nhưng khác tên → vẫn thêm")
+        void sameUrlDifferentName_created() {
+            when(artifactRepository.findByProjectIdAndNameAndUrl(PROJECT_ID, "Figma màn hình đăng nhập", "https://www.figma.com/file/abc"))
+                .thenReturn(List.of());
+
+            artifactService.createArtifact(PROJECT_ID, link(null), OWNER);
+
+            verify(artifactRepository).save(any(ArtifactEntity.class));
+        }
+    }
 }
