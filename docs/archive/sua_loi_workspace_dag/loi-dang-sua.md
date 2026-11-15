@@ -466,3 +466,86 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 
 **File liên quan**
 - `wpe-frontend/src/components/workflow/MindmapDrawer.tsx`
+
+---
+
+## G15. My Tasks không có cột "Đang khóa"
+
+**Ngày phát hiện:** 15/11/2026
+
+**Tái hiện**
+1. Giao cho mình một task đang chờ task trước (LOCKED). Mở tab My Tasks.
+2. Task đó không xuất hiện ở đâu, bảng chỉ có 4 cột To Do / In Progress / In Review / Done.
+
+**Nguyên nhân (đã xác định)**
+- BE `StateMachineService.getMyTasks` dùng `findByProjectIdAndAssignedUserIdAndStatusNotOrderByDueDateAsc(..., LOCKED)`: cố ý bỏ task LOCKED.
+- FE `components/kanban/KanbanBoard.tsx`: chỉ có 4 cột (Kanban theo phase đã có cột LOCKED từ T4).
+- DB: không liên quan.
+
+**Cách sửa**
+- BE: my-tasks trả cả task LOCKED của người đó.
+- FE: bảng My Tasks thêm cột "Đang khóa" giống Kanban theo phase (không kéo vào / ra, thẻ có nhãn "🔒 Chờ task trước").
+
+
+**Đã sửa (15/11/2026), chờ test tay**: BE `my-tasks` trả cả task LOCKED (`findByProjectIdAndAssignedUserIdOrderByDueDateAsc`); FE `KanbanBoard` có 5 cột, cột "Đang khóa" không nhận thả. Test: BE `testGetMyTasks_includesLocked`, FE `KanbanBoard.locked.test.tsx`. API thật: dự án đã publish, task chờ task trước nằm trong my-tasks với trạng thái LOCKED.
+
+---
+
+## G16. Thanh lọc phase cạnh ô tìm kiếm bị tràn khi nhiều phase
+
+**Ngày phát hiện:** 15/11/2026
+
+**Tái hiện**
+1. Dự án có nhiều phase có task của mình. Mở My Tasks.
+2. Mỗi phase một nút "PHASE n · tên" nằm ngang cạnh ô tìm kiếm, nhiều phase thì xuống dòng lộn xộn, đẩy ô tổng số sang dòng khác.
+
+**Nguyên nhân (đã xác định)**
+- FE `components/kanban/KanbanToolbar.tsx`: mỗi phase là một nút trong khối `flex-wrap`, không giới hạn số lượng.
+
+**Cách sửa**
+- Đổi thành một ô chọn (dropdown) "Phase: Tất cả / PHASE 1 · … / …", kèm số task mỗi phase; chiều rộng cố định, không tràn dù bao nhiêu phase.
+
+
+**Đã sửa (15/11/2026), chờ test tay**: `KanbanToolbar` lọc bằng một ô chọn rộng cố định ("Tất cả phase (n)" + từng phase kèm số task). Test `KanbanToolbar.test.tsx` (gồm 12 phase vẫn một ô chọn).
+
+---
+
+## G17. Nộp minh chứng xong không hiện trong Artifacts, chưa lọc trùng
+
+**Ngày phát hiện:** 15/11/2026
+
+**Tái hiện**
+1. Người được giao nộp task để duyệt, kèm link minh chứng.
+2. Mở Artifacts của dự án: không thấy link vừa nộp (chỉ thấy trong chi tiết task).
+
+**Nguyên nhân (đã xác định)**
+- BE `StateMachineService.submitTaskArtifact` tạo `ArtifactEntity` không đặt `isInRepository` nên mặc định `false`; kho Artifacts chỉ lấy `isInRepository = true`.
+- BE `ArtifactService.createArtifact` và `submitTaskArtifact`: không kiểm trùng, thêm cùng tên + cùng link nhiều lần là ra nhiều dòng.
+- FE: sau khi nộp không tải lại danh sách Artifacts.
+- DB: minh chứng nộp trước đây đang nằm ngoài kho.
+
+**Cách sửa**
+- BE: minh chứng nộp kèm task vào kho (`isInRepository = true`).
+- Lọc trùng: hai artifact "trùng hoàn toàn" = cùng dự án, cùng tên, cùng link (đã bỏ khoảng trắng đầu cuối). Trùng thì không thêm dòng mới vào kho; cùng link mà khác tên thì vẫn thêm.
+  - Thêm vào kho mà đã có bản trùng: trả lại bản có sẵn.
+  - Nộp minh chứng mà đã có bản trùng của chính task: dùng lại bản đó. Bản trùng nằm ở chỗ khác trong kho: vẫn gắn minh chứng cho task nhưng không đưa thêm vào kho.
+- DB: migration V16 đưa minh chứng cũ vào kho, mỗi nhóm trùng chỉ giữ một bản trong kho.
+- FE: nộp xong tải lại danh sách Artifacts.
+
+
+**Đã sửa (15/11/2026), chờ test tay**: BE nộp minh chứng → `isInRepository = true`, lọc trùng (cùng dự án + tên + link) ở `submitTaskArtifact` và `createArtifact`; migration V16 đưa minh chứng cũ vào kho (mỗi nhóm trùng một bản). FE nộp xong tải lại Artifacts; sửa kèm: thẻ My Tasks không còn mất tên phase sau khi nộp / đổi trạng thái. API thật: nộp PR → có trong kho; thêm lại y hệt (kể cả khoảng trắng) → trả id cũ; cùng link khác tên → tạo mới.
+
+---
+
+## G18. Chủ dự án không có chỗ xem các task chờ duyệt
+
+**Ngày phát hiện:** 15/11/2026 (đề xuất của người dùng)
+
+**Hiện trạng**
+- My Tasks chỉ hiện task giao cho chính mình. Task người khác nộp để duyệt chỉ thấy khi mở Kanban từng phase; không có gì báo khi có bài mới nộp.
+
+**Cách làm**
+- BE: `GET /projects/{projectId}/review-tasks` trả mọi task REVIEW của dự án; chỉ chủ dự án / quản lý gọi được (khác thì 403). Nộp bài thì đẩy SSE cho cả quản lý (trước chỉ chủ dự án).
+- FE: cạnh thẻ người dùng ở My Tasks có nút "Chờ duyệt" (chỉ chủ dự án / quản lý thấy) kèm số đếm, tối đa "9+". Bấm mở popup danh sách task chờ duyệt; bấm một task thì mở hộp chi tiết như cũ (Approve / Request Changes). Duyệt xong task rời danh sách, số đếm giảm. Có SSE nộp bài / đổi trạng thái thì tải lại số đếm.
+
+**Đã sửa (15/11/2026), chờ test tay**: BE `GET /projects/{id}/review-tasks` (chủ dự án / quản lý, khác → 403); SSE nộp bài và đổi trạng thái gửi cho cả quản lý. FE `ReviewQueueButton` (huy hiệu tối đa "9+", danh sách, bấm mở `TaskDetailModal`), slice `reviewTasks` / `loadReviewTasks` / `reviewTask`. API thật: nộp → hàng chờ có task; duyệt → hàng chờ rỗng; người ngoài → 403.
