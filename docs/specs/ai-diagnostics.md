@@ -6,6 +6,58 @@
 
 ---
 
+## 0. Hiện trạng triển khai & các quyết định đã chốt (cập nhật 16/11/2026)
+
+> Mục này mô tả **những gì đang chạy thật** và **các quy tắc nhóm đã chốt**. Khi các mục sau (thiết kế tầm nhìn ban đầu) mâu thuẫn với mục 0, **mục 0 và [`ai-service-contract.md`](ai-service-contract.md) là đúng**.
+
+### 0.1 Kiến trúc đang chạy
+- Frontend → Backend Spring Boot → **microservice AI Python** (`wpe-ai-service`, FastAPI, gọi Google Gemini `gemini-2.5-flash`). Backend không gọi Gemini trực tiếp và không giữ Gemini API key.
+- Hợp đồng Java ↔ Python (SSOT): [`ai-service-contract.md`](ai-service-contract.md).
+- Endpoint đang dùng:
+
+| Method | Endpoint | Vai trò |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/projects/{id}/ai-analysis` | Đọc bản chẩn đoán đã lưu (không gọi AI). Chưa có thì trả `{ "hasAnalysis": false, "message": ... }` |
+| `POST` | `/api/v1/projects/{id}/ai-diagnostics` | Bấm "Re-scan Pipeline": chạy chẩn đoán mới. `200` kết quả, `429` đang cooldown (kèm `retryAfterSeconds`), `403` không phải thành viên, `503 AI_SERVICE_UNAVAILABLE` dịch vụ AI lỗi |
+| `POST` | `/api/ai/diagnose` (microservice Python, nội bộ) | Chỉ backend gọi, kèm header `X-Internal-Key` |
+
+- Lưu trữ: cột JSONB **`project.latest_ai_analysis`** (không có bảng `PROJECT_AI_ANALYSIS`); **`project.ai_requested_at`** (V18) dùng cho cooldown; **`node.completed_at`** (V17) dùng cho velocity 7 ngày.
+
+### 0.2 Quy tắc tính toán đã chốt (Minh, 16/11/2026)
+- **Múi giờ**: mọi quy tắc theo ngày/giờ dùng `Asia/Ho_Chi_Minh` (UTC+7). Backend gửi giờ UTC, Python tự đổi múi.
+- **Task ngâm (Stalled Node)**: node `IN_PROGRESS` có số giờ đồng hồ kể từ `startedAt`, **không tính khung 0h–7h mỗi đêm** (giờ Việt Nam), vượt quá **2,5 × `estimatedHours`**.
+  Ví dụ: task ước tính 8 giờ → ngưỡng 20 giờ. Bắt đầu 17h00 thứ Hai: thứ Hai tính 7 giờ (17h–24h); 0h–7h thứ Ba không tính; còn thiếu 13 giờ → đủ 20 giờ lúc 20h00 thứ Ba. Sau mốc này mà vẫn `IN_PROGRESS` thì là task ngâm.
+- **Hạn chót dự án** = `dueDate` muộn nhất trong các node (dự án chưa có cột deadline riêng).
+- **Dự án chưa có node nào DONE** → `metrics.status = INSUFFICIENT_DATA`, **không tính Drift** (thay cho "Warm-up Guard" ở mục 3.1.b).
+- **Dự án quá hạn** (hạn chót dự án đã qua và còn node chưa DONE) → `metrics.status = OVERDUE`, **không tính Drift**; trả `overdueDays` (làm tròn lên) và `remainingTasks`.
+- **Velocity**: công thức nội bộ dùng đơn vị **task/ngày**; con số hiển thị là `completedLast7Days` = số node có `completedAt` trong 7 ngày gần nhất.
+- **Drift Score**: giữ ngưỡng `< 20%` xanh, `20–40%` vàng, `≥ 40%` đỏ khi được tính.
+
+### 0.3 Cooldown, lỗi và dữ liệu giả
+- **Cooldown 180 giây** cho mỗi dự án, tính theo `project.ai_requested_at` (thời điểm bấm). Giữ chỗ bằng 1 câu UPDATE nguyên tử nên 2 lần bấm đồng thời chỉ 1 lần gọi AI (thay cho "Cooldown & State Dedup 24 giờ" ở mục 3.1.b).
+- Dịch vụ AI lỗi (tắt, quá giờ, lỗi 5xx, trả sai khuôn) → **503 `AI_SERVICE_UNAVAILABLE`**: **không tạo dữ liệu giả**, không ghi đè bản phân tích cũ, không tính cooldown.
+- Python còn chạy nhưng Gemini lỗi → Python dùng luật dự phòng trên dữ liệu thật (`source = HEURISTIC_FALLBACK`), không phải dữ liệu giả.
+- `AI_MODE=http` là mặc định; `AI_MODE=mock` (dữ liệu mẫu trong Java) chỉ dùng để demo.
+
+### 0.4 Hiển thị trên giao diện (tiếng Anh theo G20)
+| `metrics.status` | Nhãn hiển thị |
+| :--- | :--- |
+| `STABLE_GREEN` | `On track` (kèm `Drift x%`) |
+| `YELLOW_WARNING` | `At risk` (kèm `Drift x%`) |
+| `RED_ALERT` | `Off track` (kèm `Drift x%`) |
+| `INSUFFICIENT_DATA` | `Not enough data` |
+| `OVERDUE` | `Overdue by X days · N tasks left` |
+
+Thêm `N tasks done in the last 7 days` khi có `completedLast7Days`. Nhãn nguồn: `Model: Gemini Engine` (chỉ khi `source = AI_SERVICE`), `Source: Fallback analysis`, `Source: Sample data`.
+
+### 0.5 Chưa triển khai (giữ làm định hướng)
+- Tính năng 1 — AI Workflow Architect 2 pha (mục 2); endpoint Prompt-to-DAG `/api/ai/scaffold-dag` của Python có nhưng **chưa nối** vào backend/frontend.
+- Watchdog chạy nền mỗi đêm và State Dedup 24 giờ (mục 3.1.b); hàng đợi RabbitMQ `wpe.ai.diagnostics.queue` có sẵn nhưng **chưa dùng**.
+- Just-In-Time Decision Gate / mô phỏng phân công (mục 3.2).
+- Các endpoint ở mục 5.
+
+---
+
 ## 1. Tầm nhìn & Nguyên lý Cốt lõi của Phân hệ AI
 
 Khác biệt hoàn toàn với các mô hình AI "bấm nút thụ động" (Passive) hoặc "quét định kỳ đốt token", phân hệ AI trong **Workflow-Pipeline-Engine** được thiết kế theo chuẩn **Enterprise SaaS B2B**:
@@ -129,6 +181,9 @@ Hệ thống kết hợp 2 cơ chế giám sát: **Vĩ mô (Độ lệch quỹ �
 1. **Vận tốc Mục tiêu ($V_{\text{target}}$)**:
    $$V_{\text{target}} = \frac{\text{Tổng số Node chưa hoàn tất}}{\max(1, \text{Số ngày còn lại đến Deadline dự án})}$$
    * **Hạn chót dự án**: Được Backend tự động lấy từ $\max(\text{WORK\_PHASE.planned\_end})$ (hoặc fallback về $\max(\text{NODE.due\_date})$ nếu dự án không chia phase).
+
+   > ⚠️ Đã chốt lại: hạn chót dự án = `dueDate` muộn nhất trong các node. Xem mục 0.2.
+
    * **Bảo vệ an toàn mẫu số**: Mẫu số được bọc qua hàm $\max(1, \text{Số ngày còn lại})$ nhằm triệt tiêu hoàn toàn lỗi chia cho 0 khi dự án đã chạm hoặc vượt quá hạn chót.
    * **Kiểm tra biên ($V_{\text{target}} > 0$)**: Nếu toàn bộ Node đã hoàn thành (`Tổng số Node chưa hoàn tất == 0` $\Rightarrow V_{\text{target}} = 0$), hệ thống kết luận dự án đã hoàn thành đúng hạn và lập tức gán $\text{DriftScore} = 0\%$ (trạng thái GREEN, kết thúc tính toán, tránh lỗi chia cho 0). Hệ thống chỉ thực hiện tính $\text{DriftScore}$ khi $V_{\text{target}} > 0$.
 2. **Vận tốc Thực tế 7 ngày gần nhất ($V_{\text{actual}}$)**:
@@ -140,10 +195,16 @@ Hệ thống kết hợp 2 cơ chế giám sát: **Vĩ mô (Độ lệch quỹ �
 * **$\text{DriftScore} < 20\%$ (GREEN - Ổn định)**: Quỹ đạo đúng tiến độ, AI ngủ yên (0 token).
 * **$20\% \le \text{DriftScore} < 40\%$ (YELLOW - Chệch nhẹ)**: Cập nhật badge cảnh báo vàng trên Overview Dashboard.
 * **$\text{DriftScore} \ge 40\%$ (RED - Báo động vỡ tiến độ)**: Đạt ngưỡng báo động đỏ. Tuy nhiên, trước khi kích hoạt gọi Gemini API thực hiện **Điều Tra Pháp Y Dữ Liệu (Forensic Profiling)**, Backend **BẮT BUỘC** kiểm tra 2 chốt chặn chống lãng phí token:
+
+  > ⚠️ Đã thay: dự án chưa có node DONE trả `INSUFFICIENT_DATA`, không tính Drift. Xem mục 0.2.
+
   1. *Warm-up Guard (Chống lỗi Cold-Start ngày đầu khi $V_{\text{actual}} = 0$):*  
      Khi dự án mới khởi chạy những ngày đầu, do chưa có task nào hoàn thành ($V_{\text{actual}} = 0$) sẽ dẫn đến $\text{DriftScore} = 100\%$ giả tạo. Do đó, hệ thống chỉ kích hoạt tính `DriftScore` và gọi AI khi:
      * Dự án đã chạy tối thiểu **3–5 ngày** kể từ lúc Node đầu tiên chuyển sang trạng thái `IN_PROGRESS`.
      * **VÀ** có ít nhất **1 Node vi phạm ngưỡng ngâm lâu (`Stalled Node`) hoặc bị Reject $\ge 2$ lần**.
+
+  > ⚠️ Đã thay: cooldown 180 giây theo `project.ai_requested_at`, không có State Dedup 24 giờ. Xem mục 0.3.
+
   2. *Cooldown & State Dedup (Chống gọi lặp lại mỗi đêm):*  
      Trước khi gọi Gemini API, Backend kiểm tra bảng `PROJECT_AI_ANALYSIS`:
      * Nếu lần phân tích gần nhất (`analyzed_at`) mới diễn ra trong vòng **24 giờ qua**,
@@ -154,6 +215,9 @@ Hệ thống kết hợp 2 cơ chế giám sát: **Vĩ mô (Độ lệch quỹ �
 Backend gom đúng 3 nhóm bằng chứng định lượng:
 1. **Nút ngâm lâu nhất trên đường găng (Stalled Node)**: Nút có thời gian thực thi ở trạng thái `IN_PROGRESS` vượt quá 2.5 lần ước lượng:
    $$\text{TimeInState}(IN\_PROGRESS) = (\text{now} - \text{NODE.started\_at}) \ge 2.5 \times \text{NODE.estimated\_hours}$$
+
+   > ⚠️ Đã chốt lại: không tính khung 0h–7h mỗi đêm (giờ Việt Nam). Xem mục 0.2 (có ví dụ).
+
 2. **Nút bị từ chối nhiều nhất (Rejection Friction)**: Kiểm tra điều kiện `NODE.current_round >= 3` (tức đã bị từ chối nghiệm thu $\ge 2$ lần) và trích xuất đúng 2 lý do (`comment`) gần nhất có `decision = 'REJECTED'` trực tiếp từ bảng **`NODE_REVIEW`**.
 3. **Bán kính phong tỏa (Blast Radius)**: Số lượng task con downstream đang bị nút này giữ chân ở trạng thái `LOCKED`.
 
@@ -216,6 +280,8 @@ Backend gom đúng 3 nhóm bằng chứng định lượng:
 
 ### 4.1 Schema Lưu Trữ Bảng `PROJECT_AI_ANALYSIS` (PostgreSQL)
 
+> ⚠️ Không có bảng này: kết quả lưu ở cột JSONB `project.latest_ai_analysis`. Xem mục 0.1.
+
 Kết quả phân tích từ Phân hệ AI được lưu trữ trực tiếp vào bảng **`PROJECT_AI_ANALYSIS`** (khớp với ERD hiện tại) với cấu trúc phân bổ các trường:
 * Cột `metrics` (`jsonb`): Lưu trữ các số liệu đo lường vận tốc và độ lệch (`driftMetrics`).
 * Cột `latest_analysis` (`jsonb`): Lưu trữ hồ sơ điều tra pháp y (`forensicInvestigation`) và danh sách khuyến nghị xử lý (`triageRecommendations`).
@@ -225,6 +291,9 @@ Kết quả phân tích từ Phân hệ AI được lưu trữ trực tiếp và
 > Cấu trúc JSON của `triageRecommendations` chỉ trả về `instruction` dạng text để đề xuất giải pháp can thiệp, không bổ sung mảng sub-nodes phức tạp nhằm giữ tính gọn nhẹ và trao toàn quyền quyết định cấu trúc đồ thị cho Project Owner.
 
 #### a. Cấu trúc Cột `metrics` (JSONB):
+
+> ⚠️ Khuôn `metrics` hiện hành (có `INSUFFICIENT_DATA`, `OVERDUE`, `completedLast7Days`, `overdueDays`, `remainingTasks`) xem [`ai-service-contract.md`](ai-service-contract.md) mục 4.1.
+
 ```json
 {
   "targetVelocity": 2.0,
@@ -324,6 +393,8 @@ Kết quả phân tích từ Phân hệ AI được lưu trữ trực tiếp và
 ---
 
 ## 5. Danh mục API Endpoint của Phân hệ AI
+
+> ⚠️ Các endpoint dưới đây là thiết kế tầm nhìn, CHƯA triển khai. Endpoint đang dùng xem mục 0.1.
 
 | Method | Endpoint | Vai trò Nghiệp vụ | Input DTO | Output DTO |
 | :--- | :--- | :--- | :--- | :--- |
