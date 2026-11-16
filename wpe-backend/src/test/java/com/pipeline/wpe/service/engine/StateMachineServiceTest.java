@@ -156,6 +156,7 @@ class StateMachineServiceTest {
         stateMachineService.updateStatus(taskId, request, ownerId);
 
         assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.DONE);
+        assertThat(mockNode.getCompletedAt()).isNotNull();
         verify(eventPublisher).publishTaskCompleted(any(TaskCompletedEvent.class));
     }
 
@@ -175,6 +176,7 @@ class StateMachineServiceTest {
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("Chỉ Chủ dự án hoặc Quản lý");
 
+        assertThat(mockNode.getCompletedAt()).isNull();
         verify(eventPublisher, never()).publishTaskCompleted(any());
     }
 

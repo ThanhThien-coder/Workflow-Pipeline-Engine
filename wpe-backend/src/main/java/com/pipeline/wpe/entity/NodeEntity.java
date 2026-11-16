@@ -72,6 +72,9 @@ public class NodeEntity {
     @Column(name = "started_at")
     private Instant startedAt;
 
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Version
     @Column(nullable = false)
     @Builder.Default

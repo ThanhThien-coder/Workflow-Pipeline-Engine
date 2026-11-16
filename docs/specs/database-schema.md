@@ -164,6 +164,7 @@ erDiagram
         int estimated_hours "DEFAULT 8 - AI CPM & Stalled duration"
         timestamp due_date "nullable"
         timestamp started_at "nullable - actual execution start"
+        timestamp completed_at "nullable - set when DONE"
         boolean is_overdue "DEFAULT FALSE"
         bigint version "DEFAULT 0 optimistic lock"
         jsonb ui_metadata "x y w h color"
@@ -384,6 +385,7 @@ Bảng trung tâm lưu trữ thông tin thực thi của từng Task trong đồ
 | `estimated_hours` | `int` | NOT NULL | `8` | Thời gian ước tính hoàn thành tác vụ (giờ). Phục vụ thuật toán CPM Forward Pass và tính ngưỡng ngâm việc Stalled Node ($2.5 \times \text{estimated\_hours}$). |
 | `due_date` | `timestamptz` | NULLABLE | | Hạn chót hoàn thành tác vụ. |
 | `started_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm tác vụ thực tế bắt đầu thực thi (chuyển sang `IN_PROGRESS`). Dùng đo lường thời gian ngâm tác vụ: $(\text{now} - \text{started\_at})$. |
+| `completed_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm task chuyển sang DONE (V17). Dùng cho velocity 7 ngày của dịch vụ AI. |
 | `is_overdue` | `boolean` | NOT NULL | `FALSE` | Cờ trễ hạn do Background Job quét tự động. |
 | `version` | `bigint` | NOT NULL | `0` | Quản lý khóa lạc quan JPA `@Version` chống xung đột cập nhật đồng thời. |
 | `ui_metadata` | `jsonb` | NOT NULL | `'{}'` | Tọa độ x, y, width, height, màu sắc để vẽ canvas. |

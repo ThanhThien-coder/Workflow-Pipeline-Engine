@@ -171,6 +171,7 @@ public class StateMachineService {
             }
 
             node.setStatus(NodeStatus.DONE);
+            node.setCompletedAt(Instant.now());
 
             // Bắn sự kiện RabbitMQ để mở khóa downstream tasks ngầm
             eventPublisher.publishTaskCompleted(new TaskCompletedEvent(
