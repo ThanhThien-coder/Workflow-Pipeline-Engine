@@ -31,9 +31,12 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "app.ai", name = "mode", havingValue = "http")
 public class HttpAiServiceClient implements AiServiceClient {
 
+    static final String INTERNAL_KEY_HEADER = "X-Internal-Key";
+
     private final RestClient restClient;
     private final NodeDependencyRepository nodeDependencyRepository;
     private final String diagnosePath;
+    private final String internalKey;
     private final AiServiceClient fallback;
 
     public HttpAiServiceClient(RestClient.Builder restClientBuilder,
@@ -41,9 +44,11 @@ public class HttpAiServiceClient implements AiServiceClient {
                                @Value("${app.ai.service-url}") String serviceUrl,
                                @Value("${app.ai.diagnose-path:/api/ai/diagnose}") String diagnosePath,
                                @Value("${app.ai.connect-timeout-seconds:3}") int connectTimeoutSeconds,
-                               @Value("${app.ai.read-timeout-seconds:30}") int readTimeoutSeconds) {
+                               @Value("${app.ai.read-timeout-seconds:30}") int readTimeoutSeconds,
+                               @Value("${app.ai.internal-key:}") String internalKey) {
         this.nodeDependencyRepository = nodeDependencyRepository;
         this.diagnosePath = diagnosePath;
+        this.internalKey = internalKey != null ? internalKey.trim() : "";
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(connectTimeoutSeconds * 1000);
         factory.setReadTimeout(readTimeoutSeconds * 1000);
@@ -66,6 +71,11 @@ public class HttpAiServiceClient implements AiServiceClient {
             Map<String, Object> responseBody = restClient.post()
                     .uri(diagnosePath)
                     .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> {
+                        if (!internalKey.isEmpty()) {
+                            h.set(INTERNAL_KEY_HEADER, internalKey);
+                        }
+                    })
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});

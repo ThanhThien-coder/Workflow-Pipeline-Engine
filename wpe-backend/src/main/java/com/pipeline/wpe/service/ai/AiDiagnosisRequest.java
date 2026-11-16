@@ -28,7 +28,8 @@ public record AiDiagnosisRequest(
             String dueDate,
             Boolean isOverdue,
             Long assignedUserId,
-            String joinPolicy
+            String joinPolicy,
+            String completedAt
     ) {}
 
     public record DependencyDto(
@@ -70,7 +71,8 @@ public record AiDiagnosisRequest(
                         node.getDueDate() != null ? node.getDueDate().toString() : null,
                         node.getIsOverdue(),
                         node.getAssignedUserId(),
-                        node.getJoinPolicy() != null ? node.getJoinPolicy().name() : null
+                        node.getJoinPolicy() != null ? node.getJoinPolicy().name() : null,
+                        node.getCompletedAt() != null ? node.getCompletedAt().toString() : null
                 )).toList()
                 : List.of();
 

@@ -149,7 +149,8 @@ class HttpAiServiceClientTest {
                 "http://127.0.0.1:" + port,
                 "/api/ai/diagnose",
                 3,
-                30
+                30,
+                ""
         );
 
         Map<String, Object> result = client.requestDiagnosis(project, List.of(node), List.of(feedback));
@@ -191,7 +192,8 @@ class HttpAiServiceClientTest {
                 "http://127.0.0.1:" + port,
                 "/api/ai/diagnose",
                 3,
-                30
+                30,
+                ""
         );
 
         Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
@@ -221,7 +223,8 @@ class HttpAiServiceClientTest {
                 "http://127.0.0.1:" + port,
                 "/api/ai/diagnose",
                 3,
-                30
+                30,
+                ""
         );
 
         Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
@@ -244,7 +247,8 @@ class HttpAiServiceClientTest {
                 "http://127.0.0.1:1",
                 "/api/ai/diagnose",
                 1,
-                1
+                1,
+                ""
         );
 
         Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
@@ -282,7 +286,8 @@ class HttpAiServiceClientTest {
                 "http://127.0.0.1:" + port,
                 "/api/ai/diagnose",
                 3,
-                1
+                1,
+                ""
         );
 
         Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
@@ -293,26 +298,141 @@ class HttpAiServiceClientTest {
     }
 
     @Test
+    @DisplayName("Xác thực nội bộ: cấu hình internalKey khác rỗng -> server nhận đúng header X-Internal-Key")
+    void testRequestDiagnosis_WithInternalKey() throws IOException {
+        AtomicReference<String> recordedInternalKey = new AtomicReference<>();
+
+        int port = startServer(exchange -> {
+            recordedInternalKey.set(exchange.getRequestHeaders().getFirst(HttpAiServiceClient.INTERNAL_KEY_HEADER));
+            byte[] responseBytes = "{\"criticalPath\":[]}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                "example-internal-key"
+        );
+
+        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
+
+        assertThat(recordedInternalKey.get()).isEqualTo("example-internal-key");
+        assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+    }
+
+    @Test
+    @DisplayName("Xác thực nội bộ: cấu hình internalKey rỗng -> server không nhận header X-Internal-Key")
+    void testRequestDiagnosis_WithoutInternalKey() throws IOException {
+        AtomicReference<String> recordedInternalKey = new AtomicReference<>();
+
+        int port = startServer(exchange -> {
+            recordedInternalKey.set(exchange.getRequestHeaders().getFirst(HttpAiServiceClient.INTERNAL_KEY_HEADER));
+            byte[] responseBytes = "{\"criticalPath\":[]}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
+
+        assertThat(recordedInternalKey.get()).isNull();
+        assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+    }
+
+    @Test
+    @DisplayName("Xác thực nội bộ: cấu hình internalKey null hoặc chỉ khoảng trắng -> server không nhận header X-Internal-Key")
+    void testRequestDiagnosis_InternalKey_NullAndWhitespace() throws IOException {
+        AtomicReference<String> recordedInternalKey = new AtomicReference<>();
+
+        int port = startServer(exchange -> {
+            recordedInternalKey.set(exchange.getRequestHeaders().getFirst(HttpAiServiceClient.INTERNAL_KEY_HEADER));
+            byte[] responseBytes = "{\"criticalPath\":[]}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient clientWithNull = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                null
+        );
+
+        Map<String, Object> result = clientWithNull.requestDiagnosis(project, List.of(), List.of());
+
+        assertThat(recordedInternalKey.get()).isNull();
+        assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+    }
+
+    @Test
     @DisplayName("AiDiagnosisRequest.from: chuyển đổi thực thể và xử lý null an toàn")
     void testAiDiagnosisRequest_FromMapping() {
         ProjectEntity project = createSampleProject();
         NodeEntity node = createSampleNode();
+        NodeEntity completedNode = NodeEntity.builder()
+                .id(202L)
+                .projectId(100L)
+                .code("WPE-002")
+                .title("completed-node-title")
+                .status(NodeStatus.DONE)
+                .joinPolicy(JoinPolicy.ALL_COMPLETED)
+                .completedAt(Instant.parse("2026-11-10T03:00:00Z"))
+                .build();
         NodeDependencyEntity dep = createSampleDependency();
         ProjectFeedbackEntity feedback = createSampleFeedback();
         Instant now = Instant.parse("2026-11-12T00:00:00Z");
 
         AiDiagnosisRequest request = AiDiagnosisRequest.from(
-                project, List.of(node), List.of(dep), List.of(feedback), now
+                project, List.of(node, completedNode), List.of(dep), List.of(feedback), now
         );
 
         assertThat(request.projectId()).isEqualTo(100L);
         assertThat(request.projectName()).isEqualTo("example-project");
         assertThat(request.projectStatus()).isEqualTo("ACTIVE");
         assertThat(request.requestedAt()).isEqualTo("2026-11-12T00:00:00Z");
-        assertThat(request.nodes()).hasSize(1);
+        assertThat(request.nodes()).hasSize(2);
         assertThat(request.nodes().get(0).code()).isEqualTo("WPE-001");
         assertThat(request.nodes().get(0).status()).isEqualTo("TODO");
         assertThat(request.nodes().get(0).joinPolicy()).isEqualTo("ALL_COMPLETED");
+        assertThat(request.nodes().get(0).completedAt()).isNull();
+        assertThat(request.nodes().get(1).code()).isEqualTo("WPE-002");
+        assertThat(request.nodes().get(1).status()).isEqualTo("DONE");
+        assertThat(request.nodes().get(1).completedAt()).isEqualTo("2026-11-10T03:00:00Z");
         assertThat(request.dependencies()).hasSize(1);
         assertThat(request.dependencies().get(0).parentNodeId()).isEqualTo(200L);
         assertThat(request.dependencies().get(0).childNodeId()).isEqualTo(201L);
