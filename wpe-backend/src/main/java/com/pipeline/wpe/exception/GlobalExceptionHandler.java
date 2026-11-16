@@ -104,6 +104,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
     }
 
+    @ExceptionHandler(AiServiceUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.SERVICE_UNAVAILABLE.value(),
+            "AI_SERVICE_UNAVAILABLE",
+            ex.getMessage(),
+            request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
+    }
+
     @ExceptionHandler(CycleDetectedException.class)
     public ResponseEntity<ErrorResponse> handleCycleDetected(CycleDetectedException ex, HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.withCycle(

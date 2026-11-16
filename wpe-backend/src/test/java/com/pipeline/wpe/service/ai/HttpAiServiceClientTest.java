@@ -31,7 +31,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.pipeline.wpe.exception.AiServiceUnavailableException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 class HttpAiServiceClientTest {
@@ -203,7 +206,7 @@ class HttpAiServiceClientTest {
     }
 
     @Test
-    @DisplayName("Server trả 500: lỗi HTTP 500 -> source=MOCK_FALLBACK, có warning, vẫn có criticalPath")
+    @DisplayName("Server trả 500: lỗi HTTP 500 -> ném AiServiceUnavailableException (503)")
     void testRequestDiagnosis_ServerReturns500() throws IOException {
         int port = startServer(exchange -> {
             byte[] responseBytes = "{\"error\":\"example-error\"}".getBytes(StandardCharsets.UTF_8);
@@ -227,16 +230,13 @@ class HttpAiServiceClientTest {
                 ""
         );
 
-        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
-
-        assertThat(result.get("source")).isEqualTo("MOCK_FALLBACK");
-        assertThat(result).containsKey("warning");
-        assertThat(result.get("warning").toString()).contains("Không gọi được dịch vụ AI");
-        assertThat(result).containsKey("criticalPath");
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE);
     }
 
     @Test
-    @DisplayName("Không có server: kết nối thất bại -> source=MOCK_FALLBACK, có warning, vẫn có criticalPath")
+    @DisplayName("Không có server: kết nối thất bại -> ném AiServiceUnavailableException (503)")
     void testRequestDiagnosis_NoServer() {
         ProjectEntity project = createSampleProject();
         when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
@@ -251,15 +251,13 @@ class HttpAiServiceClientTest {
                 ""
         );
 
-        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
-
-        assertThat(result.get("source")).isEqualTo("MOCK_FALLBACK");
-        assertThat(result).containsKey("warning");
-        assertThat(result).containsKey("criticalPath");
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE);
     }
 
     @Test
-    @DisplayName("Quá giờ: server ngủ 3 giây, client đặt readTimeout=1s -> source=MOCK_FALLBACK, có warning, vẫn có criticalPath")
+    @DisplayName("Quá giờ: server ngủ 3 giây, client đặt readTimeout=1s -> ném AiServiceUnavailableException (503)")
     void testRequestDiagnosis_Timeout() throws IOException {
         int port = startServer(exchange -> {
             try {
@@ -290,11 +288,39 @@ class HttpAiServiceClientTest {
                 ""
         );
 
-        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE);
+    }
 
-        assertThat(result.get("source")).isEqualTo("MOCK_FALLBACK");
-        assertThat(result).containsKey("warning");
-        assertThat(result).containsKey("criticalPath");
+    @Test
+    @DisplayName("Body null: server trả 200 JSON nhưng body null -> ném AiServiceUnavailableException (503)")
+    void testRequestDiagnosis_NullResponseBody() throws IOException {
+        int port = startServer(exchange -> {
+            byte[] responseBytes = "null".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE);
     }
 
     @Test

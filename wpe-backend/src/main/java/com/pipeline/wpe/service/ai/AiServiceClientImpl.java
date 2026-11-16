@@ -12,11 +12,11 @@ import java.time.Instant;
 import java.util.*;
 
 /**
- * Cài đặt giả, dùng khi app.ai.mode=mock (mặc định) hoặc làm dự phòng khi microservice lỗi.
+ * Dữ liệu mẫu gán cứng, CHỈ dùng khi tự đặt app.ai.mode=mock để demo. Không dùng làm dự phòng khi dịch vụ AI lỗi.
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(prefix = "app.ai", name = "mode", havingValue = "mock", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "app.ai", name = "mode", havingValue = "mock")
 public class AiServiceClientImpl implements AiServiceClient {
 
     public AiServiceClientImpl() {

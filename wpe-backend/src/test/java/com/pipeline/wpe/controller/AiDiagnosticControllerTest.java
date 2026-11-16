@@ -1,5 +1,6 @@
 package com.pipeline.wpe.controller;
 
+import com.pipeline.wpe.exception.AiServiceUnavailableException;
 import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.service.ai.AiDiagnosticService;
 import org.junit.jupiter.api.DisplayName;
@@ -14,9 +15,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +72,18 @@ class AiDiagnosticControllerTest {
             .andExpect(status().isTooManyRequests())
             .andExpect(jsonPath("$.error").value("COOLDOWN_ACTIVE"))
             .andExpect(jsonPath("$.retryAfterSeconds").value(145));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/projects/{id}/ai-diagnostics - Dịch vụ AI lỗi trả về 503 AI_SERVICE_UNAVAILABLE và không để lộ lý do nội bộ")
+    void testTriggerAiDiagnostics_AiServiceUnavailable() throws Exception {
+        when(aiDiagnosticService.triggerAiDiagnostics(1L))
+            .thenThrow(new AiServiceUnavailableException("example-internal-reason", null));
+
+        mockMvc.perform(post("/api/v1/projects/1/ai-diagnostics"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.error").value("AI_SERVICE_UNAVAILABLE"))
+            .andExpect(content().string(not(containsString("example-internal-reason"))));
     }
 }
 

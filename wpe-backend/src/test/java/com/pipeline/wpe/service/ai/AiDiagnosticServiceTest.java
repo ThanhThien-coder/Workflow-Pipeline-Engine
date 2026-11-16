@@ -1,6 +1,7 @@
 package com.pipeline.wpe.service.ai;
 
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.exception.AiServiceUnavailableException;
 import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectFeedbackRepository;
@@ -137,8 +138,8 @@ class AiDiagnosticServiceTest {
     }
 
     @Test
-    @DisplayName("9.2 Trigger AI Diagnostics - MOCK_FALLBACK không ghi đè bản phân tích cũ và không lưu DB")
-    void testTriggerAiDiagnostics_MockFallback_DoesNotOverwriteOldAnalysisAndDoesNotSave() {
+    @DisplayName("9.2 Trigger AI Diagnostics - Client ném AiServiceUnavailableException không ghi đè bản cũ và không lưu DB")
+    void testTriggerAiDiagnostics_AiServiceUnavailable_DoesNotOverwriteOldAnalysisAndDoesNotSave() {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
 
         Instant oneHourAgo = Instant.now().minus(1, ChronoUnit.HOURS);
@@ -156,23 +157,19 @@ class AiDiagnosticServiceTest {
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
 
-        Map<String, Object> fallbackResult = Map.of(
-            "source", "MOCK_FALLBACK",
-            "warning", "example-warning"
-        );
-        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenReturn(fallbackResult);
+        AiServiceUnavailableException serviceException = new AiServiceUnavailableException("example-reason", null);
+        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenThrow(serviceException);
 
-        Map<String, Object> result = aiDiagnosticService.triggerAiDiagnostics(projectId);
+        assertThatThrownBy(() -> aiDiagnosticService.triggerAiDiagnostics(projectId))
+            .isSameAs(serviceException);
 
-        assertThat(result.get("source")).isEqualTo("MOCK_FALLBACK");
-        assertThat(result.get("warning")).isEqualTo("example-warning");
         assertThat(project.getLatestAiAnalysis()).isEqualTo(oldAnalysis);
         verify(projectRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("9.2 Trigger AI Diagnostics - Gọi 2 lần liên tiếp nhận MOCK_FALLBACK không bị chặn Cooldown")
-    void testTriggerAiDiagnostics_ConsecutiveMockFallback_NoCooldownException() {
+    @DisplayName("9.2 Trigger AI Diagnostics - Gọi 2 lần liên tiếp gặp AiServiceUnavailableException đều ném 503 không bị chặn Cooldown")
+    void testTriggerAiDiagnostics_ConsecutiveAiServiceUnavailable_NoCooldownException() {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
 
         ProjectEntity project = ProjectEntity.builder()
@@ -185,17 +182,14 @@ class AiDiagnosticServiceTest {
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
 
-        Map<String, Object> fallbackResult = Map.of(
-            "source", "MOCK_FALLBACK",
-            "warning", "example-warning"
-        );
-        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenReturn(fallbackResult);
+        when(aiServiceClient.requestDiagnosis(any(), any(), any()))
+            .thenThrow(new AiServiceUnavailableException("example-reason", null));
 
-        Map<String, Object> result1 = aiDiagnosticService.triggerAiDiagnostics(projectId);
-        Map<String, Object> result2 = aiDiagnosticService.triggerAiDiagnostics(projectId);
+        assertThatThrownBy(() -> aiDiagnosticService.triggerAiDiagnostics(projectId))
+            .isInstanceOf(AiServiceUnavailableException.class);
+        assertThatThrownBy(() -> aiDiagnosticService.triggerAiDiagnostics(projectId))
+            .isInstanceOf(AiServiceUnavailableException.class);
 
-        assertThat(result1.get("source")).isEqualTo("MOCK_FALLBACK");
-        assertThat(result2.get("source")).isEqualTo("MOCK_FALLBACK");
         verify(aiServiceClient, times(2)).requestDiagnosis(any(), any(), any());
         verify(projectRepository, never()).save(any());
     }
