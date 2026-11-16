@@ -4,6 +4,7 @@ import type { BranchGraphNode, NodeStatus } from '../../types/workflow.types'
 import type { TaskStatus, UserSummary } from '../../types/kanban.types'
 import { findMember } from '../../utils/memberLookup'
 import { isUnlockSatisfied, type Prerequisite } from '../../utils/taskPrerequisites'
+import { dueDateError, minDueDateInput } from '../../utils/dueDate'
 
 const INPUT =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] text-slate-800 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed disabled:hover:border-slate-200'
@@ -76,8 +77,11 @@ export function NodePropertiesModal({
   const doneCount = prerequisites.length - unfinished.length
   const satisfied = isUnlockSatisfied(prerequisites, join === 'ANY' ? 'ANY_COMPLETED' : 'ALL_COMPLETED')
   const isAssignee = Boolean(viewerId && currentAssignee?.id === viewerId)
+  // G21: hạn chót không sớm hơn ngày tạo task (chỉ kiểm khi đổi ngày, ngày cũ đã lưu thì để nguyên)
+  const dueError = due !== (node.due ?? '') ? dueDateError(due, node.createdAt) : null
 
   const handleSave = () => {
+    if (dueError) return
     onSave?.({
       title: title.trim() || node.title,
       assignee: assignee || null,
@@ -282,7 +286,17 @@ export function NodePropertiesModal({
                 <Calendar size={13} className="text-indigo-600" />
                 Due date
               </span>
-              <input type="date" value={due} onChange={(event) => setDue(event.target.value)} className={INPUT} />
+              <input
+                type="date"
+                aria-label="Due date"
+                min={minDueDateInput(node.createdAt)}
+                value={due}
+                onChange={(event) => setDue(event.target.value)}
+                className={INPUT}
+              />
+              {dueError && (
+                <span role="alert" className="mt-1 block text-[11px] font-medium text-red-600">{dueError}</span>
+              )}
             </label>
 
             <p className={`${SECTION_TITLE} pt-1`}>Requirements</p>
@@ -351,7 +365,8 @@ export function NodePropertiesModal({
               <button
                 type="button"
                 onClick={handleSave}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer"
+                disabled={Boolean(dueError)}
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl px-4 py-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check size={14} />
                 <span>Save changes</span>

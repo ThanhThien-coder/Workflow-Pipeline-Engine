@@ -30,6 +30,8 @@ export interface BranchGraphNode extends GraphNodeBase {
   joinPolicy: JoinPolicy | 'AND' | null
   /** T6: chủ dự án đã mở khóa sớm */
   forceUnlocked?: boolean
+  /** G21: ngày tạo task (ISO), hạn chót không sớm hơn ngày này */
+  createdAt?: string | null
   phaseId?: string
   trackId?: string | null
   parentId?: string | null
@@ -132,6 +134,7 @@ export interface BackendGraphNodeDto {
   version?: number | null
   forceUnlockedBy?: string | number | null
   forceUnlockedAt?: string | null
+  createdAt?: string | null
   uiMetadata?: {
     position?: { x?: number; y?: number }
     width?: number

@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ArtifactType, KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { ARTIFACT_TYPE_OPTIONS, artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
 import { fmtDayMonth } from '../../utils/date'
+import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput } from '../../utils/dueDate'
 import { useDismiss } from '../../hooks/useDismiss'
 import { getSavedAvatar } from '../../utils/avatarUtils'
 
@@ -110,11 +111,7 @@ export function TaskDetailModal({
   const assigneeAvatar = assignee.avatarUrl || getSavedAvatar(assignee.name || assignee.id)
   const statusCfg = statusConfigs[task.status]
 
-  const toDateInput = (iso?: string): string => {
-    if (!iso) return ''
-    const match = iso.match(/^\d{4}-\d{2}-\d{2}/)
-    return match ? match[0] : ''
-  }
+  const toDateInput = (iso?: string): string => isoToDateInput(iso)
 
   const [assignedUserId, setAssignedUserId] = useState(task.assignedUserId ?? '')
   const [dueDateInput, setDueDateInput] = useState(toDateInput(task.dueDate))
@@ -129,9 +126,11 @@ export function TaskDetailModal({
   const isAssigneeChanged = assignedUserId !== (task.assignedUserId ?? '')
   const isDueDateChanged = dueDateInput !== initialDateStr
   const hasAssignmentChanges = isAssigneeChanged || isDueDateChanged
+  // G21: hạn chót không sớm hơn ngày tạo task (chỉ kiểm khi người dùng đổi ngày)
+  const dueError = isDueDateChanged ? dueDateError(dueDateInput, task.createdAt) : null
 
   const handleSaveAssignment = async () => {
-    if (!onUpdateAssignment || !hasAssignmentChanges) return
+    if (!onUpdateAssignment || !hasAssignmentChanges || dueError) return
     setIsSavingAssignment(true)
     try {
       const cmd: { assignedUserId?: string; dueDate?: string } = {}
@@ -139,8 +138,7 @@ export function TaskDetailModal({
         cmd.assignedUserId = assignedUserId
       }
       if (isDueDateChanged) {
-        const d = new Date(`${dueDateInput}T23:59:59`)
-        cmd.dueDate = isNaN(d.getTime()) ? `${dueDateInput}T23:59:59.000Z` : d.toISOString()
+        cmd.dueDate = dateInputToEndOfDayIso(dueDateInput)
       }
       await onUpdateAssignment(cmd)
     } finally {
@@ -347,16 +345,20 @@ export function TaskDetailModal({
                     id="assignment-due-date-input"
                     aria-label="Due date"
                     type="date"
+                    min={minDueDateInput(task.createdAt)}
                     value={dueDateInput}
                     onChange={(e) => setDueDateInput(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
                   />
                 </div>
               </div>
+              {dueError && (
+                <p role="alert" className="text-[11px] font-medium text-red-600">{dueError}</p>
+              )}
               <div className="flex justify-end pt-1">
                 <button
                   type="button"
-                  disabled={!hasAssignmentChanges || isSavingAssignment || pending}
+                  disabled={!hasAssignmentChanges || Boolean(dueError) || isSavingAssignment || pending}
                   onClick={() => void handleSaveAssignment()}
                   className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
