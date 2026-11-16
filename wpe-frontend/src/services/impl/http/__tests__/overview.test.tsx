@@ -701,6 +701,39 @@ describe('overviewSlice — runAiDiagnosis', () => {
     expect(store.getState().overview.aiScanning).toBe(false)
   })
 
+  it('fakeService.runAiDiagnosis ném 503 AI_SERVICE_UNAVAILABLE → aiScanError chứa "unavailable", data.aiReport giữ nguyên bản cũ, aiScanning về false', async () => {
+    const error503 = new ApiError({
+      status: 503,
+      code: 'AI_SERVICE_UNAVAILABLE',
+      message: 'AI service is unavailable',
+    })
+    const runAiSpy = vi.fn().mockRejectedValue(error503)
+    const fakeService = {
+      runAiDiagnosis: runAiSpy,
+    } as unknown as IWorkflowService
+
+    type TestStore = OverviewSlice & { currentProjectId: string | null }
+    const store = create<TestStore>()((set, get) => ({
+      currentProjectId: '5',
+      ...createOverviewSlice(set, get, fakeService),
+    }))
+
+    const initialReport = { ...baseData.aiReport }
+    store.setState((state) => ({
+      overview: {
+        ...state.overview,
+        projectId: '5',
+        data: { ...baseData, aiReport: initialReport },
+      },
+    }))
+
+    await store.getState().overview.runAiDiagnosis('5')
+
+    expect(store.getState().overview.aiScanError).toContain('unavailable')
+    expect(store.getState().overview.data?.aiReport).toEqual(initialReport)
+    expect(store.getState().overview.aiScanning).toBe(false)
+  })
+
   it("đang chạy dự án '5' thì load sang dự án '6', sau đó runAiDiagnosis của '5' ném lỗi → aiScanError của overview vẫn null", async () => {
     let rejectRunAi!: (reason?: unknown) => void
     const runAiPromise = new Promise<AiDiagnosticReport>((_, reject) => {

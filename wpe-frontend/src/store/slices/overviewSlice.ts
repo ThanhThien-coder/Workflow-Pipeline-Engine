@@ -199,6 +199,8 @@ export const createOverviewSlice = (
               }
             } else if (error.status === 403) {
               message = 'You do not have permission to run AI diagnosis for this project.'
+            } else if (error.status === 503) {
+              message = 'AI service is unavailable right now. Please try again later.'
             }
           }
           set((state) => {
