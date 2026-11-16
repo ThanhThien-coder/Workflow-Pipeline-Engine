@@ -252,9 +252,10 @@ export const AuthView: FC = () => {
     const e: Record<string, string> = {}
     if (signup && !f.name.trim()) e.name = 'Full name is required.'
     if (signup && !f.org.trim()) e.org = 'Workspace name is required.'
+    // G22: đăng nhập và đăng ký đều bằng email (username có thể trùng)
     if (!f.email.trim()) {
-      e.email = signup ? 'Email is required.' : 'Email or username is required.'
-    } else if (signup && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) {
+      e.email = 'Email is required.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) {
       e.email = 'Enter a valid email address.'
     }
     if (!f.pw) {
@@ -381,15 +382,16 @@ export const AuthView: FC = () => {
               )}
 
               <Field
-                label={signup ? 'Work email' : 'Email or username'}
+                label={signup ? 'Work email' : 'Email'}
                 error={err.email}
               >
                 <input
+                  type="email"
                   className={inputCls(err.email)}
                   placeholder="alex.kim@pipeline.engine"
                   value={f.email}
                   onChange={setField('email')}
-                  autoComplete="username"
+                  autoComplete="email"
                 />
               </Field>
 

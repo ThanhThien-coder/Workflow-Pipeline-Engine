@@ -7,23 +7,31 @@ interface InviteMemberModalProps {
   onInvite: (cmd: InviteMemberCommand) => Promise<boolean>
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** G22: chỉ mời bằng email (username có thể trùng). Trường lệnh vẫn tên usernameOrEmail để không đổi contract. */
 export function InviteMemberModal({ isOpen, onClose, onInvite }: InviteMemberModalProps) {
-  const [usernameOrEmail, setUsernameOrEmail] = useState('')
+  const [email, setEmail] = useState('')
   const [role, setRole] = useState<'MANAGER' | 'COLLABORATOR' | 'VIEWER'>('COLLABORATOR')
   const [submitting, setSubmitting] = useState(false)
+  const [touched, setTouched] = useState(false)
 
   if (!isOpen) return null
 
+  const trimmed = email.trim()
+  const emailError = touched && trimmed && !EMAIL_RE.test(trimmed) ? 'Enter a valid email address.' : null
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    const trimmed = usernameOrEmail.trim()
-    if (!trimmed || submitting) return
+    setTouched(true)
+    if (!trimmed || !EMAIL_RE.test(trimmed) || submitting) return
 
     setSubmitting(true)
     try {
       const ok = await onInvite({ usernameOrEmail: trimmed, role })
       if (ok) {
-        setUsernameOrEmail('')
+        setEmail('')
+        setTouched(false)
         setRole('COLLABORATOR')
       }
     } finally {
@@ -50,16 +58,21 @@ export function InviteMemberModal({ isOpen, onClose, onInvite }: InviteMemberMod
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>
           <div>
-            <label className="text-xs font-semibold text-slate-600">Username or email</label>
+            <label htmlFor="invite-member-email" className="text-xs font-semibold text-slate-600">Email</label>
             <input
+              id="invite-member-email"
+              type="email"
               autoFocus
+              autoComplete="off"
               className={`${inputCls} mt-1`}
               placeholder="e.g. alex.kim@acme.io"
-              value={usernameOrEmail}
-              onChange={(e) => setUsernameOrEmail(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setTouched(true)}
             />
+            {emailError && <p role="alert" className="mt-1 text-[11px] font-medium text-red-600">{emailError}</p>}
           </div>
 
           <div>
@@ -69,7 +82,7 @@ export function InviteMemberModal({ isOpen, onClose, onInvite }: InviteMemberMod
               value={role}
               onChange={(e) => setRole(e.target.value as 'MANAGER' | 'COLLABORATOR' | 'VIEWER')}
             >
-              <option value="MANAGER">MANAGER (Quản lý - Can review tasks and assign nodes)</option>
+              <option value="MANAGER">MANAGER (Can review tasks and assign nodes)</option>
               <option value="COLLABORATOR">COLLABORATOR (Can edit tasks and pipelines)</option>
               <option value="VIEWER">VIEWER (Read-only access)</option>
             </select>
@@ -85,7 +98,7 @@ export function InviteMemberModal({ isOpen, onClose, onInvite }: InviteMemberMod
             </button>
             <button
               type="submit"
-              disabled={!usernameOrEmail.trim() || submitting}
+              disabled={!trimmed || Boolean(emailError) || submitting}
               className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:pointer-events-none disabled:opacity-40"
             >
               {submitting ? 'Sending...' : 'Send Invite'}

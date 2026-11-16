@@ -64,32 +64,32 @@ public class AuthService {
             .build();
         user = userRepository.save(user);
         log.info("Đăng ký tài khoản mới: user #{} ({})", user.getId(), user.getUsername());
-        adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.REGISTER, "USER", String.valueOf(user.getId()), "Đăng ký tài khoản thành công");
+        adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.REGISTER, "USER", String.valueOf(user.getId()), "Account registered");
         return buildAuthResponse(user, refreshTokenService.issue(user.getId()));
     }
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        // G22: chỉ đăng nhập bằng email (username có thể trùng). Trường request vẫn tên là username để không đổi contract.
         String identifier = request.username().trim();
-        UserEntity user = (identifier.contains("@")
-            ? userRepository.findByEmailIgnoreCase(identifier)
-            : userRepository.findByUsername(identifier))
-            .orElse(null);
+        UserEntity user = identifier.contains("@")
+            ? userRepository.findByEmailIgnoreCase(identifier).orElse(null)
+            : null;
         if (user == null) {
-            adminAuditService.record(null, identifier, AdminAuditAction.LOGIN_FAILED, "USER", null, "Không tồn tại tài khoản");
+            adminAuditService.record(null, identifier, AdminAuditAction.LOGIN_FAILED, "USER", null, "Account does not exist");
             passwordEncoder.matches(request.password(), dummyHash());
             throw badCredentials();
         }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.LOGIN_FAILED, "USER", String.valueOf(user.getId()), "Sai mật khẩu");
+            adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.LOGIN_FAILED, "USER", String.valueOf(user.getId()), "Wrong password");
             throw badCredentials();
         }
         // Kiểm khóa SAU khi đúng mật khẩu để không lộ trạng thái tài khoản cho người không biết mật khẩu
         if (Boolean.TRUE.equals(user.getIsLocked())) {
-            adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.ACCOUNT_LOCKED_LOGIN, "USER", String.valueOf(user.getId()), "Tài khoản bị khóa");
+            adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.ACCOUNT_LOCKED_LOGIN, "USER", String.valueOf(user.getId()), "Account is locked");
             throw accountLocked();
         }
-        adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.LOGIN_SUCCESS, "USER", String.valueOf(user.getId()), "Đăng nhập thành công");
+        adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.LOGIN_SUCCESS, "USER", String.valueOf(user.getId()), "Signed in");
         return buildAuthResponse(user, refreshTokenService.issue(user.getId()));
     }
 
@@ -115,7 +115,7 @@ public class AuthService {
         java.util.Optional<Long> userIdOpt = refreshTokenService.findUserIdByRawToken(rawRefreshToken);
         refreshTokenService.revoke(rawRefreshToken);
         userIdOpt.ifPresent(userId ->
-            adminAuditService.record(userId, null, AdminAuditAction.LOGOUT, "USER", String.valueOf(userId), "Đăng xuất")
+            adminAuditService.record(userId, null, AdminAuditAction.LOGOUT, "USER", String.valueOf(userId), "Signed out")
         );
     }
 
@@ -135,7 +135,7 @@ public class AuthService {
     }
 
     private static UnauthorizedException badCredentials() {
-        return new UnauthorizedException(BAD_CREDENTIALS, "Tên đăng nhập hoặc mật khẩu không đúng.");
+        return new UnauthorizedException(BAD_CREDENTIALS, "Incorrect email or password.");
     }
 
     private static ForbiddenException accountLocked() {

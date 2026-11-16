@@ -12,6 +12,7 @@ import type {
   PhaseTreeData,
 } from '../types/workflow.types'
 import type { TaskNodePatch } from '../services/contracts/IWorkflowService'
+import { isoToDateInput } from '../utils/dueDate'
 
 /**
  * B5 — Đổi dữ liệu phẳng của backend (phases, nodes, dependencies) sang mô hình FE.
@@ -109,10 +110,12 @@ function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
     isTrack: false,
     status,
     assignee: n.assignedUserId ? String(n.assignedUserId) : null,
-    due: n.dueDate ? n.dueDate.split('T')[0] : null,
+    // G21: lấy ngày theo giờ máy (hạn chót lưu là cuối ngày giờ máy, cắt chuỗi UTC có thể lệch ngày)
+    due: n.dueDate ? isoToDateInput(n.dueDate) || null : null,
     blocker: null,
     joinPolicy,
     forceUnlocked: Boolean(n.forceUnlockedAt),
+    ...(n.createdAt ? { createdAt: n.createdAt } : {}),
     phaseId,
     // Mặc định treo dưới root; toPhaseTree đổi sang node cha nếu có cạnh phụ thuộc cùng phase
     parentIds: [rootIdOf(phaseId)],

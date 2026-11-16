@@ -6,6 +6,7 @@ import { navigate, useRouter } from '../router/useRouter'
 import { getSavedAvatar } from '../utils/avatarUtils'
 import { GuestLinkError } from '../types/guest.types'
 import { isApiError } from '../services/http/ApiError'
+import { relativeEn } from '../utils/relativeTime'
 import type {
   GuestAiReportDto,
   GuestAiSummaryDto,
@@ -35,16 +36,22 @@ const ERROR_TEXT: Record<GuestLinkErrorCode | 'UNKNOWN', string> = {
   UNKNOWN: 'Something went wrong. Please try again later.',
 }
 
+const REVOKED_TEXT = 'This share link has expired or has been revoked.'
+
+/** G25: overview thật trả ISO, mock trả sẵn chữ ('3 days ago') */
+const lastUpdatedText = (value: string): string => (Number.isNaN(Date.parse(value)) ? value : relativeEn(value))
+
 const toErrorState = (e: unknown): { code: GuestLinkErrorCode | 'UNKNOWN'; message?: string } => {
   if (isApiError(e)) {
     if (e.status === 403 || e.code === 'REVOKED_GUEST') {
-      return { code: 'REVOKED', message: 'Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.' }
+      // G25: backend trả lý do cụ thể (thu hồi / hết hạn / dự án đã lưu trữ)
+      return { code: 'REVOKED', message: e.message || REVOKED_TEXT }
     }
     return { code: 'UNKNOWN', message: e.message }
   }
   if (e instanceof GuestLinkError) {
     if (e.code === 'REVOKED' || e.code === 'EXPIRED') {
-      return { code: e.code, message: 'Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.' }
+      return { code: e.code, message: REVOKED_TEXT }
     }
     return { code: e.code, message: ERROR_TEXT[e.code] }
   }
@@ -118,7 +125,7 @@ function EntryScreen({ info, onEnter }: { info: GuestLinkInfoDto; onEnter: (name
           <h1 className="mt-6 text-xl font-bold text-slate-900">
             You are viewing <span className="grad-text">{info.projectName}</span>
           </h1>
-          <p className="mt-1 text-sm text-slate-500">Shared by {info.ownerName}. Tell us who you are, or stay anonymous.</p>
+          <p className="mt-1 text-sm text-slate-500">{info.ownerName ? `Shared by ${info.ownerName}. ` : ''}Tell us who you are, or stay anonymous.</p>
           <label className="mt-6 block text-xs font-semibold text-slate-600">Your name</label>
           <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-200 px-3 focus-within:border-indigo-400">
             <UserRound size={16} className="text-slate-400" />
@@ -357,11 +364,13 @@ function Overview({
   const [sending, setSending] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
+  const features = guestService.features ?? { aiSummary: true, evaluation: true }
+
   useEffect(() => {
     guestService.getOverview(token).then(setData).catch((e) => onError(toErrorState(e)))
-    guestService.getAiSummary(token).then(setAi).catch(() => setAi(null))
+    if (features.aiSummary) guestService.getAiSummary(token).then(setAi).catch(() => setAi(null))
     guestService.listFeedback(token, session.sessionId).then(setFeedback).catch(() => undefined)
-  }, [token, session.sessionId, onError])
+  }, [token, session.sessionId, onError, features.aiSummary])
 
   const send = async (e: FormEvent) => {
     e.preventDefault()
@@ -375,19 +384,19 @@ function Overview({
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 403 || err.code === 'REVOKED_GUEST') {
-          setFeedbackError('Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.')
+          setFeedbackError(REVOKED_TEXT)
         } else if (err.status === 429) {
           const sec = err.retryAfterSeconds ?? 60
           const minutes = Math.max(1, Math.ceil(sec / 60))
-          setFeedbackError(`Bạn đã gửi quá nhiều góp ý. Vui lòng thử lại sau ${minutes} phút.`)
+          setFeedbackError(`You have sent too much feedback. Please try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`)
         } else if (err.status === 400) {
           setFeedbackError(err.message)
         } else {
-          setFeedbackError(err.message || 'Gửi góp ý thất bại. Vui lòng thử lại sau.')
+          setFeedbackError(err.message || 'Could not send feedback. Please try again later.')
         }
       } else if (err instanceof GuestLinkError) {
         if (err.code === 'REVOKED' || err.code === 'EXPIRED') {
-          setFeedbackError('Liên kết chia sẻ đã hết hiệu lực hoặc đã bị thu hồi.')
+          setFeedbackError(REVOKED_TEXT)
         } else {
           onError(err.code)
         }
@@ -399,7 +408,8 @@ function Overview({
     }
   }
 
-  const peak = data ? Math.max(...data.velocity.map((v) => v.value)) : 1
+  // G25: tuần không có task DONE thì peak = 0, tránh chia cho 0 (cột NaN%)
+  const peak = data ? Math.max(1, ...data.velocity.map((v) => v.value)) : 1
 
   return (
     <Shell>
@@ -421,9 +431,10 @@ function Overview({
             <h1 className="text-2xl font-bold text-slate-900">{info.projectName}</h1>
             {data && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">{data.phaseLabel}</span>}
           </div>
-          <p className="mt-1 text-xs text-slate-500">Shared by {info.ownerName}{data && ` · Last updated ${data.lastUpdated}`}</p>
+          <p className="mt-1 text-xs text-slate-500">{[info.ownerName && `Shared by ${info.ownerName}`, data && `Last updated ${lastUpdatedText(data.lastUpdated)}`].filter(Boolean).join(' · ')}</p>
         </div>
 
+        {features.aiSummary && (
         <section className="rise rounded-2xl border border-indigo-200 bg-white p-5">
           <div className="flex items-center gap-2">
             <Sparkles size={16} className={clsx('text-indigo-600', !ai && 'pulse2')} />
@@ -449,6 +460,7 @@ function Overview({
           )}
           <AiReportBlock token={token} onError={onError} />
         </section>
+        )}
 
         {data && (
           <>
@@ -478,11 +490,11 @@ function Overview({
                     <span className="text-xs text-slate-500">Total {data.totalTasks} tasks</span>
                   </div>
                   <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
-                    {data.statusBreakdown.map((s) => <div key={s.key} className={STATUS_BAR[s.key]} style={{ width: `${(s.count / data.totalTasks) * 100}%` }} />)}
+                    {data.totalTasks > 0 && data.statusBreakdown.map((s) => <div key={s.key} className={STATUS_BAR[s.key]} style={{ width: `${(s.count / data.totalTasks) * 100}%` }} />)}
                   </div>
                   <div className="mt-4 space-y-3">
                     {data.statusBreakdown.map((s) => {
-                      const pct = Math.round((s.count / data.totalTasks) * 100)
+                      const pct = data.totalTasks > 0 ? Math.round((s.count / data.totalTasks) * 100) : 0
                       return (
                         <div key={s.key}>
                           <div className="flex justify-between text-sm">
@@ -498,7 +510,7 @@ function Overview({
               </div>
 
               <div className="space-y-6">
-                <EvaluationCard token={token} session={session} onError={onError} />
+                {features.evaluation && <EvaluationCard token={token} session={session} onError={onError} />}
 
                 <section className="rise rounded-2xl border border-slate-200 bg-white p-5">
                   <h2 className="text-sm font-bold text-slate-900">Send Feedback</h2>

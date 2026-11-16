@@ -38,7 +38,8 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
     @Query("UPDATE NodeEntity n SET n.uiMetadata = :uiMetadata WHERE n.id = :id")
     int updateUiMetadata(@Param("id") Long id, @Param("uiMetadata") Map<String, Object> uiMetadata);
 
-    List<NodeEntity> findByStatusAndDueDateBeforeAndIsOverdueFalse(NodeStatus status, Instant now);
+    // G21: quét trễ hạn mọi task chưa xong (truyền DONE)
+    List<NodeEntity> findByStatusNotAndDueDateBeforeAndIsOverdueFalse(NodeStatus status, Instant now);
 
     @Query("SELECT n.projectId, n.status, COUNT(n) FROM NodeEntity n WHERE n.projectId IN :projectIds GROUP BY n.projectId, n.status")
     List<Object[]> countByProjectIdsGroupByStatus(@Param("projectIds") Collection<Long> projectIds);

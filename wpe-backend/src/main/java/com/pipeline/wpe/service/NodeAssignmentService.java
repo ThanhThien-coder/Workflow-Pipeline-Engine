@@ -63,6 +63,7 @@ public class NodeAssignmentService {
         }
 
         if (req.dueDate() != null) {
+            DueDateRules.requireNotBeforeCreation(req.dueDate(), node.getCreatedAt());
             node.setDueDate(req.dueDate());
             if (req.dueDate().isAfter(Instant.now())) {
                 node.setIsOverdue(false);

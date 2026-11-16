@@ -133,7 +133,7 @@ export function usernameFromEmail(email: string): string {
   return local.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 50)
 }
 
-/** POST /auth/login. Backend chỉ tìm theo username nên gửi nguyên chuỗi người dùng nhập. */
+/** POST /auth/login. Trường tên là username nhưng chỉ nhận email (G22: backend chỉ tìm theo email). */
 export async function login(credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
   const data = await apiRequest<BackendAuthResponse>('POST', '/auth/login', {
     body: {

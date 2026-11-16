@@ -14,7 +14,15 @@ import type {
  * Every method rejects with GuestLinkError when the token is
  * invalid / expired / revoked.
  */
+/** G25: tính năng nào có backend thật. Tắt thì trang khách ẩn khối đó (không hiện dữ liệu giả). */
+export interface GuestFeatures {
+  aiSummary: boolean
+  evaluation: boolean
+}
+
 export interface IGuestService {
+  /** Không khai báo thì coi như bật hết (bản mock). */
+  readonly features?: GuestFeatures
   /** GET  /guest/{token} */
   getLinkInfo(token: string): Promise<GuestLinkInfoDto>
   /** POST /guest/{token}/session  (displayName = null → anonymous) */

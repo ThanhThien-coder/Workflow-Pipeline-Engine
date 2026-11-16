@@ -12,6 +12,7 @@ import * as assignmentApi from './http/assignment'
 import * as activityApi from './http/activity'
 import * as overviewApi from './http/overview'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
+import { dateInputToEndOfDayIso } from '../../utils/dueDate'
 import type {
   ArtifactItem,
   ArtifactType,
@@ -67,6 +68,7 @@ interface BackendTaskResponse {
   joinPolicy: string
   rejectReason?: string
   forceUnlockedAt?: string | null
+  createdAt?: string | null
   dueDate?: string
   isOverdue: boolean
   version: number
@@ -771,7 +773,8 @@ export class HttpWorkflowService implements IWorkflowService {
       joinPolicy: patch.joinPolicy,
       version: known.version,
       ...(patch.assigneeId ? { assignedUserId: graphApi.toBackendId(patch.assigneeId, 'Người làm') } : { clearAssignee: true }),
-      ...(patch.dueDate ? { dueDate: `${patch.dueDate}T00:00:00Z` } : { clearDueDate: true }),
+      // G21: hạn chót là cuối ngày đã chọn (giờ máy), không phải 00:00 UTC (quá hạn từ 7h sáng ở VN)
+      ...(patch.dueDate ? { dueDate: dateInputToEndOfDayIso(patch.dueDate) } : { clearDueDate: true }),
     })
     this.rememberNode(updated, known.phaseId)
   }
@@ -890,6 +893,7 @@ export class HttpWorkflowService implements IWorkflowService {
       version: item.version,
       rejectReason: item.rejectReason,
       forceUnlocked: Boolean(item.forceUnlockedAt),
+      ...(item.createdAt ? { createdAt: item.createdAt } : {}),
     }
   }
 }

@@ -101,8 +101,7 @@ class NotificationServiceTest {
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(userRepository.findById(alexId)).thenReturn(Optional.of(alex));
-        when(userRepository.findByEmail("meomeo")).thenReturn(Optional.empty());
-        when(userRepository.findByUsername("meomeo")).thenReturn(Optional.of(meomeo));
+        when(userRepository.findByEmailIgnoreCase("meomeo@pipeline.engine")).thenReturn(Optional.of(meomeo));
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, meomeoId)).thenReturn(false);
         when(projectInvitationRepository.findByProjectIdAndInviteeIdAndStatus(projectId, meomeoId, InvitationStatus.PENDING))
                 .thenReturn(Optional.empty());
@@ -142,7 +141,7 @@ class NotificationServiceTest {
         });
 
         // Alex mời meomeo
-        invitationService.sendInvitation(projectId, new CreateInvitationRequest("meomeo", ProjectRole.COLLABORATOR), alexId);
+        invitationService.sendInvitation(projectId, new CreateInvitationRequest("meomeo@pipeline.engine", ProjectRole.COLLABORATOR), alexId);
 
         // Meomeo đọc danh sách thông báo
         List<NotificationResponse> meomeoNotifs = notificationService.getNotifications(meomeoId, false, 30);

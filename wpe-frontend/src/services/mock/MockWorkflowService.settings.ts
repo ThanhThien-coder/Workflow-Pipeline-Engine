@@ -242,7 +242,7 @@ export class MockSettingsApi implements Pick<
   async inviteProjectMember(_projectId: string, cmd: InviteMemberCommand): Promise<ProjectMemberDetail> {
     await mockDelay(150)
     const raw = cmd.usernameOrEmail.trim()
-    if (!raw) throw new Error('Username or email is required')
+    if (!raw) throw new Error('Email is required')
 
     const isEmail = raw.includes('@')
     const username = isEmail ? raw.split('@')[0] : raw
@@ -294,7 +294,7 @@ export class MockSettingsApi implements Pick<
   async createProjectInvitation(projectId: string, cmd: InviteMemberCommand): Promise<ProjectInvitationDto> {
     await mockDelay(150)
     const raw = cmd.usernameOrEmail.trim()
-    if (!raw) throw new Error('Username or email is required')
+    if (!raw) throw new Error('Email is required')
 
     const isEmail = raw.includes('@')
     const username = isEmail ? raw.split('@')[0] : raw

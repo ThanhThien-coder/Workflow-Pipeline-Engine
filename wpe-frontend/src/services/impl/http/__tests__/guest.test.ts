@@ -324,7 +324,7 @@ describe('D5: guest & feedback HTTP API (impl/http/guest.ts)', () => {
     expect(data.completedNodes).toBe(4)
     expect(data.completionPct).toBe(40.0)
     expect(data.statusBreakdown).toHaveLength(3)
-    expect(data.statusBreakdown[2].key).toBe('blocked') // 'locked' mapped to 'blocked'
+    expect(data.statusBreakdown[2].key).toBe('locked') // G25: giữ 'locked' (giao diện khách có màu riêng)
     expect(data.velocity).toHaveLength(2)
   })
 

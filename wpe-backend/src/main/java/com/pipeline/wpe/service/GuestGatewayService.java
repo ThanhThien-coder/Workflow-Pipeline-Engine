@@ -136,18 +136,18 @@ public class GuestGatewayService {
             .collect(Collectors.groupingBy(NodeEntity::getStatus, Collectors.counting()));
 
         List<GuestOverviewResponse.GuestStatusSliceDto> statusBreakdown = List.of(
-            new GuestOverviewResponse.GuestStatusSliceDto("done", "Hoàn thành", countsByStatus.getOrDefault(NodeStatus.DONE, 0L).intValue()),
-            new GuestOverviewResponse.GuestStatusSliceDto("inProgress", "Đang thực hiện", countsByStatus.getOrDefault(NodeStatus.IN_PROGRESS, 0L).intValue()),
-            new GuestOverviewResponse.GuestStatusSliceDto("review", "Chờ nghiệm thu", countsByStatus.getOrDefault(NodeStatus.REVIEW, 0L).intValue()),
-            new GuestOverviewResponse.GuestStatusSliceDto("todo", "Sẵn sàng làm", countsByStatus.getOrDefault(NodeStatus.TODO, 0L).intValue()),
-            new GuestOverviewResponse.GuestStatusSliceDto("locked", "Bị khóa (DAG)", countsByStatus.getOrDefault(NodeStatus.LOCKED, 0L).intValue())
+            new GuestOverviewResponse.GuestStatusSliceDto("done", "Done", countsByStatus.getOrDefault(NodeStatus.DONE, 0L).intValue()),
+            new GuestOverviewResponse.GuestStatusSliceDto("inProgress", "In Progress", countsByStatus.getOrDefault(NodeStatus.IN_PROGRESS, 0L).intValue()),
+            new GuestOverviewResponse.GuestStatusSliceDto("review", "In Review", countsByStatus.getOrDefault(NodeStatus.REVIEW, 0L).intValue()),
+            new GuestOverviewResponse.GuestStatusSliceDto("todo", "To Do", countsByStatus.getOrDefault(NodeStatus.TODO, 0L).intValue()),
+            new GuestOverviewResponse.GuestStatusSliceDto("locked", "Locked", countsByStatus.getOrDefault(NodeStatus.LOCKED, 0L).intValue())
         );
 
         // Active phase label
         String phaseLabel = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(project.getId()).stream()
             .findFirst()
             .map(p -> p.getOrderIndex() + ". " + p.getName())
-            .orElse("Toàn bộ quy trình");
+            .orElse("Whole workflow");
 
         // Public artifacts mapping
         List<GuestOverviewResponse.GuestArtifactDto> artifactDtos = publicArtifacts.stream()
@@ -159,24 +159,10 @@ public class GuestGatewayService {
             ))
             .toList();
 
-        // Velocity mockup/history based on recent completed tasks
-        List<GuestOverviewResponse.GuestVelocityPointDto> velocity = List.of(
-            new GuestOverviewResponse.GuestVelocityPointDto("T2", 2),
-            new GuestOverviewResponse.GuestVelocityPointDto("T3", 3),
-            new GuestOverviewResponse.GuestVelocityPointDto("T4", 1),
-            new GuestOverviewResponse.GuestVelocityPointDto("T5", 4),
-            new GuestOverviewResponse.GuestVelocityPointDto("T6", completedNodes > 0 ? Math.min(completedNodes, 5) : 2)
-        );
-
-        List<GuestOverviewResponse.GuestActivityDto> recentActivities = List.of(
-            new GuestOverviewResponse.GuestActivityDto(
-                "act-1",
-                "WPE",
-                "Hệ thống",
-                "Dự án đang vận hành với " + totalNodes + " tác vụ trên quy trình DAG.",
-                "hôm nay"
-            )
-        );
+        // G25: số liệu thật thay cho số giả. DB không lưu thời điểm DONE riêng nên dùng updatedAt của task DONE.
+        Instant now = Instant.now();
+        List<GuestOverviewResponse.GuestVelocityPointDto> velocity = buildVelocity(nodes, now);
+        List<GuestOverviewResponse.GuestActivityDto> recentActivities = buildRecentActivity(nodes, now);
 
         return new GuestOverviewResponse(
             project.getName(),
@@ -196,28 +182,72 @@ public class GuestGatewayService {
         );
     }
 
+    private static final java.time.ZoneId VIETNAM_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /** Số task DONE theo từng ngày trong 7 ngày gần nhất (giờ Việt Nam), nhãn Mon..Sun. */
+    private List<GuestOverviewResponse.GuestVelocityPointDto> buildVelocity(List<NodeEntity> nodes, Instant now) {
+        java.time.LocalDate today = now.atZone(VIETNAM_ZONE).toLocalDate();
+        Map<java.time.LocalDate, Long> doneByDay = nodes.stream()
+            .filter(n -> n.getStatus() == NodeStatus.DONE && n.getUpdatedAt() != null)
+            .collect(Collectors.groupingBy(n -> n.getUpdatedAt().atZone(VIETNAM_ZONE).toLocalDate(), Collectors.counting()));
+        List<GuestOverviewResponse.GuestVelocityPointDto> points = new ArrayList<>();
+        for (int i = 6; i >= 0; i--) {
+            java.time.LocalDate day = today.minusDays(i);
+            String label = day.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH);
+            points.add(new GuestOverviewResponse.GuestVelocityPointDto(label, doneByDay.getOrDefault(day, 0L).intValue()));
+        }
+        return points;
+    }
+
+    /** 5 task được cập nhật gần nhất (bỏ task chưa từng sửa sau khi tạo). */
+    private List<GuestOverviewResponse.GuestActivityDto> buildRecentActivity(List<NodeEntity> nodes, Instant now) {
+        return nodes.stream()
+            .filter(n -> n.getUpdatedAt() != null && n.getCreatedAt() != null && n.getUpdatedAt().isAfter(n.getCreatedAt()))
+            .sorted(Comparator.comparing(NodeEntity::getUpdatedAt).reversed())
+            .limit(5)
+            .map(n -> new GuestOverviewResponse.GuestActivityDto(
+                "node-" + n.getId(),
+                "WPE",
+                n.getCode(),
+                n.getTitle() + " is now " + n.getStatus().name().replace('_', ' '),
+                agoEn(n.getUpdatedAt(), now)
+            ))
+            .toList();
+    }
+
+    private static String agoEn(Instant at, Instant now) {
+        long minutes = Math.max(0, Duration.between(at, now).toMinutes());
+        if (minutes < 1) return "just now";
+        if (minutes < 60) return minutes + " min ago";
+        long hours = minutes / 60;
+        if (hours < 24) return hours + (hours == 1 ? " hour ago" : " hours ago");
+        long days = hours / 24;
+        return days == 1 ? "yesterday" : days + " days ago";
+    }
+
     /**
      * Xác thực tính hợp lệ của Guest Token.
      */
     public GuestLinkEntity validateAndGetActiveGuestLink(String token) {
         if (token == null || token.isBlank()) {
-            throw new ForbiddenException("REVOKED_GUEST", "Token chia sẻ không hợp lệ hoặc bị thiếu.");
+            throw new ForbiddenException("REVOKED_GUEST", "The share link is invalid or missing.");
         }
 
         GuestLinkEntity guestLink = guestLinkRepository.findByToken(token.trim())
-            .orElseThrow(() -> new ForbiddenException("REVOKED_GUEST", "Liên kết chia sẻ không tồn tại hoặc sai token."));
+            .orElseThrow(() -> new ForbiddenException("REVOKED_GUEST", "This share link does not exist."));
 
         if (Boolean.TRUE.equals(guestLink.getIsRevoked())) {
-            throw new ForbiddenException("REVOKED_GUEST", "Liên kết chia sẻ này đã bị Chủ dự án thu hồi.");
+            throw new ForbiddenException("REVOKED_GUEST", "The project owner has revoked this share link.");
         }
 
         if (guestLink.getExpiresAt().isBefore(Instant.now())) {
-            throw new ForbiddenException("REVOKED_GUEST", "Liên kết chia sẻ đã hết hạn.");
+            throw new ForbiddenException("REVOKED_GUEST", "This share link has expired.");
         }
 
+        // G25: khách xem được mọi trạng thái (kể cả DRAFT/PLANNING) trừ dự án đã lưu trữ
         ProjectEntity project = authorizationService.getProjectOrThrow(guestLink.getProjectId());
-        if (project.getStatus() != ProjectStatus.ACTIVE) {
-            throw new ForbiddenException("REVOKED_GUEST", "Dự án hiện không mở cho khách xem (trạng thái " + project.getStatus() + ").");
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ForbiddenException("REVOKED_GUEST", "This project has been archived and is no longer shared.");
         }
 
         return guestLink;

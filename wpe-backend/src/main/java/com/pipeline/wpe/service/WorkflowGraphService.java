@@ -275,6 +275,9 @@ public class WorkflowGraphService {
             }
         }
 
+        // Task mới tạo hôm nay: hạn chót sớm nhất là hôm nay
+        DueDateRules.requireNotBeforeCreation(request.dueDate(), null);
+
         // Tự động sinh mã code nếu để trống
         String code = request.code();
         if (code == null || code.isBlank()) {
@@ -454,6 +457,7 @@ public class WorkflowGraphService {
             node.setDueDate(null);
             node.setIsOverdue(false);
         } else if (request.dueDate() != null) {
+            DueDateRules.requireNotBeforeCreation(request.dueDate(), node.getCreatedAt());
             node.setDueDate(request.dueDate());
             // Dời hạn sang tương lai thì công việc không còn quá hạn
             if (request.dueDate().isAfter(Instant.now())) {
@@ -566,10 +570,10 @@ public class WorkflowGraphService {
                     NotificationEvent notification = new NotificationEvent(
                         assigneeId,
                         projectId,
-                        "Tác vụ sẵn sàng thực hiện",
-                        "Dự án đã được xuất bản. Tác vụ " + node.getCode() + " (" + node.getTitle() + ") đã mở khóa, bạn có thể bắt đầu!",
+                        "Task ready to start",
+                        "The project has been published. Task " + node.getCode() + " (" + node.getTitle() + ") is unlocked and you can start now.",
                         "TASK_READY",
-                        "/projects/" + projectId + "/tasks",
+                        "/project/" + projectId + "/my-tasks",
                         publishedAt
                     );
                     String nodeCode = node.getCode();

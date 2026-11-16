@@ -141,7 +141,7 @@ class ProjectActivityServiceTest {
 
         // Có dòng "tạo dự án"
         assertThat(allEvents)
-                .anySatisfy(item -> assertThat(item.message().toLowerCase()).contains("tạo dự án"));
+                .anySatisfy(item -> assertThat(item.message().toLowerCase()).contains("created project"));
 
         // Có dòng thành viên sarah
         assertThat(allEvents)
@@ -201,7 +201,7 @@ class ProjectActivityServiceTest {
             assertThat(item.id()).isEqualTo("node-7-force-unlocked");
             assertThat(item.type()).isEqualTo("TASK_FORCE_UNLOCKED");
             assertThat(item.actorName()).isEqualTo("Alex Kim");
-            assertThat(item.message()).contains("mở khóa sớm").contains("WPE-007");
+            assertThat(item.message()).contains("early").contains("WPE-007");
             assertThat(item.targetCode()).isEqualTo("WPE-007");
             assertThat(item.createdAt()).isEqualTo(unlockedAt);
         });
@@ -413,6 +413,6 @@ class ProjectActivityServiceTest {
                 .orElseThrow();
         assertThat(revokedEvent.type()).isEqualTo("GUEST_LINK_REVOKED");
         assertThat(revokedEvent.createdAt()).isEqualTo(tLink);
-        assertThat(revokedEvent.message().toLowerCase()).contains("không rõ thời điểm thu hồi");
+        assertThat(revokedEvent.message().toLowerCase()).contains("revoke time not recorded");
     }
 }

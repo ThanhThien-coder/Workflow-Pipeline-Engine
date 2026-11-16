@@ -1,4 +1,4 @@
-import type { IGuestService } from '../contracts/IGuestService'
+import type { GuestFeatures, IGuestService } from '../contracts/IGuestService'
 import type {
   GuestAiReportDto,
   GuestAiSummaryDto,
@@ -10,34 +10,42 @@ import type {
   SubmitGuestEvaluationCommand,
   SubmitGuestFeedbackCommand,
 } from '../../types/guest.types'
-import { MockGuestApi } from '../mock/MockWorkflowService.guest'
 import { fetchGuestOverview, submitGuestFeedback } from './http/guest'
 
+const ANONYMOUS = 'Guest'
+
+/** Tính năng chưa có API backend: trang khách không gọi tới (features tắt). */
+const notAvailable = (what: string) => Promise.reject(new Error(`${what} is not available for guest links yet.`))
+
 /**
- * D5 — HttpGuestService:
+ * D5 — HttpGuestService, chỉ dùng API backend thật (G25: không còn gọi MockGuestApi).
  *
- * Phương thức gọi API backend thật:
+ * - getLinkInfo: GET /guest/{token}/overview (backend chưa có /guest/{token} riêng; lỗi 403 = link hỏng / bị thu hồi / hết hạn)
  * - getOverview: GET /guest/{token}/overview
  * - submitFeedback: POST /guest/{token}/feedback
- *
- * Các phương thức CHƯA CÓ trong SSOT nên vẫn gọi MockGuestApi (còn mock):
- * - getLinkInfo
- * - createSession
- * - getAiSummary
- * - listFeedback
- * - generateAiReport
- * - getMyEvaluation
- * - submitEvaluation
+ * - createSession: chỉ lưu trên trình duyệt (backend không có phiên khách)
+ * - listFeedback: backend chưa có API đọc lại góp ý của khách → []
+ * - AI summary / AI report / evaluation: chưa có API → features tắt, trang khách ẩn các khối này
  */
 export class HttpGuestService implements IGuestService {
-  private readonly mock: MockGuestApi
+  readonly features: GuestFeatures = { aiSummary: false, evaluation: false }
+
   private readonly sessionNames: Map<string, string> = new Map()
 
-  constructor(mock?: MockGuestApi) {
-    this.mock = mock || new MockGuestApi()
+  async getLinkInfo(token: string): Promise<GuestLinkInfoDto> {
+    const overview = await fetchGuestOverview(token)
+    // Backend chưa trả tên chủ dự án cho khách: để rỗng, trang khách bỏ dòng "Shared by"
+    return { projectName: overview.projectName, ownerName: '' }
   }
 
-  // ───────────────────────── API Thật (D5) ─────────────────────────
+  async createSession(_token: string, displayName: string | null): Promise<GuestSessionDto> {
+    const session: GuestSessionDto = {
+      sessionId: `gs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      displayName: displayName?.trim() || null,
+    }
+    this.sessionNames.set(session.sessionId, session.displayName ?? ANONYMOUS)
+    return session
+  }
 
   /** GET /guest/{token}/overview */
   async getOverview(token: string): Promise<GuestOverviewDto> {
@@ -49,7 +57,7 @@ export class HttpGuestService implements IGuestService {
     const author =
       (cmd as any).reviewerName ||
       (cmd.sessionId ? this.sessionNames.get(cmd.sessionId) : undefined) ||
-      'Khách truy cập'
+      ANONYMOUS
 
     return submitGuestFeedback(token, {
       reviewerName: author,
@@ -59,37 +67,23 @@ export class HttpGuestService implements IGuestService {
     })
   }
 
-  // ───────────────────────── Còn Mock (Chưa có trong SSOT) ─────────────────────────
-
-  getLinkInfo(token: string): Promise<GuestLinkInfoDto> {
-    return this.mock.getLinkInfo(token)
+  async listFeedback(_token: string, _sessionId: string): Promise<GuestFeedbackDto[]> {
+    return []
   }
 
-  async createSession(token: string, displayName: string | null): Promise<GuestSessionDto> {
-    const session = await this.mock.createSession(token, displayName)
-    if (session?.sessionId) {
-      this.sessionNames.set(session.sessionId, session.displayName ?? 'Khách truy cập')
-    }
-    return session
+  getAiSummary(_token: string): Promise<GuestAiSummaryDto> {
+    return notAvailable('AI summary')
   }
 
-  getAiSummary(token: string): Promise<GuestAiSummaryDto> {
-    return this.mock.getAiSummary(token)
+  generateAiReport(_token: string): Promise<GuestAiReportDto> {
+    return notAvailable('AI report')
   }
 
-  listFeedback(token: string, sessionId: string): Promise<GuestFeedbackDto[]> {
-    return this.mock.listFeedback(token, sessionId)
+  async getMyEvaluation(_token: string, _sessionId: string): Promise<GuestEvaluationDto | null> {
+    return null
   }
 
-  generateAiReport(token: string): Promise<GuestAiReportDto> {
-    return this.mock.generateAiReport(token)
-  }
-
-  getMyEvaluation(token: string, sessionId: string): Promise<GuestEvaluationDto | null> {
-    return this.mock.getMyEvaluation(token, sessionId)
-  }
-
-  submitEvaluation(token: string, cmd: SubmitGuestEvaluationCommand): Promise<GuestEvaluationDto> {
-    return this.mock.submitEvaluation(token, cmd)
+  submitEvaluation(_token: string, _cmd: SubmitGuestEvaluationCommand): Promise<GuestEvaluationDto> {
+    return notAvailable('Evaluation')
   }
 }

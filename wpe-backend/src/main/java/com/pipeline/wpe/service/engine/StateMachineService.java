@@ -198,10 +198,10 @@ public class StateMachineService {
                 eventPublisher.publishNotification(new NotificationEvent(
                     node.getAssignedUserId(),
                     node.getProjectId(),
-                    "Tác vụ yêu cầu làm lại",
-                    "Tác vụ " + node.getCode() + " bị từ chối: " + request.rejectReason(),
+                    "Changes requested",
+                    "Task " + node.getCode() + " was sent back: " + request.rejectReason(),
                     "REJECTED",
-                    "/projects/" + node.getProjectId() + "/tasks",
+                    "/project/" + node.getProjectId() + "/my-tasks",
                     Instant.now()
                 ));
 
@@ -369,10 +369,10 @@ public class StateMachineService {
         eventPublisher.publishNotification(new NotificationEvent(
             project.getOwnerId(),
             node.getProjectId(),
-            "Tác vụ chờ nghiệm thu",
-            "Thành viên đã nộp bài cho tác vụ " + node.getCode() + " (" + node.getTitle() + ")",
+            "Task waiting for review",
+            "A member submitted work for task " + node.getCode() + " (" + node.getTitle() + ")",
             "REVIEW_REQUESTED",
-            "/projects/" + node.getProjectId() + "/tasks",
+            "/project/" + node.getProjectId() + "/my-tasks",
             Instant.now()
         ));
 
@@ -422,10 +422,10 @@ public class StateMachineService {
             eventPublisher.publishNotification(new NotificationEvent(
                 assigneeId,
                 saved.getProjectId(),
-                "Tác vụ được mở khóa sớm",
-                "Tác vụ " + saved.getCode() + " (" + saved.getTitle() + ") được Chủ dự án mở khóa sớm, bạn có thể bắt đầu làm.",
+                "Task unlocked early",
+                "The project owner unlocked task " + saved.getCode() + " (" + saved.getTitle() + ") early. You can start now.",
                 "FORCE_UNLOCKED",
-                "/projects/" + saved.getProjectId() + "/tasks",
+                "/project/" + saved.getProjectId() + "/my-tasks",
                 Instant.now()
             ));
             afterCommit(() -> sseEmitterService.sendToUser(assigneeId, "TASK_UNLOCKED", response));
@@ -477,10 +477,10 @@ public class StateMachineService {
                         eventPublisher.publishNotification(new NotificationEvent(
                             savedChild.getAssignedUserId(),
                             savedChild.getProjectId(),
-                            "Tác vụ sẵn sàng thực hiện",
-                            "Tác vụ " + savedChild.getCode() + " (" + savedChild.getTitle() + ") đã được tự động mở khóa!",
+                            "Task ready to start",
+                            "Task " + savedChild.getCode() + " (" + savedChild.getTitle() + ") has been unlocked automatically.",
                             "TASK_READY",
-                            "/projects/" + savedChild.getProjectId() + "/tasks",
+                            "/project/" + savedChild.getProjectId() + "/my-tasks",
                             Instant.now()
                         ));
 

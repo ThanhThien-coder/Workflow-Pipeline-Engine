@@ -99,7 +99,7 @@ class ProjectInvitationServiceTest {
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(userRepository.findById(inviterId)).thenReturn(Optional.of(inviter));
-        when(userRepository.findByEmail("sarah.chen@pipeline.engine")).thenReturn(Optional.of(invitee));
+        when(userRepository.findByEmailIgnoreCase("sarah.chen@pipeline.engine")).thenReturn(Optional.of(invitee));
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
         when(projectInvitationRepository.findByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING)).thenReturn(Optional.empty());
 
@@ -133,7 +133,8 @@ class ProjectInvitationServiceTest {
         NotificationEntity savedNotif = notifCaptor.getValue();
         assertThat(savedNotif.getUserId()).isEqualTo(inviteeId);
         assertThat(savedNotif.getLinkUrl()).isEqualTo("/workspace?action=open-invite-modal&invitationId=" + invitationId);
-        assertThat(savedNotif.getMessage()).contains("Alex Kim đã mời bạn tham gia dự án \"Core Banking Pipeline\"");
+        assertThat(savedNotif.getMessage()).contains("Alex Kim invited you to join the project \"Core Banking Pipeline\"");
+        assertThat(savedNotif.getTitle()).isEqualTo("Project invitation: Core Banking Pipeline");
         assertThat(savedNotif.getIsRead()).isFalse();
 
         // Kiểm tra Event được publish qua RabbitMQ
@@ -204,7 +205,7 @@ class ProjectInvitationServiceTest {
         // otherUserId (99L) cố tình accept
         assertThatThrownBy(() -> projectInvitationService.acceptInvitation(invitationId, otherUserId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Bạn không có quyền phản hồi lời mời này.");
+                .hasMessageContaining("You cannot respond to this invitation.");
 
         verify(projectMemberRepository, never()).save(any(ProjectMemberEntity.class));
     }
@@ -293,7 +294,7 @@ class ProjectInvitationServiceTest {
 
         assertThatThrownBy(() -> projectInvitationService.revokeInvitation(invitationId, otherUserId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Chỉ người gửi lời mời hoặc chủ dự án mới có quyền thu hồi lời mời này.");
+                .hasMessageContaining("Only the inviter or the project owner can revoke this invitation.");
     }
 
     @Test
@@ -321,14 +322,14 @@ class ProjectInvitationServiceTest {
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(userRepository.findById(inviterId)).thenReturn(Optional.of(inviter));
-        when(userRepository.findByEmail("sarah.chen@pipeline.engine")).thenReturn(Optional.of(invitee));
+        when(userRepository.findByEmailIgnoreCase("sarah.chen@pipeline.engine")).thenReturn(Optional.of(invitee));
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
         when(projectInvitationRepository.findByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING))
                 .thenReturn(Optional.of(activePending));
 
         assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, inviterId))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("đã có một lời mời đang chờ phản hồi.");
+                .hasMessageContaining("already has a pending invitation.");
 
         verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
     }
@@ -347,7 +348,7 @@ class ProjectInvitationServiceTest {
 
         assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, otherUserId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Chỉ chủ dự án (OWNER) mới được gửi lời mời.");
+                .hasMessageContaining("Only the project owner can send invitations.");
 
         verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
     }
@@ -366,7 +367,7 @@ class ProjectInvitationServiceTest {
 
         assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, otherUserId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Chỉ chủ dự án (OWNER) mới được gửi lời mời.");
+                .hasMessageContaining("Only the project owner can send invitations.");
 
         verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
     }
@@ -385,8 +386,27 @@ class ProjectInvitationServiceTest {
 
         assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, inviterId))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Không thể mời với vai trò OWNER. Dùng chức năng chuyển quyền sở hữu.");
+                .hasMessageContaining("You cannot invite someone as OWNER. Use transfer ownership instead.");
 
+        verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
+    }
+
+    @Test
+    @DisplayName("G22: mời bằng username (không phải email) -> 400 INVALID_EMAIL, không tìm theo username")
+    void shouldRejectUsernameInvite() {
+        ProjectEntity project = ProjectEntity.builder()
+                .id(projectId)
+                .ownerId(inviterId)
+                .build();
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(userRepository.findById(inviterId)).thenReturn(Optional.of(UserEntity.builder().id(inviterId).username("alex.kim").build()));
+
+        CreateInvitationRequest req = new CreateInvitationRequest("sarah.chen", ProjectRole.COLLABORATOR);
+
+        assertThatThrownBy(() -> projectInvitationService.sendInvitation(projectId, req, inviterId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("INVALID_EMAIL");
+        verify(userRepository, never()).findByUsername(any());
         verify(projectInvitationRepository, never()).save(any(ProjectInvitationEntity.class));
     }
 
@@ -454,7 +474,7 @@ class ProjectInvitationServiceTest {
                 .satisfies(e -> {
                     ConflictException ce = (ConflictException) e;
                     assertThat(ce.getErrorCode()).isEqualTo("INVITATION_EXPIRED");
-                    assertThat(ce.getMessage()).isEqualTo("Lời mời đã hết hạn.");
+                    assertThat(ce.getMessage()).isEqualTo("This invitation has expired.");
                 });
 
         assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
@@ -483,7 +503,7 @@ class ProjectInvitationServiceTest {
                 .satisfies(e -> {
                     ConflictException ce = (ConflictException) e;
                     assertThat(ce.getErrorCode()).isEqualTo("INVITATION_EXPIRED");
-                    assertThat(ce.getMessage()).isEqualTo("Lời mời đã hết hạn.");
+                    assertThat(ce.getMessage()).isEqualTo("This invitation has expired.");
                 });
 
         assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
@@ -518,7 +538,7 @@ class ProjectInvitationServiceTest {
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(userRepository.findById(inviterId)).thenReturn(Optional.of(inviter));
-        when(userRepository.findByEmail("example-sarah@example-pipeline.org")).thenReturn(Optional.of(invitee));
+        when(userRepository.findByEmailIgnoreCase("example-sarah@example-pipeline.org")).thenReturn(Optional.of(invitee));
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, inviteeId)).thenReturn(false);
         when(projectInvitationRepository.findByProjectIdAndInviteeIdAndStatus(projectId, inviteeId, InvitationStatus.PENDING))
                 .thenReturn(Optional.of(oldInvitation));
