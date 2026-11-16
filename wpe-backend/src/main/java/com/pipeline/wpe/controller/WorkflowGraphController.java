@@ -5,7 +5,6 @@ import com.pipeline.wpe.dto.response.graph.*;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.WorkflowGraphService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +27,9 @@ public class WorkflowGraphController {
         description = "Trả về Macro Phases, Phase Edges, Nodes (thuộc phase và standalone) và các cạnh phụ thuộc Dependencies."
     )
     public ResponseEntity<WorkflowGraphResponse> getGraph(
-        @PathVariable Long id,
-        @Parameter(description = "ID người gọi (Tùy chọn khi test, mặc định đọc từ Security Context hoặc debug)")
-        @RequestParam(required = false) Long currentUserId
+        @PathVariable Long id
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         WorkflowGraphResponse response = workflowGraphService.getGraph(id, callerId);
         return ResponseEntity.ok(response);
     }
@@ -44,10 +41,9 @@ public class WorkflowGraphController {
     )
     public ResponseEntity<PhaseResponse> createPhase(
         @PathVariable Long id,
-        @Valid @RequestBody CreatePhaseRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody CreatePhaseRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         PhaseResponse response = workflowGraphService.createPhase(id, request, callerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -60,10 +56,9 @@ public class WorkflowGraphController {
     public ResponseEntity<PhaseResponse> updatePhase(
         @PathVariable Long id,
         @PathVariable Long phaseId,
-        @Valid @RequestBody UpdatePhaseRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody UpdatePhaseRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         PhaseResponse response = workflowGraphService.updatePhase(id, phaseId, request, callerId);
         return ResponseEntity.ok(response);
     }
@@ -75,10 +70,9 @@ public class WorkflowGraphController {
     )
     public ResponseEntity<Void> deletePhase(
         @PathVariable Long id,
-        @PathVariable Long phaseId,
-        @RequestParam(required = false) Long currentUserId
+        @PathVariable Long phaseId
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         workflowGraphService.deletePhase(id, phaseId, callerId);
         return ResponseEntity.noContent().build();
     }
@@ -91,10 +85,9 @@ public class WorkflowGraphController {
     public ResponseEntity<Void> connectPhases(
         @PathVariable Long id,
         @RequestParam Long sourcePhaseId,
-        @RequestParam Long targetPhaseId,
-        @RequestParam(required = false) Long currentUserId
+        @RequestParam Long targetPhaseId
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         workflowGraphService.connectPhases(id, sourcePhaseId, targetPhaseId, callerId);
         return ResponseEntity.ok().build();
     }
@@ -107,10 +100,9 @@ public class WorkflowGraphController {
     public ResponseEntity<Void> disconnectPhases(
         @PathVariable Long id,
         @RequestParam Long sourcePhaseId,
-        @RequestParam Long targetPhaseId,
-        @RequestParam(required = false) Long currentUserId
+        @RequestParam Long targetPhaseId
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         workflowGraphService.disconnectPhases(id, sourcePhaseId, targetPhaseId, callerId);
         return ResponseEntity.noContent().build();
     }
@@ -122,10 +114,9 @@ public class WorkflowGraphController {
     )
     public ResponseEntity<GraphNodeResponse> createNode(
         @PathVariable Long id,
-        @Valid @RequestBody CreateNodeRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody CreateNodeRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         GraphNodeResponse response = workflowGraphService.createNode(id, request, callerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -137,10 +128,9 @@ public class WorkflowGraphController {
     )
     public ResponseEntity<DependencyResponse> createDependency(
         @PathVariable Long id,
-        @Valid @RequestBody CreateDependencyRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody CreateDependencyRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         DependencyResponse response = workflowGraphService.createDependency(id, request, callerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -153,10 +143,9 @@ public class WorkflowGraphController {
     public ResponseEntity<Void> deleteDependency(
         @PathVariable Long id,
         @RequestParam Long parentNodeId,
-        @RequestParam Long childNodeId,
-        @RequestParam(required = false) Long currentUserId
+        @RequestParam Long childNodeId
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         workflowGraphService.deleteDependency(id, parentNodeId, childNodeId, callerId);
         return ResponseEntity.noContent().build();
     }
@@ -168,10 +157,9 @@ public class WorkflowGraphController {
     )
     public ResponseEntity<GraphNodeResponse> updateNode(
         @PathVariable Long id,
-        @Valid @RequestBody UpdateNodeRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody UpdateNodeRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         return ResponseEntity.ok(workflowGraphService.updateNode(id, request, callerId));
     }
 
@@ -181,10 +169,9 @@ public class WorkflowGraphController {
         description = "Chỉ Owner. Chỉ xóa được node đang LOCKED hoặc TODO; ngược lại trả 409 NODE_IN_USE. Các cạnh của node bị xóa theo, node con được tính lại trạng thái."
     )
     public ResponseEntity<Void> deleteNode(
-        @PathVariable Long id,
-        @RequestParam(required = false) Long currentUserId
+        @PathVariable Long id
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         workflowGraphService.deleteNode(id, callerId);
         return ResponseEntity.noContent().build();
     }
@@ -197,10 +184,9 @@ public class WorkflowGraphController {
     public ResponseEntity<GraphNodeResponse> updateNodeMetadata(
         @PathVariable Long id,
         @PathVariable(required = false) Long projectId,
-        @Valid @RequestBody UpdateNodeMetadataRequest request,
-        @RequestParam(required = false) Long currentUserId
+        @Valid @RequestBody UpdateNodeMetadataRequest request
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         GraphNodeResponse response = workflowGraphService.updateNodeMetadata(id, request, callerId);
         return ResponseEntity.ok(response);
     }
@@ -211,10 +197,9 @@ public class WorkflowGraphController {
         description = "Chủ dự án bấm xuất bản quy trình. Backend chạy thuật toán Kahn O(V+E): nếu phát hiện chu trình trả về HTTP 422 CYCLE_DETECTED, nếu hợp lệ chuyển trạng thái ACTIVE và tự động mở khóa các Node gốc từ LOCKED sang TODO."
     )
     public ResponseEntity<PublishPipelineResponse> publishPipeline(
-        @PathVariable Long id,
-        @RequestParam(required = false) Long currentUserId
+        @PathVariable Long id
     ) {
-        Long callerId = (currentUserId != null) ? currentUserId : currentUserProvider.getCurrentUserId().orElse(2L);
+        Long callerId = currentUserProvider.requireCurrentUserId();
         PublishPipelineResponse response = workflowGraphService.publishPipeline(id, callerId);
         return ResponseEntity.ok(response);
     }
