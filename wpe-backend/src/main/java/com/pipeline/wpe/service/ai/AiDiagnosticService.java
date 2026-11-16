@@ -88,6 +88,13 @@ public class AiDiagnosticService {
         // 3. Gọi dịch vụ AI
         Map<String, Object> newAnalysis = aiServiceClient.requestDiagnosis(project, nodes, openFeedbacks);
 
+        // Dịch vụ AI lỗi: trả dữ liệu dự phòng kèm cảnh báo cho FE, nhưng không ghi đè kết quả thật cũ
+        // và không tính vào cooldown (cooldown đọc analyzedAt của bản đã lưu).
+        if (newAnalysis != null && "MOCK_FALLBACK".equals(newAnalysis.get("source"))) {
+            log.warn("AI service unavailable for project ID: {}. Returning fallback result without saving.", projectId);
+            return newAnalysis;
+        }
+
         // 4. Ghi đè vào JSONB latest_ai_analysis và lưu Database
         project.setLatestAiAnalysis(newAnalysis);
         projectRepository.save(project);

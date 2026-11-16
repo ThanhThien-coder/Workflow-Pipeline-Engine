@@ -135,5 +135,97 @@ class AiDiagnosticServiceTest {
 
         verify(projectRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - MOCK_FALLBACK không ghi đè bản phân tích cũ và không lưu DB")
+    void testTriggerAiDiagnostics_MockFallback_DoesNotOverwriteOldAnalysisAndDoesNotSave() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+
+        Instant oneHourAgo = Instant.now().minus(1, ChronoUnit.HOURS);
+        Map<String, Object> oldAnalysis = Map.of(
+            "analyzedAt", oneHourAgo.toString(),
+            "source", "AI_SERVICE"
+        );
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Core Banking")
+            .latestAiAnalysis(oldAnalysis)
+            .build();
+
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
+
+        Map<String, Object> fallbackResult = Map.of(
+            "source", "MOCK_FALLBACK",
+            "warning", "example-warning"
+        );
+        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenReturn(fallbackResult);
+
+        Map<String, Object> result = aiDiagnosticService.triggerAiDiagnostics(projectId);
+
+        assertThat(result.get("source")).isEqualTo("MOCK_FALLBACK");
+        assertThat(result.get("warning")).isEqualTo("example-warning");
+        assertThat(project.getLatestAiAnalysis()).isEqualTo(oldAnalysis);
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - Gọi 2 lần liên tiếp nhận MOCK_FALLBACK không bị chặn Cooldown")
+    void testTriggerAiDiagnostics_ConsecutiveMockFallback_NoCooldownException() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Core Banking")
+            .latestAiAnalysis(null)
+            .build();
+
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
+
+        Map<String, Object> fallbackResult = Map.of(
+            "source", "MOCK_FALLBACK",
+            "warning", "example-warning"
+        );
+        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenReturn(fallbackResult);
+
+        Map<String, Object> result1 = aiDiagnosticService.triggerAiDiagnostics(projectId);
+        Map<String, Object> result2 = aiDiagnosticService.triggerAiDiagnostics(projectId);
+
+        assertThat(result1.get("source")).isEqualTo("MOCK_FALLBACK");
+        assertThat(result2.get("source")).isEqualTo("MOCK_FALLBACK");
+        verify(aiServiceClient, times(2)).requestDiagnosis(any(), any(), any());
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - Client trả source MOCK vẫn được lưu DB bình thường")
+    void testTriggerAiDiagnostics_MockSource_SavedSuccessfully() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Core Banking")
+            .latestAiAnalysis(null)
+            .build();
+
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
+
+        Map<String, Object> mockResult = Map.of(
+            "source", "MOCK",
+            "analyzedAt", Instant.now().toString()
+        );
+        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenReturn(mockResult);
+
+        Map<String, Object> result = aiDiagnosticService.triggerAiDiagnostics(projectId);
+
+        assertThat(result.get("source")).isEqualTo("MOCK");
+        assertThat(project.getLatestAiAnalysis()).isEqualTo(mockResult);
+        verify(projectRepository).save(project);
+    }
 }
 
