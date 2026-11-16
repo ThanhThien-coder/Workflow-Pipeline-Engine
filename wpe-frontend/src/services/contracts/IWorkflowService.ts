@@ -1,5 +1,5 @@
 import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency } from '../../types/workflow.types'
-import type { GuestAccessState, OverviewData } from '../../types/overview.types'
+import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import type {
   ProjectSettingsDto,
@@ -87,6 +87,8 @@ export interface IWorkflowService {
   resolveFeedback(projectId: string, feedbackId: string): Promise<void>
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState>
   generateGuestToken(projectId: string): Promise<GuestAccessState>
+  /** Chạy chẩn đoán AI mới cho dự án (nút Re-scan). Lỗi 429/403 ném ra cho store xử lý. */
+  runAiDiagnosis(projectId: string): Promise<AiDiagnosticReport>
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]>
   /** Mọi task của một phase cho Kanban theo phase (kể cả LOCKED, chưa giao). */
   getPhaseTasks(projectId: string, phaseId: string): Promise<KanbanTask[]>

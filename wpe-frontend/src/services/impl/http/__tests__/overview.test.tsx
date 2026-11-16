@@ -12,7 +12,7 @@ import { OverviewView } from '../../../../components/views/OverviewView'
 import { useWorkflowStore } from '../../../../store/useWorkflowStore'
 import { ApiError } from '../../../http/ApiError'
 import type { IWorkflowService } from '../../../contracts/IWorkflowService'
-import type { OverviewData } from '../../../../types/overview.types'
+import type { AiDiagnosticReport, OverviewData } from '../../../../types/overview.types'
 
 function jsonResponse(status: number, body?: unknown): Response {
   if (status === 204 || body === undefined || body === null) {
@@ -212,7 +212,7 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
     const emptyReport = mapAiAnalysisToReport(null, '2026-11-13T10:00:00Z')
     expect(emptyReport.hasAnalysis).toBe(false)
     expect(emptyReport.insights).toEqual([])
-    expect(emptyReport.emptyMessage).toBe('Chưa có chẩn đoán')
+    expect(emptyReport.emptyMessage).toBe('No diagnosis yet')
   })
 
   it('overviewSlice: generateGuest gọi API với projectId của route (không dùng id mock "1") và toast hiện message backend', async () => {
@@ -342,7 +342,7 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
         generatedAt: '2026-11-13T08:00:00Z',
         insights: [],
         hasAnalysis: false,
-        emptyMessage: 'Chưa có chẩn đoán',
+        emptyMessage: 'No diagnosis yet',
       },
       guestAccess: { isActive: false, token: '', expiresAt: '', expiresLabel: 'Đã thu hồi' },
       feedbackQueue: [],
@@ -366,7 +366,7 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
     expect(screen.getByText('2 / 4 nodes completed')).toBeTruthy()
     expect(screen.getByTestId('weekly-velocity-hidden')).toBeTruthy()
     expect(screen.queryByText('Weekly Velocity')).toBeNull()
-    expect(screen.getByTestId('ai-diagnosis-empty').textContent).toContain('Chưa có chẩn đoán')
+    expect(screen.getByTestId('ai-diagnosis-empty').textContent).toContain('No diagnosis yet')
     expect(screen.getByTestId('recent-activity-empty')).toBeTruthy()
   })
 })
@@ -393,32 +393,354 @@ describe('F2 — Chẩn đoán AI ghi đúng nguồn dữ liệu, không ghi d�
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('source = MOCK_FALLBACK có warning → nhãn "Dữ liệu mẫu" (không phải Gemini) và hiện dòng cảnh báo', () => {
+  it('source = MOCK_FALLBACK có warning → nhãn "Sample data" (không phải Gemini) và hiện dòng cảnh báo', () => {
     const warning = 'Không gọi được dịch vụ AI (Connection refused), đang hiển thị dữ liệu giả.'
     const report = openPopover({ source: 'MOCK_FALLBACK', warning })
 
-    expect(report.engine).toBe('Dữ liệu mẫu')
+    expect(report.engine).toBe('Sample data')
     expect(screen.queryByText(/Gemini/)).toBeNull()
-    expect(screen.getByText(/Nguồn: Dữ liệu mẫu/)).toBeTruthy()
+    expect(screen.getByText(/Source: Sample data/)).toBeTruthy()
     expect(screen.getByRole('alert').textContent).toContain(warning)
   })
 
-  it('source = HEURISTIC_FALLBACK có rateLimitWarning → nhãn "Phân tích dự phòng" và hiện cảnh báo', () => {
+  it('source = HEURISTIC_FALLBACK có rateLimitWarning → nhãn "Fallback analysis" và hiện cảnh báo', () => {
     const report = openPopover({ source: 'HEURISTIC_FALLBACK', rateLimitWarning: 'Gemini đang bị giới hạn lượt gọi (429).' })
 
-    expect(report.engine).toBe('Phân tích dự phòng')
-    expect(screen.getByText(/Nguồn: Phân tích dự phòng/)).toBeTruthy()
+    expect(report.engine).toBe('Fallback analysis')
+    expect(screen.getByText(/Source: Fallback analysis/)).toBeTruthy()
     expect(screen.getByRole('alert').textContent).toContain('giới hạn lượt gọi (429)')
   })
 
   it('MOCK, thiếu source, rateLimitWarning = true: không bao giờ mặc định là Gemini; gộp cả 2 cảnh báo', () => {
-    expect(mapAiAnalysisToReport({ source: 'MOCK', actionableAdvice: advice }, 't').engine).toBe('Dữ liệu mẫu')
+    expect(mapAiAnalysisToReport({ source: 'MOCK', actionableAdvice: advice }, 't').engine).toBe('Sample data')
     const noSource = mapAiAnalysisToReport({ actionableAdvice: advice }, 't')
-    expect(noSource.engine).toBe('Không rõ nguồn')
+    expect(noSource.engine).toBe('Unknown source')
     expect(noSource.source).toBe('UNKNOWN')
 
     const both = mapAiAnalysisToReport({ source: 'MOCK_FALLBACK', warning: 'W1', rateLimitWarning: true, actionableAdvice: advice }, 't')
     expect(both.warning).toContain('W1')
-    expect(both.warning).toContain('giới hạn lượt gọi')
+    expect(both.warning).toContain('The AI service is rate-limited')
+  })
+})
+
+describe('mapAiAnalysisToReport metrics', () => {
+  it('metrics dạng mới { status: "OVERDUE", driftScore: null, completedLast7Days: 2, overdueDays: 3, remainingTasks: 4 } → report.metrics đúng từng trường', () => {
+    const report = mapAiAnalysisToReport(
+      {
+        metrics: {
+          status: 'OVERDUE',
+          driftScore: null,
+          completedLast7Days: 2,
+          overdueDays: 3,
+          remainingTasks: 4,
+        },
+        actionableAdvice: [{ action: 'SPLIT_NODE', targetNodeCode: 'WPE-002', instruction: 'Split task' }],
+      },
+      '2026-11-16T10:00:00Z',
+    )
+    expect(report.metrics).toEqual({
+      status: 'OVERDUE',
+      driftScore: null,
+      completedLast7Days: 2,
+      overdueDays: 3,
+      remainingTasks: 4,
+    })
+  })
+
+  it('metrics dạng cũ { targetVelocity: 2, actualVelocity: 1.2, driftScore: 42.5, status: "RED_ALERT" } → status "RED_ALERT", driftScore 42.5, completedLast7Days/overdueDays/remainingTasks = null', () => {
+    const report = mapAiAnalysisToReport(
+      {
+        metrics: {
+          targetVelocity: 2,
+          actualVelocity: 1.2,
+          driftScore: 42.5,
+          status: 'RED_ALERT',
+        },
+        actionableAdvice: [{ action: 'SPLIT_NODE', targetNodeCode: 'WPE-002', instruction: 'Split task' }],
+      },
+      '2026-11-16T10:00:00Z',
+    )
+    expect(report.metrics).toEqual({
+      status: 'RED_ALERT',
+      driftScore: 42.5,
+      completedLast7Days: null,
+      overdueDays: null,
+      remainingTasks: null,
+    })
+  })
+
+  it('status lạ "PURPLE" → "UNKNOWN"; không có metrics → report.metrics là undefined', () => {
+    const reportPurple = mapAiAnalysisToReport(
+      {
+        metrics: { status: 'PURPLE' },
+        actionableAdvice: [{ action: 'SPLIT_NODE', targetNodeCode: 'WPE-002', instruction: 'Split task' }],
+      },
+      '2026-11-16T10:00:00Z',
+    )
+    expect(reportPurple.metrics?.status).toBe('UNKNOWN')
+
+    const reportNoMetrics = mapAiAnalysisToReport(
+      {
+        actionableAdvice: [{ action: 'SPLIT_NODE', targetNodeCode: 'WPE-002', instruction: 'Split task' }],
+      },
+      '2026-11-16T10:00:00Z',
+    )
+    expect(reportNoMetrics.metrics).toBeUndefined()
+  })
+})
+
+describe('AiDiagnosisPopover — metrics, rescan và lỗi scan', () => {
+  afterEach(() => cleanup())
+
+  it('OVERDUE (overdueDays 3, remainingTasks 1) → ai-metrics chứa "Overdue by 3 days · 1 task left"', () => {
+    const report: AiDiagnosticReport = {
+      engine: 'Gemini',
+      generatedAt: '2026-11-16T10:00:00Z',
+      insights: [],
+      metrics: {
+        status: 'OVERDUE',
+        driftScore: null,
+        completedLast7Days: null,
+        overdueDays: 3,
+        remainingTasks: 1,
+      },
+    }
+    render(<AiDiagnosisPopover report={report} />)
+    fireEvent.click(screen.getByRole('button', { name: /AI Diagnosis/ }))
+    const metricsEl = screen.getByTestId('ai-metrics')
+    expect(metricsEl.textContent).toContain('Overdue by 3 days · 1 task left')
+  })
+
+  it('INSUFFICIENT_DATA → chứa "Not enough data"', () => {
+    const report: AiDiagnosticReport = {
+      engine: 'Gemini',
+      generatedAt: '2026-11-16T10:00:00Z',
+      insights: [],
+      metrics: {
+        status: 'INSUFFICIENT_DATA',
+        driftScore: null,
+        completedLast7Days: null,
+        overdueDays: null,
+        remainingTasks: null,
+      },
+    }
+    render(<AiDiagnosisPopover report={report} />)
+    fireEvent.click(screen.getByRole('button', { name: /AI Diagnosis/ }))
+    expect(screen.getByTestId('ai-metrics').textContent).toContain('Not enough data')
+  })
+
+  it('STABLE_GREEN, driftScore 12.5, completedLast7Days 1 → chứa "On track", "Drift 12.5%", "1 task done in the last 7 days"', () => {
+    const report: AiDiagnosticReport = {
+      engine: 'Gemini',
+      generatedAt: '2026-11-16T10:00:00Z',
+      insights: [],
+      metrics: {
+        status: 'STABLE_GREEN',
+        driftScore: 12.5,
+        completedLast7Days: 1,
+        overdueDays: null,
+        remainingTasks: null,
+      },
+    }
+    render(<AiDiagnosisPopover report={report} />)
+    fireEvent.click(screen.getByRole('button', { name: /AI Diagnosis/ }))
+    const el = screen.getByTestId('ai-metrics')
+    expect(el.textContent).toContain('On track')
+    expect(el.textContent).toContain('Drift 12.5%')
+    expect(el.textContent).toContain('1 task done in the last 7 days')
+  })
+
+  it('bấm "Re-scan Pipeline" gọi onRescan đúng 1 lần; scanning = true → nút bị vô hiệu và hiện "Scanning…"; không truyền onRescan → nút bị vô hiệu', () => {
+    const onRescan = vi.fn()
+    const report: AiDiagnosticReport = {
+      engine: 'Gemini',
+      generatedAt: '2026-11-16T10:00:00Z',
+      insights: [],
+    }
+
+    const { rerender } = render(<AiDiagnosisPopover report={report} onRescan={onRescan} />)
+    fireEvent.click(screen.getByRole('button', { name: /AI Diagnosis/ }))
+    const rescanBtn = screen.getByRole('button', { name: /Re-scan Pipeline/i })
+    expect((rescanBtn as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(rescanBtn)
+    expect(onRescan).toHaveBeenCalledTimes(1)
+
+    rerender(<AiDiagnosisPopover report={report} scanning={true} onRescan={onRescan} />)
+    const scanningBtn = screen.getByRole('button', { name: /Scanning…/i })
+    expect((scanningBtn as HTMLButtonElement).disabled).toBe(true)
+
+    rerender(<AiDiagnosisPopover report={report} />)
+    const disabledBtn = screen.getByRole('button', { name: /Re-scan Pipeline/i })
+    expect((disabledBtn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('scanError = "X" → ai-scan-error chứa "X"', () => {
+    const report: AiDiagnosticReport = {
+      engine: 'Gemini',
+      generatedAt: '2026-11-16T10:00:00Z',
+      insights: [],
+    }
+    render(<AiDiagnosisPopover report={report} scanError="X" />)
+    fireEvent.click(screen.getByRole('button', { name: /AI Diagnosis/ }))
+    const errEl = screen.getByTestId('ai-scan-error')
+    expect(errEl.textContent).toContain('X')
+    expect(errEl.getAttribute('role')).toBe('status')
+  })
+})
+
+describe('overviewSlice — runAiDiagnosis', () => {
+  const sampleReport: AiDiagnosticReport = {
+    engine: 'Gemini',
+    source: 'AI_SERVICE',
+    generatedAt: '2026-11-16T10:00:00Z',
+    insights: [],
+    hasAnalysis: true,
+  }
+
+  const baseData: OverviewData = {
+    project: { id: '5', name: 'Project 5', role: 'OWNER', phaseLabel: 'Phase 1', lastUpdatedAt: '2026-11-16T00:00:00Z' },
+    metrics: { totalNodes: 0, criticalPathNodes: 0, completedNodes: 0, completionRate: 0, overdueCount: 0, blockingReleaseCount: 0, pendingReviewCount: 0 },
+    velocity: { periodLabel: 'Last 7 days', days: [], hasData: false },
+    statusBreakdown: { totalTasks: 0, items: [] },
+    aiReport: { engine: 'Sample data', generatedAt: '2026-11-15T00:00:00Z', insights: [], hasAnalysis: false },
+    guestAccess: { isActive: false, token: '', expiresAt: '', expiresLabel: '' },
+    feedbackQueue: [],
+    recentActivity: [],
+  }
+
+  it("runAiDiagnosis('5') thành công → data.aiReport thành report do fakeService.runAiDiagnosis trả, aiScanning về false", async () => {
+    const runAiSpy = vi.fn().mockResolvedValue(sampleReport)
+    const fakeService = {
+      runAiDiagnosis: runAiSpy,
+    } as unknown as IWorkflowService
+
+    type TestStore = OverviewSlice & { currentProjectId: string | null }
+    const store = create<TestStore>()((set, get) => ({
+      currentProjectId: '5',
+      ...createOverviewSlice(set, get, fakeService),
+    }))
+
+    store.setState((state) => ({
+      overview: {
+        ...state.overview,
+        projectId: '5',
+        data: { ...baseData },
+      },
+    }))
+
+    await store.getState().overview.runAiDiagnosis('5')
+
+    expect(runAiSpy).toHaveBeenCalledWith('5')
+    expect(store.getState().overview.data?.aiReport).toEqual(sampleReport)
+    expect(store.getState().overview.aiScanning).toBe(false)
+    expect(store.getState().overview.aiScanError).toBeNull()
+  })
+
+  it('fakeService.runAiDiagnosis ném 429 COOLDOWN_ACTIVE kèm retryAfterSeconds 90 → aiScanError chứa "90s", data.aiReport giữ nguyên bản cũ, aiScanning về false', async () => {
+    const error429 = new ApiError({
+      status: 429,
+      code: 'COOLDOWN_ACTIVE',
+      message: 'x',
+      retryAfterSeconds: 90,
+    })
+    const runAiSpy = vi.fn().mockRejectedValue(error429)
+    const fakeService = {
+      runAiDiagnosis: runAiSpy,
+    } as unknown as IWorkflowService
+
+    type TestStore = OverviewSlice & { currentProjectId: string | null }
+    const store = create<TestStore>()((set, get) => ({
+      currentProjectId: '5',
+      ...createOverviewSlice(set, get, fakeService),
+    }))
+
+    const initialReport = { ...baseData.aiReport }
+    store.setState((state) => ({
+      overview: {
+        ...state.overview,
+        projectId: '5',
+        data: { ...baseData, aiReport: initialReport },
+      },
+    }))
+
+    await store.getState().overview.runAiDiagnosis('5')
+
+    expect(store.getState().overview.aiScanError).toContain('90s')
+    expect(store.getState().overview.data?.aiReport).toEqual(initialReport)
+    expect(store.getState().overview.aiScanning).toBe(false)
+  })
+
+  it('ném 403 → aiScanError chứa "permission"', async () => {
+    const error403 = new ApiError({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+    })
+    const runAiSpy = vi.fn().mockRejectedValue(error403)
+    const fakeService = {
+      runAiDiagnosis: runAiSpy,
+    } as unknown as IWorkflowService
+
+    type TestStore = OverviewSlice & { currentProjectId: string | null }
+    const store = create<TestStore>()((set, get) => ({
+      currentProjectId: '5',
+      ...createOverviewSlice(set, get, fakeService),
+    }))
+
+    store.setState((state) => ({
+      overview: {
+        ...state.overview,
+        projectId: '5',
+        data: { ...baseData },
+      },
+    }))
+
+    await store.getState().overview.runAiDiagnosis('5')
+
+    expect(store.getState().overview.aiScanError).toContain('permission')
+    expect(store.getState().overview.aiScanning).toBe(false)
+  })
+
+  it("đang chạy dự án '5' thì load sang dự án '6', sau đó runAiDiagnosis của '5' ném lỗi → aiScanError của overview vẫn null", async () => {
+    let rejectRunAi!: (reason?: unknown) => void
+    const runAiPromise = new Promise<AiDiagnosticReport>((_, reject) => {
+      rejectRunAi = reject
+    })
+    const runAiSpy = vi.fn().mockReturnValue(runAiPromise)
+    const getOverviewSpy = vi.fn().mockResolvedValue({
+      ...baseData,
+      project: { ...baseData.project, id: '6', name: 'Project 6' },
+    })
+    const fakeService = {
+      runAiDiagnosis: runAiSpy,
+      getOverviewData: getOverviewSpy,
+    } as unknown as IWorkflowService
+
+    type TestStore = OverviewSlice & { currentProjectId: string | null }
+    const store = create<TestStore>()((set, get) => ({
+      currentProjectId: '5',
+      ...createOverviewSlice(set, get, fakeService),
+    }))
+
+    store.setState((state) => ({
+      overview: {
+        ...state.overview,
+        projectId: '5',
+        data: { ...baseData },
+      },
+    }))
+
+    const diagnosisPromise = store.getState().overview.runAiDiagnosis('5')
+    expect(store.getState().overview.aiScanning).toBe(true)
+
+    await store.getState().overview.load('6')
+    expect(store.getState().overview.projectId).toBe('6')
+    expect(store.getState().overview.aiScanError).toBeNull()
+
+    rejectRunAi(new ApiError({ status: 429, code: 'COOLDOWN_ACTIVE', message: 'Rate limit' }))
+    await diagnosisPromise
+
+    expect(store.getState().overview.projectId).toBe('6')
+    expect(store.getState().overview.aiScanError).toBeNull()
   })
 })
