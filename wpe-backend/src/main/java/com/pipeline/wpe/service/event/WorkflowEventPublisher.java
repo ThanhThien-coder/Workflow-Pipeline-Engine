@@ -50,7 +50,9 @@ public class WorkflowEventPublisher {
     }
 
     /**
-     * Bắn sự kiện yêu cầu phân tích chẩn đoán sự cố ngầm qua AI.
+     * Gửi sự kiện yêu cầu chẩn đoán AI chạy nền.
+     * CHƯA DÙNG: hiện không chỗ nào gọi method này; chẩn đoán AI chạy đồng bộ qua HTTP
+     * (xem HttpAiServiceClient, docs/specs/ai-service-contract.md). Giữ lại cho hướng chạy AI nền sau này.
      */
     public void publishAiDiagnosticRequest(AiDiagnosticRequestedEvent event) {
         log.info("Publishing AiDiagnosticRequestedEvent for Failed Task ID: {} in Project: {}",

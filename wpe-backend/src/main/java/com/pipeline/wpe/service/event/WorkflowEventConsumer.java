@@ -84,7 +84,10 @@ public class WorkflowEventConsumer {
     // trên queue riêng wpe.invitation.queue (C2).
 
     /**
-     * 3. Hứng sự kiện chẩn đoán sự cố ngầm (gọi Google Gemini API).
+     * 3. Hứng sự kiện chẩn đoán AI chạy nền.
+     * CHƯA DÙNG: hiện không chỗ nào gửi sự kiện này; chẩn đoán AI chạy đồng bộ qua HTTP
+     * (AiDiagnosticService -> HttpAiServiceClient -> microservice Python). Giữ lại cho hướng chạy AI nền sau này.
+     * Listener chỉ ghi log, không gọi AI.
      */
     @RabbitListener(queues = RabbitMQConfig.QUEUE_AI_DIAGNOSTICS)
     public void handleAiDiagnosticRequest(AiDiagnosticRequestedEvent event) {
