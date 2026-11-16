@@ -1024,7 +1024,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 ### 9.1 Lấy bản ghi phân tích đã lưu từ JSONB `PROJECT.latest_ai_analysis` (`GET /api/projects/{id}/ai-analysis`)
 1. **Mục tiêu Nghiệp vụ**: Đọc dữ liệu phân tích AI đã được cache sẵn trong CSDL với độ trễ 1ms khi mở Overview. Tuyệt đối không gọi Gemini API khi tải trang (Page Load).
 2. **Luồng Mã Nguồn**:
-   - `src/components/overview/ProjectOverview.tsx` -> `useWorkflowStore.overview.load` -> `container.workflowService.getOverviewData(projectId)`.
+   - `src/components/views/OverviewView.tsx` -> `useWorkflowStore.overview.load` -> `container.workflowService.getOverviewData(projectId)`.
 3. **Request DTO**:
    - **Method & URL**: `GET /api/projects/{id}/ai-analysis`
    - **Headers**: `Authorization: Bearer <jwt>`
@@ -1033,26 +1033,29 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - Đọc cột `PROJECT.latest_ai_analysis` (JSONB).
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `AiAnalysisResult` (chứa `bottlenecks`, `taskTraps`, `criticalPath`, `actionableAdvice`, `analyzedAt`).
+   - Chưa có phân tích: `200 OK` với `{ "hasAnalysis": false, "message": ... }`; giao diện hiện `No diagnosis yet`.
    - **UI Mutation**: Render các widget phân tích AI thông minh trên Overview.
 
 ---
 
-### 9.2 Bấm nút "AI Diagnosis" kích hoạt phân tích mới (có Cooldown 3-5 phút) (`POST /api/projects/{id}/ai-diagnostics`)
-1. **Mục tiêu Nghiệp vụ**: Người dùng bấm nút chủ động yêu cầu AI phân tích lại đồ thị quy trình. Backend kiểm tra hạn mức Cooldown (3-5 phút) để tránh lãng phí Token và spam API.
+### 9.2 Bấm "Re-scan Pipeline" chạy chẩn đoán AI mới (cooldown 180 giây) (`POST /api/v1/projects/{id}/ai-diagnostics`)
+1. **Mục tiêu Nghiệp vụ**: Thành viên dự án bấm nút để AI phân tích lại đồ thị quy trình. Cooldown 180 giây mỗi dự án để tránh lãng phí token.
 2. **Luồng Mã Nguồn**:
-   - `src/components/overview/OverviewHeader.tsx` (Nút "AI Diagnostics") -> Action kích hoạt chẩn đoán -> `container.workflowService`.
+   - `src/components/popovers/AiDiagnosisPopover.tsx` (nút "Re-scan Pipeline") -> `useWorkflowStore.overview.runAiDiagnosis` -> `IWorkflowService.runAiDiagnosis` -> `HttpWorkflowService` -> `src/services/impl/http/ai.ts` (`triggerAiDiagnostics`).
 3. **Request DTO**:
-   - **Method & URL**: `POST /api/projects/{id}/ai-diagnostics`
+   - **Method & URL**: `POST /api/v1/projects/{id}/ai-diagnostics`
    - **Headers**: `Authorization: Bearer <jwt>`
 4. **Xử lý Backend & Bảng CSDL Tác động**:
-   - Bảng tác động: `PROJECT`, `NODE`, `NODE_DEPENDENCY`, `PROJECT_FEEDBACK`.
-   - Kiểm tra Cooldown: Nếu `NOW() - latest_ai_analysis.analyzedAt < 3 phút` -> trả về HTTP 429 Too Many Requests kèm số giây còn lại.
-   - Nếu đủ điều kiện: Thu thập dữ liệu toàn bộ Nodes, Dependencies, Feedback chưa giải quyết.
-   - Gửi Request tới Google Gemini API (`gemini-1.5-flash`), yêu cầu trả về theo JSON Schema chuẩn (Bottlenecks, Task Traps, CPM Path, Actionable Advice).
-   - Ghi đè kết quả vào `PROJECT.latest_ai_analysis`.
+   - Bảng tác động: `PROJECT` (`ai_requested_at`, `latest_ai_analysis`), đọc `NODE`, `NODE_DEPENDENCY`, `PROJECT_FEEDBACK`.
+   - Kiểm quyền thành viên/chủ dự án (không phải thì `403`).
+   - Giữ chỗ nguyên tử trên `project.ai_requested_at`; còn trong 180 giây thì `429 COOLDOWN_ACTIVE` kèm `retryAfterSeconds`.
+   - Gọi microservice AI Python (`HttpAiServiceClient`, `POST /api/ai/diagnose`, header `X-Internal-Key`) NGOÀI transaction DB. Python gọi Gemini `gemini-2.5-flash`.
+   - Kiểm khuôn response; dịch vụ AI tắt, quá giờ, lỗi hoặc sai khuôn → `503 AI_SERVICE_UNAVAILABLE`, không tạo dữ liệu giả, không ghi DB, trả lại chỗ (không tính cooldown).
+   - Thành công: backend đặt `analyzedAt` bằng giờ backend, chỉ ghi cột `PROJECT.latest_ai_analysis` (không đổi `updated_at` của dự án).
+   - Hợp đồng chi tiết: `docs/specs/ai-service-contract.md`.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `200 OK`. Body: `AiAnalysisResult`.
-   - **UI Mutation**: Cập nhật thông số AI trên Overview, bắt đầu đồng hồ đếm ngược Cooldown trên nút bấm.
+   - **Status Code**: `200 OK`. Body: kết quả chẩn đoán (`criticalPath`, `bottlenecks`, `taskTraps`, `actionableAdvice`, `metrics`, `source`, `analyzedAt`, ...).
+   - **UI Mutation**: popover cập nhật kết quả và dải chỉ số; `429` hiện "AI diagnosis was run recently. Try again in Ns."; `403` hiện "You do not have permission..."; `503` hiện "AI service is unavailable right now. Please try again later." và giữ bản chẩn đoán cũ. Nút bị khóa trong lúc đang chạy.
 
 ---
 
@@ -1417,7 +1420,8 @@ Toàn bộ các ngoại lệ tại Backend Spring Boot phải được xử lý 
 | **`404 Not Found`** | `RESOURCE_NOT_FOUND` | Không tìm thấy Project, Node, Phase hoặc User với ID được yêu cầu. | Hiển thị Toast lỗi hoặc chuyển sang EmptyState placeholder. |
 | **`409 Conflict`** | `OPTIMISTIC_LOCK_CONFLICT` | Vi phạm khóa lạc quan JPA `@Version` trên entity `NODE` (2 người cùng thao tác trên 1 task). | Hiển thị Toast vàng/đỏ: "Xung đột dữ liệu: Tác vụ đã được cập nhật bởi thành viên khác. Đang tải lại...", tự động nạp lại dữ liệu task. |
 | **`422 Unprocessable`** | `CYCLE_DETECTED` | Thuật toán Kahn phát hiện chu trình lặp phụ thuộc khi xuất bản dự án hoặc lưu template. | Mở `KahnCycleModal.tsx`, hiển thị danh sách các mã node gây vòng lặp với viền đỏ nổi bật. |
-| **`429 Too Many Requests`**| `COOLDOWN_ACTIVE` | Bấm nút chẩn đoán AI khi chưa hết thời gian giãn cách 3-5 phút. | Hiển thị Toast cảnh báo thời gian cooldown còn lại, khóa nút bấm tạm thời. |
+| **`429 Too Many Requests`**| `COOLDOWN_ACTIVE` | Bấm chẩn đoán AI khi dự án chưa hết cooldown 180 giây (tính theo `project.ai_requested_at`). | Popover AI hiện "AI diagnosis was run recently. Try again in Ns." (lấy `retryAfterSeconds`), giữ bản chẩn đoán cũ. |
+| **`503 Service Unavailable`**| `AI_SERVICE_UNAVAILABLE` | Backend không gọi được microservice AI Python (tắt, quá giờ, lỗi 5xx) hoặc Python trả sai khuôn. Không tạo dữ liệu giả, không tính cooldown. | Popover AI hiện "AI service is unavailable right now. Please try again later.", giữ bản chẩn đoán cũ. |
 | **`500 Internal Error`**| `INTERNAL_SERVER_ERROR`| Lỗi máy chủ không mong muốn hoặc sự cố cơ sở dữ liệu. | Hiển thị Toast đỏ: "Hệ thống gặp sự cố. Vui lòng thử lại sau giây lát." |
 
 ---
