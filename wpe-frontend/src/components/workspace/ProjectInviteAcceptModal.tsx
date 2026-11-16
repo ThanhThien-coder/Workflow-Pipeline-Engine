@@ -42,12 +42,12 @@ export function ProjectInviteAcceptModal({
     : false
 
   const getExpiredStatusLabel = () => {
-    if (!invitation) return 'Lời mời đã hết hạn'
-    if (invitation.status === 'ACCEPTED') return 'Lời mời đã được chấp nhận'
-    if (invitation.status === 'REJECTED') return 'Lời mời đã bị từ chối'
-    if (invitation.status === 'REVOKED') return 'Lời mời đã bị thu hồi'
-    if (invitation.status === 'EXPIRED') return 'Lời mời đã hết hạn'
-    return 'Lời mời đã hết hạn'
+    if (!invitation) return 'This invitation has expired'
+    if (invitation.status === 'ACCEPTED') return 'This invitation has been accepted'
+    if (invitation.status === 'REJECTED') return 'This invitation has been declined'
+    if (invitation.status === 'REVOKED') return 'This invitation has been revoked'
+    if (invitation.status === 'EXPIRED') return 'This invitation has expired'
+    return 'This invitation has expired'
   }
 
   const extractErrorMessage = (err: unknown, defaultMsg: string): string => {
@@ -56,13 +56,13 @@ export function ProjectInviteAcceptModal({
     const errCode = anyErr?.code || anyErr?.response?.data?.error || anyErr?.error || anyErr?.errorCode
     const rawMsg = typeof anyErr?.message === 'string' && anyErr.message ? anyErr.message : ''
     if (errCode === 'INVITATION_EXPIRED' || rawMsg.includes('INVITATION_EXPIRED')) {
-      return 'Lời mời đã hết hạn.'
+      return 'This invitation has expired.'
     }
     if (errCode === 'INVITATION_NOT_PENDING') {
       if (rawMsg.toUpperCase().includes('REVOKED') || rawMsg.includes('thu hồi')) {
-        return 'Lời mời đã bị thu hồi.'
+        return 'This invitation has been revoked.'
       }
-      return rawMsg || 'Lời mời không còn ở trạng thái chờ phản hồi.'
+      return rawMsg || 'This invitation is no longer pending.'
     }
     return rawMsg || defaultMsg
   }
@@ -106,12 +106,12 @@ export function ProjectInviteAcceptModal({
           if (data) {
             setInvitation(data)
           } else {
-            setError('Không tìm thấy thông tin lời mời hoặc lời mời đã hết hạn.')
+            setError('Invitation not found or it has expired.')
           }
         }
       } catch (err: unknown) {
         if (isMounted) {
-          const msg = extractErrorMessage(err, 'Không thể tải chi tiết lời mời.')
+          const msg = extractErrorMessage(err, 'Could not load the invitation.')
           setError(msg)
         }
       } finally {
@@ -136,7 +136,7 @@ export function ProjectInviteAcceptModal({
       } else if (acceptInvitationStore) {
         await acceptInvitationStore(invitationId)
       }
-      showToast('Tham gia dự án thành công!')
+      showToast('You joined the project.')
       if (fetchProjects) {
         await fetchProjects()
       }
@@ -145,7 +145,7 @@ export function ProjectInviteAcceptModal({
       onClose()
     } catch (err: unknown) {
       syncStatusFromError(err)
-      const msg = extractErrorMessage(err, 'Chấp nhận lời mời thất bại.')
+      const msg = extractErrorMessage(err, 'Could not accept the invitation.')
       setError(msg)
       showToast(msg)
     } finally {
@@ -163,13 +163,13 @@ export function ProjectInviteAcceptModal({
       } else if (rejectInvitationStore) {
         await rejectInvitationStore(invitationId)
       }
-      showToast('Đã từ chối lời mời tham gia dự án.')
+      showToast('Invitation declined.')
       void useNotificationStore.getState().load()
       onDeclined?.(invitationId)
       onClose()
     } catch (err: unknown) {
       syncStatusFromError(err)
-      const msg = extractErrorMessage(err, 'Từ chối lời mời thất bại.')
+      const msg = extractErrorMessage(err, 'Could not decline the invitation.')
       setError(msg)
       showToast(msg)
     } finally {
@@ -217,9 +217,9 @@ export function ProjectInviteAcceptModal({
               <Mail size={24} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Lời mời tham gia dự án</h2>
+              <h2 className="text-base font-bold text-slate-900">Project invitation</h2>
               <p className="text-xs text-slate-500">
-                Bạn đã được mời cùng xây dựng và vận hành quy trình trên Workflow Pipeline Engine.
+                You have been invited to build and run a workflow on Workflow Pipeline Engine.
               </p>
             </div>
           </div>
@@ -277,17 +277,17 @@ export function ProjectInviteAcceptModal({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-500">Dự án</span>
+                    <span className="text-xs font-medium text-slate-500">Project</span>
                     <span className="text-sm font-bold text-slate-800">
                       {invitation.projectName || 'Pipeline Project'}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
-                    <span className="text-xs font-medium text-slate-500">Người mời</span>
+                    <span className="text-xs font-medium text-slate-500">Invited by</span>
                     <div className="text-right">
                       <div className="text-xs font-semibold text-slate-700">
-                        {invitation.inviterName || 'Chủ dự án'}
+                        {invitation.inviterName || 'Project owner'}
                       </div>
                       {invitation.inviterEmail && (
                         <div className="text-[11px] text-slate-400">{invitation.inviterEmail}</div>
@@ -296,7 +296,7 @@ export function ProjectInviteAcceptModal({
                   </div>
 
                   <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
-                    <span className="text-xs font-medium text-slate-500">Vai trò được chỉ định</span>
+                    <span className="text-xs font-medium text-slate-500">Assigned role</span>
                     <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-700">
                       <ShieldCheck size={13} />
                       {invitation.role}
@@ -306,10 +306,10 @@ export function ProjectInviteAcceptModal({
                   <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5 text-[11px] text-slate-500">
                     <span className="flex items-center gap-1">
                       <Clock size={12} className="text-slate-400" />
-                      Hạn phản hồi
+                      Respond by
                     </span>
                     <span className="font-medium text-slate-600">
-                      {new Date(invitation.expiresAt).toLocaleDateString('vi-VN', {
+                      {new Date(invitation.expiresAt).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
@@ -321,8 +321,8 @@ export function ProjectInviteAcceptModal({
                 </div>
 
                 <div className="text-[11px] leading-relaxed text-slate-500">
-                  Khi chấp nhận lời mời, bạn sẽ có quyền truy cập vào đồ thị DAG quy trình,
-                  thực hiện chuyển trạng thái Task và nộp bài nghiệm thu tương ứng với vai trò <b>{invitation.role}</b>.
+                  After accepting, you can open the workflow DAG, move tasks through their statuses
+                  and submit work for review as <b>{invitation.role}</b>.
                 </div>
               </div>
             )}
@@ -342,7 +342,7 @@ export function ProjectInviteAcceptModal({
                 ) : (
                   <UserX size={14} />
                 )}
-                <span>Từ chối</span>
+                <span>Decline</span>
               </button>
 
               <button
@@ -356,7 +356,7 @@ export function ProjectInviteAcceptModal({
                 ) : (
                   <UserCheck size={14} />
                 )}
-                <span>Chấp nhận</span>
+                <span>Accept</span>
               </button>
             </div>
           )}
@@ -369,7 +369,7 @@ export function ProjectInviteAcceptModal({
                 onClick={onClose}
                 className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 cursor-pointer"
               >
-                Đóng
+                Close
               </button>
             </div>
           )}

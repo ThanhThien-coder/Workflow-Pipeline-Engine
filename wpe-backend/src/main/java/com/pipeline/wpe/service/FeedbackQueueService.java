@@ -99,8 +99,8 @@ public class FeedbackQueueService {
 
         // Bắn Notification Event bất đồng bộ cho Project Owner
         try {
-            String targetUrl = "/projects/" + projectId + "/overview";
-            String title = String.format("Góp ý mới từ %s (%s)", request.reviewerName(), request.reviewerRole());
+            String targetUrl = "/project/" + projectId + "/overview";
+            String title = String.format("New feedback from %s (%s)", request.reviewerName(), request.reviewerRole());
             eventPublisher.publishNotification(new NotificationEvent(
                 project.getOwnerId(),
                 projectId,

@@ -88,7 +88,7 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(screen.getByText('Alpha Test Pipeline')).toBeDefined()
     })
 
-    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i })
+    const acceptBtn = screen.getByRole('button', { name: /^Accept$/i })
     fireEvent.click(acceptBtn)
 
     await waitFor(() => {
@@ -96,7 +96,7 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(fetchProjectsSpy).toHaveBeenCalled()
       expect(mockAccepted).toHaveBeenCalledWith('inv-100')
       expect(mockClose).toHaveBeenCalled()
-      expect(useWorkflowStore.getState().ui.toast?.message).toBe('Tham gia dự án thành công!')
+      expect(useWorkflowStore.getState().ui.toast?.message).toBe('You joined the project.')
     })
   })
 
@@ -130,14 +130,14 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(screen.getByText('Beta Pipeline')).toBeDefined()
     })
 
-    const declineBtn = screen.getByRole('button', { name: /Từ chối/i })
+    const declineBtn = screen.getByRole('button', { name: /^Decline$/i })
     fireEvent.click(declineBtn)
 
     await waitFor(() => {
       expect(rejectSpy).toHaveBeenCalledWith('inv-101')
       expect(mockDeclined).toHaveBeenCalledWith('inv-101')
       expect(mockClose).toHaveBeenCalled()
-      expect(useWorkflowStore.getState().ui.toast?.message).toBe('Đã từ chối lời mời tham gia dự án.')
+      expect(useWorkflowStore.getState().ui.toast?.message).toBe('Invitation declined.')
     })
   })
 
@@ -171,7 +171,7 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(screen.getByText('Faulty Pipeline')).toBeDefined()
     })
 
-    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i }) as HTMLButtonElement
+    const acceptBtn = screen.getByRole('button', { name: /^Accept$/i }) as HTMLButtonElement
     fireEvent.click(acceptBtn)
 
     await waitFor(() => {
@@ -209,15 +209,15 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(screen.getByText('Expired Pipeline')).toBeDefined()
     })
 
-    // Check for expired label containing "hết hạn"
-    expect(screen.getByText(/hết hạn/i)).toBeDefined()
+    // Check for expired label containing "expired"
+    expect(screen.getByText(/has expired/i)).toBeDefined()
 
     // Accept button should be disabled
-    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i }) as HTMLButtonElement
+    const acceptBtn = screen.getByRole('button', { name: /^Accept$/i }) as HTMLButtonElement
     expect(acceptBtn.disabled).toBe(true)
 
     // Decline button should also be disabled
-    const declineBtn = screen.getByRole('button', { name: /Từ chối/i }) as HTMLButtonElement
+    const declineBtn = screen.getByRole('button', { name: /^Decline$/i }) as HTMLButtonElement
     expect(declineBtn.disabled).toBe(true)
 
     // Clicking accept should not trigger API call
@@ -254,10 +254,10 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(screen.getByText('Valid Pipeline')).toBeDefined()
     })
 
-    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i }) as HTMLButtonElement
+    const acceptBtn = screen.getByRole('button', { name: /^Accept$/i }) as HTMLButtonElement
     expect(acceptBtn.disabled).toBe(false)
 
-    const declineBtn = screen.getByRole('button', { name: /Từ chối/i }) as HTMLButtonElement
+    const declineBtn = screen.getByRole('button', { name: /^Decline$/i }) as HTMLButtonElement
     expect(declineBtn.disabled).toBe(false)
   })
 
@@ -289,9 +289,9 @@ describe('ProjectInviteAcceptModal Component', () => {
       expect(screen.getByText('Revoked Pipeline')).toBeDefined()
     })
 
-    expect(screen.getByText(/đã bị thu hồi/i)).toBeDefined()
-    const acceptBtn = screen.getByRole('button', { name: /Chấp nhận/i }) as HTMLButtonElement
-    const declineBtn = screen.getByRole('button', { name: /Từ chối/i }) as HTMLButtonElement
+    expect(screen.getByText(/has been revoked/i)).toBeDefined()
+    const acceptBtn = screen.getByRole('button', { name: /^Accept$/i }) as HTMLButtonElement
+    const declineBtn = screen.getByRole('button', { name: /^Decline$/i }) as HTMLButtonElement
     expect(acceptBtn.disabled).toBe(true)
     expect(declineBtn.disabled).toBe(true)
   })

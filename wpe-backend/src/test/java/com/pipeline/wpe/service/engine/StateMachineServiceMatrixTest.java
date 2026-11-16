@@ -475,7 +475,7 @@ class StateMachineServiceMatrixTest {
         NotificationEvent event = captor.getValue();
         assertThat(event.recipientUserId()).isEqualTo(Role.ASSIGNEE.userId);
         assertThat(event.projectId()).isEqualTo(PROJECT_ID);
-        assertThat(event.message()).contains("WPE-010").contains("mở khóa sớm");
+        assertThat(event.message()).contains("WPE-010").contains("unlocked");
         assertThat(event.type()).isEqualTo("FORCE_UNLOCKED");
     }
 
