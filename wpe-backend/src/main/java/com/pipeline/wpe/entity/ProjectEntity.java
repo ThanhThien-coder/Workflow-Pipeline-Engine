@@ -42,6 +42,9 @@ public class ProjectEntity {
     @Column(name = "latest_ai_analysis", columnDefinition = "jsonb")
     private Map<String, Object> latestAiAnalysis;
 
+    @Column(name = "ai_requested_at")
+    private Instant aiRequestedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
