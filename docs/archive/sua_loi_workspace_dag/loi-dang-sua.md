@@ -18,6 +18,11 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G12 | Chủ dự án chưa mở khóa sớm được task trên giao diện; BE mở sớm xong thì sửa dây sẽ bị khóa lại, không lưu ai mở | FE + BE + DB | Đã sửa (T6), chờ test tay |
 | G13 | My Tasks: bộ lọc phase viết cứng Phase 1/2A/2B/3, mọi task bị coi là "Phase 1", tên phase hiện "Phase 56" | FE | Đã sửa, chờ test tay |
 | G14 | Header drawer phase ghi cứng "Marketing Q4 › Workflow › …" cho mọi dự án | FE | Đã sửa, chờ test tay |
+| G21 | Hạn chót task chọn được ngày trước ngày tạo task; task trễ hạn không báo cho chủ dự án | FE + BE | Đã sửa, chờ test tay |
+| G22 | Mời thành viên và đăng nhập nhận cả username lẫn email; username có thể trùng | FE + BE | Đã sửa, chờ test tay |
+| G23 | Thông báo lời mời (và các thông báo khác) bằng tiếng Việt | FE + BE | Đã sửa, chờ test tay |
+| G24 | System Audit Log bằng tiếng Việt | FE + BE | Đã sửa, chờ test tay |
+| G25 | Mở link khách không xem được gì | FE + BE | Đã sửa, chờ test tay |
 
 ---
 
@@ -582,3 +587,84 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 - Không đổi: comment, dữ liệu mock, log console, thông báo lỗi do backend trả về, chuỗi tiếng Việt có sẵn của người khác ở chỗ không liên quan.
 
 **Đã sửa (15/11/2026), chờ test tay**: test cập nhật theo chữ mới (test B5 dùng hằng `GRAPH_READ_ONLY_MESSAGE` thay vì viết cứng). `vitest run` 83 file / 554 test qua, typecheck sạch.
+
+---
+
+## G21. Hạn chót task không ràng buộc, trễ hạn không báo chủ dự án
+
+**Ngày phát hiện:** 16/11/2026
+
+**Hiện trạng**
+- Node Properties và Chi tiết task cho chọn hạn chót bất kỳ, kể cả trước ngày tạo task. BE cũng không kiểm.
+- Quét trễ hạn (`TaskOverdueScanner`) chỉ xét task IN_PROGRESS, chỉ báo người làm, nội dung tiếng Việt.
+
+**Cách sửa** (người dùng chọn: cho phép trùng ngày tạo)
+- Hạn chót ≥ ngày tạo task (so theo ngày). BE từ chối nếu sớm hơn; FE đặt `min` cho ô ngày và báo lỗi.
+- Task chưa DONE mà quá hạn: báo cho người làm và chủ dự án (nếu khác người làm), nội dung tiếng Anh.
+
+**Đã sửa (16/11/2026), chờ test tay**: BE `DueDateRules` (so ngày giờ VN) ở tạo task, sửa task (`PUT /nodes/{id}`), đổi người làm/hạn chót; lỗi 400 `DUE_DATE_BEFORE_CREATED`. Response task thêm trường `createdAt` (chỉ thêm, không đổi trường cũ). `TaskOverdueScanner` quét mọi task khác DONE, báo người làm + chủ dự án, mỗi task một lần. FE: ô ngày có `min` = ngày tạo, báo lỗi đỏ và khóa nút lưu; hạn chót gửi lên là 23:59:59 giờ máy (trước đây Node Properties gửi 00:00 UTC nên quá hạn từ 7h sáng). Sửa kèm: link trong thông báo `/projects/{id}/tasks` không mở được trang nào → `/project/{id}/my-tasks`. API thật: hạn 2020-01-01 cho task tạo 25/10 → 400.
+
+---
+
+## G22. Mời thành viên / đăng nhập bằng username
+
+**Ngày phát hiện:** 16/11/2026
+
+**Hiện trạng**
+- Ô mời thành viên ghi "Username or email", ô đăng nhập ghi "Email or username". Nhập tên không tìm thấy người. Người dùng muốn chỉ dùng email (username có thể trùng).
+
+**Cách sửa**
+- FE: hai ô chỉ nhận email, kiểm định dạng email.
+- BE: mời và đăng nhập chỉ tìm theo email (không phân biệt hoa thường). Tên trường trong request giữ nguyên để không đổi contract.
+
+**Đã sửa (16/11/2026), chờ test tay**: API thật: đăng nhập `alex.kim` → 401, `alex.kim@pipeline.engine` → 200; mời `sarah.chen` → 400 `INVALID_EMAIL`, email không có tài khoản → 404.
+**Còn lại (chưa sửa)**: đăng ký tự lấy username = phần trước @ của email, nên `an@a.com` và `an@b.com` trùng username → người thứ hai bị `USERNAME_TAKEN`.
+
+---
+
+## G23. Thông báo lời mời tiếng Việt
+
+**Ngày phát hiện:** 16/11/2026
+
+**Hiện trạng**
+- Thông báo lời mời ("Lời mời tham gia dự án…"), hộp chấp nhận lời mời, lỗi khi mời đều tiếng Việt; các thông báo khác của BE (nộp bài, từ chối, mở khóa…) cũng vậy.
+
+**Cách sửa**
+- Đổi sang tiếng Anh: tiêu đề/nội dung mọi thông báo BE tạo, lỗi trả về từ luồng mời thành viên, chữ trên hộp mời và hộp chấp nhận lời mời.
+
+**Đã sửa (16/11/2026), chờ test tay**: `ProjectInvitationService`, `StateMachineService`, `WorkflowGraphService`, `FeedbackQueueService`, `ProjectInviteAcceptModal`, `InviteMemberModal`. FE nhận diện loại thông báo theo cả từ khóa tiếng Anh. Thông báo cũ đã lưu trong DB vẫn tiếng Việt.
+
+---
+
+## G24. System Audit Log tiếng Việt
+
+**Ngày phát hiện:** 16/11/2026
+
+**Hiện trạng**
+- Settings → System Audit Log: nhãn, bộ lọc, cột, thời gian tương đối ("phút", "giờ") và nội dung chi tiết (BE `ProjectActivityService`) đều tiếng Việt. Nhật ký admin (đăng nhập, đăng xuất…) cũng ghi tiếng Việt.
+
+**Cách sửa**
+- FE: đổi chữ sang tiếng Anh, dùng `relativeEn`.
+- BE: chi tiết hoạt động dự án và nhật ký admin ghi tiếng Anh. Bản ghi admin cũ đã lưu trong DB giữ nguyên.
+
+**Đã sửa (16/11/2026), chờ test tay**: `SystemAuditLogSection` (thêm nhãn cho `TASK_FORCE_UNLOCKED`), `AuditLogsTab` của admin, `ProjectActivityService`, chi tiết audit trong `AuthService`. API thật: nhật ký dự án 1 ra "Created project …", "… joined the project as COLLABORATOR".
+
+---
+
+## G25. Mở link khách không xem được gì
+
+**Ngày phát hiện:** 16/11/2026
+
+**Tái hiện**
+1. Chủ dự án "b" (DRAFT) tạo link khách, mở link.
+2. Trang khách không hiện dữ liệu dự án.
+
+**Nguyên nhân (đã xác định)**
+- FE `HttpGuestService.getLinkInfo` vẫn gọi mock: token thật (64 ký tự hex) không có tiền tố `gst_` nên luôn bị coi là link sai.
+- BE `GuestGatewayService.validateAndGetActiveGuestLink` chỉ cho xem dự án ACTIVE; dự án mới là DRAFT/PLANNING nên bị 403.
+
+**Cách sửa** (người dùng chọn: khách xem mọi trạng thái trừ ARCHIVED)
+- BE: chỉ chặn dự án ARCHIVED.
+- FE: `getLinkInfo` gọi API thật (lấy tên dự án từ overview), không còn dùng mock khi chạy với backend.
+
+**Đã sửa (16/11/2026), chờ test tay**: `HttpGuestService` bỏ hẳn mock: phiên khách lưu ở trình duyệt; AI summary / AI report / đánh giá chưa có API nên ẩn (cờ `features`), không hiện số giả. BE overview: velocity 7 ngày và hoạt động gần đây lấy từ task thật (trước là số viết cứng), nhãn tiếng Anh, lỗi trả lý do cụ thể. API thật: link dự án "b" (DRAFT) → 200. Chưa có: tên chủ dự án trên trang khách (backend chưa trả), danh sách góp ý khách đã gửi (chỉ hiện trong phiên đang mở).

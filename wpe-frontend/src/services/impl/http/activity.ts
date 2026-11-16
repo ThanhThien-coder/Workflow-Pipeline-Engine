@@ -84,7 +84,7 @@ function inferActivityActorRole(type: string, actorName: string): ProjectRole | 
 }
 
 export function mapActivityToAuditLog(item: ProjectActivityItem): AuditLogItem {
-  const actorName = item.actorName || 'Hệ thống'
+  const actorName = item.actorName || 'System'
   return {
     id: item.id,
     timestamp: item.createdAt,

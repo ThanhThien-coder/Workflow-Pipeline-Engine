@@ -114,7 +114,7 @@ describe('FC5 — Nhật ký hoạt động của dự án (Project Activity & A
         timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
         actor: { userId: '2', name: 'Sarah Chen', role: 'COLLABORATOR' as const },
         action: 'TASK_STATUS_CHANGED' as const,
-        details: 'Task WPE-002 cập nhật sang IN_PROGRESS',
+        details: 'Task WPE-002 (Login API) is now IN_PROGRESS (latest update)',
         scope: 'Lifecycle' as const,
         type: 'TASK_STATUS_CHANGED',
         targetCode: 'WPE-002',
@@ -124,7 +124,7 @@ describe('FC5 — Nhật ký hoạt động của dự án (Project Activity & A
         timestamp: new Date(Date.now() - 120 * 60000).toISOString(),
         actor: { userId: '1', name: 'Alex Kim', role: 'OWNER' as const },
         action: 'PROJECT_CREATED' as const,
-        details: 'Đã tạo dự án "Core Banking Pipeline"',
+        details: 'Created project "Core Banking Pipeline"',
         scope: 'Lifecycle' as const,
         type: 'PROJECT_CREATED',
       },
@@ -141,13 +141,13 @@ describe('FC5 — Nhật ký hoạt động của dự án (Project Activity & A
     )
 
     // Chú thích bắt buộc trên màn hình
-    expect(screen.getByText('Task chỉ hiện lần cập nhật gần nhất (hệ thống không lưu lịch sử từng lần).')).toBeTruthy()
+    expect(screen.getByText('Tasks show only their latest update (the system does not keep every change).')).toBeTruthy()
     // Hiển thị nội dung, targetCode, thời gian tương đối và icon SVG
-    expect(screen.getByText(/Task WPE-002 cập nhật sang IN_PROGRESS/)).toBeTruthy()
+    expect(screen.getByText(/Task WPE-002 \(Login API\) is now IN_PROGRESS/)).toBeTruthy()
     expect(screen.getByText('WPE-002')).toBeTruthy()
-    expect(screen.getByText(/Đã tạo dự án/)).toBeTruthy()
-    expect(screen.getByText('5 phút')).toBeTruthy()
-    expect(screen.getByText('2 giờ')).toBeTruthy()
+    expect(screen.getByText(/Created project/)).toBeTruthy()
+    expect(screen.getByText('5 min ago')).toBeTruthy()
+    expect(screen.getByText('2 hours ago')).toBeTruthy()
     expect(container.querySelectorAll('tbody svg').length).toBeGreaterThanOrEqual(2)
 
     // Đổi bộ lọc theo loại
@@ -165,8 +165,11 @@ describe('FC5 — Nhật ký hoạt động của dự án (Project Activity & A
         onSearchQueryChange={onSearchChange}
       />,
     )
-    expect(screen.getByText(/Task WPE-002 cập nhật sang IN_PROGRESS/)).toBeTruthy()
-    expect(screen.queryByText(/Đã tạo dự án/)).toBeNull()
+    expect(screen.getByText(/Task WPE-002 \(Login API\) is now IN_PROGRESS/)).toBeTruthy()
+    expect(screen.queryByText(/Created project/)).toBeNull()
+
+    // G24: nhãn loại hoạt động tiếng Anh
+    expect(screen.getAllByText('Task updated').length).toBeGreaterThan(0)
 
     // Trạng thái rỗng khi danh sách trống
     rerender(

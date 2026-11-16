@@ -116,7 +116,8 @@ describe('HttpWorkflowService: ghi task qua API', () => {
     expect(calls[0].method).toBe('PUT')
     expect(calls[0].body).toEqual({
       title: 'Tên mới', description: 'Mô tả', joinPolicy: 'ANY_COMPLETED', version: 4,
-      assignedUserId: 9, dueDate: '2026-11-20T00:00:00Z',
+      // G21: hạn chót là cuối ngày đã chọn theo giờ máy
+      assignedUserId: 9, dueDate: new Date('2026-11-20T23:59:59').toISOString(),
     })
   })
 

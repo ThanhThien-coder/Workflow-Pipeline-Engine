@@ -38,10 +38,10 @@ describe('AuditLogsTab Component', () => {
       />
     );
 
-    expect(screen.getByText('Đăng nhập thất bại')).toBeTruthy();
-    expect(screen.getByText('Khóa tài khoản')).toBeTruthy();
+    expect(screen.getByText('Sign-in failed')).toBeTruthy();
+    expect(screen.getByText('Account suspended')).toBeTruthy();
 
-    const loginFilterBtn = screen.getByRole('button', { name: 'Đăng nhập' });
+    const loginFilterBtn = screen.getByRole('button', { name: 'Sign-in' });
     fireEvent.click(loginFilterBtn);
 
     expect(onGroupChange).toHaveBeenCalledTimes(1);
@@ -57,12 +57,12 @@ describe('AuditLogsTab Component', () => {
       />
     );
 
-    expect(screen.getByText('Chưa có dữ liệu: Không có quyền truy cập')).toBeTruthy();
+    expect(screen.getByText('No data: Không có quyền truy cập')).toBeTruthy();
   });
 
   it('hiển thị "Chưa có nhật ký nào" khi danh sách trống và không có lỗi', () => {
     render(<AuditLogsTab auditLogs={[]} group="ALL" />);
-    expect(screen.getByText('Chưa có nhật ký nào')).toBeTruthy();
+    expect(screen.getByText('No logs yet')).toBeTruthy();
   });
 
   it('render 1 log ADMIN_ACCESS_DENIED -> thấy nhãn "Bị chặn vào API quản trị"', () => {
@@ -81,6 +81,6 @@ describe('AuditLogsTab Component', () => {
 
     render(<AuditLogsTab auditLogs={mockLogs} group="ALL" />);
 
-    expect(screen.getByText('Bị chặn vào API quản trị')).toBeTruthy();
+    expect(screen.getByText('Admin API access denied')).toBeTruthy();
   });
 });

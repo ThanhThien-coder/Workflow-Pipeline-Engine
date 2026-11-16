@@ -72,7 +72,7 @@ public class ProjectActivityService {
                 .filter(n -> n.getId() != null)
                 .collect(Collectors.toMap(NodeEntity::getId, Function.identity(), (a, b) -> a));
 
-        String ownerName = resolveUserDisplayName(userMap.get(project.getOwnerId()), project.getOwnerId(), "Chủ dự án");
+        String ownerName = resolveUserDisplayName(userMap.get(project.getOwnerId()), project.getOwnerId(), "Project owner");
         Instant projectCreatedAt = project.getCreatedAt() != null ? project.getCreatedAt() : Instant.EPOCH;
 
         List<ProjectActivityItemResponse> events = new ArrayList<>();
@@ -82,7 +82,7 @@ public class ProjectActivityService {
                 "project-" + project.getId() + "-created",
                 "PROJECT_CREATED",
                 ownerName,
-                "Đã tạo dự án \"" + project.getName() + "\"",
+                "Created project \"" + project.getName() + "\"",
                 null,
                 projectCreatedAt
         ));
@@ -98,7 +98,7 @@ public class ProjectActivityService {
                     "project-" + project.getId() + "-status",
                     "PROJECT_STATUS_CHANGED",
                     ownerName,
-                    "Đổi trạng thái dự án sang " + project.getStatus(),
+                    "Changed project status to " + project.getStatus(),
                     null,
                     statusTime
             ));
@@ -107,7 +107,7 @@ public class ProjectActivityService {
         // 3. Thành viên vào / rời / đổi role (từ lịch sử thành viên project_member)
         for (ProjectMemberEntity m : members) {
             UserEntity user = userMap.get(m.getUserId());
-            String memberName = resolveUserDisplayName(user, m.getUserId(), "Thành viên");
+            String memberName = resolveUserDisplayName(user, m.getUserId(), "Member");
             String memberLabel = resolveUserLabelWithUsername(user, m.getUserId());
             Instant joinedAt = m.getJoinedAt() != null ? m.getJoinedAt() : projectCreatedAt;
 
@@ -121,7 +121,7 @@ public class ProjectActivityService {
                         "member-" + m.getId() + "-joined",
                         "MEMBER_JOINED",
                         memberName,
-                        "Thành viên " + memberLabel + " tham gia dự án với vai trò " + m.getRole(),
+                        memberLabel + " joined the project as " + m.getRole(),
                         null,
                         joinedAt
                 ));
@@ -132,7 +132,7 @@ public class ProjectActivityService {
                         "member-" + m.getId() + "-removed",
                         "MEMBER_REMOVED",
                         memberName,
-                        "Thành viên " + memberLabel + " đã rời dự án",
+                        memberLabel + " left the project",
                         null,
                         m.getRemovedAt()
                 ));
@@ -144,7 +144,7 @@ public class ProjectActivityService {
             UserEntity inviter = userMap.get(inv.getInviterId());
             UserEntity invitee = userMap.get(inv.getInviteeId());
             String inviterName = resolveUserDisplayName(inviter, inv.getInviterId(), ownerName);
-            String inviteeName = resolveUserDisplayName(invitee, inv.getInviteeId(), "Người được mời");
+            String inviteeName = resolveUserDisplayName(invitee, inv.getInviteeId(), "Invitee");
             String inviteeLabel = resolveUserLabelWithUsername(invitee, inv.getInviteeId());
             Instant invCreatedAt = inv.getCreatedAt() != null ? inv.getCreatedAt() : projectCreatedAt;
 
@@ -152,7 +152,7 @@ public class ProjectActivityService {
                     "invitation-" + inv.getId() + "-sent",
                     "INVITATION_SENT",
                     inviterName,
-                    "Đã gửi lời mời cho " + inviteeLabel + " với vai trò " + inv.getRole(),
+                    "Invited " + inviteeLabel + " as " + inv.getRole(),
                     null,
                     invCreatedAt
             ));
@@ -163,7 +163,7 @@ public class ProjectActivityService {
                             "invitation-" + inv.getId() + "-accepted",
                             "INVITATION_ACCEPTED",
                             inviteeName,
-                            inviteeLabel + " đã chấp nhận lời mời tham gia dự án (" + inv.getRole() + ")",
+                            inviteeLabel + " accepted the invitation (" + inv.getRole() + ")",
                             null,
                             inv.getRespondedAt()
                     ));
@@ -171,7 +171,7 @@ public class ProjectActivityService {
                             "invitation-" + inv.getId() + "-rejected",
                             "INVITATION_REJECTED",
                             inviteeName,
-                            inviteeLabel + " đã từ chối lời mời tham gia dự án",
+                            inviteeLabel + " declined the invitation",
                             null,
                             inv.getRespondedAt()
                     ));
@@ -179,7 +179,7 @@ public class ProjectActivityService {
                             "invitation-" + inv.getId() + "-revoked",
                             "INVITATION_REVOKED",
                             inviterName,
-                            "Đã thu hồi lời mời gửi cho " + inviteeLabel,
+                            "Revoked the invitation for " + inviteeLabel,
                             null,
                             inv.getRespondedAt()
                     ));
@@ -187,7 +187,7 @@ public class ProjectActivityService {
                             "invitation-" + inv.getId() + "-expired",
                             "INVITATION_EXPIRED",
                             "SYSTEM",
-                            "Lời mời gửi cho " + inviteeLabel + " đã hết hạn",
+                            "The invitation for " + inviteeLabel + " expired",
                             null,
                             inv.getRespondedAt()
                     ));
@@ -213,7 +213,7 @@ public class ProjectActivityService {
                     "node-" + node.getId() + "-updated",
                     "TASK_STATUS_CHANGED",
                     actor,
-                    "Task " + node.getCode() + " (" + node.getTitle() + ") ở trạng thái " + node.getStatus() + " (lần cập nhật gần nhất)",
+                    "Task " + node.getCode() + " (" + node.getTitle() + ") is now " + node.getStatus() + " (latest update)",
                     node.getCode(),
                     node.getUpdatedAt()
             ));
@@ -227,7 +227,7 @@ public class ProjectActivityService {
                     "node-" + node.getId() + "-force-unlocked",
                     "TASK_FORCE_UNLOCKED",
                     unlockerName,
-                    "Đã mở khóa sớm task " + node.getCode() + " (" + node.getTitle() + ") khi task trước chưa xong",
+                    "Unlocked task " + node.getCode() + " (" + node.getTitle() + ") early, before its prerequisites were done",
                     node.getCode(),
                     node.getForceUnlockedAt()
             ));
@@ -241,8 +241,8 @@ public class ProjectActivityService {
             String targetCode = relatedNode != null ? relatedNode.getCode() : null;
             Instant artTime = art.getCreatedAt() != null ? art.getCreatedAt() : projectCreatedAt;
             String msg = targetCode != null
-                    ? "Đã nộp minh chứng \"" + art.getName() + "\" cho task " + targetCode
-                    : "Đã nộp minh chứng \"" + art.getName() + "\" vào tài nguyên dự án";
+                    ? "Submitted artifact \"" + art.getName() + "\" for task " + targetCode
+                    : "Added artifact \"" + art.getName() + "\" to project resources";
 
             events.add(new ProjectActivityItemResponse(
                     "artifact-" + art.getId() + "-created",
@@ -264,7 +264,7 @@ public class ProjectActivityService {
                         "guest-link-" + gl.getId() + "-revoked",
                         "GUEST_LINK_REVOKED",
                         ownerName,
-                        "Đã thu hồi link khách (Guest Link) — không rõ thời điểm thu hồi",
+                        "Revoked the guest link (revoke time not recorded)",
                         null,
                         glTime
                 ));
@@ -273,7 +273,7 @@ public class ProjectActivityService {
                     "guest-link-" + gl.getId() + "-created",
                     "GUEST_LINK_CREATED",
                     ownerName,
-                    "Đã tạo link khách (Guest Link)",
+                    "Created a guest link",
                     null,
                     glTime
             ));
@@ -285,11 +285,11 @@ public class ProjectActivityService {
             String targetCode = relatedNode != null ? relatedNode.getCode() : null;
             String reviewer = (fb.getReviewerName() != null && !fb.getReviewerName().isBlank())
                     ? fb.getReviewerName().trim()
-                    : "Khách";
+                    : "Guest";
             String snippet = truncate(fb.getContent(), 80);
             String msg = targetCode != null
-                    ? "Góp ý trên task " + targetCode + ": " + snippet
-                    : "Góp ý cho dự án: " + snippet;
+                    ? "Feedback on task " + targetCode + ": " + snippet
+                    : "Feedback on the project: " + snippet;
             Instant fbTime = fb.getCreatedAt() != null ? fb.getCreatedAt() : projectCreatedAt;
 
             events.add(new ProjectActivityItemResponse(
@@ -336,7 +336,7 @@ public class ProjectActivityService {
             if (!full.isEmpty()) return full;
             if (!uname.isEmpty()) return uname;
         }
-        return userId != null ? "User #" + userId : "Người dùng";
+        return userId != null ? "User #" + userId : "User";
     }
 
     private String truncate(String text, int maxLen) {

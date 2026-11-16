@@ -21,8 +21,19 @@ public record KanbanTaskResponse(
     List<NodeArtifactResponse> artifacts,
     // T6: chủ dự án đã mở khóa sớm (null nếu chưa)
     String forceUnlockedBy,
-    Instant forceUnlockedAt
+    Instant forceUnlockedAt,
+    // G21: ngày tạo task, hạn chót không được sớm hơn ngày này
+    Instant createdAt
 ) {
+    public KanbanTaskResponse(
+        String id, String phaseId, String code, String title, String description,
+        String status, String assignedUserId, String joinPolicy, String rejectReason,
+        Instant dueDate, boolean isOverdue, Long version, Map<String, Object> uiMetadata,
+        List<NodeArtifactResponse> artifacts, String forceUnlockedBy, Instant forceUnlockedAt
+    ) {
+        this(id, phaseId, code, title, description, status, assignedUserId, joinPolicy, rejectReason, dueDate, isOverdue, version, uiMetadata, artifacts, forceUnlockedBy, forceUnlockedAt, null);
+    }
+
     public KanbanTaskResponse(
         String id, String phaseId, String code, String title, String description,
         String status, String assignedUserId, String joinPolicy, String rejectReason,
@@ -43,6 +54,6 @@ public record KanbanTaskResponse(
     /** Bản sao kèm danh sách artifact của task. */
     public KanbanTaskResponse withArtifacts(List<NodeArtifactResponse> list) {
         return new KanbanTaskResponse(id, phaseId, code, title, description, status, assignedUserId, joinPolicy, rejectReason,
-            dueDate, isOverdue, version, uiMetadata, list, forceUnlockedBy, forceUnlockedAt);
+            dueDate, isOverdue, version, uiMetadata, list, forceUnlockedBy, forceUnlockedAt, createdAt);
     }
 }
