@@ -12,6 +12,7 @@ import {
   installAuthRefresh,
   getAuthErrorMessage,
   usernameFromEmail,
+  ensureFreshAccessToken,
 } from '../auth'
 
 /**
@@ -369,5 +370,146 @@ describe('auth.ts: tự làm mới token khi gặp 401 (single-flight)', () => {
     expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(0)
     expect(onExpired).toHaveBeenCalledTimes(1)
     expect(localStorage.getItem('wpe_auth_token')).toBeNull()
+  })
+})
+
+describe('auth.ts: ensureFreshAccessToken (làm mới token trước khi kết nối SSE)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    setUnauthorizedHandler(null)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    setUnauthorizedHandler(null)
+  })
+
+  function makeFakeJwt(expSeconds: number): string {
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+    const payload = btoa(JSON.stringify({ exp: expSeconds }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+    return `${header}.${payload}.example-sig`
+  }
+
+  it('token còn hạn 10 phút -> trả nguyên token, KHÔNG gọi /auth/refresh', async () => {
+    const exp = Math.floor(Date.now() / 1000) + 600
+    const token = makeFakeJwt(exp)
+    seedSession(localStorage, token, 'rt_1')
+
+    const res = await ensureFreshAccessToken()
+
+    expect(res).toBe(token)
+    expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(0)
+  })
+
+  it('token hết hạn -> gọi /auth/refresh đúng 1 lần và trả token mới', async () => {
+    const exp = Math.floor(Date.now() / 1000) - 60
+    const token = makeFakeJwt(exp)
+    seedSession(localStorage, token, 'rt_1')
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === `${BASE}/auth/refresh`) return jsonResponse(200, authBody('new-token', 'rt_2'))
+      return null
+    })
+
+    const res = await ensureFreshAccessToken()
+
+    expect(res).toBe('new-token')
+    const refreshCalls = callsTo(fetchMock, '/auth/refresh')
+    expect(refreshCalls).toHaveLength(1)
+    expect(bodyOf(refreshCalls[0])).toEqual({ refreshToken: 'rt_1' })
+    expect(localStorage.getItem('wpe_auth_token')).toBe('new-token')
+  })
+
+  it('2 lần gọi song song khi token hết hạn -> chỉ 1 lần /auth/refresh', async () => {
+    const exp = Math.floor(Date.now() / 1000) - 60
+    const token = makeFakeJwt(exp)
+    seedSession(localStorage, token, 'rt_1')
+
+    let releaseRefresh: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve
+    })
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === `${BASE}/auth/refresh`) {
+        await gate
+        return jsonResponse(200, authBody('new-parallel-token', 'rt_2'))
+      }
+      return null
+    })
+
+    const p1 = ensureFreshAccessToken()
+    const p2 = ensureFreshAccessToken()
+
+    await vi.waitFor(() => expect(callsTo(fetchMock, '/auth/refresh').length).toBe(1))
+    releaseRefresh()
+
+    const [r1, r2] = await Promise.all([p1, p2])
+
+    expect(r1).toBe('new-parallel-token')
+    expect(r2).toBe('new-parallel-token')
+    expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(1)
+  })
+
+  it('không có token -> null', async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+
+    const res = await ensureFreshAccessToken()
+
+    expect(res).toBeNull()
+    expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(0)
+  })
+
+  it('refresh thất bại -> null', async () => {
+    const exp = Math.floor(Date.now() / 1000) - 60
+    const token = makeFakeJwt(exp)
+    seedSession(localStorage, token, 'rt_bad')
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === `${BASE}/auth/refresh`) return jsonResponse(401, errorBody(401, 'INVALID_REFRESH_TOKEN'))
+      return null
+    })
+
+    const res = await ensureFreshAccessToken()
+
+    expect(res).toBeNull()
+    expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(1)
+  })
+
+  it('token không đọc được exp mà refresh thất bại -> null', async () => {
+    seedSession(localStorage, 'corrupted-token', 'rt_bad')
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === `${BASE}/auth/refresh`) return jsonResponse(401, errorBody(401, 'INVALID_REFRESH_TOKEN'))
+      return null
+    })
+
+    const res = await ensureFreshAccessToken()
+
+    expect(res).toBeNull()
+    expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(1)
+  })
+
+  it('token sắp hết hạn (còn dưới 30 giây) -> gọi /auth/refresh và trả token mới', async () => {
+    const exp = Math.floor(Date.now() / 1000) + 10 // còn 10 giây
+    const token = makeFakeJwt(exp)
+    seedSession(localStorage, token, 'rt_1')
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === `${BASE}/auth/refresh`) return jsonResponse(200, authBody('new-soon-token', 'rt_2'))
+      return null
+    })
+
+    const res = await ensureFreshAccessToken()
+
+    expect(res).toBe('new-soon-token')
+    expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(1)
   })
 })
