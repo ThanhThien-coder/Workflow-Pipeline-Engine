@@ -1,6 +1,7 @@
 import type { OverviewData } from '../../types/overview.types'
 import type { IWorkflowService } from '../../services/contracts/IWorkflowService'
 import { workflowService } from '../../services/container'
+import { isApiError } from '../../services/http/ApiError'
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -11,10 +12,13 @@ export interface OverviewSlice {
     status: LoadStatus
     error: string | null
     toast: string | null
+    aiScanning: boolean
+    aiScanError: string | null
     load: (projectId: string) => Promise<void>
     resolveFeedback: (feedbackId: string, projectId?: string) => Promise<void>
     revokeGuest: (projectId?: string) => Promise<void>
     generateGuest: (projectId?: string) => Promise<void>
+    runAiDiagnosis: (projectId?: string) => Promise<void>
     showToast: (message: string) => void
     reset: () => void
   }
@@ -45,6 +49,8 @@ export const createOverviewSlice = (
     status: 'idle',
     error: null,
     toast: null,
+    aiScanning: false,
+    aiScanError: null,
     load: async (projectId) => {
       set((state) => {
         const isDifferentProject = state.overview.projectId !== projectId
@@ -55,6 +61,7 @@ export const createOverviewSlice = (
             data: isDifferentProject ? null : state.overview.data,
             status: 'loading',
             error: null,
+            ...(isDifferentProject ? { aiScanning: false, aiScanError: null } : {}),
           },
         }
       })
@@ -155,6 +162,65 @@ export const createOverviewSlice = (
         )
       }
     },
+    runAiDiagnosis: async (projectId?: string) => {
+      const targetProjectId = resolveOverviewProjectId(get, projectId)
+      if (!targetProjectId) return
+      if (get().overview.aiScanning) return
+
+      set((state) => ({
+        overview: { ...state.overview, aiScanning: true, aiScanError: null },
+      }))
+
+      try {
+        const report = await service.runAiDiagnosis(targetProjectId)
+        set((state) => {
+          if (state.overview.projectId !== targetProjectId || !state.overview.data) {
+            return state
+          }
+          return {
+            overview: {
+              ...state.overview,
+              data: {
+                ...state.overview.data,
+                aiReport: report,
+              },
+            },
+          }
+        })
+      } catch (error) {
+        if (get().overview.projectId === targetProjectId) {
+          let message = 'Could not run AI diagnosis. Please try again.'
+          if (isApiError(error)) {
+            if (error.status === 429) {
+              if (typeof error.retryAfterSeconds === 'number' && Number.isFinite(error.retryAfterSeconds)) {
+                message = `AI diagnosis was run recently. Try again in ${error.retryAfterSeconds}s.`
+              } else {
+                message = 'AI diagnosis was run recently. Try again in a few minutes.'
+              }
+            } else if (error.status === 403) {
+              message = 'You do not have permission to run AI diagnosis for this project.'
+            } else if (error.status === 503) {
+              message = 'AI service is unavailable right now. Please try again later.'
+            }
+          }
+          set((state) => {
+            if (state.overview.projectId !== targetProjectId) return state
+            return {
+              overview: { ...state.overview, aiScanError: message },
+            }
+          })
+        }
+      } finally {
+        if (get().overview.projectId === targetProjectId) {
+          set((state) => {
+            if (state.overview.projectId !== targetProjectId) return state
+            return {
+              overview: { ...state.overview, aiScanning: false },
+            }
+          })
+        }
+      }
+    },
     showToast: (message) => {
       set((state) => ({ overview: { ...state.overview, toast: message } }))
       setTimeout(() => {
@@ -165,7 +231,15 @@ export const createOverviewSlice = (
     },
     reset: () =>
       set((state) => ({
-        overview: { ...state.overview, projectId: null, data: null, status: 'idle', error: null },
+        overview: {
+          ...state.overview,
+          projectId: null,
+          data: null,
+          status: 'idle',
+          error: null,
+          aiScanning: false,
+          aiScanError: null,
+        },
       })),
   },
 })

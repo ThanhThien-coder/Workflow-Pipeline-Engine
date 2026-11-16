@@ -65,11 +65,13 @@ app:
   ai:
     cooldown-seconds: 180
     service-url: ${AI_SERVICE_URL:http://localhost:8081}
-    # mock = du lieu gia trong Java (mac dinh); http = goi microservice AI Python
-    mode: ${AI_MODE:mock}
+    # http = gọi microservice AI Python (mặc định); mock = dữ liệu mẫu trong Java, chỉ dùng để demo
+    mode: ${AI_MODE:http}
     diagnose-path: ${AI_DIAGNOSE_PATH:/api/ai/diagnose}
     connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:3}
     read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:30}
+    # Khóa nội bộ gửi kèm header X-Internal-Key khi gọi dịch vụ AI. Để trống thì không gửi.
+    internal-key: ${AI_INTERNAL_KEY:}
   invitation:
     expiry-days: ${INVITATION_EXPIRY_DAYS:7}
     expiry-scan-ms: ${INVITATION_EXPIRY_SCAN_MS:3600000}

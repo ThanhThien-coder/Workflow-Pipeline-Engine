@@ -29,11 +29,12 @@ sequenceDiagram
         alt AI Microservice phản hồi 200 OK (< 30s)
             AI-->>BE: 200 OK (JSON kết quả chẩn đoán)
             BE->>BE: Gắn thêm metadata (source = "AI_SERVICE", analyzedAt)
+            BE->>DB: UPDATE project SET latest_ai_analysis = ? (JSONB)
+            BE-->>FE: 200 OK (Kết quả chẩn đoán)
         else AI Lỗi (5xx / Timeout / Không kết nối được)
-            BE->>BE: Tự động kích hoạt Fallback Mock (source = "MOCK_FALLBACK", kèm warning)
+            BE-->>FE: 503 AI_SERVICE_UNAVAILABLE (không dữ liệu giả)
+            Note over BE: Không ghi DB & không tính cooldown
         end
-        BE->>DB: UPDATE project SET latest_ai_analysis = ? (JSONB)
-        BE-->>FE: 200 OK (Kết quả chẩn đoán)
     end
 ```
 
@@ -45,13 +46,14 @@ Backend Java hỗ trợ chuyển đổi linh hoạt giữa dữ liệu giả l�
 
 | Biến môi trường | Thuộc tính YAML tương ứng | Mặc định | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `AI_MODE` | `app.ai.mode` | `mock` | `mock`: Dùng dữ liệu phân tích giả lập nội bộ trong Java.<br/>`http`: Kích hoạt `HttpAiServiceClient` gọi sang Python microservice. |
+| `AI_MODE` | `app.ai.mode` | `http` | `http` (mặc định): gọi Python microservice.<br/>`mock`: dữ liệu mẫu trong Java, chỉ để demo. |
 | `AI_SERVICE_URL` | `app.ai.service-url` | `http://localhost:8081` | Địa chỉ gốc (Base URL) của AI Microservice. |
 | `AI_DIAGNOSE_PATH` | `app.ai.diagnose-path` | `/api/ai/diagnose` | Đường dẫn endpoint API chẩn đoán của microservice. |
 | `AI_CONNECT_TIMEOUT_SECONDS` | `app.ai.connect-timeout-seconds` | `3` | Thời gian tối đa thiết lập kết nối TCP (giây). |
 | `AI_READ_TIMEOUT_SECONDS` | `app.ai.read-timeout-seconds` | `30` | Thời gian tối đa chờ microservice xử lý và trả dữ liệu (giây). |
+| `AI_INTERNAL_KEY` | `app.ai.internal-key` | *(rỗng)* | Khóa nội bộ gửi trong header `X-Internal-Key`; để trống thì không gửi. |
 
-> **Lưu ý**: Mặc định `AI_MODE=mock`, do đó khi chạy Backend độc lập mà chưa khởi động microservice Python thì toàn bộ hệ thống vẫn chạy bình thường không bị lỗi.
+> **Lưu ý**: Mặc định `AI_MODE=http`. Chưa bật microservice Python thì bấm AI Diagnosis sẽ nhận 503 `AI_SERVICE_UNAVAILABLE`; các chức năng khác vẫn chạy bình thường.
 
 ---
 
@@ -62,6 +64,7 @@ Backend Java hỗ trợ chuyển đổi linh hoạt giữa dữ liệu giả l�
 - **Headers**:
   - `Content-Type: application/json`
   - `Accept: application/json`
+  - `X-Internal-Key: <khóa>` (chỉ khi cấu hình). Python nên từ chối (401) request thiếu hoặc sai khóa khi Python có cấu hình khóa.
 - Backend gửi kèm Content-Length.
 
 ### 3.1 Cấu Trúc Các Trường Dữ Liệu (`AiDiagnosisRequest`)
@@ -88,6 +91,7 @@ Backend Java hỗ trợ chuyển đổi linh hoạt giữa dữ liệu giả l�
 - `isOverdue` (Boolean): Đánh dấu tác vụ đã quá hạn chót hay chưa.
 - `assignedUserId` (Long): ID thành viên được phân công (hoặc null nếu chưa gán).
 - `joinPolicy` (String): Chính sách mở khóa (`ALL_COMPLETED` - AND join, hoặc `ANY_COMPLETED` - OR join).
+- `completedAt` (String ISO-8601, UTC, null nếu chưa DONE; task DONE trước khi có cột này lấy theo `updated_at`).
 
 #### Chi tiết `DependencyDto`:
 - `parentNodeId` (Long): ID của node cha (tiền điều kiện).
@@ -120,7 +124,8 @@ Backend Java hỗ trợ chuyển đổi linh hoạt giữa dữ liệu giả l�
       "dueDate": "2026-11-03T17:00:00Z",
       "isOverdue": false,
       "assignedUserId": 2,
-      "joinPolicy": "ALL_COMPLETED"
+      "joinPolicy": "ALL_COMPLETED",
+      "completedAt": "2026-11-03T15:00:00Z"
     },
     {
       "id": 102,
@@ -133,7 +138,8 @@ Backend Java hỗ trợ chuyển đổi linh hoạt giữa dữ liệu giả l�
       "dueDate": "2026-11-08T17:00:00Z",
       "isOverdue": true,
       "assignedUserId": 3,
-      "joinPolicy": "ALL_COMPLETED"
+      "joinPolicy": "ALL_COMPLETED",
+      "completedAt": null
     }
   ],
   "dependencies": [
@@ -154,6 +160,15 @@ Backend Java hỗ trợ chuyển đổi linh hoạt giữa dữ liệu giả l�
 }
 ```
 
+### 3.3 Quy tắc tính toán đã chốt (Minh, 16/11/2026)
+
+- Múi giờ dùng cho mọi quy tắc theo ngày/giờ: `Asia/Ho_Chi_Minh` (UTC+7). Backend gửi giờ UTC; Python tự đổi múi. Sau này cần nhiều múi giờ thì sửa lại.
+- Task ngâm: node `IN_PROGRESS` có số giờ đồng hồ kể từ `startedAt`, KHÔNG tính khung 0h–7h mỗi đêm (giờ Việt Nam), lớn hơn 2,5 × `estimatedHours`. Ví dụ: task ước tính 8 giờ → ngưỡng 2,5 × 8 = 20 giờ. Bắt đầu 17h00 thứ Hai (giờ Việt Nam). Thứ Hai tính 7 giờ (17h–24h); 0h–7h thứ Ba không tính; còn thiếu 13 giờ → đủ 20 giờ lúc 20h00 thứ Ba. Task bị coi là ngâm khi vượt mốc này (sau 20h00 thứ Ba) mà vẫn `IN_PROGRESS`.
+- Hạn chót dự án = `dueDate` muộn nhất trong các node (dự án chưa có cột deadline riêng).
+- Dự án chưa có node nào DONE: `metrics.status = "INSUFFICIENT_DATA"`, không tính Drift.
+- Dự án đã quá hạn (hạn chót dự án < hiện tại và còn node chưa DONE): `metrics.status = "OVERDUE"`, không tính Drift; trả `overdueDays` (số ngày quá hạn, làm tròn lên) và `remainingTasks`.
+- Velocity: công thức nội bộ dùng đơn vị task/ngày; con số hiển thị là `completedLast7Days` = số node có `completedAt` trong 7 ngày gần nhất.
+
 ---
 
 ## 4. Đặc Tả Dữ Liệu Phản Hồi Bắt Buộc (Response Specification)
@@ -163,30 +178,48 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 ### 4.1 Danh Sách Các Khóa Bắt Buộc
 
 1. **`analyzedAt`** (String, ISO-8601): Thời điểm kết thúc phân tích (UTC). Nếu microservice không trả, Java sẽ tự điền thời điểm hiện tại.
-2. **`source`** (String, tùy chọn): Đặt `"AI_SERVICE"`. Nếu bỏ trống, Java sẽ tự điền `"AI_SERVICE"`.
+2. **`source`** (String, tùy chọn):
+   - Do Python trả: `AI_SERVICE` (Gemini trả lời hợp lệ) | `HEURISTIC_FALLBACK` (dùng luật dự phòng). Nếu bỏ trống, Java tự điền `"AI_SERVICE"`.
+   - Backend tự gán: `MOCK` (chế độ mock).
+   - `HEURISTIC_FALLBACK` là phân tích bằng luật trên dữ liệu thật (Gemini lỗi), không phải dữ liệu giả.
+
 3. **`criticalPath`** (Array[String]): Mảng các mã node (`code`) nằm trên đường găng CPM dài nhất của dự án (ví dụ: `["WPE-001", "WPE-002"]`).
+   - Đồ thị có chu trình: `criticalPath = []` và `warning` nêu các node trong chu trình.
+
 4. **`bottlenecks`** (Array[Object]): Danh sách các điểm nghẽn tiến độ.
-   - `nodeCode` (String): Mã node.
+   - `nodeCode` (String): Mã node (phải là code có trong request, hoặc `"GENERAL"`).
    - `title` (String): Tiêu đề node.
    - `reason` (String): Lý do gây nghẽn.
-   - `severity` (String): Mức độ nghiêm trọng (`HIGH`, `MEDIUM`, `LOW`).
-5. **`taskTraps`** (Array[Object]): Cảnh báo bẫy tác vụ (nguy cơ treo hoặc phụ thuộc chéo).
-   - `nodeCode` (String): Mã node.
+   - `severity` (String): Mức độ nghiêm trọng (`HIGH` | `MEDIUM` | `LOW`).
+5. **`taskTraps`** (Array[Object]): Cảnh báo bẫy tác vụ.
+   - `nodeCode` (String): Mã node (phải là code có trong request, hoặc `"GENERAL"`).
    - `title` (String): Tiêu đề node.
-   - `trapType` (String): Loại bẫy (ví dụ: `POTENTIAL_STALL`, `MISSING_DEPENDENCY`).
+   - `trapType` (String): Loại bẫy (`POTENTIAL_STALL` | `SCOPE_CREEP` | `UNREALISTIC_DEADLINE`).
    - `suggestion` (String): Gợi ý gỡ bẫy.
 6. **`actionableAdvice`** (Array[Object]): Đề xuất hành động tức thì cho Chủ dự án.
-   - `action` (String): Loại hành động (ví dụ: `SPLIT_NODE`, `RESOLVE_FEEDBACK`, `CONTINUE_PIPELINE`).
-   - `targetNodeCode` (String): Mã node cần can thiệp, hoặc `"GENERAL"` nếu áp dụng toàn dự án.
+   - `action` (String): Loại hành động (`SPLIT_NODE` | `RESOLVE_FEEDBACK` | `PARALLELIZE` | `CONTINUE_PIPELINE`).
+   - `targetNodeCode` (String): Mã node cần can thiệp (phải là code có trong request, hoặc `"GENERAL"` nếu áp dụng toàn dự án).
    - `instruction` (String): Hướng dẫn chi tiết hành động.
-   - `priority` (String): Mức ưu tiên (`HIGH`, `MEDIUM`, `LOW`).
-7. **`metrics`** (Object): Các chỉ số quỹ đạo tiến độ.
-   - `targetVelocity` (Number): Vận tốc mục tiêu (số task/tuần).
-   - `actualVelocity` (Number): Vận tốc thực tế hiện tại.
-   - `driftScore` (Number): Điểm số lệch quỹ đạo (0.0 - 100.0).
-   - `status` (String): Đánh giá tổng thể (`STABLE_GREEN`, `RED_ALERT`, `YELLOW_WARNING`).
+   - `priority` (String): Mức ưu tiên (`HIGH` | `MEDIUM` | `LOW`).
+7. **`metrics`** (Object): Các chỉ số quỹ đạo tiến độ:
+   - `status` (String): `STABLE_GREEN` | `YELLOW_WARNING` | `RED_ALERT` | `INSUFFICIENT_DATA` | `OVERDUE`.
+   - `targetVelocity` (Number, task/ngày): Vận tốc mục tiêu.
+   - `actualVelocity` (Number, task/ngày): Vận tốc thực tế hiện tại.
+   - `completedLast7Days` (Integer): Số node có `completedAt` trong 7 ngày gần nhất.
+   - `driftScore` (Number 0–100, hoặc `null` khi `INSUFFICIENT_DATA`/`OVERDUE`): Điểm số lệch quỹ đạo.
+   - `overdueDays` (Integer, chỉ có giá trị khi `OVERDUE`, còn lại `null`): Số ngày quá hạn, làm tròn lên.
+   - `remainingTasks` (Integer): Số node chưa DONE.
+8. **`warning`** (String, tùy chọn): MỌI cảnh báo (rate limit 429, đồ thị có chu trình, đã dùng dự phòng...) gộp vào trường này. Bỏ `rateLimitWarning` (frontend vẫn đọc được tên cũ trong thời gian chuyển đổi).
+9. **`rootCauseNotes`** (String, tùy chọn): Nhận định nguyên nhân gốc của AI, KHÔNG nối vào `reason` của bottleneck.
 
-> **Khóa bổ sung**: Microservice có thể trả thêm các khóa mở rộng khác tùy nhu cầu (ví dụ: `geminiModelVersion`, `reasoningNotes`). Backend Java lưu toàn bộ Object vào cột JSONB `latest_ai_analysis` mà không cắt tỉa.
+#### Danh sách giá trị được phép (Python phải tự lọc bỏ item AI trả sai):
+- `severity`, `priority`: `HIGH` | `MEDIUM` | `LOW`
+- `trapType`: `POTENTIAL_STALL` | `SCOPE_CREEP` | `UNREALISTIC_DEADLINE`
+- `action`: `SPLIT_NODE` | `RESOLVE_FEEDBACK` | `PARALLELIZE` | `CONTINUE_PIPELINE`
+- `source` do Python trả: `AI_SERVICE` (Gemini trả lời hợp lệ) | `HEURISTIC_FALLBACK` (dùng luật dự phòng). Backend tự gán: `MOCK` (chế độ mock).
+- `nodeCode`/`targetNodeCode`: Phải là code có trong request, hoặc `"GENERAL"`.
+
+> **Khóa bổ sung**: Microservice có thể trả thêm các khóa mở rộng khác tùy nhu cầu (ví dụ: `geminiModelVersion`). Backend Java lưu toàn bộ Object vào cột JSONB `latest_ai_analysis` mà không cắt tỉa.
 
 ### 4.2 Ví Dụ JSON Response Mẫu
 
@@ -229,11 +262,16 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
     }
   ],
   "metrics": {
-    "targetVelocity": 2.0,
-    "actualVelocity": 1.2,
+    "status": "RED_ALERT",
+    "targetVelocity": 0.4,
+    "actualVelocity": 0.25,
+    "completedLast7Days": 1,
     "driftScore": 42.5,
-    "status": "RED_ALERT"
-  }
+    "overdueDays": null,
+    "remainingTasks": 1
+  },
+  "warning": null,
+  "rootCauseNotes": "Sự phụ thuộc vào tài liệu tích hợp bên thứ ba bị chậm trễ gây tắc nghẽn WPE-002."
 }
 ```
 
@@ -241,19 +279,17 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 
 ## 5. Cơ Chế Xử Lý Lỗi & Dự Phòng (Error Handling & Fallback)
 
-Hệ thống Java được trang bị cơ chế tự phục hồi chống gián đoạn (Fault Tolerance):
-
-1. **Điều kiện kích hoạt Fallback**:
+1. **Điều kiện kích hoạt lỗi**:
    - Microservice trả HTTP Status khác 2xx (ví dụ: 400, 500, 502, 503).
    - Quá thời gian chờ (Timeout): Thiết lập kết nối vượt quá `3s`, hoặc xử lý vượt quá `30s`.
    - Lỗi mạng: Không tìm thấy host, từ chối kết nối (`Connection refused`).
    - Phản hồi có body rỗng (`null`).
-2. **Hành vi Fallback của Java**:
-   - Không ném Exception ra ngoài Controller, không làm crash giao diện người dùng.
-   - Ghi `log.warn(...)` kèm nguyên nhân ngắn gọn.
-   - Lập tức chuyển sang bộ phân tích giả lập nội bộ (`AiServiceClientImpl`), gắn thêm:
-     - `"source": "MOCK_FALLBACK"`
-     - `"warning": "Không gọi được dịch vụ AI ({lý do ngắn}), đang hiển thị dữ liệu giả."`
+2. **Hành vi khi không gọi được Python**:
+   - Backend `log.warn` lý do kỹ thuật ngắn gọn.
+   - Trả HTTP 503 `{ "error": "AI_SERVICE_UNAVAILABLE", "message": "Dịch vụ AI tạm thời không hoạt động. Vui lòng thử lại sau." }`.
+   - Không trả lý do kỹ thuật cho client.
+   - KHÔNG tạo dữ liệu giả, KHÔNG ghi `latest_ai_analysis`, KHÔNG tính cooldown.
+   - Frontend hiện "AI service is unavailable right now. Please try again later." và giữ bản phân tích thật gần nhất.
 3. **Khuyến nghị cho Microservice**:
    - Microservice nên hoàn tất việc suy luận và trả phản hồi trong vòng **< 15–20 giây** để tránh tiệm cận ngưỡng `read-timeout-seconds: 30`.
    - Nếu gọi Google Gemini API bị lỗi hoặc quá hạn ngạch (Rate Limit 429), microservice nên tự bắt lỗi và trả về phản hồi fallback nhanh gọn thay vì để kết nối bị treo.
@@ -306,11 +342,16 @@ def diagnose_pipeline(payload: Dict[str, Any]):
             }
         ],
         "metrics": {
-            "targetVelocity": 2.0,
-            "actualVelocity": 1.8,
+            "status": "STABLE_GREEN",
+            "targetVelocity": 0.4,
+            "actualVelocity": 0.35,
+            "completedLast7Days": 1,
             "driftScore": 15.0,
-            "status": "STABLE_GREEN"
-        }
+            "overdueDays": None,
+            "remainingTasks": 0
+        },
+        "warning": None,
+        "rootCauseNotes": "Tiến độ dự án đang diễn ra đúng kế hoạch."
     }
 
 if __name__ == "__main__":
@@ -332,13 +373,14 @@ Gửi request kiểm tra xem microservice Python có phản hồi đúng schema 
 ```bash
 curl -X POST http://localhost:8081/api/ai/diagnose \
   -H "Content-Type: application/json" \
+  -H "X-Internal-Key: example-internal-key" \
   -d '{
     "projectId": 1,
     "projectName": "Test Project",
     "projectStatus": "ACTIVE",
     "requestedAt": "2026-11-12T00:00:00Z",
     "nodes": [
-      {"id": 1, "code": "WPE-001", "title": "Node 1", "status": "TODO", "phaseId": 1, "estimatedHours": 8, "startedAt": null, "dueDate": null, "isOverdue": false, "assignedUserId": null, "joinPolicy": "ALL_COMPLETED"}
+      {"id": 1, "code": "WPE-001", "title": "Node 1", "status": "TODO", "phaseId": 1, "estimatedHours": 8, "startedAt": null, "dueDate": null, "isOverdue": false, "assignedUserId": null, "joinPolicy": "ALL_COMPLETED", "completedAt": null}
     ],
     "dependencies": [],
     "openFeedbacks": []
@@ -350,27 +392,36 @@ curl -X POST http://localhost:8081/api/ai/diagnose \
 2. Khởi động Backend Java với chế độ HTTP:
    - Trên Linux/macOS:
      ```bash
-     AI_MODE=http AI_SERVICE_URL=http://localhost:8081 ./mvnw spring-boot:run
+     AI_MODE=http AI_SERVICE_URL=http://localhost:8081 AI_INTERNAL_KEY=example-internal-key ./mvnw spring-boot:run
      ```
    - Trên Windows PowerShell:
      ```powershell
-     $env:AI_MODE="http"; $env:AI_SERVICE_URL="http://localhost:8081"; ./mvnw spring-boot:run
+     $env:AI_MODE="http"; $env:AI_SERVICE_URL="http://localhost:8081"; $env:AI_INTERNAL_KEY="example-internal-key"; ./mvnw spring-boot:run
      ```
 3. Gửi lệnh kích hoạt chẩn đoán từ Client/Swagger UI hoặc curl (kèm header `X-Debug-User-Id: 2` tương ứng với Project Owner):
    ```bash
    curl -X POST http://localhost:8080/api/v1/projects/1/ai-diagnostics \
      -H "X-Debug-User-Id: 2"
    ```
-4. Kiểm tra trường `source` trong JSON trả về:
+4. Kiểm tra kết quả:
    - `AI_SERVICE`: Đã kết nối và lấy thành công từ microservice Python.
-   - `MOCK_FALLBACK`: Microservice chưa bật hoặc bị timeout, hệ thống tự động trả fallback an toàn kèm cảnh báo.
+   - HTTP 503 `AI_SERVICE_UNAVAILABLE`: microservice chưa bật hoặc quá giờ.
 
 ---
 
 ## 8. Nguyên Tắc Bảo Mật & Quản Lý API Key
 
-1. **Phân quyền tại Backend**: Backend Java đã kiểm tra toàn bộ quyền truy cập (chỉ thành viên dự án hoặc Owner mới được gọi phân tích). Microservice Python chỉ nhận dữ liệu đã được Backend thẩm định.
-2. **Không gửi dữ liệu nhạy cảm**: Backend **KHÔNG** gửi mật khẩu, email cá nhân hay access token của người dùng sang microservice AI. Chỉ gửi ID ẩn danh (`assignedUserId`), mã tác vụ và nội dung mô tả công việc.
-3. **Quản lý Gemini API Key**:
+1. **Khóa nội bộ (`X-Internal-Key`)**: Backend gửi kèm header `X-Internal-Key` nếu cấu hình `app.ai.internal-key`. Microservice Python nên từ chối (401 Unauthorized) các request thiếu hoặc sai khóa khi Python có cấu hình khóa.
+2. **Kiểm tra đầu ra AI**: Python phải tự kiểm tra đầu ra của AI theo danh sách giá trị được phép (severity/priority: `HIGH`/`MEDIUM`/`LOW`; trapType: `POTENTIAL_STALL`/`SCOPE_CREEP`/`UNREALISTIC_DEADLINE`; action: `SPLIT_NODE`/`RESOLVE_FEEDBACK`/`PARALLELIZE`/`CONTINUE_PIPELINE`; v.v.) và tự lọc bỏ item AI trả sai.
+3. **Phân tách dữ liệu người dùng trong prompt**: Nội dung góp ý và tên task là dữ liệu người dùng, phải tách biệt rõ ràng khỏi các câu lệnh chỉ dẫn hệ thống trong prompt gửi tới AI để phòng chống Prompt Injection.
+4. **Phân quyền tại Backend**: Backend Java đã kiểm tra toàn bộ quyền truy cập (chỉ thành viên dự án hoặc Owner mới được gọi phân tích). Microservice Python chỉ nhận dữ liệu đã được Backend thẩm định.
+5. **Không gửi dữ liệu nhạy cảm**: Backend **KHÔNG** gửi mật khẩu, email cá nhân hay access token của người dùng sang microservice AI. Chỉ gửi ID ẩn danh (`assignedUserId`), mã tác vụ và nội dung mô tả công việc.
+6. **Quản lý Gemini API Key**:
    - Backend Java tuyệt đối **KHÔNG** quản lý hay chứa Google Gemini API Key.
    - Gemini API Key được cấu hình riêng biệt tại biến môi trường của microservice Python (ví dụ: `GEMINI_API_KEY`).
+
+---
+
+## 9. Ghi Chú Phạm Vi Tính Năng
+
+> **Lưu ý**: Endpoint `/api/ai/scaffold-dag` (Prompt-to-DAG) hiện ngoài phạm vi, chưa nối vào backend/frontend. Task hiện tại chỉ tập trung vào hợp đồng chẩn đoán tiến độ `/api/ai/diagnose`.

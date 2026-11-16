@@ -4,7 +4,7 @@ import { isPhaseAncestor } from '../utils/spanningTreeLayout'
 import { computeSmartMacroPhasePosition } from '../utils/macroLayout'
 import { MockOverviewApi } from './mock/MockWorkflowService.overview'
 import { guestAccessStore } from './mock/guestAccessStore'
-import type { GuestAccessState, OverviewData } from '../types/overview.types'
+import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../types/overview.types'
 import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../types/kanban.types'
 import { MockTaskApi } from './mock/MockWorkflowService.tasks'
 import { MockSettingsApi } from './mock/MockWorkflowService.settings'
@@ -268,6 +268,14 @@ export class MockWorkflowService implements IWorkflowService {
     guestAccessStore.set(state.token, 'active')
     this.lastGuestToken = state.token
     return state
+  }
+
+  async runAiDiagnosis(projectId: string): Promise<AiDiagnosticReport> {
+    const data = await this.overviewApi.getOverviewData(projectId)
+    return {
+      ...data.aiReport,
+      generatedAt: new Date().toISOString(),
+    }
   }
 
   getMyTasks(projectId: string, userId: string): Promise<KanbanTask[]> { return this.taskApi.getMyTasks(projectId, userId) }

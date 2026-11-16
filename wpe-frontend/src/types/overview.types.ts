@@ -59,7 +59,17 @@ export interface AiDiagnosticInsight {
 /** Nguồn của bản chẩn đoán, lấy từ trường `source` mà backend/dịch vụ AI trả về. */
 export type AiDiagnosisSource = 'AI_SERVICE' | 'HEURISTIC_FALLBACK' | 'MOCK' | 'MOCK_FALLBACK' | 'UNKNOWN'
 /** Nhãn hiện cho người dùng, suy ra từ source. Chỉ AI_SERVICE mới được ghi là Gemini. */
-export type AiDiagnosisEngine = 'Gemini' | 'Phân tích dự phòng' | 'Dữ liệu mẫu' | 'Không rõ nguồn'
+export type AiDiagnosisEngine = 'Gemini' | 'Fallback analysis' | 'Sample data' | 'Unknown source'
+
+export type AiMetricsStatus = 'STABLE_GREEN' | 'YELLOW_WARNING' | 'RED_ALERT' | 'INSUFFICIENT_DATA' | 'OVERDUE' | 'UNKNOWN'
+/** metrics của bản chẩn đoán. Trường nào backend/Python chưa trả thì là null (dạng cũ chưa có completedLast7Days, overdueDays, remainingTasks). */
+export interface AiDiagnosisMetrics {
+  status: AiMetricsStatus
+  driftScore: number | null
+  completedLast7Days: number | null
+  overdueDays: number | null
+  remainingTasks: number | null
+}
 
 export interface AiDiagnosticReport {
   engine: AiDiagnosisEngine
@@ -67,6 +77,7 @@ export interface AiDiagnosticReport {
   source?: AiDiagnosisSource
   /** Gộp `warning` và `rateLimitWarning` của backend; có thì popover hiện dòng cảnh báo vàng. */
   warning?: string
+  metrics?: AiDiagnosisMetrics
   generatedAt: ISODateTime
   insights: AiDiagnosticInsight[]
   hasAnalysis?: boolean

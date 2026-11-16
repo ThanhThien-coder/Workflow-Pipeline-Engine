@@ -1,6 +1,7 @@
 package com.pipeline.wpe.service.ai;
 
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.exception.AiServiceUnavailableException;
 import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectFeedbackRepository;
@@ -134,6 +135,91 @@ class AiDiagnosticServiceTest {
             });
 
         verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - Client ném AiServiceUnavailableException không ghi đè bản cũ và không lưu DB")
+    void testTriggerAiDiagnostics_AiServiceUnavailable_DoesNotOverwriteOldAnalysisAndDoesNotSave() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+
+        Instant oneHourAgo = Instant.now().minus(1, ChronoUnit.HOURS);
+        Map<String, Object> oldAnalysis = Map.of(
+            "analyzedAt", oneHourAgo.toString(),
+            "source", "AI_SERVICE"
+        );
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Core Banking")
+            .latestAiAnalysis(oldAnalysis)
+            .build();
+
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
+
+        AiServiceUnavailableException serviceException = new AiServiceUnavailableException("example-reason", null);
+        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenThrow(serviceException);
+
+        assertThatThrownBy(() -> aiDiagnosticService.triggerAiDiagnostics(projectId))
+            .isSameAs(serviceException);
+
+        assertThat(project.getLatestAiAnalysis()).isEqualTo(oldAnalysis);
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - Gọi 2 lần liên tiếp gặp AiServiceUnavailableException đều ném 503 không bị chặn Cooldown")
+    void testTriggerAiDiagnostics_ConsecutiveAiServiceUnavailable_NoCooldownException() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Core Banking")
+            .latestAiAnalysis(null)
+            .build();
+
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
+
+        when(aiServiceClient.requestDiagnosis(any(), any(), any()))
+            .thenThrow(new AiServiceUnavailableException("example-reason", null));
+
+        assertThatThrownBy(() -> aiDiagnosticService.triggerAiDiagnostics(projectId))
+            .isInstanceOf(AiServiceUnavailableException.class);
+        assertThatThrownBy(() -> aiDiagnosticService.triggerAiDiagnostics(projectId))
+            .isInstanceOf(AiServiceUnavailableException.class);
+
+        verify(aiServiceClient, times(2)).requestDiagnosis(any(), any(), any());
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - Client trả source MOCK vẫn được lưu DB bình thường")
+    void testTriggerAiDiagnostics_MockSource_SavedSuccessfully() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .name("Core Banking")
+            .latestAiAnalysis(null)
+            .build();
+
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
+
+        Map<String, Object> mockResult = Map.of(
+            "source", "MOCK",
+            "analyzedAt", Instant.now().toString()
+        );
+        when(aiServiceClient.requestDiagnosis(any(), any(), any())).thenReturn(mockResult);
+
+        Map<String, Object> result = aiDiagnosticService.triggerAiDiagnostics(projectId);
+
+        assertThat(result.get("source")).isEqualTo("MOCK");
+        assertThat(project.getLatestAiAnalysis()).isEqualTo(mockResult);
+        verify(projectRepository).save(project);
     }
 }
 

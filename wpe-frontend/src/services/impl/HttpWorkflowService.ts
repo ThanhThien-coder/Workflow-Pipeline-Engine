@@ -11,6 +11,7 @@ import * as guestApi from './http/guest'
 import * as assignmentApi from './http/assignment'
 import * as activityApi from './http/activity'
 import * as overviewApi from './http/overview'
+import * as aiApi from './http/ai'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
 import { dateInputToEndOfDayIso } from '../../utils/dueDate'
 import type {
@@ -42,7 +43,7 @@ import type {
   UpdateProjectCommand,
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
-import type { GuestAccessState, OverviewData } from '../../types/overview.types'
+import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { BackendGraphNodeDto, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
 // Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
 import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
@@ -454,6 +455,11 @@ export class HttpWorkflowService implements IWorkflowService {
 
   async generateGuestToken(projectId: string): Promise<GuestAccessState> {
     return guestApi.createOrRenewGuestToken(projectId)
+  }
+
+  async runAiDiagnosis(projectId: string): Promise<AiDiagnosticReport> {
+    const raw = await aiApi.triggerAiDiagnostics(projectId)
+    return overviewApi.mapAiAnalysisToReport(raw, new Date().toISOString())
   }
 
   // ───────────────────────── Cài đặt, thành viên (D1/D2) ─────────────────────────

@@ -3,9 +3,11 @@ import type {
   ActivityAction,
   ActivityItem,
   AiDiagnosisEngine,
+  AiDiagnosisMetrics,
   AiDiagnosisSource,
   AiDiagnosticInsight,
   AiDiagnosticReport,
+  AiMetricsStatus,
   BreakdownStatus,
   DailyVelocity,
   GuestAccessState,
@@ -241,13 +243,43 @@ export function computeOverviewStats(
 
 const AI_SOURCE_LABELS: Record<AiDiagnosisSource, AiDiagnosisEngine> = {
   AI_SERVICE: 'Gemini',
-  HEURISTIC_FALLBACK: 'Phân tích dự phòng',
-  MOCK: 'Dữ liệu mẫu',
-  MOCK_FALLBACK: 'Dữ liệu mẫu',
-  UNKNOWN: 'Không rõ nguồn',
+  HEURISTIC_FALLBACK: 'Fallback analysis',
+  MOCK: 'Sample data',
+  MOCK_FALLBACK: 'Sample data',
+  UNKNOWN: 'Unknown source',
 }
 
-const RATE_LIMIT_DEFAULT_WARNING = 'Dịch vụ AI đang bị giới hạn lượt gọi, kết quả có thể chưa phải bản mới nhất.'
+const RATE_LIMIT_DEFAULT_WARNING = 'The AI service is rate-limited, so this result may not be the latest.'
+
+const VALID_METRICS_STATUSES: ReadonlySet<string> = new Set([
+  'STABLE_GREEN',
+  'YELLOW_WARNING',
+  'RED_ALERT',
+  'INSUFFICIENT_DATA',
+  'OVERDUE',
+])
+
+function readAiMetrics(record: Record<string, unknown>): AiDiagnosisMetrics | undefined {
+  const m = record.metrics
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return undefined
+  const raw = m as Record<string, unknown>
+
+  const rawStatus = typeof raw.status === 'string' ? raw.status.trim().toUpperCase() : ''
+  const status: AiMetricsStatus = VALID_METRICS_STATUSES.has(rawStatus)
+    ? (rawStatus as AiMetricsStatus)
+    : 'UNKNOWN'
+
+  const readNumber = (val: unknown): number | null =>
+    typeof val === 'number' && Number.isFinite(val) ? val : null
+
+  return {
+    status,
+    driftScore: readNumber(raw.driftScore),
+    completedLast7Days: readNumber(raw.completedLast7Days),
+    overdueDays: readNumber(raw.overdueDays),
+    remainingTasks: readNumber(raw.remainingTasks),
+  }
+}
 
 /** Đọc `source`. Thiếu hoặc lạ thì 'UNKNOWN': không mặc định là Gemini để khỏi ghi dữ liệu giả thành AI thật. */
 function readAiSource(record: Record<string, unknown>): AiDiagnosisSource {
@@ -272,7 +304,7 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
     generatedAt: fallbackTimestamp,
     insights: [],
     hasAnalysis: false,
-    emptyMessage: 'Chưa có chẩn đoán',
+    emptyMessage: 'No diagnosis yet',
   }
 
   if (!raw || typeof raw !== 'object') return emptyReport
@@ -280,7 +312,12 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
   if (record.hasAnalysis === false) return emptyReport
 
   const source = readAiSource(record)
-  const origin = { engine: AI_SOURCE_LABELS[source], source, warning: readAiWarning(record) }
+  const origin = {
+    engine: AI_SOURCE_LABELS[source],
+    source,
+    warning: readAiWarning(record),
+    metrics: readAiMetrics(record),
+  }
 
   const analyzedAt =
     typeof record.analyzedAt === 'string' && record.analyzedAt

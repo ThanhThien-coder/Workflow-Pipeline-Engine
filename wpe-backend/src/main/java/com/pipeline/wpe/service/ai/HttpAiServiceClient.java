@@ -4,6 +4,7 @@ import com.pipeline.wpe.entity.NodeDependencyEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectFeedbackEntity;
+import com.pipeline.wpe.exception.AiServiceUnavailableException;
 import com.pipeline.wpe.repository.NodeDependencyRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,26 +25,30 @@ import java.util.Map;
 /**
  * Cài đặt kết nối HTTP sang microservice AI (Python).
  * Được kích hoạt khi app.ai.mode=http.
- * Tự động chuyển về fallback (AiServiceClientImpl) khi microservice gặp sự cố hoặc quá giờ.
+ * Không gọi được dịch vụ AI thì ném AiServiceUnavailableException (HTTP 503), không tạo dữ liệu giả.
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(prefix = "app.ai", name = "mode", havingValue = "http")
+@ConditionalOnProperty(prefix = "app.ai", name = "mode", havingValue = "http", matchIfMissing = true)
 public class HttpAiServiceClient implements AiServiceClient {
+
+    static final String INTERNAL_KEY_HEADER = "X-Internal-Key";
 
     private final RestClient restClient;
     private final NodeDependencyRepository nodeDependencyRepository;
     private final String diagnosePath;
-    private final AiServiceClient fallback;
+    private final String internalKey;
 
     public HttpAiServiceClient(RestClient.Builder restClientBuilder,
                                NodeDependencyRepository nodeDependencyRepository,
                                @Value("${app.ai.service-url}") String serviceUrl,
                                @Value("${app.ai.diagnose-path:/api/ai/diagnose}") String diagnosePath,
                                @Value("${app.ai.connect-timeout-seconds:3}") int connectTimeoutSeconds,
-                               @Value("${app.ai.read-timeout-seconds:30}") int readTimeoutSeconds) {
+                               @Value("${app.ai.read-timeout-seconds:30}") int readTimeoutSeconds,
+                               @Value("${app.ai.internal-key:}") String internalKey) {
         this.nodeDependencyRepository = nodeDependencyRepository;
         this.diagnosePath = diagnosePath;
+        this.internalKey = internalKey != null ? internalKey.trim() : "";
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(connectTimeoutSeconds * 1000);
         factory.setReadTimeout(readTimeoutSeconds * 1000);
@@ -51,7 +56,6 @@ public class HttpAiServiceClient implements AiServiceClient {
                 .baseUrl(serviceUrl)
                 .requestFactory(new BufferingClientHttpRequestFactory(factory))
                 .build();
-        this.fallback = new AiServiceClientImpl();
     }
 
     @Override
@@ -66,13 +70,18 @@ public class HttpAiServiceClient implements AiServiceClient {
             Map<String, Object> responseBody = restClient.post()
                     .uri(diagnosePath)
                     .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> {
+                        if (!internalKey.isEmpty()) {
+                            h.set(INTERNAL_KEY_HEADER, internalKey);
+                        }
+                    })
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
 
             if (responseBody == null) {
                 log.warn("Dịch vụ AI trả về body null cho dự án ID: {}", projectId);
-                return createFallbackResult(project, nodes, openFeedbacks, "body null");
+                throw new AiServiceUnavailableException("body null", null);
             }
 
             Map<String, Object> result = new LinkedHashMap<>(responseBody);
@@ -84,20 +93,14 @@ public class HttpAiServiceClient implements AiServiceClient {
             }
 
             return result;
+        } catch (AiServiceUnavailableException ex) {
+            throw ex;
         } catch (Exception ex) {
             String shortReason = extractShortReason(ex);
             log.warn("Không gọi được dịch vụ AI (dự án ID: {}): {}",
                     project != null ? project.getId() : "null", shortReason, ex);
-            return createFallbackResult(project, nodes, openFeedbacks, shortReason);
+            throw new AiServiceUnavailableException(shortReason, ex);
         }
-    }
-
-    private Map<String, Object> createFallbackResult(ProjectEntity project, List<NodeEntity> nodes,
-                                                     List<ProjectFeedbackEntity> openFeedbacks, String shortReason) {
-        Map<String, Object> fallbackResult = new LinkedHashMap<>(fallback.requestDiagnosis(project, nodes, openFeedbacks));
-        fallbackResult.put("source", "MOCK_FALLBACK");
-        fallbackResult.put("warning", "Không gọi được dịch vụ AI (" + shortReason + "), đang hiển thị dữ liệu giả.");
-        return fallbackResult;
     }
 
     private String extractShortReason(Exception ex) {

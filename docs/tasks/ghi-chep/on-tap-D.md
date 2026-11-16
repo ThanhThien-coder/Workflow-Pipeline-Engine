@@ -17,7 +17,7 @@
 | CSDL | PostgreSQL + **Flyway** (đang ở V11) | Lưu dữ liệu, đổi cấu trúc theo phiên bản |
 | Hàng đợi | RabbitMQ | Gửi sự kiện bất đồng bộ (task xong → mở task con, thông báo, lời mời) |
 | Đẩy realtime | **SSE** | Server đẩy sự kiện xuống trình duyệt, không cần F5 |
-| AI | Microservice Python (repo riêng) | Java gọi qua HTTP khi `AI_MODE=http`, mặc định dùng dữ liệu giả |
+| AI | Microservice Python (repo riêng) | Java gọi qua HTTP (`AI_MODE=http` mặc định), lỗi/quá giờ trả 503 `AI_SERVICE_UNAVAILABLE`, không còn dữ liệu giả; `AI_MODE=mock` chỉ để demo |
 | CI | GitHub Actions | Chạy test backend + frontend mỗi PR |
 
 **Vòng đời một dự án:** tạo/clone → **DRAFT** (D1, D3) → mời người, phân vai (D2) → vẽ quy trình, **xuất bản** → **ACTIVE** (B) → làm task, nộp, duyệt (C) → khách/giáo viên xem và góp ý qua link (D5) → AI chẩn đoán (microservice).
@@ -162,8 +162,8 @@ Cần cả hai: token ngắn để an toàn, token dài để không phải đă
 ## 10. AI (PR #29 hoàn tác, #30 cổng nối)
 
 AI là **microservice Python riêng** (thầy yêu cầu microservice), do bạn khác làm. Mình đã lỡ làm CPM trong Java (#21) rồi **hoàn tác** (#29). Phía Java chỉ còn **cổng nối**:
-- `AI_MODE=mock` (mặc định): `AiServiceClientImpl` trả dữ liệu giả.
-- `AI_MODE=http`: `HttpAiServiceClient` gửi `POST {AI_SERVICE_URL}/api/ai/diagnose` kèm task, cạnh, góp ý; lỗi/quá giờ thì quay về dữ liệu giả (`source: MOCK_FALLBACK`).
+- `AI_MODE=http` (mặc định): `HttpAiServiceClient` gửi `POST {AI_SERVICE_URL}/api/ai/diagnose` kèm task, cạnh, góp ý; lỗi/quá giờ thì trả 503 `AI_SERVICE_UNAVAILABLE`, không còn dữ liệu giả.
+- `AI_MODE=mock`: `AiServiceClientImpl` trả dữ liệu giả, chỉ dùng để demo.
 - Hợp đồng: `docs/specs/ai-service-contract.md`.
 
 **Có thể bị hỏi:** *Mẫu thiết kế nào?* — **Strategy**: `AiDiagnosticService` chỉ phụ thuộc interface `AiServiceClient`; 2 cài đặt hoán đổi bằng cấu hình (`@ConditionalOnProperty`). Đây cũng là **Dependency Inversion**.
