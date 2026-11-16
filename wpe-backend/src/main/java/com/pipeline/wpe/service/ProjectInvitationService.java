@@ -49,39 +49,44 @@ public class ProjectInvitationService {
     @Value("${app.invitation.expiry-days:7}")
     private long expiryDays = 7;
 
+    private static final java.util.regex.Pattern EMAIL_PATTERN = java.util.regex.Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+
     /**
      * 1. Gửi Lời mời tham gia dự án (Asynchronous Invitation & Notification Deep-Link).
      */
     @Transactional
     public InvitationResponse sendInvitation(Long projectId, CreateInvitationRequest request, Long currentUserId) {
         ProjectEntity project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án với ID: " + projectId));
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
 
         // Kiểm tra quyền: Chỉ chủ dự án (OWNER) mới được gửi lời mời
         if (!project.getOwnerId().equals(currentUserId)) {
-            throw new ForbiddenException("ACCESS_DENIED", "Chỉ chủ dự án (OWNER) mới được gửi lời mời.");
+            throw new ForbiddenException("ACCESS_DENIED", "Only the project owner can send invitations.");
         }
 
         if (request.role() == ProjectRole.OWNER) {
-            throw new IllegalArgumentException("Không thể mời với vai trò OWNER. Dùng chức năng chuyển quyền sở hữu.");
+            throw new IllegalArgumentException("You cannot invite someone as OWNER. Use transfer ownership instead.");
         }
 
         UserEntity inviter = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người gửi lời mời"));
+                .orElseThrow(() -> new ResourceNotFoundException("Inviter not found"));
 
-        String identifier = request.inviteeEmailOrUsername().trim();
-        UserEntity invitee = userRepository.findByEmail(identifier)
-                .or(() -> userRepository.findByUsername(identifier))
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với định danh: " + identifier));
+        // G22: chỉ mời bằng email (username có thể trùng). Tên trường request giữ nguyên để không đổi contract.
+        String email = request.inviteeEmailOrUsername().trim();
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new IllegalArgumentException("INVALID_EMAIL: Enter the email address of the person you want to invite.");
+        }
+        UserEntity invitee = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new ResourceNotFoundException("No account found with email: " + email));
 
         if (invitee.getId().equals(currentUserId)) {
-            throw new IllegalArgumentException("Chủ dự án không thể tự gửi lời mời cho chính mình.");
+            throw new IllegalArgumentException("You cannot invite yourself.");
         }
 
         // Kiểm tra xem đã là thành viên chính thức chưa
         boolean alreadyMember = projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, invitee.getId());
         if (alreadyMember) {
-            throw new IllegalArgumentException("Người dùng " + invitee.getUsername() + " đã là thành viên chính thức của dự án.");
+            throw new IllegalArgumentException(invitee.getEmail() + " is already a member of this project.");
         }
 
         // Kiểm tra xem đã có lời mời PENDING chưa
@@ -95,7 +100,7 @@ public class ProjectInvitationService {
                 projectInvitationRepository.saveAndFlush(pendingInvitation);
             } else {
                 throw new ConflictException("INVITATION_ALREADY_PENDING",
-                        "Người dùng " + invitee.getUsername() + " đã có một lời mời đang chờ phản hồi.");
+                        invitee.getEmail() + " already has a pending invitation.");
             }
         }
 
@@ -124,8 +129,8 @@ public class ProjectInvitationService {
         // 1. Tạo Notification trực tiếp cho Invitee vào bảng notification
         NotificationEntity notification = NotificationEntity.builder()
                 .userId(invitee.getId())
-                .title("Lời mời tham gia dự án: " + project.getName())
-                .message(inviterName + " đã mời bạn tham gia dự án \"" + project.getName() + "\"")
+                .title("Project invitation: " + project.getName())
+                .message(inviterName + " invited you to join the project \"" + project.getName() + "\"")
                 .linkUrl(deepLink)
                 .isRead(false)
                 .build();
@@ -162,13 +167,13 @@ public class ProjectInvitationService {
     @Transactional(readOnly = true)
     public InvitationDetailResponse getInvitationDetail(Long invitationId, Long currentUserId) {
         ProjectInvitationEntity invitation = projectInvitationRepository.findById(invitationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời với ID: " + invitationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found: " + invitationId));
 
         ProjectEntity project = projectRepository.findById(invitation.getProjectId())
-                .orElseThrow(() -> new ResourceNotFoundException("Dự án của lời mời không còn tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("The project of this invitation no longer exists"));
 
         UserEntity inviter = userRepository.findById(invitation.getInviterId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin người mời"));
+                .orElseThrow(() -> new ResourceNotFoundException("Inviter not found"));
 
         String inviterName = inviter.getFullName() != null && !inviter.getFullName().isBlank()
                 ? inviter.getFullName() : inviter.getUsername();
@@ -191,21 +196,21 @@ public class ProjectInvitationService {
     @Transactional(noRollbackFor = ConflictException.class)
     public void acceptInvitation(Long invitationId, Long currentUserId) {
         ProjectInvitationEntity invitation = projectInvitationRepository.findById(invitationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời với ID: " + invitationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found: " + invitationId));
 
         if (!invitation.getInviteeId().equals(currentUserId)) {
-            throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền phản hồi lời mời này.");
+            throw new ForbiddenException("ACCESS_DENIED", "You cannot respond to this invitation.");
         }
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
-            throw new ConflictException("INVITATION_NOT_PENDING", "Lời mời không ở trạng thái chờ phản hồi (Hiện tại: " + invitation.getStatus() + ").");
+            throw new ConflictException("INVITATION_NOT_PENDING", "This invitation is no longer pending (current status: " + invitation.getStatus() + ").");
         }
 
         if (invitation.getExpiresAt().isBefore(Instant.now())) {
             invitation.setStatus(InvitationStatus.EXPIRED);
             invitation.setRespondedAt(Instant.now());
             projectInvitationRepository.save(invitation);
-            throw new ConflictException("INVITATION_EXPIRED", "Lời mời đã hết hạn.");
+            throw new ConflictException("INVITATION_EXPIRED", "This invitation has expired.");
         }
 
         // Cập nhật trạng thái Lời mời sang ACCEPTED
@@ -258,21 +263,21 @@ public class ProjectInvitationService {
     @Transactional(noRollbackFor = ConflictException.class)
     public void rejectInvitation(Long invitationId, Long currentUserId) {
         ProjectInvitationEntity invitation = projectInvitationRepository.findById(invitationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời với ID: " + invitationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found: " + invitationId));
 
         if (!invitation.getInviteeId().equals(currentUserId)) {
-            throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền từ chối lời mời này.");
+            throw new ForbiddenException("ACCESS_DENIED", "You cannot decline this invitation.");
         }
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
-            throw new ConflictException("INVITATION_NOT_PENDING", "Lời mời không ở trạng thái chờ phản hồi.");
+            throw new ConflictException("INVITATION_NOT_PENDING", "This invitation is no longer pending.");
         }
 
         if (invitation.getExpiresAt().isBefore(Instant.now())) {
             invitation.setStatus(InvitationStatus.EXPIRED);
             invitation.setRespondedAt(Instant.now());
             projectInvitationRepository.save(invitation);
-            throw new ConflictException("INVITATION_EXPIRED", "Lời mời đã hết hạn.");
+            throw new ConflictException("INVITATION_EXPIRED", "This invitation has expired.");
         }
 
         invitation.setStatus(InvitationStatus.REJECTED);
@@ -295,10 +300,10 @@ public class ProjectInvitationService {
     @Transactional
     public void revokeInvitation(Long invitationId, Long currentUserId) {
         ProjectInvitationEntity invitation = projectInvitationRepository.findById(invitationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời với ID: " + invitationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found: " + invitationId));
 
         ProjectEntity project = projectRepository.findById(invitation.getProjectId())
-                .orElseThrow(() -> new ResourceNotFoundException("Dự án của lời mời không còn tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("The project of this invitation no longer exists"));
 
         boolean isInviter = invitation.getInviterId().equals(currentUserId);
         boolean isOwner = project.getOwnerId().equals(currentUserId);
@@ -307,11 +312,11 @@ public class ProjectInvitationService {
                 .orElse(false);
 
         if (!isInviter && !isOwner && !isAdmin) {
-            throw new ForbiddenException("ACCESS_DENIED", "Chỉ người gửi lời mời hoặc chủ dự án mới có quyền thu hồi lời mời này.");
+            throw new ForbiddenException("ACCESS_DENIED", "Only the inviter or the project owner can revoke this invitation.");
         }
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
-            throw new ConflictException("INVITATION_NOT_PENDING", "Chỉ có thể thu hồi lời mời đang ở trạng thái PENDING.");
+            throw new ConflictException("INVITATION_NOT_PENDING", "Only pending invitations can be revoked.");
         }
 
         invitation.setStatus(InvitationStatus.REVOKED);

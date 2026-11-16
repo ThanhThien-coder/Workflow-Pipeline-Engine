@@ -48,11 +48,11 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
     const login = stubAuthAction('login', apiError(status, code))
     render(<AuthView />)
 
-    fillAndSubmit({ 'alex.kim@pipeline.engine': 'alex.kim', 'Enter your password': 'sai-mat-khau' })
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'alex.kim@pipeline.engine', 'Enter your password': 'sai-mat-khau' })
 
     const expected = getAuthErrorMessage(apiError(status, code), '')
     await waitFor(() => expect(screen.getByText(expected)).toBeDefined())
-    expect(login).toHaveBeenCalledWith({ identifier: 'alex.kim', password: 'sai-mat-khau', rememberMe: true })
+    expect(login).toHaveBeenCalledWith({ identifier: 'alex.kim@pipeline.engine', password: 'sai-mat-khau', rememberMe: true })
   })
 
   it.each(['USERNAME_TAKEN', 'EMAIL_TAKEN'])('đăng ký lỗi %s: hiện câu báo lỗi tương ứng trên form', async (code) => {
@@ -83,7 +83,7 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
     useWorkflowStore.setState((s) => ({ auth: { ...s.auth, login } }))
     render(<AuthView />)
 
-    fillAndSubmit({ 'alex.kim@pipeline.engine': 'alex.kim', 'Enter your password': 'Password123!' })
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'alex.kim@pipeline.engine', 'Enter your password': 'Password123!' })
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/workspaces')
@@ -102,10 +102,21 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
     useWorkflowStore.setState((s) => ({ auth: { ...s.auth, login } }))
     render(<AuthView />)
 
-    fillAndSubmit({ 'alex.kim@pipeline.engine': 'admin', 'Enter your password': 'Password123!' })
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'admin@pipeline.engine', 'Enter your password': 'Password123!' })
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/admin')
     })
+  })
+
+  it('G22: đăng nhập bằng username (không phải email) -> báo lỗi trên form, không gọi login', async () => {
+    const login = vi.fn()
+    useWorkflowStore.setState((s) => ({ auth: { ...s.auth, login } }))
+    render(<AuthView />)
+
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'alex.kim', 'Enter your password': 'Password123!' })
+
+    await waitFor(() => expect(screen.getByText('Enter a valid email address.')).toBeDefined())
+    expect(login).not.toHaveBeenCalled()
   })
 })

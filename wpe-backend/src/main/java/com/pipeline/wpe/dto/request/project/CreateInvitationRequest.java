@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record CreateInvitationRequest(
-    @NotBlank(message = "Invitee email or username is required")
+    @NotBlank(message = "Invitee email is required")
     String inviteeEmailOrUsername,
 
     ProjectRole role

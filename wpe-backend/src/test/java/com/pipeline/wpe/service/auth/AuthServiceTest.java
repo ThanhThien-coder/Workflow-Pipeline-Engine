@@ -124,12 +124,12 @@ class AuthServiceTest {
     @DisplayName("login: đúng mật khẩu -> trả token, refreshToken, user")
     void login_ok() {
         UserEntity user = alex(false);
-        when(userRepository.findByUsername("alex.kim")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(user));
         when(jwtService.generateAccessToken(user)).thenReturn("jwt");
         when(refreshTokenService.issue(2L)).thenReturn("rt_x");
         when(userMapper.toUserSummary(user)).thenReturn(summary);
 
-        AuthResponse res = authService.login(new LoginRequest("alex.kim", "Password123!", true));
+        AuthResponse res = authService.login(new LoginRequest("alex.kim@pipeline.engine", "Password123!", true));
 
         assertThat(res.token()).isEqualTo("jwt");
         assertThat(res.refreshToken()).isEqualTo("rt_x");
@@ -190,11 +190,11 @@ class AuthServiceTest {
     @Test
     @DisplayName("login: sai mật khẩu và không có user -> cùng 401 BAD_CREDENTIALS, cùng thông báo")
     void login_badCredentials_sameMessage() {
-        when(userRepository.findByUsername("alex.kim")).thenReturn(Optional.of(alex(false)));
-        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(alex(false)));
+        when(userRepository.findByEmailIgnoreCase("ghost@pipeline.engine")).thenReturn(Optional.empty());
 
-        Throwable wrongPassword = catchUnauthorized(() -> authService.login(new LoginRequest("alex.kim", "sai", false)));
-        Throwable noUser = catchUnauthorized(() -> authService.login(new LoginRequest("ghost", "Password123!", false)));
+        Throwable wrongPassword = catchUnauthorized(() -> authService.login(new LoginRequest("alex.kim@pipeline.engine", "sai", false)));
+        Throwable noUser = catchUnauthorized(() -> authService.login(new LoginRequest("ghost@pipeline.engine", "Password123!", false)));
 
         assertThat(((UnauthorizedException) wrongPassword).getErrorCode()).isEqualTo("BAD_CREDENTIALS");
         assertThat(((UnauthorizedException) noUser).getErrorCode()).isEqualTo("BAD_CREDENTIALS");
@@ -205,9 +205,9 @@ class AuthServiceTest {
     @Test
     @DisplayName("login: tài khoản khóa, đúng mật khẩu -> 403 ACCOUNT_LOCKED")
     void login_locked() {
-        when(userRepository.findByUsername("alex.kim")).thenReturn(Optional.of(alex(true)));
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(alex(true)));
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim", "Password123!", false)))
+        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim@pipeline.engine", "Password123!", false)))
             .isInstanceOf(ForbiddenException.class).extracting("errorCode").isEqualTo("ACCOUNT_LOCKED");
         verify(refreshTokenService, never()).issue(anyLong());
     }
@@ -215,9 +215,9 @@ class AuthServiceTest {
     @Test
     @DisplayName("login: tài khoản khóa nhưng sai mật khẩu -> 401 BAD_CREDENTIALS (không lộ trạng thái khóa)")
     void login_lockedWrongPassword_badCredentials() {
-        when(userRepository.findByUsername("alex.kim")).thenReturn(Optional.of(alex(true)));
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(alex(true)));
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim", "sai", false)))
+        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim@pipeline.engine", "sai", false)))
             .isInstanceOf(UnauthorizedException.class).extracting("errorCode").isEqualTo("BAD_CREDENTIALS");
     }
 
@@ -270,23 +270,34 @@ class AuthServiceTest {
     @DisplayName("login audit: sai mật khẩu -> ghi audit log LOGIN_FAILED với actor là user")
     void login_audit_wrongPassword_loginFailed() {
         UserEntity user = alex(false);
-        when(userRepository.findByUsername("alex.kim")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(user));
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim", "wrong_pass", false)))
+        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim@pipeline.engine", "wrong_pass", false)))
             .isInstanceOf(UnauthorizedException.class);
 
-        verify(adminAuditService).record(eq(2L), eq("alex.kim"), eq("LOGIN_FAILED"), eq("USER"), eq("2"), eq("Sai mật khẩu"));
+        verify(adminAuditService).record(eq(2L), eq("alex.kim"), eq("LOGIN_FAILED"), eq("USER"), eq("2"), eq("Wrong password"));
     }
 
     @Test
     @DisplayName("login audit: user không tồn tại -> ghi audit log LOGIN_FAILED với actorUserId null")
     void login_audit_userNotFound_loginFailed() {
-        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("ghost@pipeline.engine")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("ghost", "Password123!", false)))
+        assertThatThrownBy(() -> authService.login(new LoginRequest("ghost@pipeline.engine", "Password123!", false)))
             .isInstanceOf(UnauthorizedException.class);
 
-        verify(adminAuditService).record(isNull(), eq("ghost"), eq("LOGIN_FAILED"), eq("USER"), isNull(), eq("Không tồn tại tài khoản"));
+        verify(adminAuditService).record(isNull(), eq("ghost@pipeline.engine"), eq("LOGIN_FAILED"), eq("USER"), isNull(), eq("Account does not exist"));
+    }
+
+    @Test
+    @DisplayName("G22: đăng nhập bằng username (không có @) -> 401 BAD_CREDENTIALS, không tìm theo username")
+    void login_byUsername_rejected() {
+        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim", "Password123!", false)))
+            .isInstanceOf(UnauthorizedException.class)
+            .extracting("errorCode")
+            .isEqualTo("BAD_CREDENTIALS");
+        verify(userRepository, never()).findByUsername(anyString());
+        verify(userRepository, never()).findByEmailIgnoreCase(anyString());
     }
 
     private static Throwable catchUnauthorized(Runnable r) {
