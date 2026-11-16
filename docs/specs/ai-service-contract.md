@@ -20,7 +20,7 @@ sequenceDiagram
     participant AI as AI Microservice (Python FastAPI)
 
     FE->>BE: POST /api/v1/projects/{id}/ai-diagnostics
-    Note over BE: 1. Kiểm tra JWT & quyền Thành viên / Owner<br/>2. Kiểm tra Cooldown 180s (chống spam)
+    Note over BE: 1. Kiểm tra JWT & quyền Thành viên / Owner<br/>2. Giữ chỗ nguyên tử (project.ai_requested_at), cooldown 180s
     alt Đang trong Cooldown (< 180s)
         BE-->>FE: 429 TOO_MANY_REQUESTS (retryAfterSeconds)
     else Hết Cooldown (hoặc lần đầu phân tích)
@@ -33,7 +33,7 @@ sequenceDiagram
             BE-->>FE: 200 OK (Kết quả chẩn đoán)
         else AI lỗi (5xx / Timeout / Không kết nối / Sai khuôn)
             BE-->>FE: 503 AI_SERVICE_UNAVAILABLE (không dữ liệu giả)
-            Note over BE: Không ghi DB & không tính cooldown
+            Note over BE: Không ghi DB, trả lại chỗ (không tính cooldown)
         end
     end
 ```
@@ -179,7 +179,7 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 
 Backend kiểm khuôn tối thiểu: `criticalPath`, `bottlenecks`, `taskTraps`, `actionableAdvice` phải là mảng; `metrics` phải là object. Sai thì coi như dịch vụ AI hỏng (mục 5). Backend không kiểm nội dung từng phần tử; việc đó Python phải làm.
 
-1. **`analyzedAt`** (String, ISO-8601): Backend LUÔN tự đặt bằng giờ của backend khi nhận kết quả; cooldown 180 giây chỉ dựa vào giá trị này. Giá trị Python gửi (nếu có) được giữ nguyên trong `serviceAnalyzedAt`, chỉ để tham khảo.
+1. **`analyzedAt`** (String, ISO-8601): Backend LUÔN tự đặt bằng giờ của backend khi nhận kết quả; dùng để hiển thị thời điểm phân tích (frontend 'Updated …'). Giá trị Python gửi (nếu có) được giữ nguyên trong `serviceAnalyzedAt`, chỉ để tham khảo.
 2. **`source`** (String, tùy chọn):
    - Do Python trả: `AI_SERVICE` (Gemini trả lời hợp lệ) | `HEURISTIC_FALLBACK` (dùng luật dự phòng). Nếu bỏ trống, Java tự điền `"AI_SERVICE"`.
    - Backend tự gán: `MOCK` (chế độ mock).
@@ -296,6 +296,14 @@ Backend kiểm khuôn tối thiểu: `criticalPath`, `bottlenecks`, `taskTraps`,
 3. **Khuyến nghị cho Microservice**:
    - Microservice nên hoàn tất việc suy luận và trả phản hồi trong vòng **< 15–20 giây** để tránh tiệm cận ngưỡng `read-timeout-seconds: 30`.
    - Nếu gọi Google Gemini API bị lỗi hoặc quá hạn ngạch (Rate Limit 429), microservice nên tự bắt lỗi và trả về phản hồi fallback nhanh gọn thay vì để kết nối bị treo.
+
+### 5.1 Cooldown và chống bấm trùng
+
+- Cooldown 180 giây tính theo `project.ai_requested_at` (V18) — thời điểm bấm.
+- Giữ chỗ bằng 1 câu UPDATE nguyên tử nên 2 lần bấm đồng thời chỉ 1 lần gọi AI, lần kia 429.
+- AI lỗi thì trả lại chỗ (không tính cooldown).
+- Backend gọi AI ngoài transaction DB.
+- Kết quả chỉ ghi cột `latest_ai_analysis`, không đổi `updated_at` ("Last updated") của dự án.
 
 ---
 
