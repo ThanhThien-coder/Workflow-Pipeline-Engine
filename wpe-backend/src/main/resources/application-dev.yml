@@ -1,0 +1,24 @@
+# Profile dev: chỉ dùng trên máy lập trình. Bật bằng SPRING_PROFILES_ACTIVE=dev.
+# KHÔNG BAO GIỜ bật profile này trên server production.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/wpe_db}
+    username: ${DB_USERNAME:wpe_user}
+    password: ${DB_PASSWORD:wpe_password}
+  rabbitmq:
+    username: ${RABBITMQ_USERNAME:wpe_rabbit}
+    password: ${RABBITMQ_PASSWORD:wpe_rabbit_pass}
+  flyway:
+    # Cho phép chạy migration số nhỏ hơn bản đã chạy khi nhiều người làm song song.
+    out-of-order: true
+
+app:
+  security:
+    # Header X-Debug-User-Id và user mặc định CHỈ hoạt động trong profile dev.
+    debug-user-id-enabled: true
+    default-debug-user-id: 2
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+jwt:
+  secret: ${JWT_SECRET:example-dev-only-jwt-secret-key-0123456789abcdef}

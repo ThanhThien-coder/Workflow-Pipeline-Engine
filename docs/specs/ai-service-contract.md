@@ -400,16 +400,16 @@ curl -X POST http://localhost:8081/api/ai/diagnose \
 
 ### 7.2 Kiểm Thử Tích Hợp Qua Backend Spring Boot
 1. Bật microservice Python trên cổng `8081`.
-2. Khởi động Backend Java với chế độ HTTP:
+2. Khởi động Backend Java với chế độ HTTP và bật profile `dev`:
    - Trên Linux/macOS:
      ```bash
-     AI_MODE=http AI_SERVICE_URL=http://localhost:8081 AI_INTERNAL_KEY=example-internal-key ./mvnw spring-boot:run
+     SPRING_PROFILES_ACTIVE=dev AI_MODE=http AI_SERVICE_URL=http://localhost:8081 AI_INTERNAL_KEY=example-internal-key ./mvnw spring-boot:run
      ```
    - Trên Windows PowerShell:
      ```powershell
-     $env:AI_MODE="http"; $env:AI_SERVICE_URL="http://localhost:8081"; $env:AI_INTERNAL_KEY="example-internal-key"; ./mvnw spring-boot:run
+     $env:SPRING_PROFILES_ACTIVE="dev"; $env:AI_MODE="http"; $env:AI_SERVICE_URL="http://localhost:8081"; $env:AI_INTERNAL_KEY="example-internal-key"; ./mvnw spring-boot:run
      ```
-3. Gửi lệnh kích hoạt chẩn đoán từ Client/Swagger UI hoặc curl (kèm header `X-Debug-User-Id: 2` tương ứng với Project Owner):
+3. Gửi lệnh kích hoạt chẩn đoán từ Client/Swagger UI hoặc curl (kèm header `X-Debug-User-Id: 2` tương ứng với Project Owner — lưu ý header này chỉ có ở profile `dev`):
    ```bash
    curl -X POST http://localhost:8080/api/v1/projects/1/ai-diagnostics \
      -H "X-Debug-User-Id: 2"
