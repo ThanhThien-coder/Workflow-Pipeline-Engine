@@ -92,6 +92,17 @@ Người dán file này là **một trong các người làm** của task chung.
 
 ### Kết quả rà soát của từng mảng (A, B, C, D)
 
+**Phần A (17/11/2026, làm thay):**
+- Đã làm phần 1 (PR #80) và phần 2 (TASK_43):
+  1. `application.yml` mặc định an toàn: không còn mật khẩu/bí mật, `debug-user-id-enabled: false` (xóa `default-debug-user-id`), `flyway.out-of-order: false`, `jwt.secret: ${JWT_SECRET}`, thêm `app.cors.allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}`.
+  2. Tạo `application-dev.yml` chỉ dùng trên máy lập trình (`SPRING_PROFILES_ACTIVE=dev`): bật `debug-user-id-enabled: true`, `default-debug-user-id: 2`, `flyway.out-of-order: true`, cấu hình CORS cho localhost:5173, fallback DB/RabbitMQ khớp docker-compose.
+  3. Cập nhật `WebCorsConfig` đọc `app.cors.allowed-origins` qua `@Value`: tách theo dấu phẩy, trim, bỏ rỗng; rỗng thì không mapping.
+  4. Cài đặt `JsonAuthenticationEntryPoint` (401 trả JSON TOKEN_EXPIRED / UNAUTHORIZED) và `JsonAccessDeniedHandler` (403 trả JSON ACCESS_DENIED) ghi thẳng response bằng ObjectMapper, Content-Type application/json;charset=UTF-8, khắc phục hoàn toàn lỗi 500 khi gọi SSE (`Accept: text/event-stream`) với token sai.
+  5. Cài đặt `DevDebugAuthFilter` chỉ thêm khi debug-user-id-enabled=true, chạy sau `JwtAuthFilter`, bỏ qua nếu request có credentials (token sai) hoặc đã xác thực, đặt authentication kèm quyền ROLE_<role>. Header không phải số thì bỏ qua.
+  6. Siết chặt `SecurityConfig`: `anyRequest().authenticated()`, cấu hình danh sách permitAll đúng chuẩn, gán EntryPoint và AccessDeniedHandler, bỏ actuator và ghi chú tạm permitAll.
+  7. Bổ sung bộ test bảo mật: `SecurityRulesTest` quét tự động > 50 secured endpoints kiểm tra 401 UNAUTHORIZED, kiểm tra đường công khai không trả 401, kiểm tra token sai trả 401 TOKEN_EXPIRED cho cả REST và SSE; `DevDebugAuthFilterTest` kiểm thử đầy đủ các nhánh debug filter; `WebCorsConfigTest` kiểm thử preflight OPTIONS.
+- PipelineTemplateController GET còn `getCurrentUserId().orElse(null)`: sau X1 luôn có user vì endpoint đòi đăng nhập.
+
 **C — làm trước phần `NodeController` (12/11/2026, chế độ sprint, nhánh `c-fix-node-auth`).** Lý do làm sớm: khi vẽ C8 thấy Cộng sự gửi `?currentUserId=<id Owner>` là tự duyệt được bài của mình. X1 vẫn để sau hạn nộp; phần C còn lại (`RealtimeController` nhận `?userId=`, `realtime.ts`) chờ A làm SSE nhận token qua query ở bước 2.
 - `NodeController`: bỏ `@RequestParam currentUserId` ở `updateStatus`, `submitTask`, `forceUnlock`; người thực hiện lấy từ `currentUserProvider.requireCurrentUserId()` (có gửi token mà token sai → 401 `TOKEN_EXPIRED`, không còn rơi về user 2). `getMyTasks` giữ `?userId=` (bảng Kanban theo phase tải task từng thành viên) nhưng người gọi phải đăng nhập và là thành viên dự án (`verifyProjectMemberOrOwner` → 403).
 - **Chưa đóng hết (D thử lại ở #56, 13/11/2026):** chế độ dev đang bật (`app.security.debug-user-id-enabled: true`, `default-debug-user-id: 2`), nên request **không gửi header nào** vẫn được coi là user 2 (alex, Owner): D không gửi header mà vẫn mở khóa được WPE-004 (đã trả dữ liệu về LOCKED v0). Tắt chế độ dev là việc của A ở bước 2, **bắt buộc làm trước khi nộp hoặc deploy**.

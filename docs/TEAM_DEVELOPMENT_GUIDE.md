@@ -169,7 +169,17 @@ Sau khi đã cài đủ 4 công cụ ở Phần 1, làm đúng 4 bước sau đ�
 ### Bước 3: Chạy Ứng dụng Spring Boot
 1. Trong IntelliJ, tìm đến file:  
    `src/main/java/com/pipeline/wpe/WpeApplication.java`
-2. Bấm nút **Run** (tam giác xanh màu lá).
+2. Bấm nút **Run** (tam giác xanh màu lá). Trước khi chạy, trong IntelliJ đặt **Active profiles: dev** (tại *Run/Debug Configurations* ➔ *Active profiles*).
+   - Nếu chạy bằng dòng lệnh Terminal:
+     - Git Bash / macOS / Linux:
+       ```bash
+       SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+       ```
+     - Windows PowerShell:
+       ```powershell
+       $env:SPRING_PROFILES_ACTIVE="dev"; ./mvnw spring-boot:run
+       ```
+   > ⚠️ **Lưu ý**: Nếu không bật profile `dev`, backend đòi đủ biến môi trường như production (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `JWT_SECRET`) và mọi API cần token.
 3. **Flyway tự động chạy**: Khi ứng dụng khởi động, thư viện Flyway sẽ tự kết nối vào Docker, tự động chạy tạo **12 bảng chuẩn 3NF** và nạp sẵn tài khoản test, project mẫu trong **0.2 giây**!
 4. Màn hình console hiện dòng:  
    `Started WpeApplication in ... seconds` ➔ **Thành công 100%!**
@@ -206,6 +216,7 @@ Hệ thống đã tích hợp sẵn **Swagger OpenAPI 3**. Khi Spring Boot đang
   2. Bấm nút **Authorize** màu xanh lá cây ở góc trên bên phải Swagger UI.
   3. Dán chuỗi `accessToken` vào (không cần gõ thêm chữ `Bearer`) ➔ Bấm **Authorize**.
   4. Giờ bạn có thể bấm **Try it out** và test bất kỳ API nào trực tiếp trên trình duyệt!
+* 💡 **Header `X-Debug-User-Id`**: Header này chỉ dùng được ở profile `dev`. Khi chạy ngoài profile dev (hoặc trên production), bắt buộc phải bấm nút **Authorize** và dán `accessToken` hợp lệ.
 
 ### Bước 7: Khởi động Frontend React (Dành cho Dev FE hoặc muốn xem trực quan)
 Nếu muốn bật giao diện web lên trải nghiệm:
