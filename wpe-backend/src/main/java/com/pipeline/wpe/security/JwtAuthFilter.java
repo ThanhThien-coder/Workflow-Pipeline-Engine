@@ -18,14 +18,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Đọc header {@code Authorization: Bearer <jwt>}, kiểm chữ ký, hạn dùng, {@code tv == users.token_version}
- * và {@code is_locked = false}. Hợp lệ thì đặt SecurityContext (principal = userId kiểu Long,
- * authority = ROLE_&lt;system_role&gt;).
+ * Đọc header {@code Authorization: Bearer <jwt>}, hoặc tham số {@code ?access_token=} (CHỈ cho endpoint SSE
+ * vì {@code EventSource} của trình duyệt không gửi được header Authorization), kiểm chữ ký, hạn dùng,
+ * {@code tv == users.token_version} và {@code is_locked = false}. Hợp lệ thì đặt SecurityContext
+ * (principal = userId kiểu Long, authority = ROLE_&lt;system_role&gt;).
  * <p>
  * Ở giai đoạn này (trước X1) filter KHÔNG chặn request khi token sai: chỉ không đặt principal.
- * {@link CurrentUserProvider} sẽ trả 401 TOKEN_EXPIRED khi có header mà không có principal.
+ * {@link CurrentUserProvider} sẽ trả 401 TOKEN_EXPIRED khi có credentials mà không có principal.
  * <p>
  * Không đánh dấu @Component để Spring Boot không tự đăng ký thêm một lần nữa ở servlet container
  * (và không kéo theo các test @WebMvcTest); bean được tạo trong {@link SecurityConfig}.
@@ -35,6 +37,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
+    static final String ACCESS_TOKEN_PARAM = "access_token";
+    /** EventSource không gửi được header, nên CHỈ endpoint SSE này được nhận JWT qua query. */
+    static final Set<String> QUERY_TOKEN_PATHS = Set.of("/api/v1/realtime/subscribe", "/api/realtime/subscribe");
+
     private final JwtService jwtService;
     private final UserRepository userRepository;
 
@@ -43,13 +49,28 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.userRepository = userRepository;
     }
 
+    /**
+     * true nếu request được phép đưa token qua query: GET tới đúng đường SSE (so khớp chính xác getRequestURI).
+     * Lưu ý {@code getRequestURI()} có context path; dự án không đặt context path nên so khớp trực tiếp là đủ.
+     */
+    public static boolean allowsQueryToken(HttpServletRequest request) {
+        return request != null && "GET".equalsIgnoreCase(request.getMethod())
+            && QUERY_TOKEN_PATHS.contains(request.getRequestURI());
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
         throws ServletException, IOException {
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header != null && header.startsWith(BEARER_PREFIX)
-            && SecurityContextHolder.getContext().getAuthentication() == null) {
-            authenticate(header.substring(BEARER_PREFIX.length()).trim());
+        if (SecurityContextHolder.getContext().getAuthentication() == null) {
+            String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+            if (header != null && header.startsWith(BEARER_PREFIX)) {
+                authenticate(header.substring(BEARER_PREFIX.length()).trim());
+            } else if ((header == null || header.isBlank()) && allowsQueryToken(request)) {
+                String tokenParam = request.getParameter(ACCESS_TOKEN_PARAM);
+                if (tokenParam != null && !tokenParam.isBlank()) {
+                    authenticate(tokenParam.trim());
+                }
+            }
         }
         filterChain.doFilter(request, response);
     }

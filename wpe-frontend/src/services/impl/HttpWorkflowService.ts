@@ -246,44 +246,86 @@ export class HttpWorkflowService implements IWorkflowService {
 
   // ───────────────────────── Realtime (C) ─────────────────────────
 
-  /** GET /realtime/subscribe?userId= (SSE). EventSource không gửi được header nên vẫn truyền userId qua query. */
-  connectRealtime(userId: string, onEvent: (eventName: string, data: any) => void): () => void {
-    const sseUrl = `${API_BASE_URL}/realtime/subscribe?userId=${userId}`
-    const eventSource = new EventSource(sseUrl)
+  /** GET /realtime/subscribe?access_token= (SSE). EventSource không gửi được header nên token đi qua query, backend chỉ nhận token qua query ở đúng endpoint này. */
+  connectRealtime(_userId: string, onEvent: (eventName: string, data: any) => void): () => void {
+    let closed = false
+    let currentEventSource: EventSource | null = null
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null
+    let retryDelay = 3000
 
-    eventSource.addEventListener('INIT', (e) => {
-      console.log('[SSE] Đã kết nối đường ống thời gian thực:', e.data)
-    })
+    const open = async () => {
+      if (closed) return
 
-    eventSource.addEventListener('TASK_UNLOCKED', (e) => {
-      try {
-        const task = JSON.parse(e.data)
-        onEvent('TASK_UNLOCKED', this.mapBackendTaskToKanban(task))
-      } catch (err) {
-        console.error('[SSE] Lỗi parse dữ liệu TASK_UNLOCKED:', err)
+      const token = await authApi.ensureFreshAccessToken()
+      if (closed) return
+      if (!token) {
+        // Token null -> KHÔNG mở EventSource và KHÔNG hẹn giờ kết nối lại (phiên đã hết, phần đăng xuất do installAuthRefresh lo)
+        return
       }
-    })
 
-    eventSource.addEventListener('TASK_STATUS_CHANGED', (e) => {
-      try {
-        const task = JSON.parse(e.data)
-        onEvent('TASK_STATUS_CHANGED', this.mapBackendTaskToKanban(task))
-      } catch (err) {
-        console.error('[SSE] Lỗi parse dữ liệu TASK_STATUS_CHANGED:', err)
-      }
-    })
+      const sseUrl = `${API_BASE_URL}/realtime/subscribe?access_token=${encodeURIComponent(token)}`
+      const eventSource = new EventSource(sseUrl)
+      currentEventSource = eventSource
 
-    eventSource.addEventListener('NOTIFICATION_RECEIVED', (e) => {
-      try {
-        const notif = JSON.parse(e.data)
-        onEvent('NOTIFICATION_RECEIVED', notif)
-      } catch (err) {
-        console.error('[SSE] Lỗi parse dữ liệu NOTIFICATION_RECEIVED:', err)
-      }
-    })
+      eventSource.addEventListener('INIT', (e) => {
+        retryDelay = 3000
+        console.log('[SSE] Đã kết nối đường ống thời gian thực:', e.data)
+      })
+
+      eventSource.addEventListener('TASK_UNLOCKED', (e) => {
+        try {
+          const task = JSON.parse(e.data)
+          onEvent('TASK_UNLOCKED', this.mapBackendTaskToKanban(task))
+        } catch (err) {
+          console.error('[SSE] Lỗi parse dữ liệu TASK_UNLOCKED:', err)
+        }
+      })
+
+      eventSource.addEventListener('TASK_STATUS_CHANGED', (e) => {
+        try {
+          const task = JSON.parse(e.data)
+          onEvent('TASK_STATUS_CHANGED', this.mapBackendTaskToKanban(task))
+        } catch (err) {
+          console.error('[SSE] Lỗi parse dữ liệu TASK_STATUS_CHANGED:', err)
+        }
+      })
+
+      eventSource.addEventListener('NOTIFICATION_RECEIVED', (e) => {
+        try {
+          const notif = JSON.parse(e.data)
+          onEvent('NOTIFICATION_RECEIVED', notif)
+        } catch (err) {
+          console.error('[SSE] Lỗi parse dữ liệu NOTIFICATION_RECEIVED:', err)
+        }
+      })
+
+      eventSource.addEventListener('error', () => {
+        if (closed) return
+        if (eventSource.readyState === EventSource.CLOSED) {
+          eventSource.close()
+          const delay = retryDelay
+          retryDelay = Math.min(retryDelay * 2, 30000)
+          retryTimeoutId = setTimeout(() => {
+            if (!closed) {
+              void open()
+            }
+          }, delay)
+        }
+      })
+    }
+
+    void open()
 
     return () => {
-      eventSource.close()
+      closed = true
+      if (retryTimeoutId !== null) {
+        clearTimeout(retryTimeoutId)
+        retryTimeoutId = null
+      }
+      if (currentEventSource) {
+        currentEventSource.close()
+        currentEventSource = null
+      }
     }
   }
 

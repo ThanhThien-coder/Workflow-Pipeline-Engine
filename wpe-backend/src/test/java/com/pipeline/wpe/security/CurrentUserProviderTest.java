@@ -94,4 +94,28 @@ class CurrentUserProviderTest {
             .isInstanceOf(UnauthorizedException.class)
             .extracting("errorCode").isEqualTo("UNAUTHORIZED");
     }
+
+    @Test
+    @DisplayName("Debug bật, request GET SSE có access_token sai, không principal -> getCurrentUserId rỗng, requireCurrentUserId ném 401 TOKEN_EXPIRED")
+    void sseWithQueryToken_invalid_doesNotFallBackToDebugUser() {
+        request.setMethod("GET");
+        request.setRequestURI("/api/v1/realtime/subscribe");
+        request.setParameter("access_token", "example-bad-token");
+
+        assertThat(provider.getCurrentUserId()).isEmpty();
+        assertThatThrownBy(() -> provider.requireCurrentUserId())
+            .isInstanceOf(UnauthorizedException.class)
+            .extracting("errorCode").isEqualTo("TOKEN_EXPIRED");
+    }
+
+    @Test
+    @DisplayName("Debug bật, request GET đường khác có access_token, không header -> vẫn rơi về user debug như cũ")
+    void otherPathWithQueryToken_fallsBackToDebugUser() {
+        request.setMethod("GET");
+        request.setRequestURI("/api/v1/projects/1/graph");
+        request.setParameter("access_token", "example-token");
+
+        assertThat(provider.getCurrentUserId()).contains(2L);
+        assertThat(provider.requireCurrentUserId()).isEqualTo(2L);
+    }
 }

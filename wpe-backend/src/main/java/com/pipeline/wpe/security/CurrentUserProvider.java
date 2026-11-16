@@ -30,9 +30,9 @@ public class CurrentUserProvider {
     /**
      * Lấy User ID của người dùng hiện tại đang gửi request.
      * 1. Ưu tiên đọc từ SecurityContext (JwtAuthFilter đặt khi access token hợp lệ).
-     * 2. Request CÓ header Authorization mà không có principal (token sai, hết hạn, tv lệch, user khóa)
-     *    -> trả rỗng, KHÔNG rơi về user debug.
-     * 3. Request KHÔNG có Authorization và bật chế độ dev (debugUserIdEnabled=true): đọc header
+     * 2. Request CÓ credentials (header Authorization hoặc access_token cho SSE) mà không có principal
+     *    (token sai, hết hạn, tv lệch, user khóa) -> trả rỗng, KHÔNG rơi về user debug.
+     * 3. Request KHÔNG có credentials và bật chế độ dev (debugUserIdEnabled=true): đọc header
      *    X-Debug-User-Id, không có thì dùng defaultDebugUserId. Giữ cơ chế này cho tới X1.
      */
     public Optional<Long> getCurrentUserId() {
@@ -42,7 +42,7 @@ public class CurrentUserProvider {
         }
 
         HttpServletRequest request = currentRequest();
-        if (hasAuthorizationHeader(request)) {
+        if (hasCredentials(request)) {
             return Optional.empty();
         }
 
@@ -65,7 +65,7 @@ public class CurrentUserProvider {
 
     /**
      * Bắt buộc phải có user đăng nhập.
-     * Có header Authorization mà token không hợp lệ -> 401 TOKEN_EXPIRED (FE dựa vào mã này để gọi refresh).
+     * Có credentials (header Authorization hoặc access_token cho SSE) mà token không hợp lệ -> 401 TOKEN_EXPIRED (FE dựa vào mã này để gọi refresh).
      * Không có gì -> 401 UNAUTHORIZED.
      */
     public Long requireCurrentUserId() {
@@ -73,7 +73,7 @@ public class CurrentUserProvider {
         if (userId.isPresent()) {
             return userId.get();
         }
-        if (hasAuthorizationHeader(currentRequest())) {
+        if (hasCredentials(currentRequest())) {
             throw new UnauthorizedException(TOKEN_EXPIRED,
                 "Access token không hợp lệ hoặc đã hết hạn. Vui lòng làm mới token hoặc đăng nhập lại.");
         }
@@ -105,11 +105,18 @@ public class CurrentUserProvider {
         return null;
     }
 
-    private static boolean hasAuthorizationHeader(HttpServletRequest request) {
+    private static boolean hasCredentials(HttpServletRequest request) {
         if (request == null) {
             return false;
         }
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        return header != null && !header.isBlank();
+        if (header != null && !header.isBlank()) {
+            return true;
+        }
+        if (JwtAuthFilter.allowsQueryToken(request)) {
+            String token = request.getParameter(JwtAuthFilter.ACCESS_TOKEN_PARAM);
+            return token != null && !token.isBlank();
+        }
+        return false;
     }
 }

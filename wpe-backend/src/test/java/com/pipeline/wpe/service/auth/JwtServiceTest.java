@@ -17,8 +17,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtServiceTest {
 
-    private static final String SECRET = "test-secret-for-unit-tests-only-0123456789abcdef";
-    private static final String OTHER_SECRET = "another-secret-for-unit-tests-only-9876543210";
+    private static final String SECRET = "example-jwt-test-secret-key-0123456789abcdef";
+    private static final String OTHER_SECRET = "example-jwt-other-secret-key-0123456789abcdef";
 
     private final JwtService jwtService = new JwtService(SECRET, 900_000);
 

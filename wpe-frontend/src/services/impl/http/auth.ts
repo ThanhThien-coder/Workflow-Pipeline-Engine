@@ -226,6 +226,42 @@ function refreshOnce(): Promise<boolean> {
   return refreshInFlight
 }
 
+function decodeJwtExp(token: string): number | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return null
+    const payload = parts[1]
+    if (!payload) return null
+    let base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    while (base64.length % 4 !== 0) {
+      base64 += '='
+    }
+    const json = JSON.parse(atob(base64)) as { exp?: unknown }
+    return typeof json.exp === 'number' ? json.exp : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Trả access token còn hạn để dùng cho kết nối không đi qua apiRequest (SSE).
+ * Token còn hạn hơn 30 giây thì trả luôn; sắp hết hoặc đã hết hạn (đọc trường exp trong JWT)
+ * thì gọi refreshOnce() (single-flight, dùng chung với apiRequest) rồi trả token mới.
+ * Không có token, token không đọc được exp mà refresh thất bại, hoặc refresh thất bại → null.
+ */
+export async function ensureFreshAccessToken(): Promise<string | null> {
+  const token = getStoredToken()
+  if (!token) return null
+
+  const exp = decodeJwtExp(token)
+  if (exp !== null && exp * 1000 - Date.now() > 30_000) {
+    return token
+  }
+
+  const ok = await refreshOnce()
+  return ok ? getStoredToken() : null
+}
+
 /**
  * Bật tự làm mới token cho apiClient.
  * - onExpired: refresh thất bại (phiên đã bị xóa khỏi máy) → về màn đăng nhập, báo hết hạn.
