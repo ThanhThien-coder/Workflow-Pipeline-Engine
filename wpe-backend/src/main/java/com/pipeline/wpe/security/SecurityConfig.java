@@ -2,6 +2,7 @@ package com.pipeline.wpe.security;
 
 import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.service.auth.JwtService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -19,6 +20,23 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity // để A6 dùng @PreAuthorize
 public class SecurityConfig {
 
+    private final JsonAuthenticationEntryPoint authenticationEntryPoint;
+    private final JsonAccessDeniedHandler accessDeniedHandler;
+    private final boolean debugEnabled;
+    private final Long defaultDebugUserId;
+
+    public SecurityConfig(
+        JsonAuthenticationEntryPoint authenticationEntryPoint,
+        JsonAccessDeniedHandler accessDeniedHandler,
+        @Value("${app.security.debug-user-id-enabled:false}") boolean debugEnabled,
+        @Value("${app.security.default-debug-user-id:#{null}}") Long defaultDebugUserId
+    ) {
+        this.authenticationEntryPoint = authenticationEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
+        this.debugEnabled = debugEnabled;
+        this.defaultDebugUserId = defaultDebugUserId;
+    }
+
     /** BCrypt cost 12 cho mật khẩu mới. Hash cũ cost 10 (seed) vẫn so khớp được vì cost nằm trong chuỗi hash. */
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -32,23 +50,38 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> {}) // Uses WebCorsConfig
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // Đọc JWT và đặt SecurityContext. Token sai chưa bị chặn ở đây (xem JwtAuthFilter), chặn thật ở X1.
-            .addFilterBefore(new JwtAuthFilter(jwtService, userRepository), UsernamePasswordAuthenticationFilter.class)
-            .authorizeHttpRequests(auth -> auth
-                // Công khai Swagger UI & OpenAPI docs
-                .requestMatchers(
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/v3/api-docs/**",
-                    "/v3/api-docs.yaml"
-                ).permitAll()
-                // Công khai Auth API
-                .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
-                // Công khai Guest Link & Health check
-                .requestMatchers("/api/v1/guest/**", "/api/guest/**", "/actuator/**", "/error").permitAll()
-                // Mọi API khác tạm thời yêu cầu xác thực hoặc mở theo cấu hình
-                .anyRequest().permitAll() // Tạm permitAll trong giai đoạn dev skeleton cho tới X1
-            );
+            .exceptionHandling(e -> e
+                .authenticationEntryPoint(authenticationEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler)
+            )
+            .addFilterBefore(new JwtAuthFilter(jwtService, userRepository), UsernamePasswordAuthenticationFilter.class);
+
+        if (debugEnabled) {
+            http.addFilterAfter(new DevDebugAuthFilter(userRepository, defaultDebugUserId), JwtAuthFilter.class);
+        }
+
+        http.authorizeHttpRequests(auth -> auth
+            // Công khai Swagger UI & OpenAPI docs
+            .requestMatchers(
+                "/swagger-ui/**",
+                "/swagger-ui.html",
+                "/v3/api-docs",
+                "/v3/api-docs/**",
+                "/v3/api-docs.yaml"
+            ).permitAll()
+            // Công khai Auth API
+            .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
+            // Công khai Guest Link & Health check
+            .requestMatchers(
+                "/api/v1/guest/**",
+                "/api/guest/**",
+                "/api/v1/health",
+                "/api/health",
+                "/error"
+            ).permitAll()
+            // Mọi API khác bắt buộc phải xác thực
+            .anyRequest().authenticated()
+        );
 
         return http.build();
     }
