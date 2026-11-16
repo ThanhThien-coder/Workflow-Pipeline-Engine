@@ -90,6 +90,7 @@ erDiagram
         text description "nullable"
         varchar status "DRAFT ACTIVE INACTIVE ARCHIVED"
         jsonb latest_ai_analysis "nullable"
+        timestamp ai_requested_at "nullable"
         timestamp created_at
         timestamp updated_at
     }
@@ -269,6 +270,7 @@ Quản lý thông tin chung, trạng thái dự án và lưu đệm chẩn đoá
 | `description` | `text` | NULLABLE | | Mô tả chi tiết mục tiêu dự án. |
 | `status` | `varchar(30)` | NOT NULL | `'DRAFT'` | Trạng thái: `'DRAFT'`, `'ACTIVE'`, `'INACTIVE'`, `'ARCHIVED'`. |
 | `latest_ai_analysis` | `jsonb` | NULLABLE | | Kết quả phân tích mới nhất từ AI Worker (metrics, anomalies, traps, cpm, advice). |
+| `ai_requested_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm bấm chạy AI gần nhất (V18). Giữ chỗ chống bấm trùng và tính cooldown 180 giây; chạy AI lỗi thì trả lại giá trị cũ. |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm khởi tạo dự án. |
 | `updated_at` | `timestamptz` | NOT NULL | `NOW()` | Phục vụ sắp xếp "Sửa gần nhất", cache đồng bộ và khóa lạc quan dự án. |
 
