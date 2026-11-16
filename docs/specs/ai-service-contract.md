@@ -30,11 +30,11 @@ sequenceDiagram
             AI-->>BE: 200 OK (JSON kết quả chẩn đoán)
             BE->>BE: Gắn thêm metadata (source = "AI_SERVICE", analyzedAt)
             BE->>DB: UPDATE project SET latest_ai_analysis = ? (JSONB)
+            BE-->>FE: 200 OK (Kết quả chẩn đoán)
         else AI Lỗi (5xx / Timeout / Không kết nối được)
-            BE->>BE: Tự động kích hoạt Fallback Mock (source = "MOCK_FALLBACK", kèm warning)
-            Note over BE: Không ghi đè DB & không tính cooldown
+            BE-->>FE: 503 AI_SERVICE_UNAVAILABLE (không dữ liệu giả)
+            Note over BE: Không ghi DB & không tính cooldown
         end
-        BE-->>FE: 200 OK (Kết quả chẩn đoán)
     end
 ```
 
@@ -46,14 +46,14 @@ Backend Java hỗ trợ chuyển đổi linh hoạt giữa dữ liệu giả l�
 
 | Biến môi trường | Thuộc tính YAML tương ứng | Mặc định | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `AI_MODE` | `app.ai.mode` | `mock` | `mock`: Dùng dữ liệu phân tích giả lập nội bộ trong Java.<br/>`http`: Kích hoạt `HttpAiServiceClient` gọi sang Python microservice. |
+| `AI_MODE` | `app.ai.mode` | `http` | `http` (mặc định): gọi Python microservice.<br/>`mock`: dữ liệu mẫu trong Java, chỉ để demo. |
 | `AI_SERVICE_URL` | `app.ai.service-url` | `http://localhost:8081` | Địa chỉ gốc (Base URL) của AI Microservice. |
 | `AI_DIAGNOSE_PATH` | `app.ai.diagnose-path` | `/api/ai/diagnose` | Đường dẫn endpoint API chẩn đoán của microservice. |
 | `AI_CONNECT_TIMEOUT_SECONDS` | `app.ai.connect-timeout-seconds` | `3` | Thời gian tối đa thiết lập kết nối TCP (giây). |
 | `AI_READ_TIMEOUT_SECONDS` | `app.ai.read-timeout-seconds` | `30` | Thời gian tối đa chờ microservice xử lý và trả dữ liệu (giây). |
 | `AI_INTERNAL_KEY` | `app.ai.internal-key` | *(rỗng)* | Khóa nội bộ gửi trong header `X-Internal-Key`; để trống thì không gửi. |
 
-> **Lưu ý**: Mặc định `AI_MODE=mock`, do đó khi chạy Backend độc lập mà chưa khởi động microservice Python thì toàn bộ hệ thống vẫn chạy bình thường không bị lỗi.
+> **Lưu ý**: Mặc định `AI_MODE=http`. Chưa bật microservice Python thì bấm AI Diagnosis sẽ nhận 503 `AI_SERVICE_UNAVAILABLE`; các chức năng khác vẫn chạy bình thường.
 
 ---
 
@@ -180,7 +180,8 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 1. **`analyzedAt`** (String, ISO-8601): Thời điểm kết thúc phân tích (UTC). Nếu microservice không trả, Java sẽ tự điền thời điểm hiện tại.
 2. **`source`** (String, tùy chọn):
    - Do Python trả: `AI_SERVICE` (Gemini trả lời hợp lệ) | `HEURISTIC_FALLBACK` (dùng luật dự phòng). Nếu bỏ trống, Java tự điền `"AI_SERVICE"`.
-   - Backend tự gán thêm: `MOCK` (chế độ mock) | `MOCK_FALLBACK` (không gọi được Python).
+   - Backend tự gán: `MOCK` (chế độ mock).
+   - `HEURISTIC_FALLBACK` là phân tích bằng luật trên dữ liệu thật (Gemini lỗi), không phải dữ liệu giả.
 
 3. **`criticalPath`** (Array[String]): Mảng các mã node (`code`) nằm trên đường găng CPM dài nhất của dự án (ví dụ: `["WPE-001", "WPE-002"]`).
    - Đồ thị có chu trình: `criticalPath = []` và `warning` nêu các node trong chu trình.
@@ -215,7 +216,7 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 - `severity`, `priority`: `HIGH` | `MEDIUM` | `LOW`
 - `trapType`: `POTENTIAL_STALL` | `SCOPE_CREEP` | `UNREALISTIC_DEADLINE`
 - `action`: `SPLIT_NODE` | `RESOLVE_FEEDBACK` | `PARALLELIZE` | `CONTINUE_PIPELINE`
-- `source` do Python trả: `AI_SERVICE` (Gemini trả lời hợp lệ) | `HEURISTIC_FALLBACK` (dùng luật dự phòng). Backend tự gán thêm: `MOCK` (chế độ mock) | `MOCK_FALLBACK` (không gọi được Python).
+- `source` do Python trả: `AI_SERVICE` (Gemini trả lời hợp lệ) | `HEURISTIC_FALLBACK` (dùng luật dự phòng). Backend tự gán: `MOCK` (chế độ mock).
 - `nodeCode`/`targetNodeCode`: Phải là code có trong request, hoặc `"GENERAL"`.
 
 > **Khóa bổ sung**: Microservice có thể trả thêm các khóa mở rộng khác tùy nhu cầu (ví dụ: `geminiModelVersion`). Backend Java lưu toàn bộ Object vào cột JSONB `latest_ai_analysis` mà không cắt tỉa.
@@ -278,20 +279,17 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 
 ## 5. Cơ Chế Xử Lý Lỗi & Dự Phòng (Error Handling & Fallback)
 
-Hệ thống Java được trang bị cơ chế tự phục hồi chống gián đoạn (Fault Tolerance):
-
-1. **Điều kiện kích hoạt Fallback**:
+1. **Điều kiện kích hoạt lỗi**:
    - Microservice trả HTTP Status khác 2xx (ví dụ: 400, 500, 502, 503).
    - Quá thời gian chờ (Timeout): Thiết lập kết nối vượt quá `3s`, hoặc xử lý vượt quá `30s`.
    - Lỗi mạng: Không tìm thấy host, từ chối kết nối (`Connection refused`).
    - Phản hồi có body rỗng (`null`).
-2. **Hành vi Fallback của Java**:
-   - Không ném Exception ra ngoài Controller, không làm crash giao diện người dùng.
-   - Ghi `log.warn(...)` kèm nguyên nhân ngắn gọn.
-   - Lập tức chuyển sang bộ phân tích giả lập nội bộ (`AiServiceClientImpl`), gắn thêm:
-     - `"source": "MOCK_FALLBACK"`
-     - `"warning": "Không gọi được dịch vụ AI ({lý do ngắn}), đang hiển thị dữ liệu giả."`
-   - `MOCK_FALLBACK` vẫn trả 200 kèm `warning` cho frontend nhưng KHÔNG ghi đè `latest_ai_analysis` và KHÔNG tính cooldown (cooldown chỉ đọc `analyzedAt` của bản đã lưu trong DB).
+2. **Hành vi khi không gọi được Python**:
+   - Backend `log.warn` lý do kỹ thuật ngắn gọn.
+   - Trả HTTP 503 `{ "error": "AI_SERVICE_UNAVAILABLE", "message": "Dịch vụ AI tạm thời không hoạt động. Vui lòng thử lại sau." }`.
+   - Không trả lý do kỹ thuật cho client.
+   - KHÔNG tạo dữ liệu giả, KHÔNG ghi `latest_ai_analysis`, KHÔNG tính cooldown.
+   - Frontend hiện "AI service is unavailable right now. Please try again later." và giữ bản phân tích thật gần nhất.
 3. **Khuyến nghị cho Microservice**:
    - Microservice nên hoàn tất việc suy luận và trả phản hồi trong vòng **< 15–20 giây** để tránh tiệm cận ngưỡng `read-timeout-seconds: 30`.
    - Nếu gọi Google Gemini API bị lỗi hoặc quá hạn ngạch (Rate Limit 429), microservice nên tự bắt lỗi và trả về phản hồi fallback nhanh gọn thay vì để kết nối bị treo.
@@ -405,9 +403,9 @@ curl -X POST http://localhost:8081/api/ai/diagnose \
    curl -X POST http://localhost:8080/api/v1/projects/1/ai-diagnostics \
      -H "X-Debug-User-Id: 2"
    ```
-4. Kiểm tra trường `source` trong JSON trả về:
+4. Kiểm tra kết quả:
    - `AI_SERVICE`: Đã kết nối và lấy thành công từ microservice Python.
-   - `MOCK_FALLBACK`: Microservice chưa bật hoặc bị timeout, hệ thống tự động trả fallback an toàn kèm cảnh báo.
+   - HTTP 503 `AI_SERVICE_UNAVAILABLE`: microservice chưa bật hoặc quá giờ.
 
 ---
 
