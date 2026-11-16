@@ -135,9 +135,10 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
   const statusKeyMap: Record<string, GuestStatusKey> = {
     done: 'done',
     inProgress: 'inProgress',
-    review: 'todo',
+    // G25: giao diện khách có sẵn màu cho review / locked, không gộp vào todo / blocked nữa
+    review: 'review',
     todo: 'todo',
-    locked: 'blocked',
+    locked: 'locked',
     blocked: 'blocked',
   }
 
@@ -149,7 +150,7 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
 
   return {
     projectName: data.projectName || '',
-    phaseLabel: data.phaseLabel || 'Toàn bộ quy trình',
+    phaseLabel: data.phaseLabel || 'Whole workflow',
     lastUpdated: data.lastUpdated ? new Date(data.lastUpdated).toISOString() : new Date().toISOString(),
     totalNodes,
     criticalNodes: data.criticalNodes ?? 0,
@@ -166,9 +167,9 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
     recentActivity: (data.recentActivity || []).map((a) => ({
       id: String(a.id),
       initials: a.initials || (a.actor ? a.actor.slice(0, 2).toUpperCase() : 'WPE'),
-      actor: a.actor || 'Hệ thống',
+      actor: a.actor || 'System',
       text: a.text || '',
-      ago: a.ago || 'gần đây',
+      ago: a.ago || 'recently',
     })),
   }
 }
@@ -176,7 +177,7 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
 export function mapGuestFeedbackResponse(data: any): GuestFeedbackDto {
   return {
     id: String(data.id),
-    author: data.reviewerName || 'Khách truy cập',
+    author: data.reviewerName || 'Guest',
     message: data.content || '',
     createdAt: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
   }
@@ -237,7 +238,7 @@ export async function submitGuestFeedback(
   cmd: SubmitGuestFeedbackCommand | CreateGuestFeedbackCommandDto,
 ): Promise<GuestFeedbackDto> {
   const body = {
-    reviewerName: cmd.reviewerName || 'Khách truy cập',
+    reviewerName: cmd.reviewerName || 'Guest',
     reviewerRole: cmd.reviewerRole || 'GUEST',
     content: cmd.content ?? cmd.message ?? '',
     nodeId: cmd.nodeId != null ? Number(cmd.nodeId) : null,

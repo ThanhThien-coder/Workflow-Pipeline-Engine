@@ -164,7 +164,7 @@ class GuestGatewayServiceTest {
 
         assertThatThrownBy(() -> guestGatewayService.getGuestOverview(token))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("thu hồi");
+            .hasMessageContaining("revoked");
     }
 
     @Test
@@ -182,33 +182,35 @@ class GuestGatewayServiceTest {
 
         assertThatThrownBy(() -> guestGatewayService.getGuestOverview(token))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("hết hạn");
+            .hasMessageContaining("expired");
     }
 
     @Test
-    @DisplayName("7.2 Get Guest Overview - Dự án PAUSED ném ForbiddenException REVOKED_GUEST")
-    void testGetGuestOverview_ProjectPaused() {
-        String token = "example-guest-token-paused";
-        GuestLinkEntity link = GuestLinkEntity.builder()
-            .projectId(projectId)
-            .token(token)
-            .isRevoked(false)
-            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
-            .build();
+    @DisplayName("G25: dự án DRAFT / PLANNING / PAUSED vẫn cho khách xem (chỉ chặn ARCHIVED)")
+    void testGetGuestOverview_NonArchivedStatusesAllowed() {
+        for (ProjectStatus status : List.of(ProjectStatus.DRAFT, ProjectStatus.PLANNING, ProjectStatus.PAUSED)) {
+            String token = "example-guest-token-" + status.name().toLowerCase();
+            GuestLinkEntity link = GuestLinkEntity.builder()
+                .projectId(projectId)
+                .token(token)
+                .isRevoked(false)
+                .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+                .build();
 
-        ProjectEntity project = ProjectEntity.builder()
-            .id(projectId)
-            .name("Paused Project")
-            .status(ProjectStatus.PAUSED)
-            .build();
+            ProjectEntity project = ProjectEntity.builder()
+                .id(projectId)
+                .name(status.name() + " Project")
+                .status(status)
+                .build();
 
-        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
-        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+            when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+            when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
 
-        assertThatThrownBy(() -> guestGatewayService.getGuestOverview(token))
-            .isInstanceOf(ForbiddenException.class)
-            .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("REVOKED_GUEST"))
-            .hasMessageContaining("PAUSED");
+            GuestOverviewResponse overview = guestGatewayService.getGuestOverview(token);
+            assertThat(overview.projectName()).isEqualTo(status.name() + " Project");
+            // 7 ngày gần nhất, nhãn tiếng Anh
+            assertThat(overview.velocity()).hasSize(7);
+        }
     }
 
     @Test
@@ -234,7 +236,7 @@ class GuestGatewayServiceTest {
         assertThatThrownBy(() -> guestGatewayService.getGuestOverview(token))
             .isInstanceOf(ForbiddenException.class)
             .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("REVOKED_GUEST"))
-            .hasMessageContaining("ARCHIVED");
+            .hasMessageContaining("archived");
     }
 
     @Test

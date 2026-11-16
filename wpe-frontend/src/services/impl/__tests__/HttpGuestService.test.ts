@@ -78,22 +78,39 @@ describe('D5: HttpGuestService (impl/HttpGuestService.ts)', () => {
     expect(overview.completedNodes).toBe(8)
   })
 
-  it('getAiSummary không gọi fetch (vẫn dùng mock)', async () => {
+  it('G25: getLinkInfo dùng token thật (hex 64 ký tự, không có tiền tố gst_) và lấy tên dự án từ overview', async () => {
     const service = new HttpGuestService()
-    // Token hợp lệ cho MockGuestApi: gst_sec_4242cf
-    const summary = await service.getAiSummary('gst_sec_4242cf')
+    const info = await service.getLinkInfo('test-token')
 
-    // Tuyệt đối không gọi fetch
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/guest/test-token/overview')
+    expect(info).toEqual({ projectName: 'Real Project Overview', ownerName: '' })
+  })
+
+  it('G25: getLinkInfo với link bị thu hồi / dự án lưu trữ -> ném lỗi API 403 kèm lý do của backend', async () => {
+    fetchMock.mockImplementationOnce(async () =>
+      jsonResponse(403, { status: 403, error: 'REVOKED_GUEST', message: 'The project owner has revoked this share link.' }),
+    )
+    const service = new HttpGuestService()
+    await expect(service.getLinkInfo('revoked-token')).rejects.toMatchObject({
+      status: 403,
+      message: 'The project owner has revoked this share link.',
+    })
+  })
+
+  it('G25: AI và đánh giá chưa có backend -> features tắt, không dùng dữ liệu giả', async () => {
+    const service = new HttpGuestService()
+    expect(service.features).toEqual({ aiSummary: false, evaluation: false })
+    await expect(service.getAiSummary('test-token')).rejects.toThrow('not available')
+    await expect(service.listFeedback('test-token', 's1')).resolves.toEqual([])
+    await expect(service.getMyEvaluation('test-token', 's1')).resolves.toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(summary).toBeDefined()
-    expect(summary.content).toContain('The project is')
-    expect(summary.highlights.length).toBeGreaterThan(0)
   })
 
   it('submitFeedback gọi POST /guest/{token}/feedback qua fetch thật', async () => {
     const service = new HttpGuestService()
-    const session = await service.createSession('gst_sec_4242cf', 'Thầy Giáo Viên')
-    expect(fetchMock).not.toHaveBeenCalled() // createSession dùng mock
+    const session = await service.createSession('test-token', 'Thầy Giáo Viên')
+    expect(fetchMock).not.toHaveBeenCalled() // phiên khách chỉ lưu ở trình duyệt
 
     const result = await service.submitFeedback('test-token', {
       sessionId: session.sessionId,
@@ -113,27 +130,5 @@ describe('D5: HttpGuestService (impl/HttpGuestService.ts)', () => {
     expect(result.id).toBe('10')
     expect(result.author).toBe('Thầy Giáo Viên')
     expect(result.message).toBe('Thiết kế hệ thống rất tốt')
-  })
-
-  it('các phương thức chưa có trong SSOT (getLinkInfo, generateAiReport, getMyEvaluation, submitEvaluation) đều dùng mock và không gọi fetch', async () => {
-    const service = new HttpGuestService()
-
-    const linkInfo = await service.getLinkInfo('gst_sec_4242cf')
-    expect(linkInfo.projectName).toBe('Marketing Campaign Q4')
-
-    const report = await service.generateAiReport('gst_sec_4242cf')
-    expect(report.title).toBeDefined()
-
-    const emptyEv = await service.getMyEvaluation('gst_sec_4242cf', 's1')
-    expect(emptyEv).toBeNull()
-
-    const ev = await service.submitEvaluation('gst_sec_4242cf', {
-      sessionId: 's1',
-      scores: { architecture: 5, progress: 4, quality: 5, documentation: 4 },
-      comment: 'Xuất sắc',
-    })
-    expect(ev.average).toBe(4.5)
-
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
