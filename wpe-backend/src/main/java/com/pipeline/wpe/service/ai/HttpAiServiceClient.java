@@ -26,6 +26,7 @@ import java.util.Map;
  * Cài đặt kết nối HTTP sang microservice AI (Python).
  * Được kích hoạt khi app.ai.mode=http.
  * Không gọi được dịch vụ AI thì ném AiServiceUnavailableException (HTTP 503), không tạo dữ liệu giả.
+ * Backend luôn tự đặt analyzedAt (cooldown dựa vào đó); response sai khuôn contract cũng ném AiServiceUnavailableException.
  */
 @Slf4j
 @Service
@@ -33,6 +34,22 @@ import java.util.Map;
 public class HttpAiServiceClient implements AiServiceClient {
 
     static final String INTERNAL_KEY_HEADER = "X-Internal-Key";
+
+    /** Các khóa bắt buộc phải là mảng trong response của dịch vụ AI (contract mục 4.1). */
+    static final List<String> REQUIRED_ARRAY_KEYS = List.of("criticalPath", "bottlenecks", "taskTraps", "actionableAdvice");
+
+    /** Trả mô tả lỗi đầu tiên nếu response sai khuôn contract, hoặc null nếu hợp lệ. Chỉ kiểm kiểu, không kiểm nội dung. */
+    static String findContractViolation(Map<String, Object> body) {
+        for (String key : REQUIRED_ARRAY_KEYS) {
+            if (!(body.get(key) instanceof List<?>)) {
+                return key + " thiếu hoặc không phải mảng";
+            }
+        }
+        if (!(body.get("metrics") instanceof Map<?, ?>)) {
+            return "metrics thiếu hoặc không phải object";
+        }
+        return null;
+    }
 
     private final RestClient restClient;
     private final NodeDependencyRepository nodeDependencyRepository;
@@ -84,10 +101,18 @@ public class HttpAiServiceClient implements AiServiceClient {
                 throw new AiServiceUnavailableException("body null", null);
             }
 
-            Map<String, Object> result = new LinkedHashMap<>(responseBody);
-            if (!result.containsKey("analyzedAt") || result.get("analyzedAt") == null) {
-                result.put("analyzedAt", Instant.now().toString());
+            String violation = findContractViolation(responseBody);
+            if (violation != null) {
+                log.warn("Dịch vụ AI trả dữ liệu sai hợp đồng (dự án ID: {}): {}", projectId, violation);
+                throw new AiServiceUnavailableException("sai hợp đồng: " + violation, null);
             }
+
+            Map<String, Object> result = new LinkedHashMap<>(responseBody);
+            Object serviceAnalyzedAt = result.remove("analyzedAt");
+            if (serviceAnalyzedAt != null) {
+                result.put("serviceAnalyzedAt", serviceAnalyzedAt);
+            }
+            result.put("analyzedAt", Instant.now().toString());
             if (!result.containsKey("source") || result.get("source") == null) {
                 result.put("source", "AI_SERVICE");
             }
