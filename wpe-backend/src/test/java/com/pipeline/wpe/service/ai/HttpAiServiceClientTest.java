@@ -39,6 +39,9 @@ import static org.mockito.Mockito.when;
 
 class HttpAiServiceClientTest {
 
+    private static final String VALID_MINIMAL_RESPONSE =
+            "{\"criticalPath\":[],\"bottlenecks\":[],\"taskTraps\":[],\"actionableAdvice\":[],\"metrics\":{}}";
+
     private HttpServer server;
     private ExecutorService executor;
     private NodeDependencyRepository nodeDependencyRepository;
@@ -156,10 +159,16 @@ class HttpAiServiceClientTest {
                 ""
         );
 
+        Instant before = Instant.now();
         Map<String, Object> result = client.requestDiagnosis(project, List.of(node), List.of(feedback));
+        Instant after = Instant.now();
 
         assertThat(result.get("criticalPath")).isEqualTo(List.of("WPE-001"));
         assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+        assertThat(result.get("serviceAnalyzedAt")).isEqualTo("2026-01-01T00:00:00Z");
+        assertThat(result.get("analyzedAt")).isNotEqualTo("2026-01-01T00:00:00Z");
+        Instant analyzedAt = Instant.parse(String.valueOf(result.get("analyzedAt")));
+        assertThat(analyzedAt).isBetween(before, after);
         assertThat(requestCount.get()).isEqualTo(1);
         assertThat(recordedMethod.get()).isEqualTo("POST");
         assertThat(recordedPath.get()).isEqualTo("/api/ai/diagnose");
@@ -177,7 +186,7 @@ class HttpAiServiceClientTest {
     @DisplayName("Thiếu analyzedAt: server trả 200 không có analyzedAt -> kết quả có analyzedAt khác null và source=AI_SERVICE")
     void testRequestDiagnosis_MissingAnalyzedAt() throws IOException {
         int port = startServer(exchange -> {
-            String jsonResponse = "{\"criticalPath\":[]}";
+            String jsonResponse = VALID_MINIMAL_RESPONSE;
             byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, responseBytes.length);
@@ -203,6 +212,7 @@ class HttpAiServiceClientTest {
 
         assertThat(result.get("analyzedAt")).isNotNull();
         assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+        assertThat(result).doesNotContainKey("serviceAnalyzedAt");
     }
 
     @Test
@@ -330,7 +340,7 @@ class HttpAiServiceClientTest {
 
         int port = startServer(exchange -> {
             recordedInternalKey.set(exchange.getRequestHeaders().getFirst(HttpAiServiceClient.INTERNAL_KEY_HEADER));
-            byte[] responseBytes = "{\"criticalPath\":[]}".getBytes(StandardCharsets.UTF_8);
+            byte[] responseBytes = VALID_MINIMAL_RESPONSE.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, responseBytes.length);
             try (OutputStream os = exchange.getResponseBody()) {
@@ -364,7 +374,7 @@ class HttpAiServiceClientTest {
 
         int port = startServer(exchange -> {
             recordedInternalKey.set(exchange.getRequestHeaders().getFirst(HttpAiServiceClient.INTERNAL_KEY_HEADER));
-            byte[] responseBytes = "{\"criticalPath\":[]}".getBytes(StandardCharsets.UTF_8);
+            byte[] responseBytes = VALID_MINIMAL_RESPONSE.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, responseBytes.length);
             try (OutputStream os = exchange.getResponseBody()) {
@@ -398,7 +408,7 @@ class HttpAiServiceClientTest {
 
         int port = startServer(exchange -> {
             recordedInternalKey.set(exchange.getRequestHeaders().getFirst(HttpAiServiceClient.INTERNAL_KEY_HEADER));
-            byte[] responseBytes = "{\"criticalPath\":[]}".getBytes(StandardCharsets.UTF_8);
+            byte[] responseBytes = VALID_MINIMAL_RESPONSE.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, responseBytes.length);
             try (OutputStream os = exchange.getResponseBody()) {
@@ -474,5 +484,247 @@ class HttpAiServiceClientTest {
         assertThat(nullSafe.nodes()).isEmpty();
         assertThat(nullSafe.dependencies()).isEmpty();
         assertThat(nullSafe.openFeedbacks()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("T3: Python trả analyzedAt ở tương lai -> backend tự đặt analyzedAt hiện tại, cất giá trị cũ vào serviceAnalyzedAt")
+    void testRequestDiagnosis_FutureAnalyzedAt() throws IOException {
+        int port = startServer(exchange -> {
+            String jsonResponse = "{\"analyzedAt\":\"2099-01-01T00:00:00Z\","
+                    + "\"criticalPath\":[],\"bottlenecks\":[],\"taskTraps\":[],\"actionableAdvice\":[],\"metrics\":{}}";
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        Instant before = Instant.now();
+        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
+        Instant after = Instant.now();
+
+        assertThat(result.get("serviceAnalyzedAt")).isEqualTo("2099-01-01T00:00:00Z");
+        Instant analyzedAt = Instant.parse(String.valueOf(result.get("analyzedAt")));
+        assertThat(analyzedAt).isBetween(before, after);
+    }
+
+    @Test
+    @DisplayName("T3: Python trả analyzedAt sai định dạng -> backend tự đặt analyzedAt ISO-8601, cất giá trị cũ vào serviceAnalyzedAt")
+    void testRequestDiagnosis_InvalidFormatAnalyzedAt() throws IOException {
+        int port = startServer(exchange -> {
+            String jsonResponse = "{\"analyzedAt\":\"16/11/2026\","
+                    + "\"criticalPath\":[],\"bottlenecks\":[],\"taskTraps\":[],\"actionableAdvice\":[],\"metrics\":{}}";
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        Instant before = Instant.now();
+        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
+        Instant after = Instant.now();
+
+        assertThat(result.get("serviceAnalyzedAt")).isEqualTo("16/11/2026");
+        Instant analyzedAt = Instant.parse(String.valueOf(result.get("analyzedAt")));
+        assertThat(analyzedAt).isBetween(before, after);
+    }
+
+    @Test
+    @DisplayName("T4: Server trả JSON rỗng {} -> ném AiServiceUnavailableException với reason chứa criticalPath")
+    void testRequestDiagnosis_EmptyJsonContractViolation() throws IOException {
+        int port = startServer(exchange -> {
+            byte[] responseBytes = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE)
+                .satisfies(ex -> assertThat(((AiServiceUnavailableException) ex).getReason()).contains("criticalPath"));
+    }
+
+    @Test
+    @DisplayName("T4: criticalPath là chuỗi không phải mảng -> ném AiServiceUnavailableException với reason chứa criticalPath")
+    void testRequestDiagnosis_CriticalPathNotArray() throws IOException {
+        int port = startServer(exchange -> {
+            String jsonResponse = "{\"criticalPath\":\"abc\",\"bottlenecks\":[],\"taskTraps\":[],\"actionableAdvice\":[],\"metrics\":{}}";
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE)
+                .satisfies(ex -> assertThat(((AiServiceUnavailableException) ex).getReason()).contains("criticalPath"));
+    }
+
+    @Test
+    @DisplayName("T4: Thiếu taskTraps -> ném AiServiceUnavailableException với reason chứa taskTraps")
+    void testRequestDiagnosis_MissingTaskTraps() throws IOException {
+        int port = startServer(exchange -> {
+            String jsonResponse = "{\"criticalPath\":[],\"bottlenecks\":[],\"actionableAdvice\":[],\"metrics\":{}}";
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE)
+                .satisfies(ex -> assertThat(((AiServiceUnavailableException) ex).getReason()).contains("taskTraps"));
+    }
+
+    @Test
+    @DisplayName("T4: metrics là mảng không phải object -> ném AiServiceUnavailableException với reason chứa metrics")
+    void testRequestDiagnosis_MetricsNotObject() throws IOException {
+        int port = startServer(exchange -> {
+            String jsonResponse = "{\"criticalPath\":[],\"bottlenecks\":[],\"taskTraps\":[],\"actionableAdvice\":[],\"metrics\":[]}";
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        assertThatThrownBy(() -> client.requestDiagnosis(project, List.of(), List.of()))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessage(AiServiceUnavailableException.USER_MESSAGE)
+                .satisfies(ex -> assertThat(((AiServiceUnavailableException) ex).getReason()).contains("metrics"));
+    }
+
+    @Test
+    @DisplayName("T4: Các mảng có phần tử và có khóa lạ -> hợp lệ, không ném exception và giữ nguyên khóa lạ")
+    void testRequestDiagnosis_ValidWithExtraKeys() throws IOException {
+        int port = startServer(exchange -> {
+            String jsonResponse = "{"
+                    + "\"criticalPath\":[\"WPE-001\"],"
+                    + "\"bottlenecks\":[{\"nodeCode\":\"WPE-001\",\"severity\":\"HIGH\"}],"
+                    + "\"taskTraps\":[{\"nodeCode\":\"WPE-001\",\"trapType\":\"POTENTIAL_STALL\"}],"
+                    + "\"actionableAdvice\":[{\"action\":\"CONTINUE_PIPELINE\"}],"
+                    + "\"metrics\":{\"driftScore\":15.0},"
+                    + "\"rootCauseNotes\":\"example-root-cause\","
+                    + "\"tokenUsage\":123"
+                    + "}";
+            byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        });
+
+        ProjectEntity project = createSampleProject();
+        when(nodeDependencyRepository.findByProjectId(project.getId())).thenReturn(List.of());
+
+        HttpAiServiceClient client = new HttpAiServiceClient(
+                RestClient.builder(),
+                nodeDependencyRepository,
+                "http://127.0.0.1:" + port,
+                "/api/ai/diagnose",
+                3,
+                30,
+                ""
+        );
+
+        Map<String, Object> result = client.requestDiagnosis(project, List.of(), List.of());
+
+        assertThat(result.get("criticalPath")).isEqualTo(List.of("WPE-001"));
+        assertThat(result.get("rootCauseNotes")).isEqualTo("example-root-cause");
+        assertThat(result.get("tokenUsage")).isEqualTo(123);
+        assertThat(result.get("source")).isEqualTo("AI_SERVICE");
+        assertThat(result.get("analyzedAt")).isNotNull();
     }
 }

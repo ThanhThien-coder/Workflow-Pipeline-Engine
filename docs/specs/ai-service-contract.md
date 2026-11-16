@@ -28,10 +28,10 @@ sequenceDiagram
         BE->>AI: POST {AI_SERVICE_URL}{AI_DIAGNOSE_PATH} (AiDiagnosisRequest JSON)
         alt AI Microservice phản hồi 200 OK (< 30s)
             AI-->>BE: 200 OK (JSON kết quả chẩn đoán)
-            BE->>BE: Gắn thêm metadata (source = "AI_SERVICE", analyzedAt)
+            BE->>BE: Kiểm khuôn response, đặt analyzedAt bằng giờ backend
             BE->>DB: UPDATE project SET latest_ai_analysis = ? (JSONB)
             BE-->>FE: 200 OK (Kết quả chẩn đoán)
-        else AI Lỗi (5xx / Timeout / Không kết nối được)
+        else AI lỗi (5xx / Timeout / Không kết nối / Sai khuôn)
             BE-->>FE: 503 AI_SERVICE_UNAVAILABLE (không dữ liệu giả)
             Note over BE: Không ghi DB & không tính cooldown
         end
@@ -177,7 +177,9 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
 
 ### 4.1 Danh Sách Các Khóa Bắt Buộc
 
-1. **`analyzedAt`** (String, ISO-8601): Thời điểm kết thúc phân tích (UTC). Nếu microservice không trả, Java sẽ tự điền thời điểm hiện tại.
+Backend kiểm khuôn tối thiểu: `criticalPath`, `bottlenecks`, `taskTraps`, `actionableAdvice` phải là mảng; `metrics` phải là object. Sai thì coi như dịch vụ AI hỏng (mục 5). Backend không kiểm nội dung từng phần tử; việc đó Python phải làm.
+
+1. **`analyzedAt`** (String, ISO-8601): Backend LUÔN tự đặt bằng giờ của backend khi nhận kết quả; cooldown 180 giây chỉ dựa vào giá trị này. Giá trị Python gửi (nếu có) được giữ nguyên trong `serviceAnalyzedAt`, chỉ để tham khảo.
 2. **`source`** (String, tùy chọn):
    - Do Python trả: `AI_SERVICE` (Gemini trả lời hợp lệ) | `HEURISTIC_FALLBACK` (dùng luật dự phòng). Nếu bỏ trống, Java tự điền `"AI_SERVICE"`.
    - Backend tự gán: `MOCK` (chế độ mock).
@@ -284,6 +286,7 @@ Microservice Python cần trả về HTTP status `200 OK` kèm JSON Object chứ
    - Quá thời gian chờ (Timeout): Thiết lập kết nối vượt quá `3s`, hoặc xử lý vượt quá `30s`.
    - Lỗi mạng: Không tìm thấy host, từ chối kết nối (`Connection refused`).
    - Phản hồi có body rỗng (`null`).
+   - Response 200 nhưng sai khuôn (thiếu hoặc sai kiểu các khóa bắt buộc ở mục 4.1) → cùng hành vi 503 `AI_SERVICE_UNAVAILABLE`, không lưu, không tính cooldown.
 2. **Hành vi khi không gọi được Python**:
    - Backend `log.warn` lý do kỹ thuật ngắn gọn.
    - Trả HTTP 503 `{ "error": "AI_SERVICE_UNAVAILABLE", "message": "Dịch vụ AI tạm thời không hoạt động. Vui lòng thử lại sau." }`.
