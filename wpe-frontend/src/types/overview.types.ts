@@ -56,8 +56,17 @@ export interface AiDiagnosticInsight {
   boxClass: string
   tagClass: string
 }
+/** Nguồn của bản chẩn đoán, lấy từ trường `source` mà backend/dịch vụ AI trả về. */
+export type AiDiagnosisSource = 'AI_SERVICE' | 'HEURISTIC_FALLBACK' | 'MOCK' | 'MOCK_FALLBACK' | 'UNKNOWN'
+/** Nhãn hiện cho người dùng, suy ra từ source. Chỉ AI_SERVICE mới được ghi là Gemini. */
+export type AiDiagnosisEngine = 'Gemini' | 'Phân tích dự phòng' | 'Dữ liệu mẫu' | 'Không rõ nguồn'
+
 export interface AiDiagnosticReport {
-  engine: 'Gemini'
+  engine: AiDiagnosisEngine
+  /** Không có ở dữ liệu mock cũ; chế độ API luôn có. */
+  source?: AiDiagnosisSource
+  /** Gộp `warning` và `rateLimitWarning` của backend; có thì popover hiện dòng cảnh báo vàng. */
+  warning?: string
   generatedAt: ISODateTime
   insights: AiDiagnosticInsight[]
   hasAnalysis?: boolean

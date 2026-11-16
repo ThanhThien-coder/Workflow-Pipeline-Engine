@@ -2,6 +2,8 @@ import { apiRequest } from '../../http/apiClient'
 import type {
   ActivityAction,
   ActivityItem,
+  AiDiagnosisEngine,
+  AiDiagnosisSource,
   AiDiagnosticInsight,
   AiDiagnosticReport,
   BreakdownStatus,
@@ -237,9 +239,36 @@ export function computeOverviewStats(
   }
 }
 
+const AI_SOURCE_LABELS: Record<AiDiagnosisSource, AiDiagnosisEngine> = {
+  AI_SERVICE: 'Gemini',
+  HEURISTIC_FALLBACK: 'Phân tích dự phòng',
+  MOCK: 'Dữ liệu mẫu',
+  MOCK_FALLBACK: 'Dữ liệu mẫu',
+  UNKNOWN: 'Không rõ nguồn',
+}
+
+const RATE_LIMIT_DEFAULT_WARNING = 'Dịch vụ AI đang bị giới hạn lượt gọi, kết quả có thể chưa phải bản mới nhất.'
+
+/** Đọc `source`. Thiếu hoặc lạ thì 'UNKNOWN': không mặc định là Gemini để khỏi ghi dữ liệu giả thành AI thật. */
+function readAiSource(record: Record<string, unknown>): AiDiagnosisSource {
+  const raw = typeof record.source === 'string' ? record.source.trim().toUpperCase() : ''
+  return raw in AI_SOURCE_LABELS ? (raw as AiDiagnosisSource) : 'UNKNOWN'
+}
+
+/** Gộp `warning` và `rateLimitWarning` (chuỗi, hoặc true thì dùng câu mặc định) thành một dòng. */
+function readAiWarning(record: Record<string, unknown>): string | undefined {
+  const parts: string[] = []
+  if (typeof record.warning === 'string' && record.warning.trim()) parts.push(record.warning.trim())
+  const rate = record.rateLimitWarning
+  if (typeof rate === 'string' && rate.trim()) parts.push(rate.trim())
+  else if (rate === true) parts.push(RATE_LIMIT_DEFAULT_WARNING)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
 export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): AiDiagnosticReport {
   const emptyReport: AiDiagnosticReport = {
-    engine: 'Gemini',
+    engine: AI_SOURCE_LABELS.UNKNOWN,
+    source: 'UNKNOWN',
     generatedAt: fallbackTimestamp,
     insights: [],
     hasAnalysis: false,
@@ -250,6 +279,9 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
   const record = raw as Record<string, unknown>
   if (record.hasAnalysis === false) return emptyReport
 
+  const source = readAiSource(record)
+  const origin = { engine: AI_SOURCE_LABELS[source], source, warning: readAiWarning(record) }
+
   const analyzedAt =
     typeof record.analyzedAt === 'string' && record.analyzedAt
       ? record.analyzedAt
@@ -259,7 +291,7 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
 
   if (Array.isArray(record.insights) && record.insights.length > 0) {
     return {
-      engine: 'Gemini',
+      ...origin,
       generatedAt: analyzedAt,
       insights: record.insights as AiDiagnosticInsight[],
       hasAnalysis: true,
@@ -334,10 +366,10 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
     })
   }
 
-  if (insights.length === 0) return emptyReport
+  if (insights.length === 0) return { ...emptyReport, ...origin }
 
   return {
-    engine: 'Gemini',
+    ...origin,
     generatedAt: analyzedAt,
     insights,
     hasAnalysis: true,
