@@ -17,11 +17,12 @@ import {
   Shield,
   Unlink,
   UserMinus,
+  Unlock,
   UserPlus,
   XCircle,
 } from 'lucide-react'
 import type { AuditLogItem } from '../../types/settings.types'
-import { relativeVi } from '../../utils/relativeTime'
+import { relativeEn } from '../../utils/relativeTime'
 
 interface SystemAuditLogSectionProps {
   logs: AuditLogItem[]
@@ -39,136 +40,142 @@ interface EventMeta {
 }
 
 const DEFAULT_EVENT_META: EventMeta = {
-  label: 'Hoạt động',
+  label: 'Activity',
   badge: 'bg-slate-100 text-slate-700 border-slate-200',
   Icon: Activity,
 }
 
 const EVENT_META: Record<string, EventMeta> = {
   PROJECT_CREATED: {
-    label: 'Tạo dự án',
+    label: 'Project created',
     badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     Icon: FolderPlus,
   },
   PROJECT_STATUS_CHANGED: {
-    label: 'Đổi trạng thái dự án',
+    label: 'Project status changed',
     badge: 'bg-violet-50 text-violet-700 border-violet-200',
     Icon: RefreshCw,
   },
   MEMBER_JOINED: {
-    label: 'Thành viên tham gia',
+    label: 'Member joined',
     badge: 'bg-blue-50 text-blue-700 border-blue-200',
     Icon: UserPlus,
   },
   MEMBER_REMOVED: {
-    label: 'Thành viên rời dự án',
+    label: 'Member left',
     badge: 'bg-red-50 text-red-700 border-red-200',
     Icon: UserMinus,
   },
   INVITATION_SENT: {
-    label: 'Gửi lời mời',
+    label: 'Invitation sent',
     badge: 'bg-sky-50 text-sky-700 border-sky-200',
     Icon: Mail,
   },
   INVITATION_ACCEPTED: {
-    label: 'Chấp nhận lời mời',
+    label: 'Invitation accepted',
     badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     Icon: CheckCircle2,
   },
   INVITATION_REJECTED: {
-    label: 'Từ chối lời mời',
+    label: 'Invitation declined',
     badge: 'bg-rose-50 text-rose-700 border-rose-200',
     Icon: XCircle,
   },
   INVITATION_REVOKED: {
-    label: 'Thu hồi lời mời',
+    label: 'Invitation revoked',
     badge: 'bg-amber-50 text-amber-700 border-amber-200',
     Icon: Ban,
   },
   INVITATION_EXPIRED: {
-    label: 'Lời mời hết hạn',
+    label: 'Invitation expired',
     badge: 'bg-slate-100 text-slate-600 border-slate-200',
     Icon: Clock,
   },
   TASK_STATUS_CHANGED: {
-    label: 'Cập nhật task',
+    label: 'Task updated',
     badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     Icon: CheckSquare,
   },
   ARTIFACT_SUBMITTED: {
-    label: 'Nộp minh chứng',
+    label: 'Artifact submitted',
     badge: 'bg-teal-50 text-teal-700 border-teal-200',
     Icon: Paperclip,
   },
   GUEST_LINK_CREATED: {
-    label: 'Tạo link khách',
+    label: 'Guest link created',
     badge: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     Icon: Link2,
   },
   GUEST_LINK_REVOKED: {
-    label: 'Thu hồi link khách',
+    label: 'Guest link revoked',
     badge: 'bg-orange-50 text-orange-700 border-orange-200',
     Icon: Unlink,
   },
   FEEDBACK_CREATED: {
-    label: 'Góp ý của khách',
+    label: 'Guest feedback',
     badge: 'bg-purple-50 text-purple-700 border-purple-200',
     Icon: MessageSquare,
   },
+  TASK_FORCE_UNLOCKED: {
+    label: 'Task unlocked early',
+    badge: 'bg-amber-50 text-amber-700 border-amber-200',
+    Icon: Unlock,
+  },
   // Tương thích log từ MockWorkflowService
   MEMBER_INVITED: {
-    label: 'Mời thành viên',
+    label: 'Member invited',
     badge: 'bg-blue-50 text-blue-700 border-blue-200',
     Icon: Mail,
   },
   ROLE_CHANGED: {
-    label: 'Đổi vai trò',
+    label: 'Role changed',
     badge: 'bg-amber-50 text-amber-700 border-amber-200',
     Icon: Shield,
   },
   PIPELINE_PUBLISHED: {
-    label: 'Xuất bản pipeline',
+    label: 'Pipeline published',
     badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     Icon: CheckCircle2,
   },
   PROJECT_UPDATED: {
-    label: 'Cập nhật dự án',
+    label: 'Project updated',
     badge: 'bg-violet-50 text-violet-700 border-violet-200',
     Icon: RefreshCw,
   },
   RESOURCE_ADDED: {
-    label: 'Thêm tài nguyên',
+    label: 'Resource added',
     badge: 'bg-teal-50 text-teal-700 border-teal-200',
     Icon: Paperclip,
   },
   RESOURCE_REMOVED: {
-    label: 'Xóa tài nguyên',
+    label: 'Resource removed',
     badge: 'bg-red-50 text-red-700 border-red-200',
     Icon: Paperclip,
   },
   RESOURCE_UPDATED: {
-    label: 'Cập nhật tài nguyên',
+    label: 'Resource updated',
     badge: 'bg-violet-50 text-violet-700 border-violet-200',
     Icon: Paperclip,
   },
 }
 
 const FILTER_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'All Events', label: 'Tất cả loại hoạt động' },
-  { value: 'PROJECT_CREATED', label: 'Tạo dự án' },
-  { value: 'PROJECT_STATUS_CHANGED', label: 'Đổi trạng thái dự án' },
-  { value: 'MEMBER_JOINED', label: 'Thành viên tham gia' },
-  { value: 'MEMBER_REMOVED', label: 'Thành viên rời dự án' },
-  { value: 'INVITATION_SENT', label: 'Gửi lời mời' },
-  { value: 'INVITATION_ACCEPTED', label: 'Chấp nhận lời mời' },
-  { value: 'INVITATION_REJECTED', label: 'Từ chối lời mời' },
-  { value: 'INVITATION_REVOKED', label: 'Thu hồi lời mời' },
-  { value: 'INVITATION_EXPIRED', label: 'Lời mời hết hạn' },
-  { value: 'TASK_STATUS_CHANGED', label: 'Cập nhật task' },
-  { value: 'ARTIFACT_SUBMITTED', label: 'Nộp minh chứng' },
-  { value: 'GUEST_LINK_CREATED', label: 'Tạo link khách' },
-  { value: 'GUEST_LINK_REVOKED', label: 'Thu hồi link khách' },
-  { value: 'FEEDBACK_CREATED', label: 'Góp ý của khách' },
+  { value: 'All Events', label: 'All activity types' },
+  { value: 'PROJECT_CREATED', label: 'Project created' },
+  { value: 'PROJECT_STATUS_CHANGED', label: 'Project status changed' },
+  { value: 'MEMBER_JOINED', label: 'Member joined' },
+  { value: 'MEMBER_REMOVED', label: 'Member left' },
+  { value: 'INVITATION_SENT', label: 'Invitation sent' },
+  { value: 'INVITATION_ACCEPTED', label: 'Invitation accepted' },
+  { value: 'INVITATION_REJECTED', label: 'Invitation declined' },
+  { value: 'INVITATION_REVOKED', label: 'Invitation revoked' },
+  { value: 'INVITATION_EXPIRED', label: 'Invitation expired' },
+  { value: 'TASK_STATUS_CHANGED', label: 'Task updated' },
+  { value: 'TASK_FORCE_UNLOCKED', label: 'Task unlocked early' },
+  { value: 'ARTIFACT_SUBMITTED', label: 'Artifact submitted' },
+  { value: 'GUEST_LINK_CREATED', label: 'Guest link created' },
+  { value: 'GUEST_LINK_REVOKED', label: 'Guest link revoked' },
+  { value: 'FEEDBACK_CREATED', label: 'Guest feedback' },
 ]
 
 function formatTimestamp(iso: string): string {
@@ -185,7 +192,7 @@ function formatTimestamp(iso: string): string {
 function formatRelativeTime(iso: string): string {
   const parsed = Date.parse(iso)
   if (Number.isNaN(parsed)) return iso
-  return relativeVi(iso)
+  return relativeEn(iso)
 }
 
 function getInitials(name: string): string {
@@ -231,13 +238,13 @@ export function SystemAuditLogSection({
           <div>
             <h2 className="text-sm font-bold text-slate-800">System Audit Log</h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Nhật ký hoạt động tổng hợp từ dữ liệu dự án (thành viên, lời mời, công việc, minh chứng, link khách và góp ý).
+              Activity collected from project data (members, invitations, tasks, artifacts, guest links and feedback).
             </p>
           </div>
         </div>
         <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
           <Info className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-          <span>Task chỉ hiện lần cập nhật gần nhất (hệ thống không lưu lịch sử từng lần).</span>
+          <span>Tasks show only their latest update (the system does not keep every change).</span>
         </p>
       </div>
 
@@ -248,13 +255,13 @@ export function SystemAuditLogSection({
             <input
               value={searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
-              placeholder="Tìm theo sự kiện, người thực hiện, mã task..."
+              placeholder="Search by event, actor or task code..."
               className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
           <select
-            aria-label="Lọc theo loại hoạt động"
+            aria-label="Filter by activity type"
             value={filterScope}
             onChange={(e) => onFilterScopeChange(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
@@ -267,7 +274,7 @@ export function SystemAuditLogSection({
           </select>
 
           <span className="ml-auto text-[11px] font-medium text-slate-400">
-            {filtered.length} / {logs.length} hoạt động
+            {filtered.length} / {logs.length} activities
           </span>
         </div>
 
@@ -279,7 +286,7 @@ export function SystemAuditLogSection({
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
             <div>
-              <p className="font-semibold">Không tải được nhật ký hoạt động</p>
+              <p className="font-semibold">Could not load the activity log</p>
               <p className="mt-0.5 text-red-600">{error}</p>
             </div>
           </div>
@@ -288,10 +295,10 @@ export function SystemAuditLogSection({
             <table className="w-full min-w-[700px] text-left">
               <thead className="sticky top-0 z-10 bg-white">
                 <tr className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Thời gian</th>
-                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Người thực hiện</th>
-                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Loại</th>
-                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Chi tiết</th>
+                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Time</th>
+                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Actor</th>
+                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Type</th>
+                  <th className="px-3 pb-2.5 pt-2 border-b border-slate-100">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -347,8 +354,8 @@ export function SystemAuditLogSection({
                   <tr data-testid="audit-log-empty">
                     <td colSpan={4} className="py-8 text-center text-xs text-slate-400">
                       {logs.length === 0
-                        ? 'Chưa có hoạt động nào trong dự án.'
-                        : 'Không có hoạt động nào khớp bộ lọc.'}
+                        ? 'No activity in this project yet.'
+                        : 'No activity matches the filter.'}
                     </td>
                   </tr>
                 )}

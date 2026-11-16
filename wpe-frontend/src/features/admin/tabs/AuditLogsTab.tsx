@@ -11,19 +11,19 @@ export interface AuditLogsTabProps {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  LOGIN_SUCCESS: 'Đăng nhập',
-  LOGIN_FAILED: 'Đăng nhập thất bại',
-  LOGOUT: 'Đăng xuất',
-  REGISTER: 'Đăng ký',
-  ACCOUNT_LOCKED_LOGIN: 'Tài khoản khóa cố đăng nhập',
-  USER_SUSPENDED: 'Khóa tài khoản',
-  USER_UNBANNED: 'Mở khóa tài khoản',
-  ADMIN_ACCESS_DENIED: 'Bị chặn vào API quản trị',
-  TEMPLATE_CREATED: 'Tạo template',
-  TEMPLATE_UPDATED: 'Sửa template',
-  TEMPLATE_DELETED: 'Xóa template',
-  TEMPLATE_HIDDEN: 'Ẩn template',
-  TEMPLATE_SHOWN: 'Hiện template',
+  LOGIN_SUCCESS: 'Signed in',
+  LOGIN_FAILED: 'Sign-in failed',
+  LOGOUT: 'Signed out',
+  REGISTER: 'Registered',
+  ACCOUNT_LOCKED_LOGIN: 'Locked account sign-in',
+  USER_SUSPENDED: 'Account suspended',
+  USER_UNBANNED: 'Account unbanned',
+  ADMIN_ACCESS_DENIED: 'Admin API access denied',
+  TEMPLATE_CREATED: 'Template created',
+  TEMPLATE_UPDATED: 'Template updated',
+  TEMPLATE_DELETED: 'Template deleted',
+  TEMPLATE_HIDDEN: 'Template hidden',
+  TEMPLATE_SHOWN: 'Template shown',
 };
 
 const DANGER_ACTIONS = new Set([
@@ -35,9 +35,9 @@ const DANGER_ACTIONS = new Set([
 ]);
 
 const FILTER_BUTTONS: { key: AuditLogGroup | 'ALL'; label: string }[] = [
-  { key: 'ALL', label: 'Tất cả' },
-  { key: 'LOGIN', label: 'Đăng nhập' },
-  { key: 'ADMIN', label: 'Quản trị' },
+  { key: 'ALL', label: 'All' },
+  { key: 'LOGIN', label: 'Sign-in' },
+  { key: 'ADMIN', label: 'Admin' },
   { key: 'TEMPLATE', label: 'Template' },
 ];
 
@@ -46,7 +46,7 @@ function formatTimestamp(timestamp: string): string {
   try {
     const d = new Date(timestamp);
     if (isNaN(d.getTime())) return timestamp;
-    return d.toLocaleString('vi-VN');
+    return d.toLocaleString('en-US');
   } catch {
     return timestamp;
   }
@@ -97,7 +97,7 @@ export const AuditLogsTab: FC<AuditLogsTabProps> = ({
             Security &amp; Audit Logs
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Nhật ký đăng nhập và thao tác quản trị trên toàn hệ thống
+            Sign-ins and admin actions across the whole system
           </p>
         </div>
         {onExportAudit && (
@@ -137,7 +137,7 @@ export const AuditLogsTab: FC<AuditLogsTabProps> = ({
       {/* Error or Table */}
       {errorMessage ? (
         <div className="admin-surface rounded-xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-700">
-          <p className="font-semibold">Chưa có dữ liệu: {errorMessage}</p>
+          <p className="font-semibold">No data: {errorMessage}</p>
         </div>
       ) : (
         <div className="admin-surface overflow-hidden">
@@ -145,11 +145,11 @@ export const AuditLogsTab: FC<AuditLogsTabProps> = ({
             <table className="min-w-[900px] w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
-                  <th className="px-5 py-4 font-semibold">Thời gian</th>
-                  <th className="px-4 py-4 font-semibold">Người thực hiện</th>
-                  <th className="px-4 py-4 font-semibold">Hành động</th>
-                  <th className="px-4 py-4 font-semibold">Đối tượng</th>
-                  <th className="px-5 py-4 font-semibold">Chi tiết</th>
+                  <th className="px-5 py-4 font-semibold">Time</th>
+                  <th className="px-4 py-4 font-semibold">Actor</th>
+                  <th className="px-4 py-4 font-semibold">Action</th>
+                  <th className="px-4 py-4 font-semibold">Target</th>
+                  <th className="px-5 py-4 font-semibold">Details</th>
                   <th className="px-5 py-4 font-semibold">IP</th>
                 </tr>
               </thead>
@@ -183,7 +183,7 @@ export const AuditLogsTab: FC<AuditLogsTabProps> = ({
           {auditLogs.length === 0 && (
             <div className="flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500">
               <ShieldCheck className="h-8 w-8 text-slate-300 mb-2" />
-              <p className="font-semibold text-slate-700">Chưa có nhật ký nào</p>
+              <p className="font-semibold text-slate-700">No logs yet</p>
             </div>
           )}
         </div>
