@@ -26,7 +26,7 @@ import static org.mockito.Mockito.lenient;
 @ExtendWith(MockitoExtension.class)
 class JwtAuthFilterTest {
 
-    private static final String SECRET = "test-secret-for-unit-tests-only-0123456789abcdef";
+    private static final String SECRET = "example-jwt-test-secret-key-0123456789abcdef";
 
     private final JwtService jwtService = new JwtService(SECRET, 900_000);
 
@@ -51,9 +51,16 @@ class JwtAuthFilterTest {
     }
 
     private Authentication run(String authorizationHeader) throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/projects");
+        return runRequest("GET", "/api/v1/projects", authorizationHeader, null);
+    }
+
+    private Authentication runRequest(String method, String uri, String authorizationHeader, String accessTokenParam) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, uri);
         if (authorizationHeader != null) {
             request.addHeader("Authorization", authorizationHeader);
+        }
+        if (accessTokenParam != null) {
+            request.setParameter(JwtAuthFilter.ACCESS_TOKEN_PARAM, accessTokenParam);
         }
         MockFilterChain chain = new MockFilterChain();
         filter.doFilter(request, new MockHttpServletResponse(), chain);
@@ -141,5 +148,72 @@ class JwtAuthFilterTest {
         Authentication auth = run("Bearer " + token);
 
         assertThat(auth.getAuthorities()).extracting(GrantedAuthority::getAuthority).containsExactly("ROLE_ADMIN");
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/realtime/subscribe?access_token=<token hợp lệ>, không header -> có authentication, principal = userId")
+    void validQueryToken_v1Subscribe_authenticates() throws Exception {
+        String token = jwtService.generateAccessToken(alex);
+
+        Authentication auth = runRequest("GET", "/api/v1/realtime/subscribe", null, token);
+
+        assertThat(auth).isNotNull();
+        assertThat(auth.getPrincipal()).isEqualTo(2L);
+        assertThat(auth.getAuthorities()).extracting(GrantedAuthority::getAuthority).containsExactly("ROLE_USER");
+    }
+
+    @Test
+    @DisplayName("GET /api/realtime/subscribe?access_token=... (đường cũ) -> có authentication")
+    void validQueryToken_legacySubscribe_authenticates() throws Exception {
+        String token = jwtService.generateAccessToken(alex);
+
+        Authentication auth = runRequest("GET", "/api/realtime/subscribe", null, token);
+
+        assertThat(auth).isNotNull();
+        assertThat(auth.getPrincipal()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/1/graph?access_token=<token hợp lệ> -> KHÔNG có authentication (đường khác không nhận token qua query)")
+    void validQueryToken_otherEndpoint_ignored() throws Exception {
+        String token = jwtService.generateAccessToken(alex);
+
+        Authentication auth = runRequest("GET", "/api/v1/projects/1/graph", null, token);
+
+        assertThat(auth).isNull();
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/realtime/subscribe?access_token=... -> KHÔNG có authentication (chỉ GET)")
+    void validQueryToken_postMethod_ignored() throws Exception {
+        String token = jwtService.generateAccessToken(alex);
+
+        Authentication auth = runRequest("POST", "/api/v1/realtime/subscribe", null, token);
+
+        assertThat(auth).isNull();
+    }
+
+    @Test
+    @DisplayName("Có cả header Bearer token A và query token B trên đường SSE -> dùng token A (header ưu tiên)")
+    void bearerHeaderAndQueryToken_prefersHeader() throws Exception {
+        UserEntity bob = UserEntity.builder().id(3L).username("bob").systemRole(SystemRole.USER)
+            .isLocked(false).tokenVersion(0).build();
+        lenient().when(userRepository.findById(3L)).thenReturn(Optional.of(bob));
+
+        String tokenA = jwtService.generateAccessToken(alex);
+        String tokenB = jwtService.generateAccessToken(bob);
+
+        Authentication auth = runRequest("GET", "/api/v1/realtime/subscribe", "Bearer " + tokenA, tokenB);
+
+        assertThat(auth).isNotNull();
+        assertThat(auth.getPrincipal()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("Query token sai (parseAccessToken ném JwtException) -> KHÔNG có authentication, filter chain vẫn chạy tiếp")
+    void invalidQueryToken_noPrincipal_chainContinues() throws Exception {
+        Authentication auth = runRequest("GET", "/api/v1/realtime/subscribe", null, "example-invalid-token");
+
+        assertThat(auth).isNull();
     }
 }
