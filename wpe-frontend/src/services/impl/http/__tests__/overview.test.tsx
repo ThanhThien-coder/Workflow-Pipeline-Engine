@@ -7,6 +7,7 @@ import { MockWorkflowService } from '../../../MockWorkflowService'
 import { computeOverviewStats, mapAiAnalysisToReport } from '../overview'
 import { createOverviewSlice, type OverviewSlice } from '../../../../store/slices/overviewSlice'
 import { GuestAccessPopover } from '../../../../components/popovers/GuestAccessPopover'
+import { AiDiagnosisPopover } from '../../../../components/popovers/AiDiagnosisPopover'
 import { OverviewView } from '../../../../components/views/OverviewView'
 import { useWorkflowStore } from '../../../../store/useWorkflowStore'
 import { ApiError } from '../../../http/ApiError'
@@ -367,5 +368,57 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
     expect(screen.queryByText('Weekly Velocity')).toBeNull()
     expect(screen.getByTestId('ai-diagnosis-empty').textContent).toContain('Chưa có chẩn đoán')
     expect(screen.getByTestId('recent-activity-empty')).toBeTruthy()
+  })
+})
+
+describe('F2 — Chẩn đoán AI ghi đúng nguồn dữ liệu, không ghi dữ liệu giả là Gemini', () => {
+  const advice = [{ action: 'Ưu tiên', targetNodeCode: 'WPE-002', instruction: 'Duyệt WPE-002 sớm', priority: 'HIGH' }]
+
+  function openPopover(raw: Record<string, unknown>) {
+    const report = mapAiAnalysisToReport({ analyzedAt: '2026-11-16T08:00:00Z', actionableAdvice: advice, ...raw }, '2026-11-16T09:00:00Z')
+    render(<AiDiagnosisPopover report={report} />)
+    fireEvent.click(screen.getByRole('button', { name: /AI Diagnosis/ }))
+    return report
+  }
+
+  afterEach(() => cleanup())
+
+  it('source = AI_SERVICE → nhãn "Model: Gemini Engine", không có cảnh báo', () => {
+    const report = openPopover({ source: 'AI_SERVICE' })
+
+    expect(report.engine).toBe('Gemini')
+    expect(report.source).toBe('AI_SERVICE')
+    expect(report.warning).toBeUndefined()
+    expect(screen.getByText(/Model: Gemini Engine/)).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('source = MOCK_FALLBACK có warning → nhãn "Dữ liệu mẫu" (không phải Gemini) và hiện dòng cảnh báo', () => {
+    const warning = 'Không gọi được dịch vụ AI (Connection refused), đang hiển thị dữ liệu giả.'
+    const report = openPopover({ source: 'MOCK_FALLBACK', warning })
+
+    expect(report.engine).toBe('Dữ liệu mẫu')
+    expect(screen.queryByText(/Gemini/)).toBeNull()
+    expect(screen.getByText(/Nguồn: Dữ liệu mẫu/)).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain(warning)
+  })
+
+  it('source = HEURISTIC_FALLBACK có rateLimitWarning → nhãn "Phân tích dự phòng" và hiện cảnh báo', () => {
+    const report = openPopover({ source: 'HEURISTIC_FALLBACK', rateLimitWarning: 'Gemini đang bị giới hạn lượt gọi (429).' })
+
+    expect(report.engine).toBe('Phân tích dự phòng')
+    expect(screen.getByText(/Nguồn: Phân tích dự phòng/)).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('giới hạn lượt gọi (429)')
+  })
+
+  it('MOCK, thiếu source, rateLimitWarning = true: không bao giờ mặc định là Gemini; gộp cả 2 cảnh báo', () => {
+    expect(mapAiAnalysisToReport({ source: 'MOCK', actionableAdvice: advice }, 't').engine).toBe('Dữ liệu mẫu')
+    const noSource = mapAiAnalysisToReport({ actionableAdvice: advice }, 't')
+    expect(noSource.engine).toBe('Không rõ nguồn')
+    expect(noSource.source).toBe('UNKNOWN')
+
+    const both = mapAiAnalysisToReport({ source: 'MOCK_FALLBACK', warning: 'W1', rateLimitWarning: true, actionableAdvice: advice }, 't')
+    expect(both.warning).toContain('W1')
+    expect(both.warning).toContain('giới hạn lượt gọi')
   })
 })
