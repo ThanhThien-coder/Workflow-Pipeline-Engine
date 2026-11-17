@@ -305,6 +305,16 @@ describe('HttpWorkflowService.connectRealtime', () => {
     es.dispatchEvent('PROJECT_TASKS_CHANGED', JSON.stringify(projectEvent))
     expect(onEvent).toHaveBeenCalledWith('PROJECT_TASKS_CHANGED', projectEvent)
 
+    // 4. TASK_OVERDUE
+    const overdueTask = { id: 103, code: 'WPE-103', title: 'Task Overdue', status: 'IN_PROGRESS', isOverdue: true, version: 1 }
+    es.dispatchEvent('TASK_OVERDUE', JSON.stringify(overdueTask))
+    expect(onEvent).toHaveBeenCalledWith('TASK_OVERDUE', expect.objectContaining({
+      id: '103',
+      code: 'WPE-103',
+      status: 'IN_PROGRESS',
+      isOverdue: true,
+    }))
+
     unsubscribe()
   })
 

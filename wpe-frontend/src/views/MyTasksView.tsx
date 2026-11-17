@@ -71,7 +71,7 @@ export function MyTasksView({
   useEffect(() => {
     if (workflowService instanceof HttpWorkflowService) {
       const unsubscribe = workflowService.connectRealtime(userId, (eventName) => {
-        if (eventName === 'TASK_UNLOCKED' || eventName === 'TASK_STATUS_CHANGED' || eventName === 'TASK_REJECTED') {
+        if (eventName === 'TASK_UNLOCKED' || eventName === 'TASK_STATUS_CHANGED' || eventName === 'TASK_REJECTED' || eventName === 'TASK_OVERDUE') {
           void loadTasks(projectId)
         }
         // G18: có người nộp bài / đổi trạng thái → cập nhật số "Chờ duyệt"

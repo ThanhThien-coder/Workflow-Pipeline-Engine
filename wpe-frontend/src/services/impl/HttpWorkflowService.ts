@@ -289,6 +289,15 @@ export class HttpWorkflowService implements IWorkflowService {
         }
       })
 
+      eventSource.addEventListener('TASK_OVERDUE', (e) => {
+        try {
+          const task = JSON.parse(e.data)
+          onEvent('TASK_OVERDUE', this.mapBackendTaskToKanban(task))
+        } catch (err) {
+          console.error('[SSE] Lỗi parse dữ liệu TASK_OVERDUE:', err)
+        }
+      })
+
       eventSource.addEventListener('NOTIFICATION_RECEIVED', (e) => {
         try {
           const notif = JSON.parse(e.data)
