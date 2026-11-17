@@ -283,6 +283,29 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 - **JwtAuthFilter (trước X1)**: token sai **không** bị chặn ở filter (vẫn `permitAll`), chỉ không đặt principal. Request không có `Authorization` vẫn dùng `X-Debug-User-Id`/user mặc định cho tới X1; có `Authorization` sai thì không rơi về user debug.
 - **Secret**: `jwt.secret` đọc biến môi trường `JWT_SECRET` (>= 32 byte); giá trị mặc định trong `application.yml` chỉ cho máy dev.
 
+### 1.5 Quên mật khẩu qua email (TASK_60)
+Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/auth/*` và `/api/auth/*`. Body lỗi theo khuôn chung `{ timestamp, status, error, message, path }`.
+
+| Endpoint | Request | Response |
+| :--- | :--- | :--- |
+| `GET /auth/password-reset/status` | - | `200 { "enabled": true\|false }`. `false` khi chưa cấu hình mail (FE ẩn/đổi nút "Forgot password?"). |
+| `POST /auth/forgot-password` | `{ "email": "..." }` | `200 { "success": true, "message": "If an account exists for this email, we've sent a password reset link." }` — **giống hệt** dù email có tồn tại hay không. Email trống/sai định dạng/quá 100 ký tự -> `400 VALIDATION_FAILED`. Mail tắt -> `503 PASSWORD_RESET_UNAVAILABLE`. |
+| `POST /auth/reset-password/verify` | `{ "token": "..." }` | `200 { "valid": true }`; không hợp lệ -> `400 INVALID_RESET_TOKEN`. |
+| `POST /auth/reset-password` | `{ "token": "...", "newPassword": "..." }` | `200 { "success": true, "message": "Your password has been reset. You can now sign in with your new password." }`. Không tự đăng nhập. |
+
+| Mã `error` | HTTP | Khi nào |
+| :--- | :--- | :--- |
+| `PASSWORD_RESET_UNAVAILABLE` | 503 | `forgot-password` khi mail chưa bật (message: "Password reset by email isn't available right now. Please contact your workspace administrator."). |
+| `INVALID_RESET_TOKEN` | 400 | Token không tồn tại / hết hạn / đã dùng / user đã xóa hoặc bị khóa (message: "This password reset link is invalid or has expired. Please request a new one."). |
+| `WEAK_PASSWORD` | 400 | `reset-password`: mật khẩu mới < 8 ký tự, không có chữ số hoặc > 72 byte (cùng message với đổi mật khẩu). Token chưa bị đánh dấu đã dùng. Kiểm token trước, mật khẩu sau. |
+| `VALIDATION_FAILED` | 400 | `forgot-password` sai định dạng email. |
+
+- **Link trong email**: `<APP_PUBLIC_URL>/reset-password#token=<token>`. Token nằm sau `#` nên không vào log máy chủ; FE đọc từ `location.hash`, gọi `verify` rồi `reset-password`.
+- **Token**: 32 byte ngẫu nhiên, base64url không padding; DB (`password_reset_token`) chỉ lưu SHA-256 hex. Hết hạn sau `PASSWORD_RESET_TTL_MINUTES`, dùng một lần; yêu cầu mới làm các link cũ chưa dùng hết hiệu lực. Chỉ gửi cho tài khoản chưa xóa và không bị khóa; trong thời gian chờ `PASSWORD_RESET_RESEND_COOLDOWN_SECONDS` không tạo/gửi thêm (vẫn trả 200).
+- **Sau khi đặt lại thành công**: `token_version + 1`, thu hồi mọi refresh token, các link còn lại hết hiệu lực, gửi email xác nhận "Your Workflow Pipeline Engine password was changed" (email này cũng gửi sau `PUT` đổi mật khẩu thành công ở Cụm 2).
+- **Gửi mail** bất đồng bộ sau commit; lỗi SMTP chỉ ghi log, không làm hỏng request. Job dọn token mỗi 6 giờ (xóa token hết hạn/đã dùng quá 7 ngày).
+- **Biến môi trường**: `MAIL_HOST`, `MAIL_PORT` (587), `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_SMTP_AUTH` (true), `MAIL_SMTP_STARTTLS` (true), `MAIL_FROM`, `MAIL_FROM_NAME` (Workflow Pipeline Engine), `PASSWORD_RESET_TTL_MINUTES` (30), `PASSWORD_RESET_RESEND_COOLDOWN_SECONDS` (60), `APP_PUBLIC_URL`. Mail "bật" khi `MAIL_HOST` và `MAIL_FROM` đều có giá trị.
+
 ---
 
 ## Cụm 2: Hồ Sơ & Bảo Mật Cá Nhân (User Profile)

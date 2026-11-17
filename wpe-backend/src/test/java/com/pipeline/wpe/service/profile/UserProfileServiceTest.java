@@ -56,6 +56,8 @@ class UserProfileServiceTest {
     private AuthService authService;
     @Mock
     private AvatarStorageService avatarStorageService;
+    @Mock
+    private com.pipeline.wpe.service.mail.AccountEmailService accountEmailService;
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
 
@@ -75,7 +77,8 @@ class UserProfileServiceTest {
             refreshTokenRepository,
             authService,
             avatarStorageService,
-            passwordEncoder
+            passwordEncoder,
+            accountEmailService
         );
 
         sampleUser = UserEntity.builder()
@@ -318,6 +321,24 @@ class UserProfileServiceTest {
         assertThat(passwordEncoder.matches("NewPassword456!", sampleUser.getPasswordHash())).isTrue();
         verify(refreshTokenRepository).revokeAllByUserId(10L);
         verify(authService).issueSession(sampleUser);
+    }
+
+    @Test
+    @DisplayName("changePassword: thành công -> lên lịch gửi email xác nhận; thất bại -> không gửi")
+    void changePassword_schedulesConfirmationEmail() {
+        when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(authService.issueSession(any(UserEntity.class))).thenReturn(new AuthResponse("new-jwt", "new-rt", null));
+
+        userProfileService.changePassword(10L, new ChangePasswordRequest("OldPassword123!", "NewPassword456!"));
+
+        verify(accountEmailService).sendPasswordChangedAfterCommit(
+            eq(10L), eq(sampleUser.getEmail()), eq(sampleUser.getFullName()), eq(sampleUser.getUsername()), any(Instant.class));
+
+        clearInvocations(accountEmailService);
+        assertThatThrownBy(() -> userProfileService.changePassword(10L, new ChangePasswordRequest("OldPassword123!", "short")))
+            .isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(accountEmailService);
     }
 
     @Test
