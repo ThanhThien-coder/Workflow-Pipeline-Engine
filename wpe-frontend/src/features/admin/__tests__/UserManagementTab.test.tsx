@@ -88,32 +88,32 @@ describe('UserManagementTab Component', () => {
     // 1. Dòng của chính mình (id: '1', Current Admin):
     const currentRow = screen.getByText('Current Admin').closest('tr')!;
     expect(currentRow).toBeTruthy();
-    expect(within(currentRow).queryByText('Hạ về người dùng')).toBeNull();
-    expect(within(currentRow).queryByText('Xóa')).toBeNull();
+    expect(within(currentRow).queryByText('Demote to user')).toBeNull();
+    expect(within(currentRow).queryByText('Delete')).toBeNull();
     expect(within(currentRow).queryByText('Suspend')).toBeNull();
     // Vì ownedProjectCount = 2 > 0 nên có nút "Dự án sở hữu"
-    expect(within(currentRow).getByText('Dự án sở hữu')).toBeTruthy();
+    expect(within(currentRow).getByText('Owned projects')).toBeTruthy();
 
     // 2. Dòng của admin khác (id: '2', Other Admin):
     const otherAdminRow = screen.getByText('Other Admin').closest('tr')!;
     expect(otherAdminRow).toBeTruthy();
-    expect(within(otherAdminRow).getByText('Hạ về người dùng')).toBeTruthy();
-    expect(within(otherAdminRow).queryByText('Xóa')).toBeNull();
+    expect(within(otherAdminRow).getByText('Demote to user')).toBeTruthy();
+    expect(within(otherAdminRow).queryByText('Delete')).toBeNull();
     // ownedProjectCount = 0 không có "Dự án sở hữu"
-    expect(within(otherAdminRow).queryByText('Dự án sở hữu')).toBeNull();
+    expect(within(otherAdminRow).queryByText('Owned projects')).toBeNull();
 
     // 3. User thường (id: '3', Standard User):
     const standardRow = screen.getByText('Standard User').closest('tr')!;
     expect(standardRow).toBeTruthy();
-    expect(within(standardRow).getByText('Nâng quản trị')).toBeTruthy();
-    expect(within(standardRow).getByText('Xóa')).toBeTruthy();
+    expect(within(standardRow).getByText('Promote to admin')).toBeTruthy();
+    expect(within(standardRow).getByText('Delete')).toBeTruthy();
     // ownedProjectCount = 0 không có "Dự án sở hữu"
-    expect(within(standardRow).queryByText('Dự án sở hữu')).toBeNull();
+    expect(within(standardRow).queryByText('Owned projects')).toBeNull();
 
     // 4. User thường có sở hữu dự án (id: '4', Owner User):
     const ownerRow = screen.getByText('Owner User').closest('tr')!;
     expect(ownerRow).toBeTruthy();
-    expect(within(ownerRow).getByText('Dự án sở hữu')).toBeTruthy();
+    expect(within(ownerRow).getByText('Owned projects')).toBeTruthy();
   });
 
   it('bấm "Xóa" mở modal, bấm xác nhận gọi onDeleteUser(id)', async () => {
@@ -134,18 +134,18 @@ describe('UserManagementTab Component', () => {
     );
 
     const standardRow = screen.getByText('Standard User').closest('tr')!;
-    const deleteBtn = within(standardRow).getByText('Xóa');
+    const deleteBtn = within(standardRow).getByText('Delete');
     fireEvent.click(deleteBtn);
 
     // Modal xuất hiện
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeTruthy();
     expect(
-      within(dialog).getByText(/Xóa vĩnh viễn tài khoản Standard User\? Chỉ xóa được tài khoản chưa có dữ liệu\./)
+      within(dialog).getByText(/Permanently delete Standard User's account\? Only accounts with no data can be deleted\./)
     ).toBeTruthy();
 
     // Bấm nút xác nhận trong modal
-    const confirmBtn = within(dialog).getByText('Xác nhận');
+    const confirmBtn = within(dialog).getByText('Confirm');
     fireEvent.click(confirmBtn);
 
     expect(onDeleteUser).toHaveBeenCalledTimes(1);
@@ -173,6 +173,6 @@ describe('UserManagementTab Component', () => {
     const suspendBtn = within(otherAdminRow).getByText('Suspend');
     expect(suspendBtn).toBeTruthy();
     expect((suspendBtn as HTMLButtonElement).disabled).toBe(true);
-    expect(suspendBtn.getAttribute('title')).toBe('Không thể khóa quản trị viên. Hạ về người dùng trước.');
+    expect(suspendBtn.getAttribute('title')).toBe("Admins can't be suspended. Demote to user first.");
   });
 });

@@ -18,7 +18,7 @@ describe('describeSaveError pure function', () => {
     });
     const result = describeSaveError(err);
     expect(result).toEqual({
-      message: 'Đồ thị có chu trình lặp ở: p1, n2',
+      message: 'The graph has a cycle at: p1, n2',
       cycleIds: ['p1', 'n2'],
       keepOpen: true,
     });
@@ -33,7 +33,7 @@ describe('describeSaveError pure function', () => {
     });
     const result = describeSaveError(err, (id) => (id === 'n1' ? 'Thiết kế' : undefined));
     expect(result.message).toContain('Thiết kế');
-    expect(result.message).toBe('Đồ thị có chu trình lặp ở: Thiết kế');
+    expect(result.message).toBe('The graph has a cycle at: Thiết kế');
     expect(result.cycleIds).toEqual(['n1']);
     expect(result.keepOpen).toBe(true);
   });
@@ -47,7 +47,7 @@ describe('describeSaveError pure function', () => {
     });
     const result = describeSaveError(err);
     expect(result).toEqual({
-      message: 'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.',
+      message: 'The graph has a cycle. The steps in the loop are highlighted in red.',
       cycleIds: [],
       keepOpen: true,
     });
@@ -61,7 +61,7 @@ describe('describeSaveError pure function', () => {
     });
     const result = describeSaveError(err);
     expect(result).toEqual({
-      message: 'Chỉ quản trị viên mới lưu được template',
+      message: 'Only admins can save templates.',
       cycleIds: [],
       keepOpen: true,
     });
@@ -75,7 +75,7 @@ describe('describeSaveError pure function', () => {
     });
     const result = describeSaveError(err);
     expect(result).toEqual({
-      message: 'Mất kết nối máy chủ, bản nháp vẫn còn, hãy thử lưu lại.',
+      message: 'Lost connection to the server. Your draft is still here, so try saving again.',
       cycleIds: [],
       keepOpen: true,
     });
@@ -148,7 +148,7 @@ describe('TemplateStudioView Component', () => {
 
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith(
-        'Chỉ quản trị viên mới lưu được template',
+        'Only admins can save templates.',
         'rose'
       );
     });
@@ -180,7 +180,7 @@ describe('TemplateStudioView Component', () => {
 
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith(
-        'Đồ thị có chu trình lặp ở: n1, n2',
+        'The graph has a cycle at: n1, n2',
         'rose'
       );
     });
@@ -211,7 +211,7 @@ describe('TemplateStudioView Component', () => {
 
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith(
-        'Mất kết nối máy chủ, bản nháp vẫn còn, hãy thử lưu lại.',
+        'Lost connection to the server. Your draft is still here, so try saving again.',
         'rose'
       );
     });

@@ -97,10 +97,10 @@ describe('WorkspaceDetailDrawer Component', () => {
     );
 
     // 1. Hiện đủ 4 tiêu đề nhóm
-    expect(screen.getByText('Tổng quan')).toBeTruthy();
-    expect(screen.getByText('Thành viên')).toBeTruthy();
-    expect(screen.getByText('Tiến độ')).toBeTruthy();
-    expect(screen.getByText('Chia sẻ')).toBeTruthy();
+    expect(screen.getByText('Overview')).toBeTruthy();
+    expect(screen.getByText('Members')).toBeTruthy();
+    expect(screen.getByText('Progress')).toBeTruthy();
+    expect(screen.getByText('Sharing')).toBeTruthy();
 
     // 2. Không có chữ "token" trong DOM
     const textContent = container.textContent || '';
@@ -120,7 +120,7 @@ describe('WorkspaceDetailDrawer Component', () => {
     );
 
     expect(
-      screen.getByText('Dự án chỉ có một người, không chuyển được. Chỉ có thể lưu trữ.')
+      screen.getByText("This project has only one member and can't be transferred. You can only archive it.")
     ).toBeTruthy();
   });
 
@@ -136,7 +136,7 @@ describe('WorkspaceDetailDrawer Component', () => {
       />
     );
 
-    expect(screen.queryByText('Lưu trữ dự án')).toBeNull();
+    expect(screen.queryByText('Archive project')).toBeNull();
   });
 
   it('dự án ARCHIVED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', () => {
@@ -152,10 +152,10 @@ describe('WorkspaceDetailDrawer Component', () => {
     );
 
     expect(
-      screen.getByText('Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.')
+      screen.getByText("Archived or completed projects can't be transferred.")
     ).toBeTruthy();
-    expect(screen.queryByLabelText('Chủ mới')).toBeNull();
-    expect(screen.queryByText('Chuyển')).toBeNull();
+    expect(screen.queryByLabelText('New owner')).toBeNull();
+    expect(screen.queryByText('Transfer')).toBeNull();
   });
 
   it('dự án COMPLETED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', () => {
@@ -171,10 +171,10 @@ describe('WorkspaceDetailDrawer Component', () => {
     );
 
     expect(
-      screen.getByText('Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.')
+      screen.getByText("Archived or completed projects can't be transferred.")
     ).toBeTruthy();
-    expect(screen.queryByLabelText('Chủ mới')).toBeNull();
-    expect(screen.queryByText('Chuyển')).toBeNull();
+    expect(screen.queryByLabelText('New owner')).toBeNull();
+    expect(screen.queryByText('Transfer')).toBeNull();
   });
 
   it('chọn chủ mới và bấm Chuyển gọi onTransfer(projectId, newOwnerId)', async () => {
@@ -189,10 +189,10 @@ describe('WorkspaceDetailDrawer Component', () => {
       />
     );
 
-    const select = screen.getByLabelText('Chủ mới');
+    const select = screen.getByLabelText('New owner');
     fireEvent.change(select, { target: { value: '20' } });
 
-    const transferBtn = screen.getByText('Chuyển');
+    const transferBtn = screen.getByText('Transfer');
     fireEvent.click(transferBtn);
 
     expect(onTransfer).toHaveBeenCalledWith('1', '20');

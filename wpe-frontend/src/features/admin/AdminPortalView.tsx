@@ -144,7 +144,7 @@ export const AdminPortalView: FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    showToast('Đã đăng xuất thành công.');
+    showToast('You have been signed out.');
     navigate('/auth?tab=signin');
   };
 
@@ -163,7 +163,7 @@ export const AdminPortalView: FC = () => {
   };
 
   const handleExportAudit = () => {
-    showToast('Bản export audit log đã sẵn sàng trong bản demo.', 'emerald');
+    showToast('Audit log export is ready (demo).', 'emerald');
   };
 
   return (
@@ -273,9 +273,9 @@ export const AdminPortalView: FC = () => {
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mb-4 shadow-sm">
                 <AlertCircle className="h-7 w-7" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Không thể mở Template Studio</h3>
+              <h3 className="text-lg font-bold text-slate-900">Can't open Template Studio</h3>
               <p className="mt-2 max-w-md text-sm text-slate-500">
-                Đã xảy ra sự cố khi tải giao diện Studio.
+                Something went wrong while loading Studio.
                 {error?.message ? ` (${error.message})` : ''}
               </p>
               <div className="mt-5 flex items-center gap-3">
@@ -284,14 +284,14 @@ export const AdminPortalView: FC = () => {
                   onClick={reset}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer"
                 >
-                  Thử lại
+                  Try again
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseStudio}
                   className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 cursor-pointer"
                 >
-                  Quay lại Danh sách Template
+                  Back to template list
                 </button>
               </div>
             </div>

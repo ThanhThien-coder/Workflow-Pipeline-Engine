@@ -12,13 +12,13 @@ export interface WorkspaceDetailDrawerProps {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Nháp',
-  PLANNING: 'Lập kế hoạch',
-  ACTIVE: 'Đang chạy',
-  PAUSED: 'Tạm dừng',
-  COMPLETED: 'Hoàn thành',
-  INACTIVE: 'Không hoạt động',
-  ARCHIVED: 'Lưu trữ',
+  DRAFT: 'Draft',
+  PLANNING: 'Planning',
+  ACTIVE: 'Active',
+  PAUSED: 'Paused',
+  COMPLETED: 'Completed',
+  INACTIVE: 'Inactive',
+  ARCHIVED: 'Archived',
 };
 
 export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
@@ -44,7 +44,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
   const formatDate = (isoString?: string | null) => {
     if (!isoString) return '—';
     try {
-      return new Date(isoString).toLocaleString('vi-VN');
+      return new Date(isoString).toLocaleString('en-US');
     } catch {
       return isoString;
     }
@@ -83,7 +83,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Chi tiết dự án"
+        aria-label="Project details"
         className="flex h-full w-full max-w-lg flex-col border-l border-slate-200 bg-white shadow-2xl animate-fade"
       >
         {/* Header */}
@@ -94,7 +94,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
             </div>
             <div>
               <h2 className="text-base font-extrabold text-slate-900">
-                Chi tiết dự án
+                Project details
               </h2>
               <p className="text-xs text-slate-400">ID: {projectId}</p>
             </div>
@@ -102,7 +102,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Đóng"
+            aria-label="Close"
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
           >
             <X className="h-5 w-5" />
@@ -114,7 +114,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
           {loading && !detail ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
-              <p className="text-xs">Đang tải thông tin chi tiết...</p>
+              <p className="text-xs">Loading details...</p>
             </div>
           ) : detail ? (
             <>
@@ -123,26 +123,26 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                 <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
                   <ShieldCheck className="h-4 w-4 text-blue-600" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Tổng quan
+                    Overview
                   </h3>
                 </div>
                 <div className="space-y-2 text-xs">
                   <div>
-                    <span className="text-slate-400">Tên dự án:</span>
+                    <span className="text-slate-400">Project name:</span>
                     <p className="font-bold text-slate-800 text-sm">{detail.name}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400">Mô tả:</span>
-                    <p className="text-slate-600">{detail.description || 'Không có mô tả'}</p>
+                    <span className="text-slate-400">Description:</span>
+                    <p className="text-slate-600">{detail.description || 'No description'}</p>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Trạng thái:</span>
+                    <span className="text-slate-400">Status:</span>
                     <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
                       {STATUS_LABELS[detail.status] || detail.status}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Chủ dự án:</span>
+                    <span className="text-slate-400">Owner:</span>
                     <p className="font-semibold text-slate-800">
                       {detail.owner.ownerName}{' '}
                       <span className="font-mono text-slate-500 font-normal">
@@ -152,16 +152,16 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-[11px] text-slate-500">
                     <div>
-                      <span className="text-slate-400 block">Ngày tạo:</span>
+                      <span className="text-slate-400 block">Created:</span>
                       {formatDate(detail.createdAt)}
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Cập nhật:</span>
+                      <span className="text-slate-400 block">Updated:</span>
                       {formatDate(detail.updatedAt)}
                     </div>
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    <span className="text-slate-400">Hoạt động gần nhất:</span>{' '}
+                    <span className="text-slate-400">Last activity:</span>{' '}
                     {formatDate(detail.lastActivityAt)}
                   </div>
                 </div>
@@ -172,7 +172,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                 <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
                   <UserCheck className="h-4 w-4 text-indigo-600" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Thành viên
+                    Members
                   </h3>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -194,7 +194,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                   </div>
                 </div>
                 <div className="text-xs text-slate-500 pt-1">
-                  Lời mời đang chờ: <b className="text-slate-700">{detail.pendingInvitationCount}</b>
+                  Pending invitations: <b className="text-slate-700">{detail.pendingInvitationCount}</b>
                 </div>
               </section>
 
@@ -203,19 +203,19 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                 <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
                   <Clock className="h-4 w-4 text-emerald-600" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Tiến độ
+                    Progress
                   </h3>
                 </div>
                 <div className="space-y-3 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Số phase / Tổng task:</span>
+                    <span className="text-slate-500">Phases / total tasks:</span>
                     <span className="font-bold text-slate-800">
                       {detail.phaseCount} phases · {detail.nodeCount} tasks
                     </span>
                   </div>
                   <div>
                     <div className="mb-1 flex justify-between text-xs">
-                      <span className="text-slate-500">Tiến độ hoàn thành:</span>
+                      <span className="text-slate-500">Completion:</span>
                       <b className="text-emerald-600">{detail.progressPercentage}%</b>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-slate-200">
@@ -227,7 +227,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                   </div>
                   <div className="rounded-lg bg-white p-2.5 border border-slate-200/60">
                     <span className="text-slate-400 text-[11px] block mb-1.5 font-medium">
-                      Task theo trạng thái:
+                      Tasks by status:
                     </span>
                     <div className="grid grid-cols-5 gap-1 text-center text-[11px]">
                       <div className="bg-slate-50 p-1 rounded">
@@ -253,7 +253,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-xs text-rose-600 font-medium">
-                    <span>Task trễ hạn:</span>
+                    <span>Overdue tasks:</span>
                     <b>{detail.overdueCount} task</b>
                   </div>
                 </div>
@@ -264,12 +264,12 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                 <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2">
                   <Share2 className="h-4 w-4 text-purple-600" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Chia sẻ
+                    Sharing
                   </h3>
                 </div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Link khách:</span>
+                    <span className="text-slate-400">Guest link:</span>
                     <span
                       className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${
                         detail.guestLinkActive
@@ -277,11 +277,11 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                           : 'border-slate-200 bg-slate-100 text-slate-500'
                       }`}
                     >
-                      {detail.guestLinkActive ? 'Đang bật' : 'Đang tắt'}
+                      {detail.guestLinkActive ? 'Enabled' : 'Disabled'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="text-slate-400">Hạn link khách:</span>
+                    <span className="text-slate-400">Guest link expires:</span>
                     <span>{formatDate(detail.guestLinkExpiresAt)}</span>
                   </div>
                 </div>
@@ -291,21 +291,21 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
               <section className="space-y-4 pt-2">
                 {/* Chuyển chủ dự án */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5">
-                  <h4 className="text-xs font-bold text-slate-800">Chuyển chủ dự án</h4>
+                  <h4 className="text-xs font-bold text-slate-800">Transfer ownership</h4>
                   {detail.status === 'ARCHIVED' || detail.status === 'COMPLETED' ? (
                     <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-200">
-                      Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.
+                      Archived or completed projects can't be transferred.
                     </p>
                   ) : detail.ownerCandidates && detail.ownerCandidates.length > 0 ? (
                     <div className="space-y-2">
                       <div className="flex gap-2">
                         <select
-                          aria-label="Chủ mới"
+                          aria-label="New owner"
                           value={selectedOwnerId}
                           onChange={(e) => setSelectedOwnerId(e.target.value)}
                           className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-500 focus:outline-none"
                         >
-                          <option value="">-- Chọn thành viên nhận quyền sở hữu --</option>
+                          <option value="">-- Select the new owner --</option>
                           {detail.ownerCandidates.map((c) => (
                             <option key={c.userId} value={c.userId}>
                               {c.name} ({c.username})
@@ -318,13 +318,13 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                           onClick={handleTransferClick}
                           className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
                         >
-                          {isTransferring ? 'Đang chuyển...' : 'Chuyển'}
+                          {isTransferring ? 'Transferring...' : 'Transfer'}
                         </button>
                       </div>
                     </div>
                   ) : (
                     <p className="text-xs text-slate-500 italic">
-                      Dự án chỉ có một người, không chuyển được. Chỉ có thể lưu trữ.
+                      This project has only one member and can't be transferred. You can only archive it.
                     </p>
                   )}
                 </div>
@@ -338,14 +338,14 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                     className="w-full flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50 cursor-pointer"
                   >
                     <Archive className="h-4 w-4" />
-                    <span>{isArchiving ? 'Đang lưu trữ...' : 'Lưu trữ dự án'}</span>
+                    <span>{isArchiving ? 'Archiving...' : 'Archive project'}</span>
                   </button>
                 )}
               </section>
             </>
           ) : (
             <div className="py-12 text-center text-xs text-slate-500">
-              Không tìm thấy thông tin dự án.
+              Project details not found.
             </div>
           )}
         </div>

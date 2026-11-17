@@ -367,7 +367,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
             (edge) => edge.parentPhaseId === sourceId && edge.childPhaseId === targetId
           );
           if (exists) {
-            flashError('Liên kết giữa 2 Phase này đã tồn tại!');
+            flashError('These two phases are already linked.');
           } else {
             // Check cycle using Kahn's algorithm before adding edge
             const testEdges: [string, string][] = [
@@ -379,7 +379,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
               testEdges
             );
             if (!testRes.valid) {
-              flashError('Không thể nối: phát hiện chu trình lặp (Cycle Detected)!');
+              flashError('Can\'t link these phases: it would create a cycle.');
             } else if (onConnectPhases) {
               onConnectPhases(sourceId, targetId);
             }
@@ -598,7 +598,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
                   e.stopPropagation();
                   onDisconnectPhases?.(edge.parentPhaseId, edge.childPhaseId);
                 }}
-                title={`Xóa liên kết: ${parentPhase.name} ➔ ${childPhase.name}`}
+                title={`Remove link: ${parentPhase.name} ➔ ${childPhase.name}`}
                 className="flex h-6 w-6 items-center justify-center rounded-full bg-white border border-slate-300 text-slate-400 opacity-70 transition-all hover:opacity-100 hover:scale-125 hover:bg-rose-50 hover:border-rose-400 hover:text-rose-600 shadow-md"
               >
                 <X className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -655,7 +655,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
               <div
                 data-target-handle={phase.id}
                 data-phase-id={phase.id}
-                title={`Cổng vào: Nhận phụ thuộc cho ${phase.name}`}
+                title={`Input: receives dependencies for ${phase.name}`}
                 className={`absolute -left-3.5 top-1/2 -translate-y-1/2 z-20 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200 ${
                   connectingLine
                     ? 'scale-125 bg-blue-100 border-2 border-blue-600 ring-4 ring-blue-400/50 animate-pulse cursor-crosshair'
@@ -739,7 +739,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
                   e.stopPropagation();
                   e.preventDefault();
                 }}
-                title="Kéo sang Cổng vào (mép trái) Phase khác để nối dây · Click để tạo nhanh Phase con nối tiếp"
+                title="Drag to another phase's input (left edge) to link · Click to quickly add a child phase"
                 className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md border-2 border-white transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 cursor-grab active:cursor-grabbing"
               >
                 <Plus className="h-4 w-4 stroke-[3]" />
@@ -774,7 +774,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
           type="button"
           onClick={handleAutoLayout}
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 px-3.5 py-2.5 text-xs font-semibold text-slate-700 shadow-md backdrop-blur-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
-          title="Auto-layout phases into a clean DAG (Sắp xếp tự động)"
+          title="Auto-layout phases into a clean DAG"
         >
           <LayoutGrid className="h-4 w-4 text-slate-500" />
           <span>Auto Layout</span>
@@ -783,7 +783,7 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
 
       {/* Floating: Navigation Hint */}
       <div className="pointer-events-none absolute right-4 top-4 z-10 hidden sm:flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/95 px-3.5 py-2 text-xs font-medium text-slate-500 shadow-sm backdrop-blur-sm">
-        <span>Kéo nền để Pan · Cuộn để Zoom · Kéo Card để sắp xếp · Kéo nút (+) để nối dây</span>
+        <span>Drag the background to pan · Scroll to zoom · Drag a card to rearrange · Drag the (+) button to link</span>
       </div>
 
       {/* Floating: Zoom Controls Toolbar */}

@@ -95,7 +95,7 @@ const TreeNodeCard = React.memo(
                   e.stopPropagation();
                   onDelete(node.id);
                 }}
-                title={`Xóa node: ${node.title}`}
+                title={`Delete node: ${node.title}`}
                 className="rounded p-0.5 text-slate-400 opacity-60 transition hover:opacity-100 hover:bg-rose-50 hover:text-rose-600"
               >
                 <Trash2 className="h-3 w-3" />

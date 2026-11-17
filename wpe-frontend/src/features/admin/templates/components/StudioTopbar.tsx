@@ -137,7 +137,7 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
             type="button"
             onClick={onAutoLayout}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
-            title="Auto-layout phases into a clean DAG (Sắp xếp tự động)"
+            title="Auto-layout phases into a clean DAG"
           >
             <LayoutGrid className="h-4 w-4 text-slate-500" />
             <span>Auto Layout</span>
@@ -191,14 +191,14 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
             </div>
 
             <p className="mt-2 text-xs text-slate-500">
-              Mô tả chi tiết và hướng dẫn áp dụng mẫu này cho người dùng dự án.
+              Describe this template and how project users should apply it.
             </p>
 
             <textarea
               rows={6}
               value={descInput}
               onChange={(e) => setDescInput(e.target.value)}
-              placeholder="Nhập mô tả chi tiết quy trình..."
+              placeholder="Enter a detailed description of the workflow..."
               className="mt-3 w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
             />
 
@@ -208,14 +208,14 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
                 onClick={() => setIsDescModalOpen(false)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleDescSave}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
               >
-                Lưu mô tả
+                Save description
               </button>
             </div>
           </div>

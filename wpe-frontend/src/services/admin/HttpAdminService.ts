@@ -400,7 +400,7 @@ export class HttpAdminService implements IAdminService {
     return (data?.items || []).map((item) => ({
       id: String(item.id),
       timestamp: item.createdAt ?? '',
-      actorName: item.actorUsername ?? 'Không rõ',
+      actorName: item.actorUsername ?? 'Unknown',
       action: item.action,
       targetType: item.targetType ?? null,
       targetId: item.targetId ?? null,

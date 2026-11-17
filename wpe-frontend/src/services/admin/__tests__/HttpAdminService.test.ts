@@ -310,7 +310,7 @@ describe('HttpAdminService', () => {
       detail: 'Đăng nhập thành công',
       maskedIp: '192.168.1.***',
     });
-    expect(logs[1].actorName).toBe('Không rõ');
+    expect(logs[1].actorName).toBe('Unknown');
     expect(logs[1].timestamp).toBe('2026-10-06T12:05:00Z');
   });
 

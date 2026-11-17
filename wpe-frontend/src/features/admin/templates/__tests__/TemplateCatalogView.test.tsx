@@ -83,7 +83,7 @@ describe('TemplateCatalogView Component', () => {
 
     expect(
       await screen.findByText(
-        '"Standard Software Development (SDLC)" là template mẫu của hệ thống. Xóa vĩnh viễn thì người dùng không chọn được mẫu này khi tạo dự án nữa. Các dự án đã tạo trước đó không bị ảnh hưởng.'
+        '"Standard Software Development (SDLC)" is a built-in system template. If you delete it permanently, users can no longer choose it when creating a project. Existing projects are not affected.'
       )
     ).toBeTruthy();
 
@@ -92,7 +92,7 @@ describe('TemplateCatalogView Component', () => {
 
     await waitFor(() => {
       expect(deleteTemplateSpy).toHaveBeenCalledWith('tpl-sdlc');
-      expect(onToast).toHaveBeenCalledWith('Đã xóa template', 'blue');
+      expect(onToast).toHaveBeenCalledWith('Template deleted', 'blue');
     });
   });
 
@@ -125,7 +125,7 @@ describe('TemplateCatalogView Component', () => {
 
     expect(
       await screen.findByText(
-        '"Custom Team Workflow" sẽ bị xóa khỏi kho mẫu. Các dự án đã clone trước đó không bị ảnh hưởng.'
+        '"Custom Team Workflow" will be removed from the template library. Projects already cloned from it are not affected.'
       )
     ).toBeTruthy();
   });
@@ -175,14 +175,14 @@ describe('TemplateCatalogView Component', () => {
     expect(await screen.findByText('Hidden Template')).toBeTruthy();
 
     // Thẻ ẩn có chữ "Đang ẩn"
-    expect(screen.getByText('Đang ẩn')).toBeTruthy();
+    expect(screen.getByText('Hidden')).toBeTruthy();
 
     // Không còn chữ "PUBLIC" trong catalog
     expect(screen.queryByText(/PUBLIC/)).toBeNull();
 
     // Thẻ ẩn có nút "Hiện", thẻ hiện có nút "Ẩn"
-    const hideBtn = screen.getByRole('button', { name: 'Ẩn' });
-    const showBtn = screen.getByRole('button', { name: 'Hiện' });
+    const hideBtn = screen.getByRole('button', { name: 'Hide' });
+    const showBtn = screen.getByRole('button', { name: 'Show' });
     expect(hideBtn).toBeTruthy();
     expect(showBtn).toBeTruthy();
 
@@ -190,7 +190,7 @@ describe('TemplateCatalogView Component', () => {
     fireEvent.click(hideBtn);
     await waitFor(() => {
       expect(setHiddenSpy).toHaveBeenCalledWith('tpl-visible', true);
-      expect(onToast).toHaveBeenCalledWith('Đã ẩn template', 'blue');
+      expect(onToast).toHaveBeenCalledWith('Template hidden', 'blue');
     });
   });
 });

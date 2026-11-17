@@ -107,7 +107,7 @@ export const PhaseDetailDrawer: React.FC<PhaseDetailDrawerProps> = ({
                 type="text"
                 value={phase.name}
                 onChange={(e) => onUpdatePhaseName(e.target.value)}
-                placeholder="Nhập tên giai đoạn (vd: Phân tích yêu cầu)..."
+                placeholder="Enter phase name (e.g. Requirements analysis)..."
                 className="mt-1.5 w-full text-xl font-extrabold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-600 outline-none transition"
               />
               <div className="mt-1 text-xs font-semibold text-slate-500">

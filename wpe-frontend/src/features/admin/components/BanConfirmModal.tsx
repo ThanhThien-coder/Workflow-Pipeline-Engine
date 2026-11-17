@@ -12,10 +12,10 @@ interface BanConfirmModalProps {
 }
 
 const REASON_OPTIONS: { value: SuspendUserRequestDto['reason']; label: string }[] = [
-  { value: 'TERMS_VIOLATION', label: 'Vi phạm chính sách' },
-  { value: 'SECURITY_RISK', label: 'Rủi ro bảo mật' },
-  { value: 'BILLING_OVERDUE', label: 'Quá hạn thanh toán' },
-  { value: 'OTHER', label: 'Spam hoặc lạm dụng' },
+  { value: 'TERMS_VIOLATION', label: 'Policy violation' },
+  { value: 'SECURITY_RISK', label: 'Security risk' },
+  { value: 'BILLING_OVERDUE', label: 'Overdue payment' },
+  { value: 'OTHER', label: 'Spam or abuse' },
 ];
 
 export const BanConfirmModal: FC<BanConfirmModalProps> = ({

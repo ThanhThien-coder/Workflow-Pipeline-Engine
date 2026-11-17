@@ -29,8 +29,8 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
       <div className="flex items-center gap-2 text-xs font-medium text-slate-500 py-1">
         <Info className="h-4 w-4 text-blue-500 shrink-0" />
         <span>
-          Chọn một node trong sơ đồ hoặc kanban để chỉnh sửa. Bấm nút <strong>+</strong> ở mép
-          phải node để rẽ nhánh sang phải.
+          Select a node in the diagram or kanban to edit it. Click <strong>+</strong> on the right
+          edge of a node to branch to the right.
         </span>
       </div>
     );
@@ -52,7 +52,7 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
           value={selectedNode.title}
           onChange={(e) => onUpdateNode(selectedNode.id, { title: e.target.value })}
           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 outline-none transition focus:border-blue-600 focus:ring-1 focus:ring-blue-100"
-          placeholder="Nhập tên công việc..."
+          placeholder="Enter task name..."
         />
       </div>
 
@@ -71,8 +71,8 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
             }
             className="w-full rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-blue-600 focus:ring-1 focus:ring-blue-100"
           >
-            <option value="ALL_COMPLETED">AND (Chờ đủ)</option>
-            <option value="ANY_COMPLETED">OR (Chỉ cần 1)</option>
+            <option value="ALL_COMPLETED">AND (wait for all)</option>
+            <option value="ANY_COMPLETED">OR (any one)</option>
           </select>
         </div>
       )}

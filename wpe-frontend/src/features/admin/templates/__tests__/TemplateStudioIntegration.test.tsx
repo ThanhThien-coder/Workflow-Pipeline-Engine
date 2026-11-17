@@ -35,7 +35,7 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
       expect(screen.getByText('Data Science / ETL Pipeline')).toBeDefined();
 
       // Check badge presence
-      expect(screen.getAllByText('Template mẫu hệ thống').length).toBe(2);
+      expect(screen.getAllByText('System template').length).toBe(2);
 
       // Filter by category
       const select = screen.getByRole('combobox');
@@ -91,7 +91,7 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
       await waitFor(
         () => {
           expect(onToast).toHaveBeenCalledWith(
-            'Đã nhân bản template (trạng thái DRAFT)',
+            'Template duplicated as a draft',
             'blue'
           );
         },

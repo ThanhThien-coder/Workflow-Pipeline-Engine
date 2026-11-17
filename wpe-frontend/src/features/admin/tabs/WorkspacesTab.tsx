@@ -12,13 +12,13 @@ interface WorkspacesTabProps {
 }
 
 const STATUS_MAP: Record<string, { label: string; badgeClass: string }> = {
-  DRAFT: { label: 'Nháp', badgeClass: 'border-slate-200 bg-slate-50 text-slate-700' },
-  PLANNING: { label: 'Lập kế hoạch', badgeClass: 'border-blue-200 bg-blue-50 text-blue-700' },
-  ACTIVE: { label: 'Đang chạy', badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-  PAUSED: { label: 'Tạm dừng', badgeClass: 'border-amber-200 bg-amber-50 text-amber-700' },
-  COMPLETED: { label: 'Hoàn thành', badgeClass: 'border-indigo-200 bg-indigo-50 text-indigo-700' },
-  INACTIVE: { label: 'Không hoạt động', badgeClass: 'border-slate-200 bg-slate-100 text-slate-600' },
-  ARCHIVED: { label: 'Lưu trữ', badgeClass: 'border-slate-200 bg-slate-100 text-slate-500' },
+  DRAFT: { label: 'Draft', badgeClass: 'border-slate-200 bg-slate-50 text-slate-700' },
+  PLANNING: { label: 'Planning', badgeClass: 'border-blue-200 bg-blue-50 text-blue-700' },
+  ACTIVE: { label: 'Active', badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  PAUSED: { label: 'Paused', badgeClass: 'border-amber-200 bg-amber-50 text-amber-700' },
+  COMPLETED: { label: 'Completed', badgeClass: 'border-indigo-200 bg-indigo-50 text-indigo-700' },
+  INACTIVE: { label: 'Inactive', badgeClass: 'border-slate-200 bg-slate-100 text-slate-600' },
+  ARCHIVED: { label: 'Archived', badgeClass: 'border-slate-200 bg-slate-100 text-slate-500' },
 };
 
 export const WorkspacesTab: FC<WorkspacesTabProps> = ({
@@ -58,7 +58,7 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
   const formatUpdatedAt = (isoString?: string) => {
     if (!isoString) return '—';
     try {
-      return new Date(isoString).toLocaleString('vi-VN');
+      return new Date(isoString).toLocaleString('en-US');
     } catch {
       return isoString;
     }
@@ -68,7 +68,7 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
     return (
       <section id="tab-workspaces" className="tab-panel active animate-fade">
         <div className="admin-surface flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500">
-          <p className="font-semibold text-slate-700">Chưa có dữ liệu: {errorMessage}</p>
+          <p className="font-semibold text-slate-700">No data available: {errorMessage}</p>
         </div>
       </section>
     );
@@ -80,10 +80,10 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
       <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900">
-            Quản lý Workspaces &amp; Dự án
+            Manage workspaces &amp; projects
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Chỉ hiện thông tin chung, admin không xem nội dung task.
+            Shows general info only. Admins can't see task content.
           </p>
         </div>
         <button
@@ -93,7 +93,7 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
           className="inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-75 cursor-pointer"
         >
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>Làm mới</span>
+          <span>Refresh</span>
         </button>
       </div>
 
@@ -105,27 +105,27 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo tên dự án hoặc chủ..."
-            aria-label="Tìm kiếm dự án"
+            placeholder="Search by project name or owner..."
+            aria-label="Search projects"
             className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
         <div className="flex items-center gap-2">
           <select
-            aria-label="Lọc trạng thái"
+            aria-label="Filter by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition focus:border-blue-500 focus:outline-none"
           >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="DRAFT">Nháp</option>
-            <option value="PLANNING">Lập kế hoạch</option>
-            <option value="ACTIVE">Đang chạy</option>
-            <option value="PAUSED">Tạm dừng</option>
-            <option value="COMPLETED">Hoàn thành</option>
-            <option value="INACTIVE">Không hoạt động</option>
-            <option value="ARCHIVED">Lưu trữ</option>
+            <option value="ALL">All statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="PLANNING">Planning</option>
+            <option value="ACTIVE">Active</option>
+            <option value="PAUSED">Paused</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="INACTIVE">Inactive</option>
+            <option value="ARCHIVED">Archived</option>
           </select>
         </div>
       </div>
@@ -136,13 +136,13 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
           <table className="min-w-[850px] w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-400">
               <tr>
-                <th className="px-5 py-4 font-semibold">Tên</th>
-                <th className="px-4 py-4 font-semibold">Chủ</th>
-                <th className="px-4 py-4 font-semibold">Trạng thái</th>
-                <th className="px-4 py-4 font-semibold">Thành viên</th>
-                <th className="px-4 py-4 font-semibold">Tiến độ</th>
-                <th className="px-4 py-4 font-semibold">Cập nhật</th>
-                <th className="px-5 py-4 text-right font-semibold">Thao tác</th>
+                <th className="px-5 py-4 font-semibold">Name</th>
+                <th className="px-4 py-4 font-semibold">Owner</th>
+                <th className="px-4 py-4 font-semibold">Status</th>
+                <th className="px-4 py-4 font-semibold">Members</th>
+                <th className="px-4 py-4 font-semibold">Progress</th>
+                <th className="px-4 py-4 font-semibold">Updated</th>
+                <th className="px-5 py-4 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody id="pipelineBody" className="divide-y divide-slate-100">
@@ -210,7 +210,7 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
                           className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 cursor-pointer"
                         >
                           <Eye className="h-3.5 w-3.5" />
-                          <span>Xem chi tiết</span>
+                          <span>View details</span>
                         </button>
 
                         {item.status !== 'ARCHIVED' && (
@@ -218,10 +218,10 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
                             type="button"
                             onClick={() => setArchiveTarget(item)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800 cursor-pointer"
-                            title="Lưu trữ dự án"
+                            title="Archive project"
                           >
                             <Archive className="h-3.5 w-3.5" />
-                            <span>Lưu trữ</span>
+                            <span>Archive</span>
                           </button>
                         )}
                       </div>
@@ -236,7 +236,7 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
         {/* Empty state */}
         {filteredWorkspaces.length === 0 && (
           <div className="flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500">
-            <p className="font-semibold text-slate-700">Chưa có dự án nào</p>
+            <p className="font-semibold text-slate-700">No projects yet</p>
           </div>
         )}
       </div>
@@ -244,9 +244,9 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
       {/* Confirmation Modal for Archiving Workspace */}
       <ConfirmActionModal
         isOpen={!!archiveTarget}
-        title="Lưu trữ dự án"
-        message={`Bạn có chắc chắn muốn lưu trữ dự án "${archiveTarget?.name}" không? Các pipeline đang chạy sẽ dừng và dự án chuyển sang trạng thái Lưu trữ (ARCHIVED).`}
-        confirmLabel="Lưu trữ"
+        title="Archive project"
+        message={`Archive "${archiveTarget?.name}"? Running pipelines will stop and the project will be marked as Archived.`}
+        confirmLabel="Archive"
         tone="rose"
         onConfirm={async () => {
           if (archiveTarget) {
