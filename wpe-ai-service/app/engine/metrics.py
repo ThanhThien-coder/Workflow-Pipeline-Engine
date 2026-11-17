@@ -149,10 +149,10 @@ def detect_bottlenecks_and_metrics(
 
             reasons = []
             if is_node_overdue:
-                reasons.append("Tác vụ đã vượt quá hạn chót (due_date) và đang giữ chân downstream nodes.")
+                reasons.append("Task is past its due date and is blocking downstream nodes.")
             if is_node_stalled:
                 reasons.append(
-                    f"Tác vụ đang ngâm ở IN_PROGRESS quá {settings.STALL_MULTIPLIER}x thời lượng ước lượng (đã trừ khung 0h-7h)."
+                    f"Task has been IN_PROGRESS for more than {settings.STALL_MULTIPLIER}x its estimated hours (excluding 00:00-07:00 VN time)."
                 )
 
             bottlenecks.append(

@@ -22,7 +22,7 @@ def _validate_scaffold_data(
     Xác thực nghiêm ngặt đồ thị Prompt-to-DAG do AI sinh ra (P4):
     - Kiểm phases, nodes, dependencies là list hợp lệ và không rỗng (phases, nodes).
     - Không vượt quá max_nodes; tempId không trùng lặp.
-    - Mọi node.phaseTempId phải tồn tại trong phases; estimatedHours > 0.
+    - Mọi node.phaseTempId phải tồn tại trong phases; estimatedHours >= 1.
     - Mọi parentTempId / childTempId phải tồn tại trong nodes và không tự trỏ chính mình.
     - Chạy topological_sort đảm bảo đồ thị phi chu trình (DAG hợp lệ).
     """
@@ -52,7 +52,7 @@ def _validate_scaffold_data(
         nodes = [ScaffoldNode(**n) for n in raw_nodes if isinstance(n, dict)]
         dependencies = [ScaffoldDependency(**d) for d in raw_deps if isinstance(d, dict)]
     except Exception as ex:
-        logger.warning("Scaffold AI không khớp schema Pydantic (vd: estimatedHours <= 0): %s", ex)
+        logger.warning("Scaffold AI không khớp schema Pydantic (vd: estimatedHours < 1): %s", ex)
         return None
 
     if len(phases) != len(raw_phases) or len(nodes) != len(raw_nodes) or len(dependencies) != len(raw_deps):
@@ -72,8 +72,8 @@ def _validate_scaffold_data(
         if n.phaseTempId not in phase_ids:
             logger.warning("Scaffold AI có node %s trỏ tới phaseTempId không tồn tại: %s", n.tempId, n.phaseTempId)
             return None
-        if n.estimatedHours <= 0:
-            logger.warning("Scaffold AI có node %s với estimatedHours <= 0: %s", n.tempId, n.estimatedHours)
+        if n.estimatedHours < 1:
+            logger.warning("Scaffold AI có node %s với estimatedHours < 1: %s", n.tempId, n.estimatedHours)
             return None
         node_id_map[n.tempId] = idx
 
@@ -111,8 +111,8 @@ class ScaffoldService:
     def generate_scaffold(request: ScaffoldRequest) -> ScaffoldResponse:
         """
         Khởi tạo đồ thị quy trình 2 tầng từ mô tả yêu cầu bằng LLM Gemini.
-        Xác thực đồ thị chặt chẽ (DAG, phaseTempId, edges, estimatedHours > 0).
-        Fallback sang mẫu chuẩn nếu chưa có API Key hoặc AI trả đồ thị lỗi.
+        Xác thực đồ thị chặt chẽ (DAG, phaseTempId, edges, estimatedHours >= 1).
+        Fallback sang mẫu chuẩn tiếng Anh nếu chưa có API Key hoặc AI trả đồ thị lỗi.
         """
         llm_data = gemini_client.scaffold_dag(
             prompt=request.prompt,
@@ -133,11 +133,11 @@ class ScaffoldService:
             )
             return ScaffoldResponse(
                 source="GEMINI_API",
-                domain=raw_domain if isinstance(raw_domain, str) and raw_domain.strip() else "Hệ thống phần mềm",
+                domain=raw_domain if isinstance(raw_domain, str) and raw_domain.strip() else "Software System",
                 targetAudience=(
                     raw_audience
                     if isinstance(raw_audience, str) and raw_audience.strip()
-                    else "Người dùng cuối & Quản trị viên"
+                    else "End Users & Administrators"
                 ),
                 techStack=tech_stack or ["Spring Boot 3", "React", "PostgreSQL"],
                 phases=phases,
@@ -146,26 +146,26 @@ class ScaffoldService:
                 tokenUsage=llm_data.get("tokenUsage") if isinstance(llm_data.get("tokenUsage"), dict) else None,
             )
 
-        # Heuristic Scaffolding Fallback nếu không có Key hoặc AI trả đồ thị không hợp lệ
+        # Heuristic Scaffolding Fallback (100% English per Q1)
         tech = request.techStack or ["Spring Boot 3", "React", "PostgreSQL"]
         return ScaffoldResponse(
             source="HEURISTIC_FALLBACK",
-            domain="Hệ thống phần mềm tự động hóa",
-            targetAudience="Người dùng cuối & Quản trị viên dự án",
+            domain="Automated Software System",
+            targetAudience="End Users & Project Administrators",
             techStack=tech,
             phases=[
-                ScaffoldPhase(tempId="p1", name="1. Khảo sát & Thiết kế Kiến trúc", orderIndex=1),
-                ScaffoldPhase(tempId="p2", name="2. Phát triển Dịch vụ Cốt lõi", orderIndex=2),
-                ScaffoldPhase(tempId="p3", name="3. Tích hợp Giao diện & API", orderIndex=3),
-                ScaffoldPhase(tempId="p4", name="4. Kiểm thử & Triển khai", orderIndex=4),
+                ScaffoldPhase(tempId="p1", name="1. Discovery & Architecture Design", orderIndex=1),
+                ScaffoldPhase(tempId="p2", name="2. Core Backend Services", orderIndex=2),
+                ScaffoldPhase(tempId="p3", name="3. Frontend & API Integration", orderIndex=3),
+                ScaffoldPhase(tempId="p4", name="4. Testing & Deployment", orderIndex=4),
             ],
             nodes=[
-                ScaffoldNode(tempId="n1", phaseTempId="p1", title="Đặc tả CSDL 3NF & API Contract", estimatedHours=16),
-                ScaffoldNode(tempId="n2", phaseTempId="p1", title="Thiết kế Wireframe & UI Flow", estimatedHours=12),
-                ScaffoldNode(tempId="n3", phaseTempId="p2", title="Xây dựng Auth & Quản lý người dùng", estimatedHours=24),
-                ScaffoldNode(tempId="n4", phaseTempId="p2", title="Xây dựng API Nghiệp vụ chính", estimatedHours=32),
-                ScaffoldNode(tempId="n5", phaseTempId="p3", title="Phát triển Giao diện React Frontend", estimatedHours=40),
-                ScaffoldNode(tempId="n6", phaseTempId="p4", title="Kiểm thử tích hợp & Viết tài liệu", estimatedHours=16),
+                ScaffoldNode(tempId="n1", phaseTempId="p1", title="3NF Database Schema & API Contract", estimatedHours=16),
+                ScaffoldNode(tempId="n2", phaseTempId="p1", title="Wireframes & UI Flow Design", estimatedHours=12),
+                ScaffoldNode(tempId="n3", phaseTempId="p2", title="Authentication & User Management", estimatedHours=24),
+                ScaffoldNode(tempId="n4", phaseTempId="p2", title="Core Business Logic APIs", estimatedHours=32),
+                ScaffoldNode(tempId="n5", phaseTempId="p3", title="React Frontend Implementation", estimatedHours=40),
+                ScaffoldNode(tempId="n6", phaseTempId="p4", title="Integration Testing & Documentation", estimatedHours=16),
             ],
             dependencies=[
                 ScaffoldDependency(parentTempId="n1", childTempId="n3"),
@@ -178,7 +178,7 @@ class ScaffoldService:
             tokenUsage={
                 "source": "HEURISTIC_FALLBACK",
                 "totalTokens": 0,
-                "note": "Dữ liệu mẫu dự phòng khi chưa kết nối được Gemini API hoặc đồ thị AI không hợp lệ",
+                "note": "Fallback template used because Gemini API was unavailable or returned an invalid graph.",
             },
         )
 

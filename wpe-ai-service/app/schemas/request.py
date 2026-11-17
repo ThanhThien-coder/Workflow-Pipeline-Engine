@@ -32,7 +32,7 @@ class FeedbackDto(BaseModel):
 
 class AiDiagnosisRequest(BaseModel):
     projectId: int
-    projectName: Optional[str] = Field(default="Chưa đặt tên", max_length=255)
+    projectName: Optional[str] = Field(default="Untitled Project", max_length=255)
     projectStatus: Optional[str] = Field(default="ACTIVE", max_length=32)
     requestedAt: Optional[str] = None
     nodes: List[NodeDto] = Field(default_factory=list, max_length=500)

@@ -68,8 +68,9 @@ Các endpoint kiểm tra vận hành:
 - Swagger UI: `http://localhost:8081/docs`
 
 ### Chạy bằng Docker
+`docker-compose.prod.yml` đã sử dụng sẵn `deploy/ai-service.Dockerfile`. Để build lẻ:
 ```bash
-docker build -t wpe-ai-service .
+docker build -f ../deploy/ai-service.Dockerfile -t wpe-ai-service .
 docker run -p 8081:8081 -e GEMINI_API_KEY=... -e AI_INTERNAL_KEY=... wpe-ai-service
 ```
 

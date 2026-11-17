@@ -20,6 +20,7 @@ from app.services.gemini_client import gemini_client
 logger = logging.getLogger("wpe_ai.diagnosis")
 
 MAX_ROOT_CAUSE_CHARS = 1000
+DEFAULT_FALLBACK_WARNING = "AI is unavailable, showing rule-based analysis."
 
 
 def _fallback_token_usage() -> TokenUsageDto:
@@ -30,6 +31,15 @@ def _fallback_token_usage() -> TokenUsageDto:
         totalTokens=0,
         estimatedCostUsd=0.0,
         source="HEURISTIC_FALLBACK",
+    )
+
+
+def _default_continue_advice() -> ActionableAdviceItem:
+    return ActionableAdviceItem(
+        action="CONTINUE_PIPELINE",
+        targetNodeCode="GENERAL",
+        instruction="Maintain current execution pace along the CPM critical path.",
+        priority="LOW",
     )
 
 
@@ -154,10 +164,10 @@ class DiagnosisService:
 
         # P8: Nếu đồ thị có chu trình -> criticalPath = [], thêm bottleneck HIGH & warning rõ các node trong chu trình
         if cpm_result.has_cycle:
-            cycle_list_str = ", ".join(cpm_result.cycle_nodes) if cpm_result.cycle_nodes else "không xác định"
+            cycle_list_str = ", ".join(cpm_result.cycle_nodes) if cpm_result.cycle_nodes else "unknown"
             cycle_msg = (
-                f"Đồ thị có chu trình phụ thuộc tại các node: {cycle_list_str}. "
-                "Không thể tính đường găng CPM cho tới khi gỡ bỏ cạnh tạo vòng."
+                f"Dependency cycle detected among nodes: {cycle_list_str}. "
+                "CPM critical path cannot be computed until the cycle is removed."
             )
             warnings.append(cycle_msg)
             cycle_node_code = cpm_result.cycle_nodes[0] if cpm_result.cycle_nodes else "GENERAL"
@@ -165,7 +175,7 @@ class DiagnosisService:
                 0,
                 BottleneckItem(
                     nodeCode=cycle_node_code,
-                    title="Phát hiện chu trình phụ thuộc (Cycle)",
+                    title="Dependency Cycle Detected",
                     reason=cycle_msg,
                     severity="HIGH",
                 ),
@@ -184,7 +194,7 @@ class DiagnosisService:
                     seen_ids.add(n.id)
 
         gemini_result = gemini_client.analyze_semantic_insights(
-            project_name=request.projectName or "Dự án phần mềm",
+            project_name=request.projectName or "Untitled Project",
             critical_path_codes=cpm_result.critical_path,
             candidate_nodes=candidate_nodes,
             dependencies=dependencies,
@@ -197,12 +207,14 @@ class DiagnosisService:
         root_cause_notes: Optional[str] = None
         token_usage: Optional[TokenUsageDto] = None
         ai_succeeded = False
+        has_fallback_warning = False
 
         if isinstance(gemini_result, dict):
             if gemini_result.get("_rate_limit_hit"):
                 rate_warn = gemini_result.get("_warning")
                 if isinstance(rate_warn, str) and rate_warn.strip():
                     warnings.append(rate_warn.strip())
+                    has_fallback_warning = True
                 token_usage = _fallback_token_usage()
             else:
                 try:
@@ -216,11 +228,13 @@ class DiagnosisService:
                         root_cause_notes = parsed_notes
                         token_usage = parsed_usage or TokenUsageDto(source="GEMINI_API")
                     else:
-                        warnings.append("Phản hồi từ AI không đúng định dạng, đã chuyển sang phân tích dự phòng.")
+                        warnings.append("AI returned an invalid response format. Showing rule-based analysis.")
+                        has_fallback_warning = True
                         token_usage = _fallback_token_usage()
                 except Exception as ex:
                     logger.warning("Lỗi đọc kết quả AI (%s). Chuyển sang Heuristic Fallback.", ex)
-                    warnings.append("Không đọc được phản hồi từ AI, đã chuyển sang phân tích dự phòng.")
+                    warnings.append("Failed to parse AI response. Showing rule-based analysis.")
+                    has_fallback_warning = True
                     token_usage = _fallback_token_usage()
         else:
             token_usage = _fallback_token_usage()
@@ -230,13 +244,17 @@ class DiagnosisService:
         # =====================================================================
         if not ai_succeeded:
             response_source = "HEURISTIC_FALLBACK"
+            # Q5: Khi source = HEURISTIC_FALLBACK luôn có 1 câu warning tiếng Anh ngắn
+            if not has_fallback_warning:
+                warnings.append(DEFAULT_FALLBACK_WARNING)
+
             for s_node in stalled_nodes:
                 task_traps.append(
                     TaskTrapItem(
                         nodeCode=s_node.code,
                         title=s_node.title,
                         trapType="POTENTIAL_STALL",
-                        suggestion="Nên phân rã nhỏ phạm vi công việc hoặc bổ sung người phối hợp pair-programming.",
+                        suggestion="Consider splitting this task into smaller sub-tasks or pairing with another teammate.",
                     )
                 )
 
@@ -245,7 +263,7 @@ class DiagnosisService:
                     ActionableAdviceItem(
                         action="SPLIT_NODE",
                         targetNodeCode=s_node.code,
-                        instruction=f"Tách tác vụ {s_node.code} thành 2 phần để giải phóng nhánh phụ thuộc.",
+                        instruction=f"Split task {s_node.code} into smaller deliverables to unblock downstream dependencies.",
                         priority="HIGH",
                     )
                 )
@@ -255,39 +273,18 @@ class DiagnosisService:
                     ActionableAdviceItem(
                         action="RESOLVE_FEEDBACK",
                         targetNodeCode="GENERAL",
-                        instruction=f"Dự án hiện có {len(feedbacks)} ý kiến đóng góp chưa giải quyết tại Feedback Queue.",
+                        instruction=f"Resolve {len(feedbacks)} open feedback item(s) in the Feedback Queue.",
                         priority="HIGH",
-                    )
-                )
-
-            if not actionable_advice:
-                actionable_advice.append(
-                    ActionableAdviceItem(
-                        action="CONTINUE_PIPELINE",
-                        targetNodeCode="GENERAL",
-                        instruction="Duy trì nhịp độ thực hiện tác vụ theo đúng đường găng CPM.",
-                        priority="LOW",
                     )
                 )
         else:
             response_source = "AI_SERVICE"
 
-        # Nếu không có điểm nghẽn nào, thêm điểm an toàn (chỉ dùng nodeCode hợp lệ hoặc GENERAL)
-        if not bottlenecks:
-            first_code = (
-                cpm_result.critical_path[0]
-                if cpm_result.critical_path
-                else (nodes[0].code if nodes else "GENERAL")
-            )
-            first_title = nodes[0].title if nodes else "Tác vụ khởi đầu"
-            bottlenecks.append(
-                BottleneckItem(
-                    nodeCode=first_code,
-                    title=first_title,
-                    reason="Tiến độ hiện chưa phát hiện điểm nghẽn nghiêm trọng.",
-                    severity="LOW",
-                )
-            )
+        # Q4: Không tạo bottleneck giả khi không có điểm nghẽn (bottlenecks = []).
+        # Đảm bảo actionableAdvice luôn có ít nhất 1 item (kể cả khi Gemini trả hợp lệ nhưng bị lọc hết)
+        # để giao diện không hiểu nhầm cả 3 mảng rỗng là "No diagnosis yet".
+        if not actionable_advice:
+            actionable_advice.append(_default_continue_advice())
 
         combined_warning = " · ".join(warnings) if warnings else None
 

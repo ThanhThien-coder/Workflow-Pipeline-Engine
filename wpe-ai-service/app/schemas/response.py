@@ -58,11 +58,27 @@ class TokenUsageDto(BaseModel):
     source: Literal["GEMINI_API", "HEURISTIC_FALLBACK"] = "GEMINI_API"
 
 
+class GeminiTaskTrapSchema(BaseModel):
+    """Schema TaskTrap gửi Gemini: mọi trường bắt buộc, không có default (Q3)."""
+    nodeCode: str
+    title: str
+    trapType: TrapTypeLiteral
+    suggestion: str
+
+
+class GeminiActionableAdviceSchema(BaseModel):
+    """Schema ActionableAdvice gửi Gemini: mọi trường bắt buộc, không có default (Q3)."""
+    action: ActionTypeLiteral
+    targetNodeCode: str
+    instruction: str
+    priority: SeverityLiteral
+
+
 class GeminiDiagnosisSchema(BaseModel):
-    """Schema Structured Output ép kiểu trả về cho Google Gemini API."""
-    taskTraps: List[TaskTrapItem] = Field(default_factory=list)
-    actionableAdvice: List[ActionableAdviceItem] = Field(default_factory=list)
-    rootCauseNotes: Optional[str] = None
+    """Schema Structured Output ép kiểu trả về cho Google Gemini API (mọi trường bắt buộc, không default)."""
+    taskTraps: List[GeminiTaskTrapSchema]
+    actionableAdvice: List[GeminiActionableAdviceSchema]
+    rootCauseNotes: str
 
 
 class AiDiagnosisResponse(BaseModel):
