@@ -126,7 +126,7 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
 
 1. **Đổi mật khẩu tài khoản mẫu**: Migration `V2__seed_initial_data.sql` tạo sẵn các tài khoản mẫu thử nghiệm (`admin`, `alex.kim`, `sarah.chen`) với mật khẩu phổ biến được chia sẻ trong nhóm phát triển. Khi đưa hệ thống lên mạng thật hoặc internet công cộng, bắt buộc phải đổi mật khẩu hoặc vô hiệu hóa các tài khoản này ngay sau lần khởi động đầu tiên.
 2. **Cấu hình HTTPS ngoài Internet**: Bản cấu hình Docker Compose này chỉ phục vụ HTTP thuần túy trên cổng 80. Khi triển khai ra ngoài Internet, bắt buộc phải đặt hệ thống phía sau một Reverse Proxy có HTTPS (như Cloudflare, Nginx ngoài máy chủ vật lý, Traefik, Caddy, hoặc AWS ALB).
-3. **Khóa nội bộ `AI_INTERNAL_KEY`**: Backend Spring Boot đã được tích hợp để tự động gửi header `X-Internal-Key` kèm theo mọi request sang AI microservice. Mã nguồn AI service trên nhánh `main` hiện chưa kiểm khóa (phần của Abdul, đang ở nhánh `ai-python-de-xuat`). Khi phần đó được ghép, compose này dùng được ngay, không cần sửa.
+3. **Khóa nội bộ `AI_INTERNAL_KEY`**: Backend Spring Boot đã được tích hợp để tự động gửi header `X-Internal-Key` kèm theo mọi request sang AI microservice. AI service kiểm khóa này: thiếu hoặc sai khóa thì trả `401`. Hai bên phải dùng cùng một giá trị `AI_INTERNAL_KEY` trong `deploy/.env`.
 4. **Không commit file bí mật**: Không commit file `deploy/.env` lên repository Git.
 
 ---
@@ -138,3 +138,19 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
   ```bash
   docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d
   ```
+- **Khi model quá tải**: service gọi lần lượt `GEMINI_MODEL` rồi `GEMINI_FALLBACK_MODEL`; mỗi model đứng trước model cuối chờ tối đa `GEMINI_TIMEOUT_MS` (12 giây), cả chuỗi tối đa `GEMINI_TOTAL_TIMEOUT_MS` (25 giây, dưới mức 30 giây backend chờ). Hết model mới dùng phân tích dự phòng. Kết quả ghi model đã trả lời ở `tokenUsage.model`.
+- **Bảo mật key**: mỗi môi trường dùng một key riêng, chỉ đặt trong `deploy/.env` của máy chủ. Key đã lộ (dán vào chat, commit nhầm) thì thu hồi ở Google AI Studio và tạo key mới.
+- **Gói miễn phí**: không tốn tiền nhưng Google được dùng dữ liệu gửi lên để cải thiện sản phẩm. Dùng dữ liệu thật của người dùng thì cân nhắc gói trả phí.
+
+---
+
+## 9. Gửi email (quên mật khẩu, xác nhận đổi mật khẩu)
+
+- **Tắt mặc định**: để trống `MAIL_HOST` hoặc `MAIL_FROM` thì không gửi email; trang đăng nhập báo người dùng liên hệ quản trị viên khi quên mật khẩu. Mọi chức năng khác vẫn chạy.
+- **Bật**: điền nhóm biến `MAIL_*` trong `deploy/.env` (xem chú thích trong `deploy/prod.env.example`) rồi chạy lại `docker compose ... up -d`. Ví dụ Gmail: `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME`/`MAIL_FROM` = địa chỉ Gmail, `MAIL_PASSWORD` = App Password 16 ký tự (bật xác minh 2 bước rồi tạo ở mục App passwords của tài khoản Google), không dùng mật khẩu đăng nhập.
+- **Link trong email** dùng `APP_PUBLIC_URL`, nên biến này phải là địa chỉ công khai thật của trang (ví dụ `https://wpe.example.com`). Link hết hạn sau `PASSWORD_RESET_TTL_MINUTES` phút (mặc định 30) và chỉ dùng được 1 lần; mỗi tài khoản nhận tối đa 1 email mỗi 60 giây.
+- **Thử trên máy, không cần SMTP thật**: chạy kèm Mailpit (hộp thư giả) rồi xem email ở `http://127.0.0.1:8025`:
+  ```bash
+  docker compose -f docker-compose.prod.yml -f deploy/docker-compose.mailtest.yml --env-file deploy/.env up -d
+  ```
+  Không dùng `deploy/docker-compose.mailtest.yml` trên production thật.
