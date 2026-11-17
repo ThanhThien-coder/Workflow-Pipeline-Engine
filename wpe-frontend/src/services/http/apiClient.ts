@@ -134,7 +134,7 @@ async function toApiError(res: Response): Promise<ApiError> {
 
   const code = typeof data.error === 'string' && data.error ? data.error : `HTTP_${res.status}`
   const message =
-    typeof data.message === 'string' && data.message ? data.message : `Yêu cầu thất bại (HTTP ${res.status})`
+    typeof data.message === 'string' && data.message ? data.message : `Request failed (HTTP ${res.status}).`
 
   return new ApiError({
     status: res.status,
@@ -175,7 +175,7 @@ async function send(method: HttpMethod, path: string, options: ApiRequestOptions
     throw new ApiError({
       status: 0,
       code: NETWORK_ERROR_CODE,
-      message: 'Không kết nối được tới máy chủ. Vui lòng kiểm tra backend hoặc mạng.',
+      message: 'Can\'t reach the server. Please check your connection and try again.',
     })
   }
 }

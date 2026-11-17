@@ -34,7 +34,7 @@ export function FeedbackQueueCard({ items, onResolve, canResolve }: FeedbackQueu
 
       <div className="space-y-3">
         {items.length === 0 ? (
-          <p className="py-4 text-center text-xs text-slate-400">Không có phản hồi nào trong hàng đợi.</p>
+          <p className="py-4 text-center text-xs text-slate-400">No feedback in the queue.</p>
         ) : (
           items.map((item) => {
             const isResolved = item.status === 'RESOLVED'
@@ -90,7 +90,7 @@ export function FeedbackQueueCard({ items, onResolve, canResolve }: FeedbackQueu
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
                       <CheckCircle2 size={12} />
-                      <span>Đã xử lý</span>
+                      <span>Resolved</span>
                     </span>
                   )}
                 </div>

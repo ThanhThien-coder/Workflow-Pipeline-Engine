@@ -49,9 +49,9 @@ export function usePhaseConnectDrag(
       if (!targetId || targetId === sourceId) return
       const targetPhase = phaseMap[targetId]
       if (!targetPhase) return
-      if (targetPhase.parentPhaseIds.includes(sourceId)) return flash('Liên kết giữa 2 Phase đã tồn tại')
-      if (isPhaseAncestor(phaseMap, targetId, sourceId)) return flash('Không thể nối ngược (tránh chu trình lặp đồ thị)')
-      void onConnect(sourceId, targetId).catch((cause: unknown) => flash(cause instanceof Error ? cause.message : 'Không thể nối Phase'))
+      if (targetPhase.parentPhaseIds.includes(sourceId)) return flash('These two Phases are already linked.')
+      if (isPhaseAncestor(phaseMap, targetId, sourceId)) return flash('Can\'t connect backwards: this would create a cycle.')
+      void onConnect(sourceId, targetId).catch((cause: unknown) => flash(cause instanceof Error ? cause.message : 'Couldn\'t connect the Phases.'))
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)

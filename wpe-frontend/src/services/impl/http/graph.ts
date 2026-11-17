@@ -103,7 +103,7 @@ export function toBackendId(id: string, what: string): number {
     throw new ApiError({
       status: 400,
       code: 'NODE_NOT_SAVED',
-      message: `${what} "${id}" chưa được lưu lên máy chủ. Tải lại đồ thị rồi thử lại.`,
+      message: `${what} "${id}" hasn\'t been saved to the server yet. Reload the graph and try again.`,
     })
   }
   return n

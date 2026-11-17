@@ -52,10 +52,10 @@ import {
 } from '../types/artifact.types'
 
 export const PHASES: MacroPhase[] = [
-  { id: 'p1', name: 'PHASE 1', sub: 'Nền tảng (Foundation)', status: 'COMPLETED', pct: 100, accent: 'emerald', x: 20, y: 140, w: 250, h: 220, parentPhaseIds: [] },
-  { id: 'p2a', name: 'PHASE 2A', sub: 'Cụm Xác thực (Auth)', status: 'IN_PROGRESS', pct: 70, accent: 'blue', x: 360, y: 40, w: 440, h: 170, parentPhaseIds: ['p1'] },
-  { id: 'p2b', name: 'PHASE 2B', sub: 'Cụm Giỏ hàng (Cart)', status: 'TODO', pct: 0, accent: 'slate', x: 360, y: 290, w: 440, h: 170, parentPhaseIds: ['p1'] },
-  { id: 'p3', name: 'PHASE 3', sub: 'Tích hợp Toàn hệ thống', status: 'LOCKED', pct: 0, accent: 'slate', x: 890, y: 140, w: 250, h: 220, parentPhaseIds: ['p2a', 'p2b'], locked: true },
+  { id: 'p1', name: 'PHASE 1', sub: 'Foundation', status: 'COMPLETED', pct: 100, accent: 'emerald', x: 20, y: 140, w: 250, h: 220, parentPhaseIds: [] },
+  { id: 'p2a', name: 'PHASE 2A', sub: 'Authentication (Auth)', status: 'IN_PROGRESS', pct: 70, accent: 'blue', x: 360, y: 40, w: 440, h: 170, parentPhaseIds: ['p1'] },
+  { id: 'p2b', name: 'PHASE 2B', sub: 'Shopping cart (Cart)', status: 'TODO', pct: 0, accent: 'slate', x: 360, y: 290, w: 440, h: 170, parentPhaseIds: ['p1'] },
+  { id: 'p3', name: 'PHASE 3', sub: 'System-wide integration', status: 'LOCKED', pct: 0, accent: 'slate', x: 890, y: 140, w: 250, h: 220, parentPhaseIds: ['p2a', 'p2b'], locked: true },
 ]
 
 let codeSequence = 0
@@ -70,7 +70,7 @@ function node(value: Partial<Extract<GraphNode, { kind: 'branch' }>> & Pick<Extr
     progress: undefined,
     assignee: null,
     due: null,
-    blocker: 'Không có',
+    blocker: 'None',
     joinPolicy: null,
     parentIds: [],
     status: 'TODO',
@@ -86,17 +86,17 @@ export function seedP2A(): GraphNodeMap {
   const nodes: GraphNodeMap = {}
   const put = (value: GraphNode) => { nodes[value.id] = value }
   put({ id: 'root', kind: 'root', parentIds: [], title: 'Phase 2A: Auth Module' })
-  put(node({ id: 'trk_db', isTrack: true, trackId: 'trk_db', title: 'Track 1: Cơ sở dữ liệu', status: 'DONE', parentIds: ['root'], order: 0, level: 1, column: 1 }))
-  put(node({ id: 't_db', trackId: 'trk_db', title: 'Thiết kế Session Schema', status: 'DONE', assignee: 'Sarah Chen', due: '2026-09-20', parentIds: ['trk_db'], order: 0, level: 2, column: 2 }))
+  put(node({ id: 'trk_db', isTrack: true, trackId: 'trk_db', title: 'Track 1: Database', status: 'DONE', parentIds: ['root'], order: 0, level: 1, column: 1 }))
+  put(node({ id: 't_db', trackId: 'trk_db', title: 'Design the session schema', status: 'DONE', assignee: 'Sarah Chen', due: '2026-09-20', parentIds: ['trk_db'], order: 0, level: 2, column: 2 }))
   put(node({ id: 'trk_api', isTrack: true, trackId: 'trk_api', title: 'Track 2: API Services', status: 'IN_PROGRESS', parentIds: ['root'], order: 1, level: 1, column: 1 }))
   put(node({ id: 't_login', trackId: 'trk_api', title: 'POST /login API', status: 'DONE', assignee: 'Alex Kim', due: '2026-09-18', parentIds: ['trk_api'], order: 0, level: 2, column: 2 }))
-  put(node({ id: 't_register', trackId: 'trk_api', title: 'POST /register API', status: 'IN_PROGRESS', progress: 80, assignee: 'Marcus Liu', due: '2026-09-29', blocker: 'Chờ review schema xác thực email', parentIds: ['trk_api'], order: 1, level: 2, column: 2 }))
-  put(node({ id: 't_jwt', trackId: 'trk_api', title: 'JWT Refresh Token flow', status: 'TODO', assignee: 'Marcus Liu', due: '2026-10-05', blocker: 'Chờ /register API hoàn tất', parentIds: ['trk_api'], order: 2, level: 2, column: 2 }))
-  put(node({ id: 'trk_ui', isTrack: true, trackId: 'trk_ui', title: 'Track 3: Giao diện Form UI', status: 'IN_PROGRESS', parentIds: ['root'], order: 2, level: 1, column: 1 }))
+  put(node({ id: 't_register', trackId: 'trk_api', title: 'POST /register API', status: 'IN_PROGRESS', progress: 80, assignee: 'Marcus Liu', due: '2026-09-29', blocker: 'Waiting for the email verification schema review', parentIds: ['trk_api'], order: 1, level: 2, column: 2 }))
+  put(node({ id: 't_jwt', trackId: 'trk_api', title: 'JWT Refresh Token flow', status: 'TODO', assignee: 'Marcus Liu', due: '2026-10-05', blocker: 'Waiting for the /register API to be completed', parentIds: ['trk_api'], order: 2, level: 2, column: 2 }))
+  put(node({ id: 'trk_ui', isTrack: true, trackId: 'trk_ui', title: 'Track 3: Form UI', status: 'IN_PROGRESS', parentIds: ['root'], order: 2, level: 1, column: 1 }))
   put(node({ id: 't_loginform', trackId: 'trk_ui', title: 'Login Form Component', status: 'IN_PROGRESS', progress: 60, assignee: 'Jamie Doe', due: '2026-09-27', parentIds: ['trk_ui'], order: 0, level: 2, column: 2 }))
-  put(node({ id: 't_oauth', trackId: 'trk_ui', title: 'OAuth Google Button', status: 'TODO', assignee: 'Jamie Doe', due: '2026-10-03', blocker: 'Chờ Login Form xong', parentIds: ['trk_ui'], order: 1, level: 2, column: 2 }))
-  put(node({ id: 'trk_e2e', isTrack: true, trackId: 'trk_e2e', title: 'Track 4: Kiểm thử E2E', status: 'LOCKED', parentIds: ['root'], order: 3, level: 1, column: 1 }))
-  put(node({ id: 't_e2e', trackId: 'trk_e2e', title: 'Test Tích hợp E2E', status: 'LOCKED', blocker: 'Chờ JWT flow & Login Form đều DONE', parentIds: ['trk_e2e', 't_jwt', 't_loginform'], joinPolicy: 'AND', order: 0, level: 2, column: 2 }))
+  put(node({ id: 't_oauth', trackId: 'trk_ui', title: 'OAuth Google Button', status: 'TODO', assignee: 'Jamie Doe', due: '2026-10-03', blocker: 'Waiting for the Login Form to be done', parentIds: ['trk_ui'], order: 1, level: 2, column: 2 }))
+  put(node({ id: 'trk_e2e', isTrack: true, trackId: 'trk_e2e', title: 'Track 4: E2E testing', status: 'LOCKED', parentIds: ['root'], order: 3, level: 1, column: 1 }))
+  put(node({ id: 't_e2e', trackId: 'trk_e2e', title: 'E2E integration test', status: 'LOCKED', blocker: 'Waiting for the JWT flow and Login Form to be DONE', parentIds: ['trk_e2e', 't_jwt', 't_loginform'], joinPolicy: 'AND', order: 0, level: 2, column: 2 }))
   put(ghostNode('g_p1', ['root'], 'p1', 'x1', 'up'))
   const sessionSchema = nodes.t_db
   if (sessionSchema?.kind === 'branch') nodes.t_db = { ...sessionSchema, parentIds: ['trk_db', 'g_p1'], joinPolicy: 'AND' }
@@ -114,12 +114,12 @@ export function seedSimple(title: string, breadcrumb: string, pct: number, gate:
 }
 
 export const TREES: Record<string, PhaseTree> = {
-  p2a: { title: 'Phase 2A: Auth Module', breadcrumb: 'Dự án Marketing Q4 › Phase 2A · Cụm Xác thực (Auth Group)', pct: 70, gate: { prLink: '#142', prMerged: true, swagger: '' }, nodes: seedP2A() },
-  p1: seedSimple('Phase 1: Foundation', 'Dự án Marketing Q4 › Phase 1 · Nền tảng', 100, { prLink: '#128', prMerged: true, swagger: '' }, 'Track: Kiến trúc & DB', 'DONE', 'Core DB Schema', 'DONE', 'Sarah Chen', '2026-09-14', 'Không có'),
-  p2b: seedSimple('Phase 2B: Cart Module', 'Dự án Marketing Q4 › Phase 2B · Cụm Giỏ hàng', 0, { prLink: null, prMerged: false, swagger: '' }, 'Track: Giỏ hàng', 'TODO', 'Thiết kế Cart Schema', 'TODO', 'Alex Kim', '2026-10-10', 'Chờ Phase 1 bàn giao'),
-  p3: seedSimple('Phase 3: Tích hợp Toàn hệ thống', 'Dự án Marketing Q4 › Phase 3 · Tích hợp', 0, { prLink: null, prMerged: false, swagger: '' }, 'Track: Tích hợp', 'LOCKED', 'Test Tích hợp Toàn hệ thống', 'LOCKED', 'Marcus Liu', '2026-10-25', 'Chờ Phase 2A & 2B'),
+  p2a: { title: 'Phase 2A: Auth Module', breadcrumb: 'Marketing Q4 Project › Phase 2A · Authentication (Auth Group)', pct: 70, gate: { prLink: '#142', prMerged: true, swagger: '' }, nodes: seedP2A() },
+  p1: seedSimple('Phase 1: Foundation', 'Marketing Q4 Project › Phase 1 · Foundation', 100, { prLink: '#128', prMerged: true, swagger: '' }, 'Track: Architecture and DB', 'DONE', 'Core DB Schema', 'DONE', 'Sarah Chen', '2026-09-14', 'None'),
+  p2b: seedSimple('Phase 2B: Cart Module', 'Marketing Q4 Project › Phase 2B · Shopping cart', 0, { prLink: null, prMerged: false, swagger: '' }, 'Track: Shopping cart', 'TODO', 'Design the cart schema', 'TODO', 'Alex Kim', '2026-10-10', 'Waiting for the Phase 1 handoff'),
+  p3: seedSimple('Phase 3: System-wide integration', 'Marketing Q4 Project › Phase 3 · Integration', 0, { prLink: null, prMerged: false, swagger: '' }, 'Track: Integration', 'LOCKED', 'System-wide integration test', 'LOCKED', 'Marcus Liu', '2026-10-25', 'Waiting for Phase 2A and 2B'),
 }
-TREES.p2b.nodes.x2 = node({ id: 'x2', title: 'Thiết kế Payment Flow', status: 'TODO', assignee: 'Marcus Liu', due: '2026-10-14', parentIds: ['trk1'] })
+TREES.p2b.nodes.x2 = node({ id: 'x2', title: 'Design the payment flow', status: 'TODO', assignee: 'Marcus Liu', due: '2026-10-14', parentIds: ['trk1'] })
 
 export class MockWorkflowService implements IWorkflowService {
   private phases = PHASES.map((phase) => ({ ...phase }))
@@ -406,7 +406,7 @@ export class MockWorkflowService implements IWorkflowService {
     const phase: MacroPhase = {
       id,
       name: dto.name,
-      sub: dto.sub ?? 'Nền tảng mới',
+      sub: dto.sub ?? 'New foundation',
       status: dto.parentPhaseId ? 'LOCKED' : 'TODO',
       pct: 0,
       accent: dto.accent ?? (dto.parentPhaseId ? 'slate' : 'blue'),
@@ -416,8 +416,8 @@ export class MockWorkflowService implements IWorkflowService {
       h: 170,
       parentPhaseIds: dto.parentPhaseId ? [dto.parentPhaseId] : [],
     }
-    const rootTree = seedSimple(`${dto.name}: ${phase.sub}`, `Dự án Marketing Q4 › ${phase.name}`, 0, { prLink: null, prMerged: false, swagger: '' }, `Track: ${phase.sub}`, 'TODO', 'Khởi tạo Phase', 'TODO', '', '', 'Chưa có')
-    TREES[id] = { title: phase.name, breadcrumb: `Dự án Marketing Q4 › ${phase.name}`, pct: 0, gate: { prLink: null, prMerged: false, swagger: '' }, nodes: rootTree.nodes }
+    const rootTree = seedSimple(`${dto.name}: ${phase.sub}`, `Marketing Q4 Project › ${phase.name}`, 0, { prLink: null, prMerged: false, swagger: '' }, `Track: ${phase.sub}`, 'TODO', 'Set up the Phase', 'TODO', '', '', 'None yet')
+    TREES[id] = { title: phase.name, breadcrumb: `Marketing Q4 Project › ${phase.name}`, pct: 0, gate: { prLink: null, prMerged: false, swagger: '' }, nodes: rootTree.nodes }
     this.phases = [...this.phases, phase]
     if (pId) {
       addPhaseToProject(pId, dto)
@@ -428,7 +428,7 @@ export class MockWorkflowService implements IWorkflowService {
   async connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void> {
     if (projectId && projectId !== '1') {
       const ok = connectPhasesInProject(projectId, sourcePhaseId, targetPhaseId)
-      if (!ok) throw new Error('Phase không tồn tại')
+      if (!ok) throw new Error('Phase not found.')
       return
     }
     const target = this.phases.find((phase) => phase.id === targetPhaseId)
@@ -437,11 +437,11 @@ export class MockWorkflowService implements IWorkflowService {
         const ok = connectPhasesInProject(projectId, sourcePhaseId, targetPhaseId)
         if (ok) return
       }
-      throw new Error('Phase không tồn tại')
+      throw new Error('Phase not found.')
     }
-    if (target.parentPhaseIds.includes(sourcePhaseId)) throw new Error('Liên kết giữa 2 Phase đã tồn tại')
+    if (target.parentPhaseIds.includes(sourcePhaseId)) throw new Error('These two Phases are already linked.')
     const phaseMap = Object.fromEntries(this.phases.map((phase) => [phase.id, phase]))
-    if (isPhaseAncestor(phaseMap, targetPhaseId, sourcePhaseId)) throw new Error('Không thể nối ngược (tránh chu trình lặp đồ thị)')
+    if (isPhaseAncestor(phaseMap, targetPhaseId, sourcePhaseId)) throw new Error('Can\'t connect backwards: this would create a cycle in the graph.')
     target.parentPhaseIds = [...target.parentPhaseIds, sourcePhaseId]
     target.locked = true
     target.status = 'LOCKED'

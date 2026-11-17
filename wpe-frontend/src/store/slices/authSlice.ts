@@ -24,7 +24,7 @@ const TOKEN_KEY = 'wpe_auth_token'
 const USER_KEY = 'wpe_auth_user'
 const AVATAR_KEY = 'wpe_user_avatar'
 
-export const SESSION_EXPIRED_MESSAGE = 'Phiên đăng nhập đã hết hạn'
+export const SESSION_EXPIRED_MESSAGE = 'Your session has expired.'
 
 export interface AuthState {
   currentUser: UserDto | null

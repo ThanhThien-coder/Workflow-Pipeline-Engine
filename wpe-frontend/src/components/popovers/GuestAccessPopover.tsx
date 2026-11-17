@@ -48,7 +48,7 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={!canManage ? 'Chỉ chủ dự án mới tạo được link khách' : undefined}
+        title={!canManage ? 'Only the project owner can create guest links' : undefined}
         className={`relative flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
           open
             ? 'border-slate-400 bg-slate-50 text-slate-800 ring-2 ring-slate-100'
@@ -111,7 +111,7 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
               <button
                 type="button"
                 disabled={!canManage}
-                title={!canManage ? 'Chỉ chủ dự án mới thu hồi được link khách' : undefined}
+                title={!canManage ? 'Only the project owner can revoke guest links' : undefined}
                 onClick={() => {
                   setCopied(false)
                   void onRevoke()
@@ -123,7 +123,7 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
               </button>
               {!canManage && (
                 <p data-testid="guest-owner-only-note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Chỉ chủ dự án mới tạo hoặc thu hồi được link khách.
+                  Only the project owner can create or revoke guest links.
                 </p>
               )}
             </div>
@@ -135,12 +135,12 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                 {canManage
                   ? 'External guests can no longer access this project using previous links.'
-                  : state.expiresLabel || 'Chỉ chủ dự án mới có quyền quản lý link khách.'}
+                  : state.expiresLabel || 'Only the project owner can manage guest links.'}
               </p>
               <button
                 type="button"
                 disabled={!canManage}
-                title={!canManage ? 'Chỉ chủ dự án mới tạo được link khách' : undefined}
+                title={!canManage ? 'Only the project owner can create guest links' : undefined}
                 onClick={() => void onGenerate()}
                 className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
               >
@@ -148,7 +148,7 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
               </button>
               {!canManage && (
                 <p data-testid="guest-owner-only-note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Chỉ chủ dự án mới tạo được link khách.
+                  Only the project owner can create guest links.
                 </p>
               )}
             </div>

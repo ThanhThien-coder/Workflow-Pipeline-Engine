@@ -10,7 +10,7 @@ export function RecentActivityCard({ items }: { items: ActivityItem[] }) {
       <h3 className="mb-4 font-semibold text-slate-900">Recent Activity</h3>
       {items.length === 0 ? (
         <p data-testid="recent-activity-empty" className="py-4 text-center text-xs text-slate-400">
-          Chưa có hoạt động nào gần đây.
+          No recent activity yet.
         </p>
       ) : (
         <ul className="space-y-4">

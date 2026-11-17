@@ -66,7 +66,7 @@ describe('WorkspaceMembersSection Component', () => {
     expect(screen.getByText('expired@example.com')).toBeDefined()
 
     // Check that expired invitation has "Đã hết hạn"
-    expect(screen.getByText('Đã hết hạn')).toBeDefined()
+    expect(screen.getByText('Expired')).toBeDefined()
 
     // Revoke buttons exist for both pending invitations (2 revoke buttons in pending list)
     const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i })
@@ -108,8 +108,8 @@ describe('WorkspaceMembersSection Component', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Lịch sử thành viên/ })).toBeDefined()
-    expect(screen.getByText('Đang tham gia')).toBeDefined()
+    expect(screen.getByRole('button', { name: /Member history/ })).toBeDefined()
+    expect(screen.getByText('Active')).toBeDefined()
     expect(screen.getByText('Active User (active.user)')).toBeDefined()
     expect(screen.getByText('Inactive User (inactive.user)')).toBeDefined()
   })
@@ -145,7 +145,7 @@ describe('WorkspaceMembersSection Component', () => {
     fireEvent.change(select, { target: { value: 'OWNER' } })
 
     expect(confirmSpy).toHaveBeenCalledWith(
-      'Chuyển quyền chủ dự án cho sarah.chen? Bạn sẽ trở thành Cộng sự.'
+      'Transfer project ownership to sarah.chen? You will become a Collaborator.'
     )
     expect(handleRoleChange).toHaveBeenCalledWith('usr-2', 'OWNER')
 

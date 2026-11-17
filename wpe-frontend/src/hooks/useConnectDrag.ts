@@ -37,8 +37,8 @@ export function useConnectDrag(nodes: GraphNodeMap, setNodes: (update: (nodes: G
       }
       if (!targetId || targetId === sourceId || !targetNode || (targetNode.kind !== 'branch' && targetNode.kind !== 'ghost')) return
       if (targetNode.kind === 'ghost' && nodes[sourceId]?.kind === 'ghost') return
-      if (targetNode.parentIds.includes(sourceId)) return flash('Liên kết đã tồn tại')
-      if (isAncestor(nodes, targetId, sourceId)) return flash('Không thể nối ngược (tránh chu trình lặp)')
+      if (targetNode.parentIds.includes(sourceId)) return flash('These tasks are already linked.')
+      if (isAncestor(nodes, targetId, sourceId)) return flash('Can\'t connect backwards: this would create a cycle.')
       setNodes((current) => {
         const currentTarget = current[targetId]
         return { ...current, [targetId]: currentTarget.kind === 'branch' ? { ...currentTarget, parentIds: [...currentTarget.parentIds, sourceId], joinPolicy: currentTarget.joinPolicy || 'ALL_COMPLETED' } : { ...currentTarget, parentIds: [...currentTarget.parentIds, sourceId] } }

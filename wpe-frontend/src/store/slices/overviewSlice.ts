@@ -72,7 +72,7 @@ export const createOverviewSlice = (
           return { overview: { ...state.overview, projectId, data, status: 'ready' } }
         })
       } catch (error) {
-        const message = extractErrorMessage(error, 'Không tải được dữ liệu Overview')
+        const message = extractErrorMessage(error, 'Couldn\'t load the Overview data.')
         set((state) => {
           if (state.overview.projectId !== projectId) return state
           return { overview: { ...state.overview, projectId, status: 'error', error: message } }
@@ -99,10 +99,10 @@ export const createOverviewSlice = (
             },
           }
         })
-        get().overview.showToast('Feedback đã được đánh dấu giải quyết (Resolved).')
+        get().overview.showToast('Feedback marked as resolved.')
       } catch (error) {
         get().overview.showToast(
-          extractErrorMessage(error, 'Không thể giải quyết phản hồi. Vui lòng thử lại.'),
+          extractErrorMessage(error, 'Couldn\'t resolve the feedback. Please try again.'),
         )
       }
     },

@@ -13,16 +13,16 @@ export function graphErrorMessage(error: unknown): string {
       case 'GRAPH_READ_ONLY':
         return `${GRAPH_READ_ONLY_MESSAGE}.`
       case 'PROJECT_ARCHIVED':
-        return 'Dự án đã được lưu trữ, chỉ xem được, không sửa được đồ thị.'
+        return 'This project is archived. The graph is read-only.'
       case 'NETWORK_ERROR':
-        return 'Mất kết nối máy chủ. Thay đổi chưa được lưu.'
+        return 'Lost connection to the server. Your changes have not been saved.'
       case 'CYCLE_DETECTED':
-        return 'Không thể nối: tạo chu trình lặp phụ thuộc.'
+        return 'Can\'t connect these tasks: this would create a dependency cycle.'
       default:
-        return error.message || 'Không lưu được thay đổi đồ thị.'
+        return error.message || 'Couldn\'t save your graph changes.'
     }
   }
-  return error instanceof Error && error.message ? error.message : 'Không lưu được thay đổi đồ thị.'
+  return error instanceof Error && error.message ? error.message : 'Couldn\'t save your graph changes.'
 }
 
 /** Mã các node trên chu trình nếu lỗi là 422 CYCLE_DETECTED, ngược lại null. */
@@ -44,7 +44,7 @@ export function useGraphErrorHandler() {
       const nodes = cycleNodesOf(error)
       if (nodes) {
         // Backend có thể trả cycleNodes rỗng; vẫn mở modal với 1 dòng giải thích để người dùng biết vì sao
-        setCycleNodes(nodes.length > 0 ? nodes : ['(máy chủ không gửi danh sách node)'])
+        setCycleNodes(nodes.length > 0 ? nodes : ['(the server did not send the task list)'])
         return
       }
       showToast(graphErrorMessage(error), 4000)

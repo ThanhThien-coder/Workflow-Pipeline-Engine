@@ -10,7 +10,7 @@ const ICONS: string[] = ['◆', '▲', '⬢', '◉', '■', '▣']
 
 const ROLE_LABELS: Record<ProjectRole | 'MANAGER', string> = {
   OWNER: 'Owner',
-  MANAGER: 'Quản lý',
+  MANAGER: 'Manager',
   COLLABORATOR: 'Collaborator',
   VIEWER: 'Viewer',
 }

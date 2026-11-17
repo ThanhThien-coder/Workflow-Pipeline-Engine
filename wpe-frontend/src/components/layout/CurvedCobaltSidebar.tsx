@@ -129,9 +129,9 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
             transition={{ type: 'spring', stiffness: 450, damping: 28 }}
             whileTap={{ scale: 0.9 }}
             onClick={toggleSidebar}
-            title="Mở rộng menu (Ctrl+B)"
+            title="Expand menu (Ctrl+B)"
             className="absolute -right-3.5 top-4 z-30 w-7 h-7 rounded-full bg-white shadow-md border border-blue-100 flex items-center justify-center text-blue-600 hover:scale-110 hover:shadow-lg transition-transform cursor-pointer"
-            aria-label="Mở rộng menu"
+            aria-label="Expand menu"
           >
             <ChevronsRight className="w-4 h-4" />
           </motion.button>
@@ -190,9 +190,9 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
                 exit={{ opacity: 0, x: -6, scale: 0.9 }}
                 transition={{ duration: 0.15 }}
                 whileTap={{ scale: 0.92 }}
-                title="Thu gọn menu (Ctrl+B)"
+                title="Collapse menu (Ctrl+B)"
                 className="ml-auto p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
-                aria-label="Thu gọn menu"
+                aria-label="Collapse menu"
               >
                 <ChevronsLeft className="w-4 h-4" />
               </motion.button>

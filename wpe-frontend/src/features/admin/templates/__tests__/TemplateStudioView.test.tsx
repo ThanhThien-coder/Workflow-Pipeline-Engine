@@ -241,7 +241,7 @@ describe('TemplateStudioView Component', () => {
 
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith(
-        'Không thể lưu: phát hiện chu trình lặp trong đồ thị template',
+        'Can\'t save: the template graph contains a cycle.',
         'rose'
       );
     });

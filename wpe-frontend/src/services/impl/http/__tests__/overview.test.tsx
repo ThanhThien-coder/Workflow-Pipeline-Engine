@@ -300,7 +300,7 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
     fireEvent.click(screen.getByRole('button', { name: /Guest Link/i }))
     const genBtn = screen.getByRole('button', { name: /Generate New Token/i }) as HTMLButtonElement
     expect(genBtn.disabled).toBe(true)
-    expect(screen.getByTestId('guest-owner-only-note').textContent).toContain('Chỉ chủ dự án')
+    expect(screen.getByTestId('guest-owner-only-note').textContent).toContain('Only the project owner')
     fireEvent.click(genBtn)
     expect(onGenerate).not.toHaveBeenCalled()
   })

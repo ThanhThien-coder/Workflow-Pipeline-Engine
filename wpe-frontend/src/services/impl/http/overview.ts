@@ -446,7 +446,7 @@ function pickAvatarClass(seed: string): string {
 
 export function mapProjectActivities(items: readonly ProjectActivityItem[]): ActivityItem[] {
   return items.map((item) => {
-    const actorName = item.actorName || 'Hệ thống'
+    const actorName = item.actorName || 'System'
     return {
       id: item.id,
       actor: {

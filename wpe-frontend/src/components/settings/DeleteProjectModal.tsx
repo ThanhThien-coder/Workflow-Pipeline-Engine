@@ -49,7 +49,7 @@ export function DeleteProjectModal({
         onClose()
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Không thể xóa dự án'
+      const msg = err instanceof Error ? err.message : 'Couldn\'t delete the project.'
       setLocalError(msg)
     } finally {
       setDeleting(false)
@@ -78,9 +78,9 @@ export function DeleteProjectModal({
             </div>
             <div>
               <h3 id="delete-project-title" className="text-base font-bold text-slate-900">
-                Xóa dự án
+                Delete project
               </h3>
-              <p className="text-xs text-slate-500">Hành động xóa vĩnh viễn</p>
+              <p className="text-xs text-slate-500">This action is permanent</p>
             </div>
           </div>
 
@@ -95,10 +95,10 @@ export function DeleteProjectModal({
         </div>
 
         <div className="mt-4 rounded-xl border border-red-200/80 bg-red-50/60 p-3.5 text-xs text-red-800 leading-relaxed">
-          Hành động này <b>Không thể hoàn tác</b>. Dự án{' '}
-          <strong className="font-bold text-slate-900 underline">{projectName}</strong> cùng toàn bộ
-          giai đoạn, công việc (DAG nodes), tài nguyên minh chứng và phân quyền thành viên sẽ bị xóa
-          vĩnh viễn.
+          This action <b>cannot be undone</b>. The project{' '}
+          <strong className="font-bold text-slate-900 underline">{projectName}</strong> and all of its
+          phases, tasks (DAG nodes), deliverables, and member permissions will be permanently
+          deleted.
         </div>
 
         {displayError && (
@@ -117,7 +117,7 @@ export function DeleteProjectModal({
             disabled={deleting}
             className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-2xs transition hover:bg-slate-50 disabled:opacity-40"
           >
-            Hủy
+            Cancel
           </button>
 
           <button
@@ -127,7 +127,7 @@ export function DeleteProjectModal({
             className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={13} />
-            <span>{deleting ? 'Đang xóa...' : 'Xóa vĩnh viễn'}</span>
+            <span>{deleting ? 'Deleting...' : 'Delete permanently'}</span>
           </button>
         </div>
       </div>

@@ -147,7 +147,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     const parent = get().macroPhases.find((phase) => phase.id === parentPhaseId)
     if (!parent) return
     const num = get().macroPhases.length + 1
-    await get().createPhase({ name: `PHASE ${num}`, sub: `Cụm công việc ${num}`, parentPhaseId })
+    await get().createPhase({ name: `PHASE ${num}`, sub: `Work group ${num}`, parentPhaseId })
   },
   connectPhases: async (sourceId, targetId) => {
     ensureCanEditGraph(get())
@@ -295,20 +295,20 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   graphWritesUseApi: Boolean(service.addRootTask && service.attachGhostNode),
   addRootTask: async (phaseId, title) => {
     ensureCanEditGraph(get())
-    if (!service.addRootTask) throw new Error('Service hiện tại không hỗ trợ thêm node qua API.')
+    if (!service.addRootTask) throw new Error('The current service doesn\'t support adding tasks through the API.')
     await service.addRootTask(phaseId, { title })
     await get().resetPhaseTree(phaseId)
   },
   attachGhostNode: async (phaseId, payload) => {
     ensureCanEditGraph(get())
-    if (!service.attachGhostNode) throw new Error('Service hiện tại không hỗ trợ nối node qua API.')
+    if (!service.attachGhostNode) throw new Error('The current service doesn\'t support linking tasks through the API.')
     await service.attachGhostNode(phaseId, payload)
     // Ghost do mapper dựng từ dependencies: đọc lại cây là thấy
     await get().resetPhaseTree(phaseId)
   },
   connectNodes: async (phaseId, parentId, childId) => {
     ensureCanEditGraph(get())
-    if (!service.attachGhostNode) throw new Error('Service hiện tại không hỗ trợ nối node qua API.')
+    if (!service.attachGhostNode) throw new Error('The current service doesn\'t support linking tasks through the API.')
     // Cùng một API POST /dependencies với ghost; nguồn và đích nằm cùng phase
     await service.attachGhostNode(phaseId, { sourcePhaseId: phaseId, sourceTaskId: parentId, targetTaskId: childId })
     // Server nhận rồi mới vẽ cạnh (không vẽ trước rồi phải gỡ)

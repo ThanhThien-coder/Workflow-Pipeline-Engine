@@ -298,8 +298,8 @@ export const createSettingsSlice = (
               }
             }),
           )
-          get().settings.showToast('Đã xóa dự án')
-          ;(get() as any).ui?.showToast?.('Đã xóa dự án')
+          get().settings.showToast('Project deleted')
+          ;(get() as any).ui?.showToast?.('Project deleted')
           return true
         } catch (error) {
           const msg = isApiError(error)
@@ -430,7 +430,7 @@ export const createSettingsSlice = (
           const updated = await workflowService.changeMemberRole(pid, userId, { role })
           if (role === 'OWNER') {
             await get().settings.loadSettings(pid)
-            get().settings.showToast(`Chuyển quyền chủ dự án cho ${updated.username} thành công.`)
+            get().settings.showToast(`Ownership transferred to ${updated.username}.`)
             return true
           }
           set((state) =>

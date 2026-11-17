@@ -194,7 +194,7 @@ export class MockWorkspaceApi {
     const newProject: ProjectSummaryDto = {
       id: newId,
       name: cmd.projectName.trim(),
-      description: cmd.description?.trim() || 'Nhân bản từ mẫu quy trình chuẩn.',
+      description: cmd.description?.trim() || 'Cloned from a standard workflow template.',
       status: 'PLANNING',
       role: 'OWNER',
       nodeCount: totalNodes,

@@ -84,7 +84,7 @@ export const WorkspaceView: FC = () => {
         visibility: data.visibility || 'PRIVATE',
       })
       if (data.templateId) {
-        showToast('Nhân bản quy trình thành công!')
+        showToast('Workflow cloned successfully!')
       } else {
         showToast(`Pipeline "${data.name}" created as DRAFT.`)
       }

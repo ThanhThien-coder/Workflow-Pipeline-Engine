@@ -59,7 +59,7 @@ export function SubmitArtifactModal({
         </header>
         <div className="flex-1 overflow-y-auto space-y-4 px-5 py-4">
           <label className="block text-sm font-medium text-slate-700">
-            Deliverable Type <span className="text-xs font-normal text-slate-400">(Tùy chọn / Optional)</span>
+            Deliverable Type <span className="text-xs font-normal text-slate-400">(Optional)</span>
             <select
               value={type}
               onChange={(event) => setType(event.target.value as ArtifactType)}
@@ -73,7 +73,7 @@ export function SubmitArtifactModal({
             </select>
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Deliverable URL <span className="text-xs font-normal text-slate-400">(Tùy chọn / Optional)</span>
+            Deliverable URL <span className="text-xs font-normal text-slate-400">(Optional)</span>
             <input
               value={url}
               onChange={(event) => {

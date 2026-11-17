@@ -39,7 +39,7 @@ describe('adminGuard', () => {
 
   describe('ADMIN_ONLY_MESSAGE', () => {
     it('đúng thông báo chặn user thường', () => {
-      expect(ADMIN_ONLY_MESSAGE).toBe('Chỉ quản trị viên mới vào được trang này')
+      expect(ADMIN_ONLY_MESSAGE).toBe('Only admins can access this page.')
     })
   })
 })

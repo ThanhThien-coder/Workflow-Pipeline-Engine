@@ -41,7 +41,7 @@ describe('GeneralSettingsSection Component', () => {
       />
     )
 
-    expect(screen.getByText('Lưu thành template')).toBeDefined()
+    expect(screen.getByText('Save as template')).toBeDefined()
 
     rerender(
       <GeneralSettingsSection
@@ -54,7 +54,7 @@ describe('GeneralSettingsSection Component', () => {
       />
     )
 
-    expect(screen.queryByText('Lưu thành template')).toBeNull()
+    expect(screen.queryByText('Save as template')).toBeNull()
   })
 
   it('opens template input and calls saveProjectAsTemplate with correct name and project id on save', async () => {
@@ -93,15 +93,15 @@ describe('GeneralSettingsSection Component', () => {
       />
     )
 
-    const openBtn = screen.getByText('Lưu thành template')
+    const openBtn = screen.getByText('Save as template')
     fireEvent.click(openBtn)
 
-    expect(screen.getByText('Lưu dự án thành Template riêng')).toBeDefined()
+    expect(screen.getByText('Save project as a private template')).toBeDefined()
 
-    const nameInput = screen.getByPlaceholderText('Nhập tên template...')
+    const nameInput = screen.getByPlaceholderText('Enter a template name...')
     fireEvent.change(nameInput, { target: { value: 'Custom Banking Pipeline' } })
 
-    const saveBtn = screen.getByText('Lưu')
+    const saveBtn = screen.getByText('Save')
     fireEvent.click(saveBtn)
 
     await waitFor(() => {
@@ -112,7 +112,7 @@ describe('GeneralSettingsSection Component', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Đã lưu template riêng của bạn')).toBeDefined()
+      expect(screen.getByText('Template saved to your library.')).toBeDefined()
     })
   })
 })

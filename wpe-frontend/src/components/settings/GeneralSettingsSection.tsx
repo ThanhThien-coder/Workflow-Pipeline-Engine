@@ -98,13 +98,13 @@ export function GeneralSettingsSection({
         name: templateName.trim(),
         description: templateDesc.trim() || undefined,
       })
-      setTemplateNotice({ type: 'success', message: 'Đã lưu template riêng của bạn' })
+      setTemplateNotice({ type: 'success', message: 'Template saved to your library.' })
       setTemplateName('')
       setTemplateDesc('')
     } catch (err: any) {
       setTemplateNotice({
         type: 'error',
-        message: err?.message || 'Có lỗi xảy ra khi lưu template riêng.',
+        message: err?.message || 'Couldn\'t save the template.',
       })
     } finally {
       setSavingTemplate(false)
@@ -202,7 +202,7 @@ export function GeneralSettingsSection({
                 }}
                 className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
               >
-                <span>Lưu thành template</span>
+                <span>Save as template</span>
               </button>
             )}
 
@@ -220,7 +220,7 @@ export function GeneralSettingsSection({
         {isOwner && showTemplateModal && (
           <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-800">Lưu dự án thành Template riêng</h3>
+              <h3 className="text-xs font-bold text-slate-800">Save project as a private template</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -247,26 +247,26 @@ export function GeneralSettingsSection({
 
             <div>
               <label className="text-[11px] font-semibold text-slate-700">
-                Tên Template <span className="text-rose-500">*</span>
+                Template name <span className="text-rose-500">*</span>
               </label>
               <input
                 className={`${inputCls} mt-1`}
                 value={templateName}
                 disabled={savingTemplate}
                 onChange={(e) => setTemplateName(e.target.value)}
-                placeholder="Nhập tên template..."
+                placeholder="Enter a template name..."
               />
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-slate-700">Mô tả (tùy chọn)</label>
+              <label className="text-[11px] font-semibold text-slate-700">Description (optional)</label>
               <textarea
                 rows={2}
                 className={`${inputCls} mt-1 resize-none`}
                 value={templateDesc}
                 disabled={savingTemplate}
                 onChange={(e) => setTemplateDesc(e.target.value)}
-                placeholder="Mô tả mục đích của template này..."
+                placeholder="Describe what this template is for..."
               />
             </div>
 
@@ -280,7 +280,7 @@ export function GeneralSettingsSection({
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 type="button"
@@ -288,7 +288,7 @@ export function GeneralSettingsSection({
                 onClick={handleSaveAsTemplate}
                 className="rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
               >
-                {savingTemplate ? 'Đang lưu...' : 'Lưu'}
+                {savingTemplate ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>

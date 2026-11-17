@@ -54,9 +54,9 @@ export function WorkspaceMembersSection({
   const handleRoleSelect = (member: ProjectMemberDetail, targetRole: ProjectRole) => {
     if (targetRole === member.role) return
     if (targetRole === 'OWNER') {
-      const targetName = member.username || 'thành viên này'
+      const targetName = member.username || 'this member'
       const confirmed = window.confirm(
-        `Chuyển quyền chủ dự án cho ${targetName}? Bạn sẽ trở thành Cộng sự.`
+        `Transfer project ownership to ${targetName}? You will become a Collaborator.`
       )
       if (!confirmed) return
       onRoleChange(member.userId, 'OWNER')
@@ -150,7 +150,7 @@ export function WorkspaceMembersSection({
                       <option value="MANAGER">MANAGER</option>
                       <option value="COLLABORATOR">COLLABORATOR</option>
                       <option value="VIEWER">VIEWER</option>
-                      <option value="OWNER">Chuyển quyền sở hữu</option>
+                      <option value="OWNER">Transfer ownership</option>
                     </select>
                   ) : (
                     <span
@@ -253,7 +253,7 @@ export function WorkspaceMembersSection({
                         {isInvExpired ? (
                           <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200">
                             <Clock size={11} />
-                            Đã hết hạn
+                            Expired
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1">
@@ -291,7 +291,7 @@ export function WorkspaceMembersSection({
         >
           <div className="flex items-center gap-2">
             <History size={15} className="text-indigo-600" />
-            <span>Lịch sử thành viên</span>
+            <span>Member history</span>
             {memberHistory.length > 0 && (
               <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                 {memberHistory.length}
@@ -304,15 +304,15 @@ export function WorkspaceMembersSection({
         {isHistoryOpen && (
           <div className="mt-3 overflow-x-auto">
             {memberHistory.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-2">Chưa có lịch sử thành viên.</p>
+              <p className="text-xs text-slate-400 italic py-2">No member history yet.</p>
             ) : (
               <table className="w-full text-left text-xs min-w-[500px]">
                 <thead>
                   <tr className="border-b border-slate-200/80 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    <th className="px-3 py-2">Thành viên</th>
-                    <th className="px-3 py-2">Vai trò</th>
-                    <th className="px-3 py-2">Ngày vào</th>
-                    <th className="px-3 py-2">Ngày rời / Trạng thái</th>
+                    <th className="px-3 py-2">Member</th>
+                    <th className="px-3 py-2">Role</th>
+                    <th className="px-3 py-2">Joined</th>
+                    <th className="px-3 py-2">Left / Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/60">
@@ -336,11 +336,11 @@ export function WorkspaceMembersSection({
                       <td className="px-3 py-2 text-[11px]">
                         {item.active ? (
                           <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">
-                            Đang tham gia
+                            Active
                           </span>
                         ) : (
                           <span className="text-slate-500">
-                            {item.removedAt ? formatDate(item.removedAt) : 'Đã rời'}
+                            {item.removedAt ? formatDate(item.removedAt) : 'Left'}
                           </span>
                         )}
                       </td>

@@ -394,7 +394,7 @@ export function MindmapTree({
                 void useWorkflowStore.getState().resetPhaseTree(phaseId)
               }
             }}
-            title="Reset Phase Tree (Khôi phục trạng thái gốc / Restore clean initial state)"
+            title="Reset Phase Tree (restore the clean initial state)"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/95 hover:bg-rose-50 text-slate-600 hover:text-rose-600 text-xs font-semibold border border-slate-200 hover:border-rose-300 shadow-sm transition-all backdrop-blur-sm cursor-pointer"
           >
             <RotateCcw size={13} />
