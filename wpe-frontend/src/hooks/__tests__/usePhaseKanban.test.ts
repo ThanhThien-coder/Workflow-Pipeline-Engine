@@ -91,4 +91,84 @@ describe('usePhaseKanban', () => {
     expect(result.current.phaseTasks[0].status).toBe('IN_PROGRESS')
     expect(resetPhaseTree).toHaveBeenCalledWith('56')
   })
+
+  it('nhận sự kiện PROJECT_TASKS_CHANGED cùng projectId -> gọi resetPhaseTree và loadPhases sau debounce 300ms', async () => {
+    vi.useFakeTimers()
+    let eventHandler: (eventName: string, data: any) => void = () => {}
+    const unsubscribe = vi.fn()
+    ;(workflowService as any).connectRealtime = vi.fn((_uid: string, handler: any) => {
+      eventHandler = handler
+      return unsubscribe
+    })
+
+    const resetPhaseTree = vi.fn(async () => {})
+    const loadPhases = vi.fn(async () => {})
+    useWorkflowStore.setState({ resetPhaseTree, loadPhases })
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
+
+    renderHook(() => usePhaseKanban(PHASE, '19'))
+
+    expect((workflowService as any).connectRealtime).toHaveBeenCalledWith('9', expect.any(Function))
+
+    // Phát sự kiện cùng projectId '19'
+    act(() => {
+      eventHandler('PROJECT_TASKS_CHANGED', { projectId: '19', phaseId: '56', reason: 'STATUS_CHANGED' })
+    })
+
+    // Chưa qua 300ms -> chưa gọi refresh
+    act(() => {
+      vi.advanceTimersByTime(150)
+    })
+    expect(resetPhaseTree).not.toHaveBeenCalled()
+
+    // Đủ 300ms -> kích hoạt refresh
+    await act(async () => {
+      vi.advanceTimersByTime(200)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(resetPhaseTree).toHaveBeenCalledWith('56')
+    expect(loadPhases).toHaveBeenCalledWith('19')
+
+    vi.useRealTimers()
+  })
+
+  it('nhận sự kiện PROJECT_TASKS_CHANGED khác projectId -> không gọi refresh', async () => {
+    vi.useFakeTimers()
+    let eventHandler: (eventName: string, data: any) => void = () => {}
+    ;(workflowService as any).connectRealtime = vi.fn((_uid: string, handler: any) => {
+      eventHandler = handler
+      return vi.fn()
+    })
+
+    const resetPhaseTree = vi.fn(async () => {})
+    useWorkflowStore.setState({ resetPhaseTree })
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
+
+    renderHook(() => usePhaseKanban(PHASE, '19'))
+
+    // Phát sự kiện projectId khác: '999'
+    act(() => {
+      eventHandler('PROJECT_TASKS_CHANGED', { projectId: '999', phaseId: '56', reason: 'STATUS_CHANGED' })
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(resetPhaseTree).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+
+  it('hủy đăng ký kết nối SSE khi unmount', () => {
+    const unsubscribe = vi.fn()
+    ;(workflowService as any).connectRealtime = vi.fn(() => unsubscribe)
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
+
+    const { unmount } = renderHook(() => usePhaseKanban(PHASE, '19'))
+
+    expect((workflowService as any).connectRealtime).toHaveBeenCalled()
+    unmount()
+    expect(unsubscribe).toHaveBeenCalled()
+  })
 })

@@ -299,18 +299,45 @@ export class HttpWorkflowService implements IWorkflowService {
         }
       })
 
+      eventSource.addEventListener('TASK_SUBMITTED', (e) => {
+        try {
+          const task = JSON.parse(e.data)
+          onEvent('TASK_SUBMITTED', this.mapBackendTaskToKanban(task))
+        } catch (err) {
+          console.error('[SSE] Lỗi parse dữ liệu TASK_SUBMITTED:', err)
+        }
+      })
+
+      eventSource.addEventListener('TASK_REJECTED', (e) => {
+        try {
+          const task = JSON.parse(e.data)
+          onEvent('TASK_REJECTED', this.mapBackendTaskToKanban(task))
+        } catch (err) {
+          console.error('[SSE] Lỗi parse dữ liệu TASK_REJECTED:', err)
+        }
+      })
+
+      eventSource.addEventListener('PROJECT_TASKS_CHANGED', (e) => {
+        try {
+          const payload = JSON.parse(e.data)
+          onEvent('PROJECT_TASKS_CHANGED', payload)
+        } catch (err) {
+          console.error('[SSE] Lỗi parse dữ liệu PROJECT_TASKS_CHANGED:', err)
+        }
+      })
+
       eventSource.addEventListener('error', () => {
         if (closed) return
-        if (eventSource.readyState === EventSource.CLOSED) {
-          eventSource.close()
-          const delay = retryDelay
-          retryDelay = Math.min(retryDelay * 2, 30000)
-          retryTimeoutId = setTimeout(() => {
-            if (!closed) {
-              void open()
-            }
-          }, delay)
-        }
+        eventSource.close()
+        if (retryTimeoutId !== null) return
+        const delay = retryDelay
+        retryDelay = Math.min(retryDelay * 2, 30000)
+        retryTimeoutId = setTimeout(() => {
+          retryTimeoutId = null
+          if (!closed) {
+            void open()
+          }
+        }, delay)
       })
     }
 
