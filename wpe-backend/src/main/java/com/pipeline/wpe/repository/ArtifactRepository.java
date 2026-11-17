@@ -4,6 +4,7 @@ import com.pipeline.wpe.entity.ArtifactEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -19,4 +20,6 @@ public interface ArtifactRepository extends JpaRepository<ArtifactEntity, Long> 
 
     /** G17: tìm bản "trùng hoàn toàn" (cùng dự án, cùng tên, cùng link) để không thêm dòng lặp. */
     List<ArtifactEntity> findByProjectIdAndNameAndUrl(Long projectId, String name, String url);
+
+    List<ArtifactEntity> findByProjectIdIn(Collection<Long> projectIds);
 }

@@ -2,6 +2,7 @@ package com.pipeline.wpe.security;
 
 import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.service.auth.JwtService;
+import org.springframework.http.HttpMethod;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -79,6 +80,8 @@ public class SecurityConfig {
                 "/api/health",
                 "/error"
             ).permitAll()
+            // Công khai ảnh đại diện
+            .requestMatchers(HttpMethod.GET, "/uploads/avatars/**").permitAll()
             // Mọi API khác bắt buộc phải xác thực
             .anyRequest().authenticated()
         );

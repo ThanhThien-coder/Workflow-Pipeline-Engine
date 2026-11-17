@@ -72,6 +72,15 @@ erDiagram
         boolean is_locked "DEFAULT FALSE"
         int token_version "DEFAULT 0"
         timestamp created_at
+        varchar avatar_url "nullable"
+        varchar title "nullable"
+        varchar bio "nullable"
+        jsonb skills "DEFAULT []"
+        jsonb links "DEFAULT {}"
+        jsonb profile_privacy "DEFAULT {...}"
+        jsonb public_project_ids "DEFAULT []"
+        timestamp deactivated_at "nullable"
+        timestamp deleted_at "nullable"
     }
 
     REFRESH_TOKEN {
@@ -242,6 +251,15 @@ Quản lý danh tính, phân quyền hệ thống và phiên bảo mật của n
 | `is_locked` | `boolean` | NOT NULL | `FALSE` | Cờ khóa tài khoản do Admin quản lý. |
 | `token_version` | `int` | NOT NULL | `0` | Quản lý vô hiệu hóa phiên tức thời (khi đổi mật khẩu / khóa tài khoản). |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm tạo tài khoản. |
+| `avatar_url` | `varchar(500)` | NULLABLE | | Đường dẫn URL tương đối của ảnh đại diện (`/uploads/avatars/...`). |
+| `title` | `varchar(60)` | NULLABLE | | Chức danh nghề nghiệp / vị trí công việc. |
+| `bio` | `varchar(280)` | NULLABLE | | Tiểu sử / phần giới thiệu ngắn gọn cá nhân. |
+| `skills` | `jsonb` | NOT NULL | `'[]'::jsonb` | Danh sách kỹ năng chuyên môn (mảng chuỗi). |
+| `links` | `jsonb` | NOT NULL | `'{}'::jsonb` | Các liên kết mạng xã hội / portfolio (`github`, `linkedin`, `website`). |
+| `profile_privacy` | `jsonb` | NOT NULL | `'{"visibility":"members","showEmail":false,"showStats":true}'::jsonb` | Cài đặt hiển thị hồ sơ cá nhân (`visibility`, `showEmail`, `showStats`). |
+| `public_project_ids` | `jsonb` | NOT NULL | `'[]'::jsonb` | Danh sách ID dự án được hiển thị công khai trên hồ sơ. |
+| `deactivated_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm tự vô hiệu hóa tài khoản tạm thời. |
+| `deleted_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm xóa (ẩn danh hóa) tài khoản vĩnh viễn. |
 
 ---
 

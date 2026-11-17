@@ -75,7 +75,7 @@ public class AuthService {
         UserEntity user = identifier.contains("@")
             ? userRepository.findByEmailIgnoreCase(identifier).orElse(null)
             : null;
-        if (user == null) {
+        if (user == null || user.getDeletedAt() != null) {
             adminAuditService.record(null, identifier, AdminAuditAction.LOGIN_FAILED, "USER", null, "Account does not exist");
             passwordEncoder.matches(request.password(), dummyHash());
             throw badCredentials();
@@ -89,6 +89,10 @@ public class AuthService {
             adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.ACCOUNT_LOCKED_LOGIN, "USER", String.valueOf(user.getId()), "Account is locked");
             throw accountLocked();
         }
+        if (user.getDeactivatedAt() != null) {
+            user.setDeactivatedAt(null);
+            userRepository.save(user);
+        }
         adminAuditService.record(user.getId(), user.getUsername(), AdminAuditAction.LOGIN_SUCCESS, "USER", String.valueOf(user.getId()), "Signed in");
         return buildAuthResponse(user, refreshTokenService.issue(user.getId()));
     }
@@ -100,7 +104,7 @@ public class AuthService {
     public AuthResponse refresh(String rawRefreshToken) {
         RefreshTokenService.RotationResult rotation = refreshTokenService.rotate(rawRefreshToken);
         UserEntity user = userRepository.findById(rotation.userId()).orElse(null);
-        if (user == null) {
+        if (user == null || user.getDeletedAt() != null || user.getDeactivatedAt() != null) {
             throw new UnauthorizedException(RefreshTokenService.INVALID_REFRESH_TOKEN,
                 "Refresh token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.");
         }
@@ -109,6 +113,10 @@ public class AuthService {
             throw accountLocked();
         }
         return buildAuthResponse(user, rotation.refreshToken());
+    }
+
+    public AuthResponse issueSession(UserEntity user) {
+        return buildAuthResponse(user, refreshTokenService.issue(user.getId()));
     }
 
     public void logout(String rawRefreshToken) {
