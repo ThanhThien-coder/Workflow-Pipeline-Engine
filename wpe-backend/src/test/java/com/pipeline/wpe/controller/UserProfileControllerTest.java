@@ -7,6 +7,8 @@ import com.pipeline.wpe.dto.response.profile.ProfileLinksResponse;
 import com.pipeline.wpe.dto.response.profile.ProfilePrivacyResponse;
 import com.pipeline.wpe.dto.response.profile.ProfileProjectResponse;
 import com.pipeline.wpe.dto.response.profile.ProfileResponse;
+import com.pipeline.wpe.dto.response.profile.PublicProfileResponse;
+import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.exception.BadRequestException;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
@@ -237,5 +239,45 @@ class UserProfileControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/users/{id}/profile -> 200 OK, email/stats null duoc giu nguyen")
+    void getUserProfile_success() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(10L);
+        when(userProfileService.getPublicProfile(10L, 20L)).thenReturn(new PublicProfileResponse(
+            "20", "Sam Lee", "Designer", "Bio", null, List.of("Figma"),
+            new ProfileLinksResponse("", "", ""), null, null, List.of(), false
+        ));
+
+        mockMvc.perform(get("/api/v1/users/20/profile"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.userId").value("20"))
+            .andExpect(jsonPath("$.displayName").value("Sam Lee"))
+            .andExpect(jsonPath("$.email").doesNotExist())
+            .andExpect(jsonPath("$.stats").doesNotExist())
+            .andExpect(jsonPath("$.isSelf").value(false));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/users/{id}/profile -> 404 khi khong duoc xem")
+    void getUserProfile_notVisible_returns404() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(10L);
+        when(userProfileService.getPublicProfile(10L, 20L))
+            .thenThrow(new ResourceNotFoundException("Profile not found."));
+
+        mockMvc.perform(get("/api/v1/users/20/profile"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("GET /api/users/me/profile van route toi ho so cua minh, khong nham voi {id}")
+    void getMyProfile_stillRoutesToMe() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(10L);
+        when(userProfileService.getMyProfile(10L)).thenReturn(mockProfile());
+
+        mockMvc.perform(get("/api/users/me/profile"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.userId").value("10"));
     }
 }

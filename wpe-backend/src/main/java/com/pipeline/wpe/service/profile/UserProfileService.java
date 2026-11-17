@@ -58,6 +58,112 @@ public class UserProfileService {
     }
 
     /**
+     * Hồ sơ của người khác theo quyền riêng tư. Mọi trường hợp không được xem đều ném 404 chung
+     * để không lộ việc tài khoản có tồn tại hay không.
+     */
+    @Transactional(readOnly = true)
+    public PublicProfileResponse getPublicProfile(Long viewerId, Long targetId) {
+        UserEntity target = userRepository.findById(targetId)
+            .filter(u -> u.getDeletedAt() == null && u.getDeactivatedAt() == null)
+            .orElseThrow(() -> new ResourceNotFoundException("Profile not found."));
+
+        boolean isSelf = Objects.equals(viewerId, targetId);
+        boolean isAdmin = !isSelf && userRepository.findById(viewerId)
+            .map(v -> v.getSystemRole() == SystemRole.ADMIN)
+            .orElse(false);
+        boolean fullAccess = isSelf || isAdmin;
+
+        List<ProjectEntity> targetProjects = projectRepository.findAllAccessibleProjects(targetId);
+        Set<Long> sharedProjectIds = new HashSet<>();
+        if (!isSelf) {
+            Set<Long> viewerProjectIds = projectRepository.findAllAccessibleProjects(viewerId).stream()
+                .map(ProjectEntity::getId)
+                .collect(Collectors.toSet());
+            for (ProjectEntity p : targetProjects) {
+                if (viewerProjectIds.contains(p.getId())) {
+                    sharedProjectIds.add(p.getId());
+                }
+            }
+        }
+
+        ProfilePrivacyResponse privacy = toProfilePrivacyResponse(target.getProfilePrivacy());
+        if (!fullAccess) {
+            switch (privacy.visibility()) {
+                case "public" -> { }
+                case "members" -> {
+                    if (sharedProjectIds.isEmpty()) {
+                        throw new ResourceNotFoundException("Profile not found.");
+                    }
+                }
+                default -> throw new ResourceNotFoundException("Profile not found.");
+            }
+        }
+
+        List<Long> publicIds = target.getPublicProjectIds() != null ? target.getPublicProjectIds() : List.of();
+        List<ProjectEntity> visibleProjects = targetProjects.stream()
+            .filter(p -> fullAccess || publicIds.contains(p.getId()) || sharedProjectIds.contains(p.getId()))
+            .toList();
+        List<Long> projectIds = visibleProjects.stream().map(ProjectEntity::getId).toList();
+
+        Map<Long, List<NodeEntity>> nodesByProject = projectIds.isEmpty() ? Map.of() :
+            nodeRepository.findByProjectIdIn(projectIds).stream().collect(Collectors.groupingBy(NodeEntity::getProjectId));
+        Map<Long, List<WorkPhaseEntity>> rootPhasesByProject = projectIds.isEmpty() ? Map.of() :
+            workPhaseRepository.findByProjectIdInAndParentPhaseIdIsNullOrderByOrderIndexAsc(projectIds).stream()
+                .collect(Collectors.groupingBy(WorkPhaseEntity::getProjectId));
+        Map<Long, List<ProjectMemberEntity>> membersByProject = projectIds.isEmpty() ? Map.of() :
+            projectMemberRepository.findByProjectIdIn(projectIds).stream()
+                .filter(m -> m.getRemovedAt() == null)
+                .collect(Collectors.groupingBy(ProjectMemberEntity::getProjectId));
+
+        List<ProfileProjectResponse> projectResponses = visibleProjects.stream()
+            .map(p -> mapToProfileProject(
+                p,
+                targetId,
+                publicIds,
+                rootPhasesByProject.getOrDefault(p.getId(), List.of()),
+                nodesByProject.getOrDefault(p.getId(), List.of()),
+                membersByProject.getOrDefault(p.getId(), List.of())
+            ))
+            .toList();
+
+        ProfileProjectResponse.Stats stats = null;
+        if (isSelf || privacy.showStats()) {
+            List<NodeEntity> assigned = nodesByProject.values().stream()
+                .flatMap(List::stream)
+                .filter(n -> Objects.equals(n.getAssignedUserId(), targetId))
+                .toList();
+            List<NodeEntity> done = assigned.stream().filter(n -> n.getStatus() == NodeStatus.DONE).toList();
+            stats = new ProfileProjectResponse.Stats(done.size(), assigned.size(), calculateOnTimePct(done));
+        }
+
+        String email = (isSelf || privacy.showEmail()) ? target.getEmail() : null;
+
+        return new PublicProfileResponse(
+            String.valueOf(target.getId()),
+            target.getFullName() != null ? target.getFullName() : "",
+            target.getTitle() != null ? target.getTitle() : "",
+            target.getBio() != null ? target.getBio() : "",
+            target.getAvatarUrl(),
+            target.getSkills() != null ? target.getSkills() : List.of(),
+            toProfileLinksResponse(target.getLinks()),
+            email,
+            stats,
+            projectResponses,
+            isSelf
+        );
+    }
+
+    private static int calculateOnTimePct(List<NodeEntity> doneNodes) {
+        if (doneNodes.isEmpty()) {
+            return 0;
+        }
+        long onTimeCount = doneNodes.stream()
+            .filter(n -> n.getDueDate() == null || (n.getCompletedAt() != null && !n.getCompletedAt().isAfter(n.getDueDate())))
+            .count();
+        return (int) Math.round(100.0 * onTimeCount / doneNodes.size());
+    }
+
+    /**
      * Cập nhật thông tin cơ bản của hồ sơ.
      */
     @Transactional
@@ -500,13 +606,7 @@ public class UserProfileService {
             .toList();
         int tasksDone = doneNodes.size();
 
-        int onTimePct = 0;
-        if (tasksDone > 0) {
-            long onTimeCount = doneNodes.stream()
-                .filter(n -> n.getDueDate() == null || (n.getCompletedAt() != null && !n.getCompletedAt().isAfter(n.getDueDate())))
-                .count();
-            onTimePct = (int) Math.round(100.0 * onTimeCount / tasksDone);
-        }
+        int onTimePct = calculateOnTimePct(doneNodes);
 
         String contribution;
         if (tasksTotal > 0) {
