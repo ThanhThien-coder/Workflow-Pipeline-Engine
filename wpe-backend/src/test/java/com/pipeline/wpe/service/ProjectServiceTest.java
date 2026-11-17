@@ -7,6 +7,7 @@ import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.project.CreateProjectRequest;
 import com.pipeline.wpe.dto.project.ProjectDetailResponse;
 import com.pipeline.wpe.dto.project.ProjectSummaryResponse;
+import com.pipeline.wpe.dto.project.UpdateProjectRequest;
 import com.pipeline.wpe.dto.project.UpdateProjectStatusRequest;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
@@ -629,5 +630,84 @@ class ProjectServiceTest {
             .isInstanceOf(ResourceNotFoundException.class);
 
         verify(projectRepository, never()).delete(any());
+    }
+
+    // ===================== TASK_51: updateProject =====================
+
+    @Test
+    @DisplayName("updateProject: Chủ sở hữu cập nhật thành công tên và mô tả dự án")
+    void shouldUpdateProjectSuccessfullyWhenOwner() {
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .name("Old Name")
+            .description("Old Desc")
+            .status(ProjectStatus.ACTIVE)
+            .build();
+
+        when(projectAuthorizationService.verifyProjectOwner(projectId, userId)).thenReturn(project);
+        when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, userId)).thenReturn(true);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(UserEntity.builder().id(userId).fullName("Alex Kim").build()));
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId)).thenReturn(List.of());
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+
+        UpdateProjectRequest req = new UpdateProjectRequest("New Name", "New Desc");
+        ProjectDetailResponse res = projectService.updateProject(projectId, req, userId);
+
+        assertThat(res.name()).isEqualTo("New Name");
+        assertThat(res.description()).isEqualTo("New Desc");
+        verify(projectRepository).save(project);
+    }
+
+    @Test
+    @DisplayName("updateProject: Người không phải OWNER ném ForbiddenException (403)")
+    void shouldThrowForbiddenWhenNonOwnerUpdatesProject() {
+        when(projectAuthorizationService.verifyProjectOwner(projectId, otherUserId))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."));
+
+        UpdateProjectRequest req = new UpdateProjectRequest("New Name", "New Desc");
+        assertThatThrownBy(() -> projectService.updateProject(projectId, req, otherUserId))
+            .isInstanceOf(ForbiddenException.class);
+
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateProject: Dự án ARCHIVED ném ConflictException (409 PROJECT_ARCHIVED)")
+    void shouldThrowConflictWhenUpdatingArchivedProject() {
+        ProjectEntity archivedProject = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .name("Old Name")
+            .status(ProjectStatus.ARCHIVED)
+            .build();
+
+        when(projectAuthorizationService.verifyProjectOwner(projectId, userId)).thenReturn(archivedProject);
+
+        UpdateProjectRequest req = new UpdateProjectRequest("New Name", "New Desc");
+        assertThatThrownBy(() -> projectService.updateProject(projectId, req, userId))
+            .isInstanceOf(ConflictException.class)
+            .satisfies(ex -> assertThat(((ConflictException) ex).getErrorCode()).isEqualTo("PROJECT_ARCHIVED"));
+
+        verify(projectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateProject: Tên rỗng hoặc quá dài ném IllegalArgumentException (400)")
+    void shouldThrowIllegalArgumentWhenNameOrDescInvalid() {
+        assertThatThrownBy(() -> projectService.updateProject(projectId, new UpdateProjectRequest("", "desc"), userId))
+            .isInstanceOf(IllegalArgumentException.class);
+
+        assertThatThrownBy(() -> projectService.updateProject(projectId, new UpdateProjectRequest("   ", "desc"), userId))
+            .isInstanceOf(IllegalArgumentException.class);
+
+        assertThatThrownBy(() -> projectService.updateProject(projectId, new UpdateProjectRequest("a".repeat(101), "desc"), userId))
+            .isInstanceOf(IllegalArgumentException.class);
+
+        assertThatThrownBy(() -> projectService.updateProject(projectId, new UpdateProjectRequest("Valid Name", "d".repeat(1001)), userId))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }

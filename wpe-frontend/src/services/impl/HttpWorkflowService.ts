@@ -55,7 +55,6 @@ import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '..
  * (không còn tự chuyển sang dữ liệu giả).
  */
 export const METHODS_STILL_MOCKED = [
-  'updateProjectSettings', // chưa có task: cần nhóm quyết (gần D1/D2)
 ] as const satisfies readonly (keyof IWorkflowService)[]
 
 interface BackendTaskResponse {
@@ -539,7 +538,7 @@ export class HttpWorkflowService implements IWorkflowService {
   }
 
   updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto> {
-    return this.mock.updateProjectSettings(projectId, cmd) // chưa có task
+    return projectSettingsApi.updateProjectSettings(projectId, cmd)
   }
 
   async getProjectAuditLogs(projectId: string): Promise<AuditLogItem[]> {

@@ -502,6 +502,31 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 
 ---
 
+### 3.5 Cập nhật thông tin dự án (`PUT /api/v1/projects/{id}`)
+1. **Mục tiêu Nghiệp vụ**: Chủ dự án (OWNER) cập nhật tên và mô tả của dự án. Dự án `ARCHIVED` là chỉ đọc, trả về `409 Conflict` (`PROJECT_ARCHIVED`).
+2. **Luồng Mã Nguồn**:
+   - `src/components/settings/GeneralSettingsSection.tsx` -> `useWorkflowStore.settings.updateGeneralSettings` -> `container.workflowService.updateProjectSettings(projectId, cmd)` -> `IWorkflowService.updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto>`.
+3. **Request DTO**:
+   - **Method & URL**: `PUT /api/v1/projects/{id}` (hoặc `PUT /api/projects/{id}`)
+   - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
+   - **Body JSON**:
+     ```json
+     {
+       "name": "Updated Pipeline Name",
+       "description": "Updated pipeline description"
+     }
+     ```
+4. **Xử lý Backend & Bảng CSDL Tác động**:
+   - Bảng tác động: `PROJECT`.
+   - Kiểm tra RBAC: Caller bắt buộc là chủ sở hữu dự án (`owner_id = currentUserId`), sai trả `403 Forbidden`. Không tìm thấy dự án trả `404 Not Found`.
+   - Kiểm tra trạng thái: Dự án `ARCHIVED` ném `409 Conflict` (`PROJECT_ARCHIVED`).
+   - Cập nhật `PROJECT.name`, `PROJECT.description` (trim; rỗng/null theo cột) và `PROJECT.updated_at = NOW()`.
+5. **Response DTO & UI Mutation**:
+   - **Status Code**: `200 OK`. Body: `ProjectDetailResponse`.
+   - **UI Mutation**: Ánh xạ sang `ProjectSettingsDto`, cập nhật `settings.settings`, hiển thị Toast xanh "Settings saved".
+
+---
+
 ## Cụm 4: Đồ Thị Quy Trình & Thiết Kế DAG Canvas (Dual-View Workflow)
 
 ### 4.1 Lấy cấu trúc Macro Phases & Nodes của dự án (`GET /api/projects/{id}/graph`)

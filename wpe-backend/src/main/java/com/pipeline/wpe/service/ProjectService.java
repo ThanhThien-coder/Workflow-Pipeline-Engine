@@ -292,6 +292,34 @@ public class ProjectService {
     }
 
     @Transactional
+    public ProjectDetailResponse updateProject(Long projectId, UpdateProjectRequest req, Long currentUserId) {
+        if (req == null || req.name() == null || req.name().trim().isBlank()) {
+            throw new IllegalArgumentException("Tên dự án không được để trống");
+        }
+        if (req.name().trim().length() > 100) {
+            throw new IllegalArgumentException("Tên dự án không được vượt quá 100 ký tự");
+        }
+        if (req.description() != null && req.description().length() > 1000) {
+            throw new IllegalArgumentException("Mô tả dự án không được vượt quá 1000 ký tự");
+        }
+
+        ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "Dự án đã được lưu trữ, chỉ có thể xem.");
+        }
+
+        project.setName(req.name().trim());
+        String desc = (req.description() != null && !req.description().trim().isEmpty())
+            ? req.description().trim()
+            : null;
+        project.setDescription(desc);
+        project.setUpdatedAt(Instant.now());
+        projectRepository.save(project);
+
+        return getProjectDetail(projectId, currentUserId);
+    }
+
+    @Transactional
     public void deleteProject(Long projectId, Long currentUserId) {
         ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
         nodeRepository.deleteByProjectId(projectId);
