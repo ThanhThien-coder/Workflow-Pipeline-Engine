@@ -15,6 +15,7 @@ export interface ProjectInvitation {
 export interface MemberSummaryDto {
   id: number | string
   displayName: string
+  avatarUrl?: string | null
 }
 
 export interface ProjectSummaryDto {
@@ -100,5 +101,5 @@ export interface ProjectCardVm {
   tone: ProjectTone
   icon: string
   roleLabel: string
-  members: readonly string[]
+  members: readonly { name: string; avatarUrl: string | null }[]
 }

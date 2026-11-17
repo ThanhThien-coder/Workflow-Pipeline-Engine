@@ -73,10 +73,10 @@ public class AdminUserService {
     @Transactional
     public AdminUserResponse suspendUser(Long userId, SuspendUserRequest request, Long actorUserId) {
         UserEntity user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại: " + userId));
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
         if (user.getSystemRole() == SystemRole.ADMIN) {
-            throw new ForbiddenException("CANNOT_SUSPEND_ADMIN", "Không thể khóa tài khoản quản trị viên.");
+            throw new ForbiddenException("CANNOT_SUSPEND_ADMIN", "Admin accounts can't be suspended.");
         }
 
         user.setIsLocked(true);
@@ -105,7 +105,7 @@ public class AdminUserService {
     @Transactional
     public AdminUserResponse unbanUser(Long userId, Long actorUserId) {
         UserEntity user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại: " + userId));
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
         user.setIsLocked(false);
         UserEntity saved = userRepository.save(user);
@@ -120,16 +120,16 @@ public class AdminUserService {
     @Transactional
     public AdminUserResponse changeRole(Long userId, String role, Long actorUserId) {
         if (role == null || role.isBlank()) {
-            throw new IllegalArgumentException("Vai trò không hợp lệ: " + role);
+            throw new IllegalArgumentException("Invalid role: " + role);
         }
         String normalizedRole = role.trim().toUpperCase();
         if (!"ADMIN".equals(normalizedRole) && !"USER".equals(normalizedRole)) {
-            throw new IllegalArgumentException("Vai trò không hợp lệ: " + role);
+            throw new IllegalArgumentException("Invalid role: " + role);
         }
         SystemRole newRole = SystemRole.valueOf(normalizedRole);
 
         UserEntity user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại: " + userId));
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
         if (user.getSystemRole() == newRole) {
             return toResponse(user);
@@ -137,7 +137,7 @@ public class AdminUserService {
 
         if (newRole == SystemRole.ADMIN) {
             if (Boolean.TRUE.equals(user.getIsLocked())) {
-                throw new ConflictException("USER_LOCKED", "Tài khoản đang bị khóa, mở khóa trước khi nâng quyền.");
+                throw new ConflictException("USER_LOCKED", "This account is suspended. Reactivate it before promoting.");
             }
             user.setSystemRole(SystemRole.ADMIN);
             UserEntity saved = userRepository.save(user);
@@ -147,12 +147,12 @@ public class AdminUserService {
             return toResponse(saved);
         } else {
             if (userId.equals(actorUserId)) {
-                throw new ForbiddenException("CANNOT_DEMOTE_SELF", "Không thể tự hạ quyền của chính mình.");
+                throw new ForbiddenException("CANNOT_DEMOTE_SELF", "You can't demote yourself.");
             }
             List<UserEntity> activeAdmins = userRepository.lockActiveAdmins();
             boolean isActiveAdmin = activeAdmins != null && activeAdmins.stream().anyMatch(u -> u.getId().equals(userId));
             if (isActiveAdmin && activeAdmins.size() <= 1) {
-                throw new ConflictException("LAST_ADMIN", "Không thể hạ quản trị viên hoạt động cuối cùng.");
+                throw new ConflictException("LAST_ADMIN", "The last active admin can't be demoted.");
             }
 
             user.setSystemRole(SystemRole.USER);
@@ -171,14 +171,14 @@ public class AdminUserService {
     @Transactional
     public void deleteUser(Long userId, Long actorUserId) {
         UserEntity user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại: " + userId));
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
         if (userId.equals(actorUserId)) {
-            throw new ForbiddenException("CANNOT_DELETE_SELF", "Không thể tự xóa tài khoản của chính mình.");
+            throw new ForbiddenException("CANNOT_DELETE_SELF", "You can't delete your own account.");
         }
 
         if (user.getSystemRole() == SystemRole.ADMIN) {
-            throw new ForbiddenException("CANNOT_DELETE_ADMIN", "Hạ quyền về USER trước khi xóa.");
+            throw new ForbiddenException("CANNOT_DELETE_ADMIN", "Demote this account to USER before deleting it.");
         }
 
         long ownedProjects = projectRepository.countByOwnerId(userId);
@@ -192,25 +192,25 @@ public class AdminUserService {
         if (total > 0) {
             List<String> details = new ArrayList<>();
             if (ownedProjects > 0) {
-                details.add(ownedProjects + " dự án sở hữu");
+                details.add(plural(ownedProjects, "owned project", "owned projects"));
             }
             if (templates > 0) {
-                details.add(templates + " template đã tạo");
+                details.add(plural(templates, "template created", "templates created"));
             }
             if (artifacts > 0) {
-                details.add(artifacts + " minh chứng đã tải");
+                details.add(plural(artifacts, "artifact uploaded", "artifacts uploaded"));
             }
             if (invitations > 0) {
-                details.add(invitations + " lời mời");
+                details.add(plural(invitations, "invitation", "invitations"));
             }
             if (memberships > 0) {
-                details.add(memberships + " lần tham gia dự án");
+                details.add(plural(memberships, "project membership", "project memberships"));
             }
             if (assignedTasks > 0) {
-                details.add(assignedTasks + " task được giao");
+                details.add(plural(assignedTasks, "assigned task", "assigned tasks"));
             }
             String detailMsg = String.join(", ", details);
-            throw new ConflictException("USER_HAS_DATA", "Tài khoản đã có dữ liệu (" + detailMsg + "). Hãy khóa tài khoản thay vì xóa.");
+            throw new ConflictException("USER_HAS_DATA", "This account has data (" + detailMsg + "). Suspend the account instead of deleting it.");
         }
 
         adminAuditService.record(actorUserId, null, AdminAuditAction.USER_DELETED, "USER", String.valueOf(userId), user.getUsername());
@@ -234,7 +234,12 @@ public class AdminUserService {
             status,
             ownedCount,
             joinedCount,
-            user.getCreatedAt()
+            user.getCreatedAt(),
+            user.getAvatarUrl()
         );
+    }
+
+    private static String plural(long n, String singular, String pluralForm) {
+        return n + " " + (n == 1 ? singular : pluralForm);
     }
 }

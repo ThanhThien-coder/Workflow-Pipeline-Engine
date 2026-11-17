@@ -278,8 +278,8 @@ describe('Project Settings & Governance Module', () => {
     expect(ok).toBe(true)
     expect(store.getState().settings.isDeleteModalOpen).toBe(false)
     expect(store.getState().workspace.projects.find((p) => String(p.id) === '1')).toBeUndefined()
-    expect(store.getState().settings.toast).toBe('Đã xóa dự án')
-    expect(store.getState().ui.toast?.message).toBe('Đã xóa dự án')
+    expect(store.getState().settings.toast).toBe('Project deleted')
+    expect(store.getState().ui.toast?.message).toBe('Project deleted')
   })
 
   it('FC4: deleteProject khi lỗi thì ném lỗi, giữ message backend và không xóa dự án khỏi danh sách', async () => {

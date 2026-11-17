@@ -300,11 +300,11 @@ class ProjectActivityServiceTest {
         Long outsiderId = 99L;
 
         when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, outsiderId))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         assertThatThrownBy(() -> projectActivityService.getProjectActivity(projectId, outsiderId, 50))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Bạn không phải là thành viên của dự án này.");
+                .hasMessageContaining("You are not a member of this project.");
 
         verifyNoInteractions(nodeRepository, artifactRepository, projectMemberRepository);
     }
@@ -414,5 +414,56 @@ class ProjectActivityServiceTest {
         assertThat(revokedEvent.type()).isEqualTo("GUEST_LINK_REVOKED");
         assertThat(revokedEvent.createdAt()).isEqualTo(tLink);
         assertThat(revokedEvent.message().toLowerCase()).contains("revoke time not recorded");
+    }
+
+    @Test
+    @DisplayName("Avatar: dòng hoạt động mang actorId/actorAvatarUrl của người làm; null khi không có ảnh hoặc là khách")
+    void getProjectActivity_includesActorIdAndAvatar() {
+        Long projectId = 1L;
+        Long ownerId = 2L;
+        Long sarahId = 3L;
+        Instant t0 = Instant.parse("2026-11-01T08:00:00Z");
+        Instant t1 = Instant.parse("2026-11-01T09:00:00Z");
+        Instant t4 = Instant.parse("2026-11-04T12:00:00Z");
+
+        ProjectEntity project = ProjectEntity.builder().id(projectId).ownerId(ownerId)
+                .name("Core").status(ProjectStatus.DRAFT).createdAt(t0).updatedAt(t0).build();
+        UserEntity alex = UserEntity.builder().id(ownerId).username("alex.kim").fullName("Alex Kim")
+                .email("alex.kim@pipeline.engine").avatarUrl("/uploads/avatars/example-alex.png").build();
+        UserEntity sarah = UserEntity.builder().id(sarahId).username("sarah.chen").fullName("Sarah Chen")
+                .email("sarah.chen@pipeline.engine").build();
+        ProjectMemberEntity sarahMember = ProjectMemberEntity.builder().id(11L).projectId(projectId)
+                .userId(sarahId).role(ProjectRole.COLLABORATOR).joinedAt(t1).build();
+        NodeEntity node = NodeEntity.builder().id(2L).projectId(projectId).code("WPE-002").title("JWT")
+                .status(NodeStatus.IN_PROGRESS).assignedUserId(ownerId).createdAt(t0).updatedAt(t4).build();
+        ProjectFeedbackEntity feedback = ProjectFeedbackEntity.builder().id(5L).projectId(projectId)
+                .reviewerName("Khach A").content("Tot").createdAt(t4.plusSeconds(60)).build();
+
+        when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, ownerId)).thenReturn(project);
+        when(projectMemberRepository.findByProjectIdOrderByJoinedAtAsc(projectId)).thenReturn(List.of(sarahMember));
+        when(projectInvitationRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of(node));
+        when(artifactRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+        when(guestLinkRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+        when(projectFeedbackRepository.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of(feedback));
+        when(userRepository.findAllById(any())).thenReturn(List.of(alex, sarah));
+
+        List<ProjectActivityItemResponse> events = projectActivityService.getProjectActivity(projectId, ownerId, 50);
+
+        ProjectActivityItemResponse created = events.stream().filter(e -> e.id().equals("project-1-created")).findFirst().orElseThrow();
+        assertThat(created.actorId()).isEqualTo("2");
+        assertThat(created.actorAvatarUrl()).isEqualTo("/uploads/avatars/example-alex.png");
+
+        ProjectActivityItemResponse task = events.stream().filter(e -> e.id().equals("node-2-updated")).findFirst().orElseThrow();
+        assertThat(task.actorId()).isEqualTo("2");
+        assertThat(task.actorAvatarUrl()).isEqualTo("/uploads/avatars/example-alex.png");
+
+        ProjectActivityItemResponse joined = events.stream().filter(e -> e.id().equals("member-11-joined")).findFirst().orElseThrow();
+        assertThat(joined.actorId()).isEqualTo("3");
+        assertThat(joined.actorAvatarUrl()).isNull();
+
+        ProjectActivityItemResponse fb = events.stream().filter(e -> e.id().equals("feedback-5-created")).findFirst().orElseThrow();
+        assertThat(fb.actorId()).isNull();
+        assertThat(fb.actorAvatarUrl()).isNull();
     }
 }

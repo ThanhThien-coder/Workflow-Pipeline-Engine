@@ -37,6 +37,7 @@ export interface GuestActivityItem {
   actor: string
   text: string
   ago: string
+  avatarUrl?: string | null
 }
 
 export interface GuestOverviewDto {

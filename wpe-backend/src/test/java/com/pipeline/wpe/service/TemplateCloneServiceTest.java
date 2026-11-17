@@ -229,7 +229,7 @@ class TemplateCloneServiceTest {
 
         assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
             .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: 7");
+            .hasMessageContaining("Template not found with ID: 7");
 
         verify(projectRepository, never()).save(any());
         verify(nodeRepository, never()).save(any());
@@ -245,7 +245,7 @@ class TemplateCloneServiceTest {
 
         assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
             .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: 999");
+            .hasMessageContaining("Template not found with ID: 999");
 
         verify(projectRepository, never()).save(any(ProjectEntity.class));
         verify(projectMemberRepository, never()).save(any(ProjectMemberEntity.class));
@@ -678,7 +678,7 @@ class TemplateCloneServiceTest {
 
         assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
             .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: " + templateId);
+            .hasMessageContaining("Template not found with ID: " + templateId);
 
         verify(projectRepository, never()).save(any());
     }
@@ -821,7 +821,7 @@ class TemplateCloneServiceTest {
 
         assertThatThrownBy(() -> templateCloneService.cloneTemplate(req, currentUserId))
             .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Không tìm thấy mẫu quy trình với ID: " + templateId);
+            .hasMessageContaining("Template not found with ID: " + templateId);
 
         assertThat(hiddenTemplate.getCloneCount()).isEqualTo(5);
         verify(pipelineTemplateRepository, never()).save(any());

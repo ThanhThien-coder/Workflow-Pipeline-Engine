@@ -2,6 +2,7 @@ import { useState, type FC } from 'react';
 import type { AdminUserDto, AdminRole, UserAccountStatus } from '../../../types/admin.types';
 import { Search, ShieldAlert, Shield } from 'lucide-react';
 import { ConfirmActionModal } from '../components/ConfirmActionModal';
+import { AvatarImage } from '../../../components/common/Avatar';
 
 interface UserManagementTabProps {
   users: AdminUserDto[];
@@ -63,7 +64,7 @@ function formatCreatedAt(isoString: string): string {
   try {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return isoString;
-    return d.toLocaleDateString('vi-VN');
+    return d.toLocaleDateString('en-US');
   } catch {
     return isoString;
   }
@@ -93,7 +94,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
     isOpen: false,
     title: '',
     message: '',
-    confirmLabel: 'Xác nhận',
+    confirmLabel: 'Confirm',
     tone: 'rose',
     onConfirm: () => {},
   });
@@ -105,9 +106,9 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
   const handlePromoteClick = (user: AdminUserDto) => {
     setConfirmModal({
       isOpen: true,
-      title: 'Nâng quyền quản trị viên',
-      message: `Cấp quyền quản trị viên cho ${user.name}?`,
-      confirmLabel: 'Xác nhận',
+      title: 'Promote to admin',
+      message: `Grant admin access to ${user.name}?`,
+      confirmLabel: 'Confirm',
       tone: 'blue',
       onConfirm: () => onChangeRole(user.id, 'ADMIN'),
     });
@@ -116,9 +117,9 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
   const handleDemoteClick = (user: AdminUserDto) => {
     setConfirmModal({
       isOpen: true,
-      title: 'Hạ quyền người dùng',
-      message: `Hạ ${user.name} về người dùng thường? Phiên đăng nhập hiện tại của họ sẽ bị đăng xuất.`,
-      confirmLabel: 'Xác nhận',
+      title: 'Demote to user',
+      message: `Demote ${user.name} to a regular user? Their current session will be signed out.`,
+      confirmLabel: 'Confirm',
       tone: 'rose',
       onConfirm: () => onChangeRole(user.id, 'USER'),
     });
@@ -127,9 +128,9 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
   const handleDeleteClick = (user: AdminUserDto) => {
     setConfirmModal({
       isOpen: true,
-      title: 'Xóa tài khoản',
-      message: `Xóa vĩnh viễn tài khoản ${user.name}? Chỉ xóa được tài khoản chưa có dữ liệu.`,
-      confirmLabel: 'Xác nhận',
+      title: 'Delete account',
+      message: `Permanently delete ${user.name}'s account? Only accounts with no data can be deleted.`,
+      confirmLabel: 'Confirm',
       tone: 'rose',
       onConfirm: () => onDeleteUser(user.id),
     });
@@ -161,7 +162,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 placeholder:text-slate-400"
-              placeholder="Tìm theo họ tên, username hoặc ID..."
+              placeholder="Search by name, username, or ID..."
             />
           </label>
           <select
@@ -190,7 +191,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                 <th className="px-4 py-4 font-semibold">Masked Email</th>
                 <th className="px-4 py-4 font-semibold">Role</th>
                 <th className="px-4 py-4 font-semibold">Workspaces</th>
-                <th className="px-4 py-4 font-semibold">Ngày tạo</th>
+                <th className="px-4 py-4 font-semibold">Created</th>
                 <th className="px-4 py-4 font-semibold">Status</th>
                 <th className="px-5 py-4 text-right font-semibold">Actions</th>
               </tr>
@@ -204,9 +205,16 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                     {/* User Info */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-xs font-bold text-indigo-700 select-none">
-                          {initials}
-                        </div>
+                        <AvatarImage
+                          src={user.avatarUrl}
+                          alt={user.name}
+                          className="h-9 w-9 shrink-0 rounded-full object-cover select-none"
+                          fallback={
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-xs font-bold text-indigo-700 select-none">
+                              {initials}
+                            </div>
+                          }
+                        />
                         <div>
                           <div className="font-bold text-slate-800">{user.name}</div>
                           <div className="font-mono text-[11px] text-slate-400">{user.id}</div>
@@ -224,7 +232,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
 
                     {/* Workspaces */}
                     <td className="px-4 py-4 text-slate-600">
-                      Sở hữu {user.ownedProjectCount} · Tham gia {user.joinedProjectCount}
+                      Owns {user.ownedProjectCount} · Joined {user.joinedProjectCount}
                     </td>
 
                     {/* Ngày tạo */}
@@ -258,7 +266,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                                 onClick={() => handlePromoteClick(user)}
                                 className="rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
                               >
-                                Nâng quản trị
+                                Promote to admin
                               </button>
                             )}
                             {!isCurrent && user.role === 'ADMIN' && (
@@ -267,7 +275,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                                 onClick={() => handleDemoteClick(user)}
                                 className="rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
                               >
-                                Hạ về người dùng
+                                Demote to user
                               </button>
                             )}
 
@@ -278,7 +286,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                                 onClick={() => onOpenOwnedProjects(user)}
                                 className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                               >
-                                Dự án sở hữu
+                                Owned projects
                               </button>
                             )}
 
@@ -287,7 +295,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                               user.role === 'ADMIN' ? (
                                 <button
                                   disabled
-                                  title="Không thể khóa quản trị viên. Hạ về người dùng trước."
+                                  title="Admins can't be suspended. Demote to user first."
                                   className="cursor-not-allowed rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-300"
                                 >
                                   Suspend
@@ -318,12 +326,12 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                                 onClick={() => handleDeleteClick(user)}
                                 title={
                                   hasAnyData
-                                    ? 'Tài khoản đã có dữ liệu, nên khóa thay vì xóa'
+                                    ? 'This account has data. Suspend it instead of deleting it.'
                                     : undefined
                                 }
                                 className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
                               >
-                                Xóa
+                                Delete
                               </button>
                             )}
                           </div>
@@ -344,9 +352,9 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
             className="flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500"
           >
             <ShieldAlert className="h-8 w-8 text-slate-300 mb-2" />
-            <p className="font-semibold text-slate-700">Không tìm thấy người dùng phù hợp.</p>
+            <p className="font-semibold text-slate-700">No matching users found.</p>
             <p className="text-xs text-slate-400 mt-0.5">
-              Hãy thử tìm kiếm với từ khóa khác hoặc điều chỉnh bộ lọc trạng thái.
+              Try a different search term or adjust the status filter.
             </p>
           </div>
         )}

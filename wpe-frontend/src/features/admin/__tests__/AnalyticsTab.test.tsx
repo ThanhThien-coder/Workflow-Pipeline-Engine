@@ -79,7 +79,7 @@ describe('AnalyticsTab Component', () => {
 
     // 1. Kiểm tra thấy số user đúng
     expect(screen.getByText('125')).toBeTruthy();
-    expect(screen.getByText(/đang khóa 5, mới 7 ngày 12/)).toBeTruthy();
+    expect(screen.getByText(/5 suspended, 12 new in 7 days/)).toBeTruthy();
 
     // 2. Kiểm tra các số KPI khác
     expect(screen.getByText('18')).toBeTruthy(); // Dự án đang chạy (ACTIVE)
@@ -103,7 +103,7 @@ describe('AnalyticsTab Component', () => {
       />
     );
 
-    const btn30D = screen.getByText('30 Ngày');
+    const btn30D = screen.getByText('30 days');
     fireEvent.click(btn30D);
     expect(onRangeChange).toHaveBeenCalledWith('30D');
   });
@@ -119,9 +119,9 @@ describe('AnalyticsTab Component', () => {
       />
     );
 
-    expect(screen.getByText(/Chưa có dữ liệu: Không thể kết nối dịch vụ thống kê/)).toBeTruthy();
-    expect(screen.queryByText('Người dùng')).toBeNull();
-    expect(screen.queryByText('Dự án đang chạy')).toBeNull();
+    expect(screen.getByText(/No data available: Không thể kết nối dịch vụ thống kê/)).toBeTruthy();
+    expect(screen.queryByText('Users')).toBeNull();
+    expect(screen.queryByText('Active projects')).toBeNull();
   });
 
   it('stats null và không có errorMessage thì hiện "Đang tải..."', () => {
@@ -134,6 +134,6 @@ describe('AnalyticsTab Component', () => {
       />
     );
 
-    expect(screen.getByText('Đang tải...')).toBeTruthy();
+    expect(screen.getByText('Loading...')).toBeTruthy();
   });
 });

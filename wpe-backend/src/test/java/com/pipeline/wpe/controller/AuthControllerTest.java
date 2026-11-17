@@ -58,7 +58,7 @@ class AuthControllerTest {
     @DisplayName("POST /api/auth/register (không v1) cũng hoạt động; trùng username -> 409 USERNAME_TAKEN")
     void register_409_username() throws Exception {
         when(authService.register(any(RegisterRequest.class)))
-            .thenThrow(new ConflictException("USERNAME_TAKEN", "Tên đăng nhập đã được sử dụng."));
+            .thenThrow(new ConflictException("USERNAME_TAKEN", "This username is already taken."));
 
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"alex.kim\",\"email\":\"x@wpe.io\",\"password\":\"Password123!\"}"))
@@ -70,7 +70,7 @@ class AuthControllerTest {
     @DisplayName("register trùng email -> 409 EMAIL_TAKEN")
     void register_409_email() throws Exception {
         when(authService.register(any(RegisterRequest.class)))
-            .thenThrow(new ConflictException("EMAIL_TAKEN", "Email đã được sử dụng."));
+            .thenThrow(new ConflictException("EMAIL_TAKEN", "This email is already in use."));
 
         mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"newbie\",\"email\":\"alex.kim@pipeline.engine\",\"password\":\"Password123!\"}"))

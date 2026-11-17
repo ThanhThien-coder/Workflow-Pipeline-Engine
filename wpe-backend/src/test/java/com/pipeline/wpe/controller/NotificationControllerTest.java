@@ -87,7 +87,7 @@ class NotificationControllerTest {
     void markAsRead_otherUsersNotification_returns404() throws Exception {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(sarahId);
         when(notificationService.markAsRead(501L, sarahId))
-                .thenThrow(new ResourceNotFoundException("Không tìm thấy thông báo với ID: 501"));
+                .thenThrow(new ResourceNotFoundException("Notification not found with ID: 501"));
 
         mockMvc.perform(patch("/api/v1/notifications/501/read"))
                 .andExpect(status().isNotFound())

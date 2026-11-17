@@ -6,6 +6,7 @@ import { ProjectWorkspaceView } from './views/ProjectWorkspaceView'
 import GuestView from './views/GuestView' // NEW
 import { AdminPortalView } from './features/admin/AdminPortalView'
 import ProfileView from './views/ProfileView'
+import PublicProfileView from './views/PublicProfileView'
 import NotificationsView from './views/NotificationsView'
 import { ToastHost } from './components/common/ToastHost'
 import { ProjectInviteAcceptModal } from './components/workspace/ProjectInviteAcceptModal'
@@ -63,6 +64,7 @@ export default function App() {
   const isWorkspaceRoute = pathname === '/workspaces' || pathname === '/workspace'
   const isProjectRoute = pathname.startsWith('/project/')
   const isProfileRoute = pathname === '/profile'
+  const isPeopleRoute = pathname.startsWith('/people/')
   const isNotificationsRoute = pathname === '/notifications'
   const isGuestRoute = pathname === '/guest'           // NEW
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin')
@@ -70,14 +72,14 @@ export default function App() {
   // Guard: if user visits protected route while unauthenticated, redirect to signin
   useEffect(() => {
     if (!isAuthenticated) {
-      if (isWorkspaceRoute || isProjectRoute || isProfileRoute || isNotificationsRoute) {
+      if (isWorkspaceRoute || isProjectRoute || isProfileRoute || isPeopleRoute || isNotificationsRoute) {
         replace('/auth?tab=signin')
       }
     } else if (isAuthRoute) {
       // If already logged in and navigates to /auth, redirect to workspaces
       replace(homePathFor(systemRole))
     }
-  }, [isAuthenticated, isWorkspaceRoute, isProjectRoute, isProfileRoute, isNotificationsRoute, isAuthRoute, replace, systemRole])
+  }, [isAuthenticated, isWorkspaceRoute, isProjectRoute, isProfileRoute, isPeopleRoute, isNotificationsRoute, isAuthRoute, replace, systemRole])
 
   // Admin Guard: check auth & role before allowing access to /admin
   useEffect(() => {
@@ -128,6 +130,19 @@ export default function App() {
 
     if (isProfileRoute) {
       return <ProfileView />
+    }
+
+    if (isPeopleRoute) {
+      // /people/:id — chỉ cho người đã đăng nhập (guard ở effect trên)
+      if (!isAuthenticated) return null
+      const rawId = pathname.slice('/people/'.length).split('/')[0] ?? ''
+      let personId = rawId
+      try {
+        personId = decodeURIComponent(rawId)
+      } catch {
+        /* giữ nguyên id thô */
+      }
+      return <PublicProfileView userId={personId} />
     }
 
     if (isNotificationsRoute) {

@@ -302,10 +302,10 @@ export function installAuthRefresh(onExpired: SessionExpiredListener, onRefreshe
 // ───────────────────────── Câu báo lỗi ─────────────────────────
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
-  BAD_CREDENTIALS: 'Sai tên đăng nhập hoặc mật khẩu.',
-  ACCOUNT_LOCKED: 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.',
-  USERNAME_TAKEN: 'Tên đăng nhập (phần trước @ của email) đã có người dùng.',
-  EMAIL_TAKEN: 'Email này đã được đăng ký.',
+  BAD_CREDENTIALS: 'Incorrect username or password.',
+  ACCOUNT_LOCKED: 'This account has been locked. Please contact an administrator.',
+  USERNAME_TAKEN: 'This username (the part of your email before the @) is already taken.',
+  EMAIL_TAKEN: 'This email is already registered.',
 }
 
 /** Câu báo lỗi cho màn đăng nhập/đăng ký theo ApiError.code; mã khác thì dùng message của lỗi. */
@@ -317,5 +317,5 @@ export function getAuthErrorMessage(error: unknown, fallback: string): string {
 
 /** Lỗi khi gọi getCurrentUser lúc chưa đăng nhập. */
 export function notLoggedInError(): ApiError {
-  return new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'Chưa đăng nhập.' })
+  return new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'You are not signed in.' })
 }

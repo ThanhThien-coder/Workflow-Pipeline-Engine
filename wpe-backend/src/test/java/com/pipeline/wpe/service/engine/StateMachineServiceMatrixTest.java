@@ -250,7 +250,7 @@ class StateMachineServiceMatrixTest {
 
         assertThatThrownBy(() -> stateMachineService.updateStatus(TASK_ID, request, Role.OWNER.userId))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Trạng thái không hợp lệ");
+            .hasMessageContaining("Invalid status");
     }
 
     // ------------------------------------------------------------------

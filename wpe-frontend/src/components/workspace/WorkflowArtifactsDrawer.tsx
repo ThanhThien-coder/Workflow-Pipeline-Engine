@@ -174,17 +174,17 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
     const trimmedUrl = formUrl.trim()
 
     if (!trimmedTitle) {
-      setErrorMessage('Vui lòng nhập tên link gợi nhớ.')
+      setErrorMessage('Enter a name for the link.')
       return
     }
 
     if (!trimmedUrl) {
-      setErrorMessage('Vui lòng nhập đường dẫn URL.')
+      setErrorMessage('Enter a URL.')
       return
     }
 
     if (!isValidUrl(trimmedUrl)) {
-      setErrorMessage('Đường dẫn URL không hợp lệ. Vui lòng nhập link dạng https://...')
+      setErrorMessage('That URL isn\'t valid. Enter a link that starts with https://')
       return
     }
 
@@ -201,7 +201,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
       setFormUrl('')
       setErrorMessage(null)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Thêm tài nguyên thất bại.'
+      const msg = err instanceof Error ? err.message : 'Couldn\'t add the deliverable.'
       setErrorMessage(msg)
       showToast(msg)
     } finally {
@@ -295,7 +295,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                     type="text"
                     disabled={submitting}
                     className="w-full bg-white border border-mp-n-200 rounded-xl px-3 py-1.5 text-xs text-mp-ink placeholder:text-mp-n-400 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    placeholder="Tên link (ví dụ: Figma Design, PR GitHub...)"
+                    placeholder="Link name (for example: Figma design, GitHub PR...)"
                     value={formTitle}
                     onChange={(e) => {
                       setFormTitle(e.target.value)
@@ -330,7 +330,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   {submitting ? (
                     <>
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
-                      <span>Đang thêm link...</span>
+                      <span>Adding link...</span>
                     </>
                   ) : (
                     <>
@@ -349,7 +349,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
             >
               {isLoading && artifacts.length === 0 ? (
                 /* Skeleton Loading State (Chống giật layout khi fetch) */
-                <div className="space-y-2.5 py-1" role="status" aria-label="Đang tải danh sách tài nguyên">
+                <div className="space-y-2.5 py-1" role="status" aria-label="Loading deliverables">
                   {[1, 2, 3].map((n) => (
                     <div
                       key={n}
@@ -385,10 +385,10 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                     <FolderOpen size={20} />
                   </div>
                   <h3 className="text-sm font-semibold text-mp-ink">
-                    Chưa có tài nguyên nào.
+                    No deliverables yet.
                   </h3>
                   <p className="text-xs text-mp-n-500 mt-1 max-w-[260px] leading-relaxed">
-                    Hãy dán link Figma, PR hoặc tài liệu đầu tiên ở trên để nhóm cùng truy cập.
+                    Paste your first Figma, PR, or document link above so your team can access it.
                   </p>
                 </div>
               ) : (

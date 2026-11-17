@@ -10,7 +10,7 @@ const ICONS: string[] = ['◆', '▲', '⬢', '◉', '■', '▣']
 
 const ROLE_LABELS: Record<ProjectRole | 'MANAGER', string> = {
   OWNER: 'Owner',
-  MANAGER: 'Quản lý',
+  MANAGER: 'Manager',
   COLLABORATOR: 'Collaborator',
   VIEWER: 'Viewer',
 }
@@ -68,6 +68,6 @@ export function mapProjectDtoToVm(dto: ProjectSummaryDto): ProjectCardVm {
     tone,
     icon,
     roleLabel: ROLE_LABELS[dto.role] ?? 'Viewer',
-    members: dto.members.map((m) => m.displayName),
+    members: dto.members.map((m) => ({ name: m.displayName, avatarUrl: m.avatarUrl ?? null })),
   }
 }

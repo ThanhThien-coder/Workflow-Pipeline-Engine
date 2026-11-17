@@ -52,7 +52,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().status()).isEqualTo(404);
         assertThat(response.getBody().error()).isEqualTo("NOT_FOUND");
-        assertThat(response.getBody().message()).isEqualTo("Không tìm thấy đường dẫn này.");
+        assertThat(response.getBody().message()).isEqualTo("The requested resource was not found.");
         assertThat(response.getBody().path()).isEqualTo("/api/v1/khong-ton-tai");
     }
 
@@ -69,7 +69,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().status()).isEqualTo(404);
         assertThat(response.getBody().error()).isEqualTo("NOT_FOUND");
-        assertThat(response.getBody().message()).isEqualTo("Không tìm thấy đường dẫn này.");
+        assertThat(response.getBody().message()).isEqualTo("The requested resource was not found.");
         assertThat(response.getBody().path()).isEqualTo("/api/v1/unknown");
     }
 
@@ -118,7 +118,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().status()).isEqualTo(400);
         assertThat(response.getBody().error()).isEqualTo("MALFORMED_REQUEST");
-        assertThat(response.getBody().message()).isEqualTo("Dữ liệu gửi lên không đúng định dạng JSON.");
+        assertThat(response.getBody().message()).isEqualTo("The request body is not valid JSON.");
         assertThat(response.getBody().path()).isEqualTo("/api/v1/projects");
     }
 
@@ -188,7 +188,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().status()).isEqualTo(500);
         assertThat(response.getBody().error()).isEqualTo("INTERNAL_SERVER_ERROR");
-        assertThat(response.getBody().message()).isEqualTo("Hệ thống gặp sự cố. Vui lòng thử lại sau giây lát.");
+        assertThat(response.getBody().message()).isEqualTo("Something went wrong on our end. Please try again in a moment.");
         assertThat(response.getBody().message()).doesNotContain("Fatal SQL", "sensitive_db");
         assertThat(response.getBody().path()).isEqualTo("/api/v1/secret-crash");
     }

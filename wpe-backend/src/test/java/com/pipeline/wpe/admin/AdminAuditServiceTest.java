@@ -122,7 +122,7 @@ class AdminAuditServiceTest {
     void actionsOfGroup_invalidGroup_throwsIllegalArgumentException() {
         assertThatThrownBy(() -> AdminAuditAction.actionsOfGroup("UNKNOWN_GROUP"))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Nhóm audit không hợp lệ");
+            .hasMessageContaining("Invalid audit group");
 
         assertThatThrownBy(() -> AdminAuditAction.actionsOfGroup(null))
             .isInstanceOf(IllegalArgumentException.class);
@@ -155,7 +155,7 @@ class AdminAuditServiceTest {
     void search_invalidGroup_throwsIllegalArgumentExceptionAndNoRepositoryInteraction() {
         assertThatThrownBy(() -> auditService.search("XYZ", null, null, null, 0, 50))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Nhóm audit không hợp lệ");
+            .hasMessageContaining("Invalid audit group");
 
         verifyNoInteractions(auditLogRepository);
     }

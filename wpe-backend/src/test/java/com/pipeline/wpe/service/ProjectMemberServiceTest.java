@@ -60,11 +60,11 @@ class ProjectMemberServiceTest {
         Long outsiderId = 99L;
 
         when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, outsiderId))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         assertThatThrownBy(() -> projectMemberService.getMembers(projectId, outsiderId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Bạn không phải là thành viên của dự án này.");
+                .hasMessageContaining("You are not a member of this project.");
 
         verify(projectMemberRepository, never()).findByProjectIdAndRemovedAtIsNull(any());
     }
@@ -236,11 +236,11 @@ class ProjectMemberServiceTest {
         Long nonOwnerId = 2L;
 
         when(projectAuthorizationService.verifyProjectOwner(projectId, nonOwnerId))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner can do this."));
 
         assertThatThrownBy(() -> projectMemberService.updateRole(projectId, 3L, ProjectRole.COLLABORATOR, nonOwnerId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này.");
+                .hasMessageContaining("Only the project owner can do this.");
 
         verify(projectMemberRepository, never()).findByProjectIdAndUserIdAndRemovedAtIsNull(any(), any());
     }
@@ -375,5 +375,34 @@ class ProjectMemberServiceTest {
         assertThat(history.get(1).joinedAt()).isEqualTo(t1);
         assertThat(history.get(1).removedAt()).isNull();
         assertThat(history.get(1).active()).isTrue();
+    }
+
+    @Test
+    @DisplayName("getMembers: avatarUrl lấy từ user, null khi user chưa có ảnh")
+    void getMembers_returnsAvatarUrlFromUser() {
+        Long projectId = 1L;
+        ProjectMemberEntity owner = ProjectMemberEntity.builder()
+                .id(101L).projectId(projectId).userId(1L).role(ProjectRole.OWNER)
+                .joinedAt(Instant.now().minus(5, ChronoUnit.DAYS)).build();
+        ProjectMemberEntity collab = ProjectMemberEntity.builder()
+                .id(102L).projectId(projectId).userId(2L).role(ProjectRole.COLLABORATOR)
+                .joinedAt(Instant.now().minus(2, ChronoUnit.DAYS)).build();
+        UserEntity user1 = UserEntity.builder().id(1L).username("owner.alex").fullName("Alex Kim")
+                .email("alex@wpe.io").avatarUrl("/uploads/avatars/example-alex.png").build();
+        UserEntity user2 = UserEntity.builder().id(2L).username("sarah.c").fullName("Sarah Chen")
+                .email("sarah@wpe.io").build();
+
+        when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, 1L))
+                .thenReturn(ProjectEntity.builder().id(projectId).ownerId(1L).build());
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId))
+                .thenReturn(List.of(owner, collab));
+        when(userRepository.findAllById(any())).thenReturn(List.of(user1, user2));
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+
+        List<ProjectMemberResponse> result = projectMemberService.getMembers(projectId, 1L);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).avatarUrl()).isEqualTo("/uploads/avatars/example-alex.png");
+        assertThat(result.get(1).avatarUrl()).isNull();
     }
 }

@@ -95,8 +95,8 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
       }}
       title={
         node.isTrack
-          ? 'Add task to this track (Thêm công việc vào Track)'
-          : 'Add child task (Thêm nhánh con phân rã)'
+          ? 'Add task to this track'
+          : 'Add child task'
       }
       className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-6 h-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 shadow z-10 cursor-pointer"
     >

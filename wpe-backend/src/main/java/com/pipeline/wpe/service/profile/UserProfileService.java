@@ -58,32 +58,138 @@ public class UserProfileService {
     }
 
     /**
+     * Hồ sơ của người khác theo quyền riêng tư. Mọi trường hợp không được xem đều ném 404 chung
+     * để không lộ việc tài khoản có tồn tại hay không.
+     */
+    @Transactional(readOnly = true)
+    public PublicProfileResponse getPublicProfile(Long viewerId, Long targetId) {
+        UserEntity target = userRepository.findById(targetId)
+            .filter(u -> u.getDeletedAt() == null && u.getDeactivatedAt() == null)
+            .orElseThrow(() -> new ResourceNotFoundException("Profile not found."));
+
+        boolean isSelf = Objects.equals(viewerId, targetId);
+        boolean isAdmin = !isSelf && userRepository.findById(viewerId)
+            .map(v -> v.getSystemRole() == SystemRole.ADMIN)
+            .orElse(false);
+        boolean fullAccess = isSelf || isAdmin;
+
+        List<ProjectEntity> targetProjects = projectRepository.findAllAccessibleProjects(targetId);
+        Set<Long> sharedProjectIds = new HashSet<>();
+        if (!isSelf) {
+            Set<Long> viewerProjectIds = projectRepository.findAllAccessibleProjects(viewerId).stream()
+                .map(ProjectEntity::getId)
+                .collect(Collectors.toSet());
+            for (ProjectEntity p : targetProjects) {
+                if (viewerProjectIds.contains(p.getId())) {
+                    sharedProjectIds.add(p.getId());
+                }
+            }
+        }
+
+        ProfilePrivacyResponse privacy = toProfilePrivacyResponse(target.getProfilePrivacy());
+        if (!fullAccess) {
+            switch (privacy.visibility()) {
+                case "public" -> { }
+                case "members" -> {
+                    if (sharedProjectIds.isEmpty()) {
+                        throw new ResourceNotFoundException("Profile not found.");
+                    }
+                }
+                default -> throw new ResourceNotFoundException("Profile not found.");
+            }
+        }
+
+        List<Long> publicIds = target.getPublicProjectIds() != null ? target.getPublicProjectIds() : List.of();
+        List<ProjectEntity> visibleProjects = targetProjects.stream()
+            .filter(p -> fullAccess || publicIds.contains(p.getId()) || sharedProjectIds.contains(p.getId()))
+            .toList();
+        List<Long> projectIds = visibleProjects.stream().map(ProjectEntity::getId).toList();
+
+        Map<Long, List<NodeEntity>> nodesByProject = projectIds.isEmpty() ? Map.of() :
+            nodeRepository.findByProjectIdIn(projectIds).stream().collect(Collectors.groupingBy(NodeEntity::getProjectId));
+        Map<Long, List<WorkPhaseEntity>> rootPhasesByProject = projectIds.isEmpty() ? Map.of() :
+            workPhaseRepository.findByProjectIdInAndParentPhaseIdIsNullOrderByOrderIndexAsc(projectIds).stream()
+                .collect(Collectors.groupingBy(WorkPhaseEntity::getProjectId));
+        Map<Long, List<ProjectMemberEntity>> membersByProject = projectIds.isEmpty() ? Map.of() :
+            projectMemberRepository.findByProjectIdIn(projectIds).stream()
+                .filter(m -> m.getRemovedAt() == null)
+                .collect(Collectors.groupingBy(ProjectMemberEntity::getProjectId));
+
+        List<ProfileProjectResponse> projectResponses = visibleProjects.stream()
+            .map(p -> mapToProfileProject(
+                p,
+                targetId,
+                publicIds,
+                rootPhasesByProject.getOrDefault(p.getId(), List.of()),
+                nodesByProject.getOrDefault(p.getId(), List.of()),
+                membersByProject.getOrDefault(p.getId(), List.of())
+            ))
+            .toList();
+
+        ProfileProjectResponse.Stats stats = null;
+        if (isSelf || privacy.showStats()) {
+            List<NodeEntity> assigned = nodesByProject.values().stream()
+                .flatMap(List::stream)
+                .filter(n -> Objects.equals(n.getAssignedUserId(), targetId))
+                .toList();
+            List<NodeEntity> done = assigned.stream().filter(n -> n.getStatus() == NodeStatus.DONE).toList();
+            stats = new ProfileProjectResponse.Stats(done.size(), assigned.size(), calculateOnTimePct(done));
+        }
+
+        String email = (isSelf || privacy.showEmail()) ? target.getEmail() : null;
+
+        return new PublicProfileResponse(
+            String.valueOf(target.getId()),
+            target.getFullName() != null ? target.getFullName() : "",
+            target.getTitle() != null ? target.getTitle() : "",
+            target.getBio() != null ? target.getBio() : "",
+            target.getAvatarUrl(),
+            target.getSkills() != null ? target.getSkills() : List.of(),
+            toProfileLinksResponse(target.getLinks()),
+            email,
+            stats,
+            projectResponses,
+            isSelf
+        );
+    }
+
+    private static int calculateOnTimePct(List<NodeEntity> doneNodes) {
+        if (doneNodes.isEmpty()) {
+            return 0;
+        }
+        long onTimeCount = doneNodes.stream()
+            .filter(n -> n.getDueDate() == null || (n.getCompletedAt() != null && !n.getCompletedAt().isAfter(n.getDueDate())))
+            .count();
+        return (int) Math.round(100.0 * onTimeCount / doneNodes.size());
+    }
+
+    /**
      * Cập nhật thông tin cơ bản của hồ sơ.
      */
     @Transactional
     public ProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
         if (request == null) {
-            throw new BadRequestException("VALIDATION_FAILED", "Dữ liệu yêu cầu không được để trống.");
+            throw new BadRequestException("VALIDATION_FAILED", "Request data is required.");
         }
 
         String displayName = request.displayName() != null ? request.displayName().trim() : "";
         if (displayName.length() < 2 || displayName.length() > 60) {
-            throw new BadRequestException("VALIDATION_FAILED", "Tên hiển thị phải có độ dài từ 2 đến 60 ký tự.");
+            throw new BadRequestException("VALIDATION_FAILED", "Display name must be 2 to 60 characters.");
         }
 
         String email = request.email() != null ? request.email().trim() : "";
         if (email.isEmpty() || email.length() > 255 || !EMAIL_PATTERN.matcher(email).matches()) {
-            throw new BadRequestException("VALIDATION_FAILED", "Định dạng email không hợp lệ hoặc vượt quá 255 ký tự.");
+            throw new BadRequestException("VALIDATION_FAILED", "Enter a valid email address of up to 255 characters.");
         }
 
         String title = request.title() != null ? request.title().trim() : "";
         if (title.length() > 60) {
-            throw new BadRequestException("VALIDATION_FAILED", "Chức danh không được vượt quá 60 ký tự.");
+            throw new BadRequestException("VALIDATION_FAILED", "Job title can't exceed 60 characters.");
         }
 
         String bio = request.bio() != null ? request.bio().trim() : "";
         if (bio.length() > 280) {
-            throw new BadRequestException("VALIDATION_FAILED", "Tiểu sử không được vượt quá 280 ký tự.");
+            throw new BadRequestException("VALIDATION_FAILED", "Bio can't exceed 280 characters.");
         }
 
         List<String> processedSkills = validateAndProcessSkills(request.skills());
@@ -94,7 +200,7 @@ public class UserProfileService {
         if (!user.getEmail().equalsIgnoreCase(email)) {
             userRepository.findByEmailIgnoreCase(email).ifPresent(other -> {
                 if (!other.getId().equals(userId)) {
-                    throw new ConflictException("EMAIL_TAKEN", "Email đã được sử dụng bởi người dùng khác.");
+                    throw new ConflictException("EMAIL_TAKEN", "This email is already used by another user.");
                 }
             });
         }
@@ -118,22 +224,22 @@ public class UserProfileService {
     @Transactional
     public AuthResponse changePassword(Long userId, ChangePasswordRequest request) {
         if (request == null || request.currentPassword() == null || request.newPassword() == null) {
-            throw new BadRequestException("VALIDATION_FAILED", "Yêu cầu đầy đủ mật khẩu hiện tại và mật khẩu mới.");
+            throw new BadRequestException("VALIDATION_FAILED", "Enter both your current password and a new password.");
         }
 
         UserEntity user = getUserOrThrow(userId);
 
         if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
-            throw new BadRequestException("WRONG_PASSWORD", "Mật khẩu hiện tại không chính xác.");
+            throw new BadRequestException("WRONG_PASSWORD", "Your current password is incorrect.");
         }
 
         String newPassword = request.newPassword();
         if (newPassword.length() < 8 || !newPassword.matches(".*\\d.*") || newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new BadRequestException("WEAK_PASSWORD", "Mật khẩu mới phải từ 8 ký tự trở lên, chứa ít nhất một chữ số và không quá 72 byte.");
+            throw new BadRequestException("WEAK_PASSWORD", "The new password must be at least 8 characters, include at least one digit, and be no longer than 72 bytes.");
         }
 
         if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
-            throw new BadRequestException("SAME_PASSWORD", "Mật khẩu mới không được trùng với mật khẩu hiện tại.");
+            throw new BadRequestException("SAME_PASSWORD", "The new password must be different from your current password.");
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
@@ -189,12 +295,12 @@ public class UserProfileService {
     @Transactional
     public ProfilePrivacyResponse updatePrivacy(Long userId, UpdatePrivacyRequest request) {
         if (request == null || request.visibility() == null || request.showEmail() == null || request.showStats() == null) {
-            throw new BadRequestException("VALIDATION_FAILED", "Dữ liệu quyền riêng tư không hợp lệ hoặc thiếu trường bắt buộc.");
+            throw new BadRequestException("VALIDATION_FAILED", "Privacy settings are invalid or missing required fields.");
         }
 
         String visibility = request.visibility().trim();
         if (!Set.of("private", "members", "public").contains(visibility)) {
-            throw new BadRequestException("VALIDATION_FAILED", "Phạm vi hiển thị chỉ nhận các giá trị: private, members, public.");
+            throw new BadRequestException("VALIDATION_FAILED", "Visibility must be one of: private, members, public.");
         }
 
         UserEntity user = getUserOrThrow(userId);
@@ -216,18 +322,18 @@ public class UserProfileService {
     @Transactional
     public ProfileProjectResponse setProjectPublic(Long userId, Long projectId, Boolean isPublic) {
         if (isPublic == null) {
-            throw new BadRequestException("VALIDATION_FAILED", "Trường isPublic là bắt buộc.");
+            throw new BadRequestException("VALIDATION_FAILED", "The isPublic field is required.");
         }
 
         UserEntity user = getUserOrThrow(userId);
 
         ProjectEntity project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án với ID: " + projectId));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + projectId));
 
         boolean isOwner = project.getOwnerId().equals(userId);
         boolean isActiveMember = isOwner || projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, userId);
         if (!isActiveMember) {
-            throw new ResourceNotFoundException("Không tìm thấy dự án với ID: " + projectId);
+            throw new ResourceNotFoundException("Project not found with ID: " + projectId);
         }
 
         List<Long> publicIds = new ArrayList<>(user.getPublicProjectIds());
@@ -256,7 +362,7 @@ public class UserProfileService {
     public void deactivateAccount(Long userId) {
         UserEntity user = getUserOrThrow(userId);
         if (user.getSystemRole() == SystemRole.ADMIN) {
-            throw new ForbiddenException("ADMIN_SELF_SERVICE", "Quản trị viên không thể tự vô hiệu hóa hoặc xóa tài khoản.");
+            throw new ForbiddenException("ADMIN_SELF_SERVICE", "Admins can't deactivate or delete their own account.");
         }
 
         user.setDeactivatedAt(Instant.now());
@@ -273,16 +379,16 @@ public class UserProfileService {
     @Transactional
     public void deleteAccount(Long userId, DeleteAccountRequest request) {
         if (request == null || !"DELETE".equals(request.confirmation())) {
-            throw new BadRequestException("CONFIRMATION_MISMATCH", "Xác nhận không khớp. Vui lòng nhập đúng chữ DELETE.");
+            throw new BadRequestException("CONFIRMATION_MISMATCH", "Confirmation doesn't match. Type DELETE to confirm.");
         }
 
         UserEntity user = getUserOrThrow(userId);
         if (user.getSystemRole() == SystemRole.ADMIN) {
-            throw new ForbiddenException("ADMIN_SELF_SERVICE", "Quản trị viên không thể tự vô hiệu hóa hoặc xóa tài khoản.");
+            throw new ForbiddenException("ADMIN_SELF_SERVICE", "Admins can't deactivate or delete their own account.");
         }
 
         if (projectRepository.countByOwnerId(userId) > 0) {
-            throw new ConflictException("OWNS_PROJECTS", "Hãy chuyển quyền sở hữu hoặc xóa các dự án của bạn trước.");
+            throw new ConflictException("OWNS_PROJECTS", "Transfer ownership of your projects or delete them first.");
         }
 
         if (user.getAvatarUrl() != null) {
@@ -331,9 +437,9 @@ public class UserProfileService {
 
     private UserEntity getUserOrThrow(Long userId) {
         UserEntity user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
         if (user.getDeletedAt() != null) {
-            throw new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId);
+            throw new ResourceNotFoundException("User not found with ID: " + userId);
         }
         return user;
     }
@@ -343,7 +449,7 @@ public class UserProfileService {
             return new ArrayList<>();
         }
         if (rawSkills.size() > 12) {
-            throw new BadRequestException("VALIDATION_FAILED", "Số lượng kỹ năng không được vượt quá 12.");
+            throw new BadRequestException("VALIDATION_FAILED", "You can add up to 12 skills.");
         }
 
         List<String> result = new ArrayList<>();
@@ -352,10 +458,10 @@ public class UserProfileService {
         for (String s : rawSkills) {
             String trimmed = s != null ? s.trim() : "";
             if (trimmed.isEmpty() || trimmed.length() > 24) {
-                throw new BadRequestException("VALIDATION_FAILED", "Mỗi kỹ năng phải có độ dài từ 1 đến 24 ký tự.");
+                throw new BadRequestException("VALIDATION_FAILED", "Each skill must be 1 to 24 characters.");
             }
             if (!lowerSet.add(trimmed.toLowerCase(Locale.ROOT))) {
-                throw new BadRequestException("VALIDATION_FAILED", "Danh sách kỹ năng không được chứa phần tử trùng lặp: " + trimmed);
+                throw new BadRequestException("VALIDATION_FAILED", "Skills must be unique. Duplicate: " + trimmed);
             }
             result.add(trimmed);
         }
@@ -376,13 +482,13 @@ public class UserProfileService {
         }
 
         if (!validateUrl(github, "github.com")) {
-            throw new BadRequestException("INVALID_LINK", "Liên kết GitHub không hợp lệ (phải thuộc tên miền github.com và tối đa 200 ký tự).");
+            throw new BadRequestException("INVALID_LINK", "Enter a valid GitHub link (github.com, up to 200 characters).");
         }
         if (!validateUrl(linkedin, "linkedin.com")) {
-            throw new BadRequestException("INVALID_LINK", "Liên kết LinkedIn không hợp lệ (phải thuộc tên miền linkedin.com và tối đa 200 ký tự).");
+            throw new BadRequestException("INVALID_LINK", "Enter a valid LinkedIn link (linkedin.com, up to 200 characters).");
         }
         if (!validateUrl(website, null)) {
-            throw new BadRequestException("INVALID_LINK", "Liên kết Website không hợp lệ (phải có định dạng http/https và tối đa 200 ký tự).");
+            throw new BadRequestException("INVALID_LINK", "Enter a valid website link (http or https, up to 200 characters).");
         }
 
         linksMap.put("github", github);
@@ -500,13 +606,7 @@ public class UserProfileService {
             .toList();
         int tasksDone = doneNodes.size();
 
-        int onTimePct = 0;
-        if (tasksDone > 0) {
-            long onTimeCount = doneNodes.stream()
-                .filter(n -> n.getDueDate() == null || (n.getCompletedAt() != null && !n.getCompletedAt().isAfter(n.getDueDate())))
-                .count();
-            onTimePct = (int) Math.round(100.0 * onTimeCount / tasksDone);
-        }
+        int onTimePct = calculateOnTimePct(doneNodes);
 
         String contribution;
         if (tasksTotal > 0) {
@@ -574,7 +674,7 @@ public class UserProfileService {
 
         // 1. Task hoàn thành của user
         for (Map.Entry<Long, List<NodeEntity>> entry : nodesByProject.entrySet()) {
-            String projectName = projectNameMap.getOrDefault(entry.getKey(), "dự án");
+            String projectName = projectNameMap.getOrDefault(entry.getKey(), "a project");
             for (NodeEntity node : entry.getValue()) {
                 if (Objects.equals(node.getAssignedUserId(), userId) && node.getCompletedAt() != null) {
                     activities.add(new ProfileActivityResponse(
@@ -591,7 +691,7 @@ public class UserProfileService {
             List<ArtifactEntity> artifacts = artifactRepository.findByProjectIdIn(projectIds);
             for (ArtifactEntity artifact : artifacts) {
                 if (Objects.equals(artifact.getUploadedBy(), userId) && artifact.getCreatedAt() != null) {
-                    String projectName = projectNameMap.getOrDefault(artifact.getProjectId(), "dự án");
+                    String projectName = projectNameMap.getOrDefault(artifact.getProjectId(), "a project");
                     activities.add(new ProfileActivityResponse(
                         "artifact-" + artifact.getId(),
                         "Uploaded " + artifact.getName() + " to " + projectName,
@@ -603,7 +703,7 @@ public class UserProfileService {
 
         // 3. Gia nhập thành viên dự án
         for (Map.Entry<Long, List<ProjectMemberEntity>> entry : membersByProject.entrySet()) {
-            String projectName = projectNameMap.getOrDefault(entry.getKey(), "dự án");
+            String projectName = projectNameMap.getOrDefault(entry.getKey(), "a project");
             for (ProjectMemberEntity m : entry.getValue()) {
                 if (Objects.equals(m.getUserId(), userId) && m.getJoinedAt() != null) {
                     String roleName = m.getRole() == ProjectRole.MANAGER ? "Manager" : "Collaborator";

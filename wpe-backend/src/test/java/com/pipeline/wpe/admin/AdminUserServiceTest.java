@@ -479,7 +479,7 @@ class AdminUserServiceTest {
             .satisfies(ex -> {
                 ConflictException ce = (ConflictException) ex;
                 assertThat(ce.getErrorCode()).isEqualTo("USER_HAS_DATA");
-                assertThat(ce.getMessage()).contains("1 dự án sở hữu");
+                assertThat(ce.getMessage()).contains("1 owned project");
             });
 
         verify(userRepository, never()).delete(any());
@@ -507,7 +507,7 @@ class AdminUserServiceTest {
             .satisfies(ex -> {
                 ConflictException ce = (ConflictException) ex;
                 assertThat(ce.getErrorCode()).isEqualTo("USER_HAS_DATA");
-                assertThat(ce.getMessage()).contains("1 lần tham gia dự án");
+                assertThat(ce.getMessage()).contains("1 project membership");
             });
 
         verify(userRepository, never()).delete(any());
@@ -535,8 +535,33 @@ class AdminUserServiceTest {
             .satisfies(ex -> {
                 ConflictException ce = (ConflictException) ex;
                 assertThat(ce.getErrorCode()).isEqualTo("USER_HAS_DATA");
-                assertThat(ce.getMessage()).contains("1 task được giao");
+                assertThat(ce.getMessage()).contains("1 assigned task");
             });
+
+        verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Xóa user có nhiều dữ liệu -> message dùng số ít cho 1 và số nhiều cho n > 1")
+    void testDeleteUser_pluralizesCounts() {
+        UserEntity user = UserEntity.builder()
+            .id(2L)
+            .username("alex.kim")
+            .systemRole(SystemRole.USER)
+            .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(projectRepository.countByOwnerId(2L)).thenReturn(2L);
+        when(pipelineTemplateRepository.countByCreatedBy(2L)).thenReturn(1L);
+        when(artifactRepository.countByUploadedBy(2L)).thenReturn(3L);
+        when(projectInvitationRepository.countByInviterIdOrInviteeId(2L, 2L)).thenReturn(1L);
+        when(projectMemberRepository.countByUserId(2L)).thenReturn(2L);
+        when(nodeRepository.countByAssignedUserId(2L)).thenReturn(1L);
+
+        assertThatThrownBy(() -> adminUserService.deleteUser(2L, 1L))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("2 owned projects, 1 template created, 3 artifacts uploaded, "
+                + "1 invitation, 2 project memberships, 1 assigned task).");
 
         verify(userRepository, never()).delete(any());
     }
@@ -575,5 +600,29 @@ class AdminUserServiceTest {
             .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("CANNOT_DELETE_ADMIN"));
 
         verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("listUsers trả avatarUrl khi user có ảnh và null khi không có")
+    void testListUsers_includesAvatarUrl() {
+        UserEntity withAvatar = UserEntity.builder()
+            .id(2L).username("alex.kim").fullName("Alex Kim").email("alex.kim@pipeline.engine")
+            .systemRole(SystemRole.USER).isLocked(false).createdAt(Instant.now())
+            .avatarUrl("/uploads/avatars/example-alex.png")
+            .build();
+        UserEntity noAvatar = UserEntity.builder()
+            .id(3L).username("sarah.chen").fullName("Sarah Chen").email("sarah.chen@acme.io")
+            .systemRole(SystemRole.USER).isLocked(false).createdAt(Instant.now())
+            .build();
+
+        when(userRepository.findAll()).thenReturn(List.of(withAvatar, noAvatar));
+        when(projectRepository.countByOwnerId(anyLong())).thenReturn(0L);
+        when(projectMemberRepository.countByUserIdAndRemovedAtIsNullAndRoleNot(anyLong(), eq(ProjectRole.OWNER))).thenReturn(0L);
+
+        List<AdminUserResponse> all = adminUserService.listUsers(null, null);
+
+        assertThat(all).hasSize(2);
+        assertThat(all.get(0).avatarUrl()).isEqualTo("/uploads/avatars/example-alex.png");
+        assertThat(all.get(1).avatarUrl()).isNull();
     }
 }

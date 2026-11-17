@@ -38,10 +38,10 @@ public class AdminProjectOwnerService {
     @Transactional(readOnly = true)
     public List<OwnedProjectResponse> listOwnedProjects(Long userId) {
         if (userId == null) {
-            throw new ResourceNotFoundException("Người dùng không tồn tại: null");
+            throw new ResourceNotFoundException("User not found: null");
         }
         userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại: " + userId));
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
         List<ProjectEntity> projects = projectRepository.findByOwnerId(userId).stream()
             .sorted(Comparator.comparing(ProjectEntity::getId))
@@ -55,33 +55,33 @@ public class AdminProjectOwnerService {
     @Transactional
     public OwnedProjectResponse transferOwner(Long projectId, Long newOwnerId, Long actorUserId) {
         if (projectId == null) {
-            throw new ResourceNotFoundException("Dự án không tồn tại: null");
+            throw new ResourceNotFoundException("Project not found: null");
         }
         ProjectEntity project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Dự án không tồn tại: " + projectId));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
 
         if (project.getStatus() == ProjectStatus.ARCHIVED || project.getStatus() == ProjectStatus.COMPLETED) {
-            throw new ConflictException("PROJECT_CLOSED", "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.");
+            throw new ConflictException("PROJECT_CLOSED", "This project is archived or completed, so its owner can't be changed.");
         }
 
         if (newOwnerId == null) {
-            throw new IllegalArgumentException("Chủ mới không hợp lệ");
+            throw new IllegalArgumentException("The new owner is invalid.");
         }
 
         if (newOwnerId.equals(project.getOwnerId())) {
-            throw new ConflictException("ALREADY_OWNER", "Người dùng này đã là chủ dự án.");
+            throw new ConflictException("ALREADY_OWNER", "This user is already the project owner.");
         }
 
         ProjectMemberEntity newOwnerMember = projectMemberRepository
             .findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, newOwnerId)
             .filter(m -> m.getRemovedAt() == null)
-            .orElseThrow(() -> new ConflictException("NEW_OWNER_NOT_ACTIVE_MEMBER", "Chủ mới phải là thành viên đang hoạt động của dự án."));
+            .orElseThrow(() -> new ConflictException("NEW_OWNER_NOT_ACTIVE_MEMBER", "The new owner must be an active member of the project."));
 
         UserEntity newOwnerUser = userRepository.findById(newOwnerId)
-            .orElseThrow(() -> new ConflictException("NEW_OWNER_NOT_ACTIVE_MEMBER", "Chủ mới phải là thành viên đang hoạt động của dự án."));
+            .orElseThrow(() -> new ConflictException("NEW_OWNER_NOT_ACTIVE_MEMBER", "The new owner must be an active member of the project."));
 
         if (Boolean.TRUE.equals(newOwnerUser.getIsLocked())) {
-            throw new ConflictException("NEW_OWNER_NOT_ACTIVE_MEMBER", "Chủ mới phải là thành viên đang hoạt động của dự án.");
+            throw new ConflictException("NEW_OWNER_NOT_ACTIVE_MEMBER", "The new owner must be an active member of the project.");
         }
 
         Long oldOwnerId = project.getOwnerId();

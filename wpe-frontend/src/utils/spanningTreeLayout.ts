@@ -822,7 +822,7 @@ export function createNewBranchNode(
     const trackOrder = customOrder !== undefined ? customOrder : existingTracks.length
     const id = `track-${Date.now()}`
     const code = `TRK-${String(trackOrder + 1).padStart(2, '0')}`
-    const title = customTitle || `Track ${trackOrder + 1}: Nhánh công việc mới`
+    const title = customTitle || `Track ${trackOrder + 1}: New branch`
 
     return {
       kind: 'branch',
@@ -913,7 +913,7 @@ export function createNewBranchNode(
     due: null,
     blocker:
       source.kind === 'branch' && sourceBranch.status !== 'DONE'
-        ? `Chờ ${sourceBranch.title || source.id} hoàn tất`
+        ? `Waiting for ${sourceBranch.title || source.id} to be completed`
         : null,
     joinPolicy: null,
     level: childLevel,

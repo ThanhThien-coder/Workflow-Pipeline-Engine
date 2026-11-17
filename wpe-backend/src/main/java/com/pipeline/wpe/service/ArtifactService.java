@@ -38,7 +38,7 @@ public class ArtifactService {
     public List<ArtifactResponse> getProjectArtifacts(Long projectId, Long nodeId, Boolean inRepoOnly, Long currentUserId) {
         // C4: luôn kiểm thành viên; không có người gọi thì chặn (không còn "null thì bỏ qua kiểm").
         if (currentUserId == null) {
-            throw new ForbiddenException("ACCESS_DENIED", "Yêu cầu đăng nhập để xem kho tài nguyên.");
+            throw new ForbiddenException("ACCESS_DENIED", "Please sign in to view the artifact repository.");
         }
         projectAuthorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
 
@@ -101,15 +101,15 @@ public class ArtifactService {
     @Transactional
     public void deleteArtifact(Long projectId, Long artifactId, Long currentUserId) {
         ArtifactEntity artifact = artifactRepository.findById(artifactId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài nguyên với ID: " + artifactId));
+                .orElseThrow(() -> new ResourceNotFoundException("Artifact not found with ID: " + artifactId));
 
         if (!artifact.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Tài nguyên không thuộc về dự án này");
+            throw new IllegalArgumentException("The artifact does not belong to this project.");
         }
 
         // C4: không còn "currentUserId == null thì bỏ qua kiểm quyền".
         if (currentUserId == null) {
-            throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền xóa tài nguyên này.");
+            throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to delete this artifact.");
         }
         boolean isUploader = currentUserId.equals(artifact.getUploadedBy());
         ProjectEntity project = projectAuthorizationService.getProjectOrThrow(projectId);
@@ -124,7 +124,7 @@ public class ArtifactService {
                 .orElse(false);
 
         if (!isUploader && !isOwner && !isProjectOwnerMember && !isAdmin) {
-            throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền xóa tài nguyên này.");
+            throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to delete this artifact.");
         }
 
         artifactRepository.delete(artifact);
@@ -139,10 +139,10 @@ public class ArtifactService {
         requireWriter(projectId, currentUserId);
 
         ArtifactEntity artifact = artifactRepository.findById(artifactId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài nguyên với ID: " + artifactId));
+                .orElseThrow(() -> new ResourceNotFoundException("Artifact not found with ID: " + artifactId));
 
         if (!artifact.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Tài nguyên không thuộc về dự án này");
+            throw new IllegalArgumentException("The artifact does not belong to this project.");
         }
 
         artifact.setIsInRepository(isInRepo);
@@ -159,7 +159,7 @@ public class ArtifactService {
      */
     private void requireWriter(Long projectId, Long currentUserId) {
         if (currentUserId == null) {
-            throw new ForbiddenException("ACCESS_DENIED", "Yêu cầu đăng nhập để thay đổi kho tài nguyên.");
+            throw new ForbiddenException("ACCESS_DENIED", "Please sign in to change the artifact repository.");
         }
         ProjectEntity project = projectAuthorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
         if (project != null && currentUserId.equals(project.getOwnerId())) {
@@ -171,7 +171,7 @@ public class ArtifactService {
                         || m.getRole() == ProjectRole.COLLABORATOR)
                 .orElse(false);
         if (!canWrite) {
-            throw new ForbiddenException("ACCESS_DENIED", "Người xem (Viewer) chỉ được xem tài nguyên, không được thêm hay sửa.");
+            throw new ForbiddenException("ACCESS_DENIED", "Viewers can view artifacts but cannot add or edit them.");
         }
     }
 

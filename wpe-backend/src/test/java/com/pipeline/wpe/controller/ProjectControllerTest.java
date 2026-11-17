@@ -172,7 +172,7 @@ class ProjectControllerTest {
 
         when(currentUserProvider.requireCurrentUserId()).thenReturn(2L);
         when(projectService.updateProjectStatus(eq(1L), any(UpdateProjectStatusRequest.class), eq(2L)))
-            .thenThrow(new ConflictException("USE_PUBLISH", "Dự án nháp chỉ chuyển sang ACTIVE bằng thao tác xuất bản (publish)."));
+            .thenThrow(new ConflictException("USE_PUBLISH", "A draft project can only become active by publishing it."));
 
         mockMvc.perform(patch("/api/v1/projects/1/status")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -243,7 +243,7 @@ class ProjectControllerTest {
 
         when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
         when(projectService.updateProjectStatus(eq(1L), any(UpdateProjectStatusRequest.class), eq(99L)))
-            .thenThrow(new AccessDeniedException("Chỉ chủ sở hữu dự án mới có quyền đổi trạng thái"));
+            .thenThrow(new AccessDeniedException("Only the project owner can change the project status."));
 
         mockMvc.perform(patch("/api/v1/projects/1/status")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -267,7 +267,7 @@ class ProjectControllerTest {
     @DisplayName("FC4: DELETE /api/v1/projects/{id} - Người không phải chủ dự án trả về 403 FORBIDDEN")
     void testDeleteProject_byNonOwner_returns403() throws Exception {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
-        doThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."))
+        doThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner can do this."))
             .when(projectService).deleteProject(1L, 99L);
 
         mockMvc.perform(delete("/api/v1/projects/1"))
@@ -278,7 +278,7 @@ class ProjectControllerTest {
     @DisplayName("FC4: DELETE /api/v1/projects/{id} - Dự án không tồn tại trả về 404 NOT FOUND")
     void testDeleteProject_notFound_returns404() throws Exception {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(2L);
-        doThrow(new ResourceNotFoundException("Không tìm thấy dự án với ID: 999"))
+        doThrow(new ResourceNotFoundException("Project not found with ID: 999"))
             .when(projectService).deleteProject(999L, 2L);
 
         mockMvc.perform(delete("/api/v1/projects/999"))

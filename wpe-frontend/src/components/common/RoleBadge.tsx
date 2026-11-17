@@ -10,7 +10,7 @@ const ROLE_STYLES: Record<ProjectRole, string> = {
 
 const ROLE_LABELS: Record<ProjectRole, string> = {
   OWNER: 'OWNER',
-  MANAGER: 'Quản lý',
+  MANAGER: 'MANAGER',
   COLLABORATOR: 'COLLABORATOR',
   VIEWER: 'VIEWER',
 }
@@ -33,7 +33,7 @@ export const RoleBadge: FC<RoleBadgeProps> = ({
       : role === 'OWNER'
         ? 'Owner'
         : role === 'MANAGER'
-          ? 'Quản lý'
+          ? 'Manager'
           : role === 'COLLABORATOR'
             ? 'Collaborator'
             : 'Viewer'

@@ -109,7 +109,7 @@ class ProjectAuthorizationServiceTest {
 
         assertThatThrownBy(() -> projectAuthorizationService.verifyProjectOwnerOrManager(projectId, collaboratorId))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("Chỉ Chủ dự án hoặc Quản lý");
+            .hasMessageContaining("Only the project owner or a manager");
     }
 
     @Test

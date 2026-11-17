@@ -5,16 +5,16 @@ import jakarta.validation.constraints.NotNull;
 import java.util.Map;
 
 public record CreateTemplateRequest(
-    @NotBlank(message = "Tên Template không được để trống")
+    @NotBlank(message = "Template name is required.")
     String name,
 
     String description,
 
-    @NotBlank(message = "Danh mục Template không được để trống")
+    @NotBlank(message = "Template category is required.")
     String category,
 
     Boolean isSystemStandard,
 
-    @NotNull(message = "Dữ liệu đồ thị (graphData) không được để trống")
+    @NotNull(message = "Pipeline data (graphData) is required.")
     Map<String, Object> graphData
 ) {}

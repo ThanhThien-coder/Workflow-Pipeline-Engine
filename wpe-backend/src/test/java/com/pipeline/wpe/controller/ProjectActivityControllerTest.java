@@ -76,7 +76,7 @@ class ProjectActivityControllerTest {
     void getProjectActivity_whenOutsider_returns403() throws Exception {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
         when(projectActivityService.getProjectActivity(1L, 99L, 50))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         mockMvc.perform(get("/api/v1/projects/1/activity"))
                 .andExpect(status().isForbidden())

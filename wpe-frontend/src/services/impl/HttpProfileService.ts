@@ -1,11 +1,13 @@
 import type { IProfileService } from '../contracts/IProfileService'
 import {
   ProfileError,
+  ProfileNotFoundError,
   type ChangePasswordCommand,
   type DeleteAccountCommand,
   type ProfileDto,
   type ProfilePrivacyDto,
   type ProfileProjectDto,
+  type PublicProfileDto,
   type UpdateProfileCommand,
 } from '../../types/profile.types'
 import { apiRequest } from '../http/apiClient'
@@ -82,6 +84,24 @@ interface BackendProfileResponse {
   }
   projects: BackendProfileProject[]
   recentActivity: BackendProfileActivity[]
+}
+
+interface BackendPublicProfileResponse {
+  userId: string
+  displayName: string
+  title: string | null
+  bio: string | null
+  avatarUrl: string | null
+  skills: string[]
+  links: {
+    github?: string | null
+    linkedin?: string | null
+    website?: string | null
+  }
+  email: string | null
+  stats: { tasksDone: number; tasksTotal: number; onTimePct: number } | null
+  projects: BackendProfileProject[]
+  isSelf: boolean
 }
 
 function mapProfileResponse(res: BackendProfileResponse, now?: Date): ProfileDto {
@@ -288,6 +308,55 @@ export class HttpProfileService implements IProfileService {
     try {
       await apiRequest<void>('POST', '/users/me/deactivate')
     } catch (err) {
+      throw mapProfileError(err)
+    }
+  }
+
+  async getUserProfile(userId: string): Promise<PublicProfileDto> {
+    try {
+      const res = await apiRequest<BackendPublicProfileResponse>(
+        'GET',
+        `/users/${encodeURIComponent(userId)}/profile`,
+      )
+      return {
+        userId: String(res.userId),
+        displayName: res.displayName,
+        title: res.title ?? '',
+        bio: res.bio ?? '',
+        avatarUrl: res.avatarUrl ?? null,
+        skills: res.skills ?? [],
+        links: {
+          github: res.links?.github ?? '',
+          linkedin: res.links?.linkedin ?? '',
+          website: res.links?.website ?? '',
+        },
+        email: res.email ?? null,
+        stats: res.stats
+          ? {
+              tasksDone: res.stats.tasksDone ?? 0,
+              tasksTotal: res.stats.tasksTotal ?? 0,
+              onTimePct: res.stats.onTimePct ?? 0,
+            }
+          : null,
+        projects: (res.projects ?? []).map((p) => ({
+          projectId: String(p.projectId),
+          name: p.name,
+          phaseLabel: p.phaseLabel,
+          role: p.role,
+          contribution: p.contribution,
+          isPublic: Boolean(p.isPublic),
+          stats: {
+            tasksDone: p.stats?.tasksDone ?? 0,
+            tasksTotal: p.stats?.tasksTotal ?? 0,
+            onTimePct: p.stats?.onTimePct ?? 0,
+          },
+        })),
+        isSelf: Boolean(res.isSelf),
+      }
+    } catch (err) {
+      if (isApiError(err) && err.status === 404) {
+        throw new ProfileNotFoundError()
+      }
       throw mapProfileError(err)
     }
   }

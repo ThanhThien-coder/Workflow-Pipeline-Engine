@@ -187,7 +187,7 @@ describe('authSlice với backend thật (A4)', () => {
     const s = store.getState()
     expect(s.auth.isAuthenticated).toBe(false)
     expect(s.auth.token).toBeNull()
-    expect(s.ui.toast?.message).toBe('Phiên đăng nhập đã hết hạn')
+    expect(s.ui.toast?.message).toBe('Your session has expired.')
     expectStorageCleared()
     expectUserDataCleared()
   })

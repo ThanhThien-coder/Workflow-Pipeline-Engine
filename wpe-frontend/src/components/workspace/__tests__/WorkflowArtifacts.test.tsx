@@ -41,7 +41,7 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     render(<WorkflowArtifactsDrawer isOpen={true} />)
 
     expect(screen.getByText('Project Deliverables')).toBeDefined()
-    expect(screen.getByPlaceholderText(/Tên link/i)).toBeDefined()
+    expect(screen.getByPlaceholderText(/Link name/i)).toBeDefined()
     expect(screen.getByPlaceholderText(/https:\/\//i)).toBeDefined()
     expect(screen.getByRole('button', { name: /\+ Add Link/i })).toBeDefined()
 
@@ -56,7 +56,7 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     const addButton = screen.getByRole('button', { name: /Add Link/i }) as HTMLButtonElement
     expect(addButton.disabled).toBe(true)
 
-    const nameInput = screen.getByPlaceholderText(/Tên link/i)
+    const nameInput = screen.getByPlaceholderText(/Link name/i)
     const urlInput = screen.getByPlaceholderText(/https:\/\//i)
 
     // Type only name
@@ -69,14 +69,14 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     fireEvent.click(addButton)
 
     expect(
-      screen.getByText(/Đường dẫn URL không hợp lệ/i),
+      screen.getByText(/That URL isn't valid/i),
     ).toBeDefined()
   })
 
   it('adds a new link successfully and prepends to the list', async () => {
     render(<WorkflowArtifactsDrawer isOpen={true} projectId="1" />)
 
-    const nameInput = screen.getByPlaceholderText(/Tên link/i)
+    const nameInput = screen.getByPlaceholderText(/Link name/i)
     const urlInput = screen.getByPlaceholderText(/https:\/\//i)
     const addButton = screen.getByRole('button', { name: /Add Link/i })
 
@@ -160,13 +160,13 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     render(<WorkflowArtifactsDrawer isOpen={true} projectId="empty-project" />)
 
     // Initially displays the skeleton loader while fetching
-    expect(screen.getByRole('status', { name: /Đang tải danh sách tài nguyên/i })).toBeDefined()
+    expect(screen.getByRole('status', { name: /Loading deliverables/i })).toBeDefined()
 
     // Smoothly displays the friendly Empty State once fetch finishes
     await waitFor(() => {
-      expect(screen.getByText('Chưa có tài nguyên nào.')).toBeDefined()
+      expect(screen.getByText('No deliverables yet.')).toBeDefined()
       expect(
-        screen.getByText(/Hãy dán link Figma, PR hoặc tài liệu đầu tiên ở trên để nhóm cùng truy cập./i),
+        screen.getByText(/Paste your first Figma, PR, or document link above so your team can access it./i),
       ).toBeDefined()
     })
   })
@@ -187,7 +187,7 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
   it('resets form and unlocks inputs and submit button after submission', async () => {
     render(<WorkflowArtifactsDrawer isOpen={true} projectId="1" />)
 
-    const nameInput = screen.getByPlaceholderText(/Tên link/i) as HTMLInputElement
+    const nameInput = screen.getByPlaceholderText(/Link name/i) as HTMLInputElement
     const urlInput = screen.getByPlaceholderText(/https:\/\//i) as HTMLInputElement
     const addButton = screen.getByRole('button', { name: /Add Link/i }) as HTMLButtonElement
 

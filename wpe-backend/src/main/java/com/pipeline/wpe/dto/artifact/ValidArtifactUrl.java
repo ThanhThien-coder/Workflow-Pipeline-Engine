@@ -18,7 +18,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ValidArtifactUrl {
 
-    String message() default "Đường dẫn URL phải là link http:// hoặc https:// hợp lệ (có tên miền), tối đa 500 ký tự";
+    String message() default "Enter a valid http:// or https:// URL (with a domain), up to 500 characters.";
 
     Class<?>[] groups() default {};
 

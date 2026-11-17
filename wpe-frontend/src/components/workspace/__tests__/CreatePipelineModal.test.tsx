@@ -77,13 +77,13 @@ describe('CreatePipelineModal Component', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Nhân bản quy trình từ Template')).toBeDefined()
+      expect(screen.getByText('Clone workflow from template')).toBeDefined()
     })
 
     const nameInput = screen.getByPlaceholderText('e.g. Authentication Service V2')
     fireEvent.change(nameInput, { target: { value: 'My Fintech Core Pipeline' } })
 
-    const cloneBtn = screen.getByText('Nhân bản quy trình ➔')
+    const cloneBtn = screen.getByText('Clone workflow ➔')
     fireEvent.click(cloneBtn)
 
     await waitFor(() => {
@@ -158,7 +158,7 @@ describe('CreatePipelineModal Component', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/My Custom Pipeline \[Của tôi\]/)).toBeDefined()
+      expect(screen.getByText(/My Custom Pipeline \[Mine\]/)).toBeDefined()
     })
   })
 })

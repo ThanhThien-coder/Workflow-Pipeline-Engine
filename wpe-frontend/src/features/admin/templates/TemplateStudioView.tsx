@@ -20,10 +20,10 @@ export function describeSaveError(
   if (isApiError(err)) {
     if (err.status === 422) {
       const cycleIds = err.cycleNodes ?? [];
-      let message = 'Đồ thị có chu trình lặp, đã tô đỏ các bước bị vòng.';
+      let message = 'The graph has a cycle. The steps in the loop are highlighted in red.';
       if (cycleIds.length > 0) {
         const names = cycleIds.map((id) => (nameOf ? nameOf(id) ?? id : id));
-        message = 'Đồ thị có chu trình lặp ở: ' + names.join(', ');
+        message = 'The graph has a cycle at: ' + names.join(', ');
       }
       return {
         message,
@@ -33,26 +33,26 @@ export function describeSaveError(
     }
     if (err.status === 403) {
       return {
-        message: 'Chỉ quản trị viên mới lưu được template',
+        message: 'Only admins can save templates.',
         cycleIds: [],
         keepOpen: true,
       };
     }
     if (err.isNetworkError || err.status === 0) {
       return {
-        message: 'Mất kết nối máy chủ, bản nháp vẫn còn, hãy thử lưu lại.',
+        message: 'Lost connection to the server. Your draft is still here, so try saving again.',
         cycleIds: [],
         keepOpen: true,
       };
     }
     return {
-      message: err.message || 'Lỗi khi lưu template',
+      message: err.message || 'Couldn\'t save the template',
       cycleIds: [],
       keepOpen: true,
     };
   }
 
-  const msg = err instanceof Error ? err.message : 'Lỗi khi lưu template';
+  const msg = err instanceof Error ? err.message : 'Couldn\'t save the template';
   return {
     message: msg,
     cycleIds: [],
@@ -129,9 +129,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   const handleValidate = async () => {
     const res = await validate();
     if (res.valid) {
-      onToast('Đồ thị hợp lệ: không có chu trình lặp (0 Cycles)', 'emerald');
+      onToast('The graph is valid: no cycles found (0 cycles)', 'emerald');
     } else {
-      onToast('Phát hiện chu trình lặp trong đồ thị', 'rose');
+      onToast('Cycle detected in the graph', 'rose');
     }
   };
 
@@ -139,15 +139,15 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   const handleSave = async () => {
     if (!draft) return;
     if (!draft.name.trim()) {
-      onToast('Vui lòng nhập tên template', 'rose');
+      onToast('Enter a template name', 'rose');
       return;
     }
 
     try {
       const saved = await save();
       const msg = saved.isSystemStandard
-        ? 'Mẫu quy trình đã được lưu và công khai cho toàn bộ người dùng thành công!'
-        : 'Mẫu quy trình đã được lưu dưới dạng bản nháp thành công!';
+        ? 'Template saved and published to all users.'
+        : 'Template saved as a draft.';
       onToast(msg, 'emerald');
       onClose();
     } catch (err: unknown) {
@@ -221,7 +221,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
       <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-slate-50">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
         <span className="mt-3 text-sm font-semibold text-slate-600">
-          Đang khởi tạo Studio...
+          Starting Studio...
         </span>
       </div>
     );
@@ -233,9 +233,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mb-4 shadow-sm animate-pop">
           <AlertCircle className="h-8 w-8" />
         </div>
-        <h3 className="text-lg font-bold text-slate-900">Không tìm thấy Mẫu quy trình (Template)</h3>
+        <h3 className="text-lg font-bold text-slate-900">Template not found</h3>
         <p className="mt-1.5 max-w-md text-sm text-slate-500 leading-relaxed">
-          {errorMessage || (templateId ? `Template ID "${templateId}" không tồn tại hoặc đã bị xóa.` : 'Không thể tải thông tin mẫu quy trình.')}
+          {errorMessage || (templateId ? `Template "${templateId}" doesn't exist or has been deleted.` : 'Couldn\'t load the template.')}
         </p>
         <div className="mt-6 flex items-center gap-3">
           <button
@@ -243,14 +243,14 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
             onClick={onClose}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
           >
-            Quay lại Danh sách
+            Back to list
           </button>
           <button
             type="button"
             onClick={() => loadTemplate(null)}
             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 cursor-pointer"
           >
-            Khởi tạo Mẫu Mới
+            Create new template
           </button>
         </div>
       </div>
@@ -324,7 +324,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
       <ConfirmDialog
         isOpen={isDiscardDialogOpen}
         title="Discard changes?"
-        message="Các thay đổi chưa lưu trong Studio sẽ bị mất."
+        message="Unsaved changes in Studio will be lost."
         confirmLabel="Discard"
         isDanger={true}
         onConfirm={() => {
@@ -338,14 +338,14 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
       <ConfirmDialog
         isOpen={phaseToDelete !== null}
         title="Delete phase?"
-        message={`Phase "${phaseToDeleteObj?.name}" cùng toàn bộ cây công việc bên trong sẽ bị xóa.`}
+        message={`Phase "${phaseToDeleteObj?.name}" and all tasks inside it will be deleted.`}
         confirmLabel="Delete"
         isDanger={true}
         onConfirm={() => {
           if (phaseToDelete) {
             removePhase(phaseToDelete);
             setPhaseToDelete(null);
-            onToast('Đã xóa Phase', 'blue');
+            onToast('Phase deleted', 'blue');
           }
         }}
         onCancel={() => setPhaseToDelete(null)}

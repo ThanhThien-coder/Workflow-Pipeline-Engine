@@ -108,7 +108,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
       } else {
         setUsers([]);
         errors.users = usersRes.reason instanceof Error ? usersRes.reason.message : String(usersRes.reason);
-        showToast('Không thể tải dữ liệu quản trị', 'rose');
+        showToast('Couldn\'t load admin data', 'rose');
       }
 
       if (wsRes.status === 'fulfilled') {
@@ -178,7 +178,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
         setWorkspaceDetail(detail);
         return detail;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi khi tải chi tiết dự án';
+        const message = err instanceof Error ? err.message : 'Couldn\'t load project details';
         showToast(message, 'rose');
         setWorkspaceDetail(null);
         return null;
@@ -207,12 +207,12 @@ export function useAdminPortal(service: IAdminService = adminService) {
         const updated = await service.suspendUser({ userId, reason: effectiveReason });
         setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
         closeBanModal();
-        showToast(`Đã khóa tài khoản ${updated.name} thành công`, 'rose');
+        showToast(`${updated.name}'s account has been suspended`, 'rose');
 
         // Refresh audit logs in background
         service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup).then(setAuditLogs).catch(() => {});
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi khi khóa tài khoản';
+        const message = err instanceof Error ? err.message : 'Couldn\'t suspend the account';
         showToast(message, 'rose');
       }
     },
@@ -225,12 +225,12 @@ export function useAdminPortal(service: IAdminService = adminService) {
       try {
         const updated = await service.unbanUser(userId);
         setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-        showToast(`Đã mở khóa tài khoản ${updated.name} thành công`, 'emerald');
+        showToast(`${updated.name}'s account has been unsuspended`, 'emerald');
 
         // Refresh audit logs in background
         service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup).then(setAuditLogs).catch(() => {});
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi khi mở khóa tài khoản';
+        const message = err instanceof Error ? err.message : 'Couldn\'t unsuspend the account';
         showToast(message, 'rose');
       }
     },
@@ -244,15 +244,15 @@ export function useAdminPortal(service: IAdminService = adminService) {
         const updated = await service.changeUserRole(userId, role);
         setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
         const name = updated.name || users.find((u) => u.id === userId)?.name || '';
-        const roleLabel = role === 'ADMIN' ? 'Quản trị viên' : 'Người dùng';
-        showToast(`Đã đổi vai trò của ${name} thành ${roleLabel}`, 'emerald');
+        const roleLabel = role === 'ADMIN' ? 'Admin' : 'User';
+        showToast(`${name}'s role was changed to ${roleLabel}`, 'emerald');
         service
           .getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup)
           .then(setAuditLogs)
           .catch(() => {});
         return true;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi khi đổi vai trò';
+        const message = err instanceof Error ? err.message : 'Couldn\'t change the role';
         showToast(message, 'rose');
         return false;
       }
@@ -266,14 +266,14 @@ export function useAdminPortal(service: IAdminService = adminService) {
       try {
         await service.deleteUser(userId);
         setUsers((prev) => prev.filter((u) => u.id !== userId));
-        showToast('Đã xóa tài khoản', 'emerald');
+        showToast('Account deleted', 'emerald');
         service
           .getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup)
           .then(setAuditLogs)
           .catch(() => {});
         return true;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi khi xóa tài khoản';
+        const message = err instanceof Error ? err.message : 'Couldn\'t delete the account';
         showToast(message, 'rose');
         return false;
       }
@@ -287,7 +287,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
       try {
         return await service.getOwnedProjects(userId);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi khi tải danh sách dự án sở hữu';
+        const message = err instanceof Error ? err.message : 'Couldn\'t load owned projects';
         showToast(message, 'rose');
         return [];
       }
@@ -300,7 +300,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
     async (projectId: string, newOwnerId: string): Promise<OwnedProjectDto | null> => {
       try {
         const updated = await service.transferProjectOwner(projectId, newOwnerId);
-        showToast('Đã chuyển chủ dự án', 'emerald');
+        showToast('Project ownership transferred', 'emerald');
         try {
           const freshUsers = await service.getUsers();
           setUsers(freshUsers);
@@ -319,7 +319,7 @@ export function useAdminPortal(service: IAdminService = adminService) {
           .catch(() => {});
         return updated;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi khi chuyển chủ dự án';
+        const message = err instanceof Error ? err.message : 'Couldn\'t transfer project ownership';
         showToast(message, 'rose');
         return null;
       }
@@ -332,9 +332,9 @@ export function useAdminPortal(service: IAdminService = adminService) {
     try {
       const fresh = await service.getWorkspaces();
       setWorkspaces(fresh);
-      showToast('Pipeline status đã được cập nhật', 'emerald');
+      showToast('Pipeline status updated', 'emerald');
     } catch {
-      showToast('Lỗi làm mới danh sách workspaces', 'rose');
+      showToast('Couldn\'t refresh workspaces', 'rose');
     }
   }, [service, showToast]);
 
@@ -344,12 +344,12 @@ export function useAdminPortal(service: IAdminService = adminService) {
       const updated = await service.archiveWorkspace(workspaceId);
       setWorkspaces((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
       setWorkspaceDetail((prev) => (prev && prev.id === updated.id ? { ...prev, status: updated.status } : prev));
-      showToast(`Đã lưu trữ dự án "${updated.name}" thành công (ARCHIVED)`, 'emerald');
+      showToast(`Project "${updated.name}" has been archived`, 'emerald');
       // tải lại stats ngầm và nhật ký ngầm
       service.getStats().then(setStats).catch(() => {});
       service.getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup).then(setAuditLogs).catch(() => {});
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Lỗi khi lưu trữ dự án';
+      const message = err instanceof Error ? err.message : 'Couldn\'t archive the project';
       showToast(message, 'rose');
     }
   }, [service, auditGroup, showToast]);

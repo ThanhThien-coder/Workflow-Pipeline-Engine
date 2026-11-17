@@ -32,10 +32,10 @@ public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
         String message;
         if (hasCredentials) {
             error = "TOKEN_EXPIRED";
-            message = "Access token không hợp lệ hoặc đã hết hạn. Vui lòng làm mới token hoặc đăng nhập lại.";
+            message = "Your access token is invalid or has expired. Please refresh it or sign in again.";
         } else {
             error = "UNAUTHORIZED";
-            message = "Yêu cầu đăng nhập để thực hiện hành động này.";
+            message = "Please sign in to do this.";
         }
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

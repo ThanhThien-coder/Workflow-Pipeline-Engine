@@ -45,7 +45,7 @@ describe('useTemplateStudio validation before save', () => {
 
     await act(async () => {
       await expect(result.current.save()).rejects.toThrow(
-        'Không thể lưu: phát hiện chu trình lặp trong đồ thị template'
+        'Can\'t save: the template graph contains a cycle.'
       );
     });
 
@@ -55,7 +55,7 @@ describe('useTemplateStudio validation before save', () => {
     expect(result.current.status).toBe('error');
     // Error message is set
     expect(result.current.errorMessage).toBe(
-      'Không thể lưu: phát hiện chu trình lặp trong đồ thị template'
+      'Can\'t save: the template graph contains a cycle.'
     );
     // Services were not called
     expect(createSpy).not.toHaveBeenCalled();

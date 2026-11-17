@@ -31,7 +31,7 @@ describe('MindmapTree — ghi qua API', () => {
     const onUpdateNodes = vi.fn()
     render(<MindmapTree nodes={NODES} selectedId={null} onSelect={() => {}} onUpdateNodes={onUpdateNodes} onAddChildTask={onAddChildTask} phaseId="20" />)
 
-    fireEvent.click(screen.getByTitle('Add child task (Thêm nhánh con phân rã)'))
+    fireEvent.click(screen.getByTitle('Add child task'))
 
     expect(onAddChildTask).toHaveBeenCalledWith('2')
     expect(onUpdateNodes).not.toHaveBeenCalled()

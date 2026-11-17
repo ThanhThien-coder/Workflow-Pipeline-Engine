@@ -1,6 +1,6 @@
 import type { ArtifactItem, ArtifactType } from '../types/kanban.types'
 export const ARTIFACT_TYPE_OPTIONS: { value: ArtifactType; label: string }[] = [
-  { value: 'PR', label: 'GitHub PR Link' }, { value: 'FIGMA', label: 'Figma URL' }, { value: 'DOCS', label: 'Tài liệu API' }, { value: 'ZIP', label: 'Zip' },
+  { value: 'PR', label: 'GitHub PR Link' }, { value: 'FIGMA', label: 'Figma URL' }, { value: 'DOCS', label: 'API documentation' }, { value: 'ZIP', label: 'Zip' },
 ]
 export function artifactLabel(artifact: ArtifactItem): string {
   if (artifact.label) return artifact.label

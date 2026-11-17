@@ -4,12 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CreateArtifactRequest(
-    @NotBlank(message = "Tên tài nguyên không được để trống")
-    @Size(max = 200, message = "Tên tài nguyên không được vượt quá 200 ký tự")
+    @NotBlank(message = "Artifact name is required.")
+    @Size(max = 200, message = "Artifact name can't exceed 200 characters.")
     String name,
 
     // C4: kiểm bằng URI (scheme http/https + có host + tối đa 500 ký tự), thay cho regex "^https?://.+" lọt link thiếu host
-    @NotBlank(message = "Đường dẫn URL không được để trống")
+    @NotBlank(message = "URL is required.")
     @ValidArtifactUrl
     String url,
 

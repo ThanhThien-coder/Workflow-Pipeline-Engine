@@ -54,6 +54,7 @@ export interface BackendGuestActivity {
   actor: string
   text: string
   ago: string
+  avatarUrl?: string | null
 }
 
 export interface BackendGuestOverviewResponse {
@@ -82,12 +83,12 @@ export interface CreateGuestFeedbackCommandDto {
 }
 
 function formatExpiresLabel(expiresAt?: string | null): string {
-  if (!expiresAt) return 'Không thời hạn'
+  if (!expiresAt) return 'No expiration'
   const exp = new Date(expiresAt)
   const diffDays = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   const datePart = exp.toISOString().split('T')[0]
-  if (diffDays <= 0) return `${datePart} (Hết hạn)`
-  return `${datePart} (${diffDays} ngày còn lại)`
+  if (diffDays <= 0) return `${datePart} (Expired)`
+  return `${datePart} (${diffDays} ${diffDays === 1 ? 'day' : 'days'} left)`
 }
 
 export function mapGuestAccessResponse(data: BackendGuestAccessResponse): GuestAccessState {
@@ -98,7 +99,7 @@ export function mapGuestAccessResponse(data: BackendGuestAccessResponse): GuestA
     isActive,
     token,
     expiresAt,
-    expiresLabel: isActive ? formatExpiresLabel(data.expiresAt) : 'Đã thu hồi',
+    expiresLabel: isActive ? formatExpiresLabel(data.expiresAt) : 'Revoked',
   }
 }
 
@@ -114,7 +115,7 @@ export function mapFeedbackResponse(item: BackendFeedbackResponse): FeedbackItem
 
   return {
     id: String(item.id),
-    reviewerName: item.reviewerName || 'Khách truy cập',
+    reviewerName: item.reviewerName || 'Guest',
     reviewerRole: (item.reviewerRole as ReviewerRole) || 'GUEST',
     nodeRef,
     content: item.content || '',
@@ -170,6 +171,7 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
       actor: a.actor || 'System',
       text: a.text || '',
       ago: a.ago || 'recently',
+      avatarUrl: a.avatarUrl || null,
     })),
   }
 }

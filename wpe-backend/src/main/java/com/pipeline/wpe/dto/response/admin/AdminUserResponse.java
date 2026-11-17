@@ -11,6 +11,7 @@ public record AdminUserResponse(
     String status,
     long ownedProjectCount,
     long joinedProjectCount,
-    Instant createdAt
+    Instant createdAt,
+    String avatarUrl
 ) {
 }

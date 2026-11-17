@@ -52,7 +52,7 @@ class AvatarStorageServiceTest {
 
         assertThatThrownBy(() -> avatarStorageService.storeAvatar(42L, emptyFile))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("không được để trống")
+            .hasMessageContaining("is required")
             .satisfies(ex -> assertThat(((BadRequestException) ex).getErrorCode()).isEqualTo("VALIDATION_FAILED"));
     }
 
@@ -65,7 +65,7 @@ class AvatarStorageServiceTest {
 
         assertThatThrownBy(() -> avatarStorageService.storeAvatar(42L, largeFile))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("vượt quá giới hạn")
+            .hasMessageContaining("too large")
             .satisfies(ex -> assertThat(((BadRequestException) ex).getErrorCode()).isEqualTo("FILE_TOO_LARGE"));
     }
 
@@ -77,7 +77,7 @@ class AvatarStorageServiceTest {
 
         assertThatThrownBy(() -> avatarStorageService.storeAvatar(42L, textFile))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("không được hỗ trợ")
+            .hasMessageContaining("Unsupported")
             .satisfies(ex -> assertThat(((BadRequestException) ex).getErrorCode()).isEqualTo("UNSUPPORTED_MEDIA"));
     }
 

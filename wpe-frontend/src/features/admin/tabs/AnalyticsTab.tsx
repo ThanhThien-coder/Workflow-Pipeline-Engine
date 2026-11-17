@@ -12,13 +12,13 @@ interface AnalyticsTabProps {
 }
 
 const PROJECT_STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Nháp',
-  PLANNING: 'Lập kế hoạch',
-  ACTIVE: 'Đang chạy',
-  PAUSED: 'Tạm dừng',
-  COMPLETED: 'Hoàn thành',
-  INACTIVE: 'Không hoạt động',
-  ARCHIVED: 'Lưu trữ',
+  DRAFT: 'Draft',
+  PLANNING: 'Planning',
+  ACTIVE: 'Active',
+  PAUSED: 'Paused',
+  COMPLETED: 'Completed',
+  INACTIVE: 'Inactive',
+  ARCHIVED: 'Archived',
 };
 
 const PROJECT_STATUS_COLORS: Record<string, string> = {
@@ -43,7 +43,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
     return (
       <section id="tab-overview" className="tab-panel active animate-fade">
         <div className="admin-surface flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500">
-          <p className="font-semibold text-slate-700">Chưa có dữ liệu: {errorMessage}</p>
+          <p className="font-semibold text-slate-700">No data available: {errorMessage}</p>
         </div>
       </section>
     );
@@ -54,7 +54,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
       <section id="tab-overview" className="tab-panel active animate-fade">
         <div className="admin-surface flex flex-col items-center justify-center p-12 text-center text-sm text-slate-500">
           <p className="font-semibold text-slate-700">
-            {loading ? 'Đang tải...' : 'Đang tải...'}
+            {loading ? 'Loading...' : 'Loading...'}
           </p>
         </div>
       </section>
@@ -87,7 +87,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
         {/* KPI 1: Người dùng */}
         <div className="admin-surface p-5">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500">Người dùng</span>
+            <span className="text-sm font-medium text-slate-500">Users</span>
             <span className="rounded-lg bg-blue-50 p-2 text-blue-600">
               <Users className="h-5 w-5" />
             </span>
@@ -96,14 +96,14 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
             {stats.users.total.toLocaleString()}
           </div>
           <div className="mt-2 text-xs text-slate-500">
-            đang khóa {stats.users.suspended}, mới 7 ngày {stats.users.newLast7Days}
+            {stats.users.suspended} suspended, {stats.users.newLast7Days} new in 7 days
           </div>
         </div>
 
         {/* KPI 2: Dự án đang chạy */}
         <div className="admin-surface p-5">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500">Dự án đang chạy</span>
+            <span className="text-sm font-medium text-slate-500">Active projects</span>
             <span className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
               <PlayCircle className="h-5 w-5" />
             </span>
@@ -112,14 +112,14 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
             {activeProjectsCount.toLocaleString()}
           </div>
           <div className="mt-2 text-xs text-slate-500">
-            tổng {stats.projects.total}, mới 7 ngày {stats.projects.newLast7Days}
+            {stats.projects.total} total, {stats.projects.newLast7Days} new in 7 days
           </div>
         </div>
 
         {/* KPI 3: Task trễ hạn */}
         <div className="admin-surface p-5">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500">Task trễ hạn</span>
+            <span className="text-sm font-medium text-slate-500">Overdue tasks</span>
             <span className="rounded-lg bg-rose-50 p-2 text-rose-600">
               <AlertCircle className="h-5 w-5" />
             </span>
@@ -128,7 +128,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
             {stats.tasks.overdue.toLocaleString()}
           </div>
           <div className="mt-2 text-xs text-slate-500">
-            tổng task {stats.tasks.total}
+            {stats.tasks.total} tasks total
           </div>
         </div>
 
@@ -144,7 +144,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
             {stats.templates.publicCount.toLocaleString()}
           </div>
           <div className="mt-2 text-xs text-slate-500">
-            riêng tư {stats.templates.privateCount}, lượt dùng {stats.templates.totalClones}
+            {stats.templates.privateCount} private, {stats.templates.totalClones} uses
           </div>
         </div>
       </div>
@@ -153,9 +153,9 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
       <div className="admin-surface mb-6 p-6">
         <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Xu hướng hoạt động</h2>
+            <h2 className="text-base font-bold text-slate-900">Activity trends</h2>
             <p className="text-xs text-slate-500">
-              Biến động người dùng mới, dự án mới và tác vụ hoàn thành theo ngày.
+              New users, new projects, and completed tasks by day.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -163,15 +163,15 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
             <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500 mr-2">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-blue-600 inline-block" />
-                <span>User mới</span>
+                <span>New users</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 inline-block" />
-                <span>Dự án mới</span>
+                <span>New projects</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />
-                <span>Task xong</span>
+                <span>Tasks done</span>
               </div>
             </div>
 
@@ -186,7 +186,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
                     : 'text-slate-500 hover:bg-slate-50'
                 }`}
               >
-                7 Ngày
+                7 days
               </button>
               <button
                 type="button"
@@ -197,7 +197,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
                     : 'text-slate-500 hover:bg-slate-50'
                 }`}
               >
-                30 Ngày
+                30 days
               </button>
             </div>
           </div>
@@ -219,13 +219,13 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
                 <div className="w-full flex items-end justify-center gap-0.5 h-full">
                   {/* User mới */}
                   <div
-                    title={`${item.date}: ${item.newUsers} người dùng mới`}
+                    title={`${item.date}: ${item.newUsers} new users`}
                     style={{ height: `${Math.max(item.newUsers > 0 ? 8 : 0, userHeight)}%` }}
                     className="w-1.5 sm:w-2 rounded-t bg-blue-600 transition-all group-hover:brightness-110"
                   />
                   {/* Dự án mới */}
                   <div
-                    title={`${item.date}: ${item.newProjects} dự án mới`}
+                    title={`${item.date}: ${item.newProjects} new projects`}
                     style={{ height: `${Math.max(item.newProjects > 0 ? 8 : 0, projHeight)}%` }}
                     className="w-1.5 sm:w-2 rounded-t bg-indigo-500 transition-all group-hover:brightness-110"
                   />
@@ -248,7 +248,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
         {/* Ghi chú nhỏ */}
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
           <Info className="h-3.5 w-3.5 shrink-0" />
-          <span>Task xong tính theo ngày cập nhật cuối</span>
+          <span>Tasks done are counted by last update date</span>
         </div>
       </div>
 
@@ -257,10 +257,10 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
         {/* Phân bố trạng thái dự án (thanh ngang) */}
         <div className="admin-surface p-6">
           <h2 className="text-sm font-bold text-slate-900 mb-1">
-            Phân bố trạng thái dự án
+            Project status distribution
           </h2>
           <p className="text-xs text-slate-400 mb-4">
-            Tổng số: {stats.projects.total} dự án trên hệ thống
+            {stats.projects.total} projects in the system
           </p>
 
           <div className="space-y-3">
@@ -297,27 +297,27 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
         <div className="admin-surface p-6 space-y-5">
           <div>
             <h2 className="text-sm font-bold text-slate-900 mb-1">
-              Phân bố vai trò
+              Role distribution
             </h2>
             <p className="text-xs text-slate-400">
-              Phân bổ tài khoản hệ thống và vai trò trong các dự án
+              System accounts and roles across projects
             </p>
           </div>
 
           {/* Vai trò hệ thống */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Vai trò hệ thống
+              System roles
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-white p-3 border border-slate-200/60">
-                <span className="text-[11px] text-slate-400 block">Quản trị viên (ADMIN)</span>
+                <span className="text-[11px] text-slate-400 block">Admin</span>
                 <b className="text-lg text-blue-700">
                   {stats.roles.systemRoles['ADMIN'] ?? 0}
                 </b>
               </div>
               <div className="rounded-lg bg-white p-3 border border-slate-200/60">
-                <span className="text-[11px] text-slate-400 block">Người dùng (USER)</span>
+                <span className="text-[11px] text-slate-400 block">User</span>
                 <b className="text-lg text-slate-800">
                   {stats.roles.systemRoles['USER'] ?? 0}
                 </b>
@@ -328,7 +328,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
           {/* Vai trò trong dự án */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Vai trò trong dự án
+              Project roles
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
               <div className="rounded-lg bg-white p-2.5 border border-slate-200/60">

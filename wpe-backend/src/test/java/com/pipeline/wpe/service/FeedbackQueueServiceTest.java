@@ -233,7 +233,7 @@ class FeedbackQueueServiceTest {
 
         assertThatThrownBy(() -> feedbackQueueService.submitGuestFeedback(token, request))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("tối đa 2000 ký tự");
+            .hasMessageContaining("at most 2,000 characters");
 
         verify(feedbackRepository, never()).save(any());
     }
@@ -244,7 +244,7 @@ class FeedbackQueueServiceTest {
         Long strangerId = 999L;
         when(currentUserProvider.requireCurrentUserId()).thenReturn(strangerId);
         when(authorizationService.verifyProjectMemberOrOwner(projectId, strangerId))
-            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         assertThatThrownBy(() -> feedbackQueueService.getProjectFeedbacks(projectId))
             .isInstanceOf(ForbiddenException.class)
@@ -259,7 +259,7 @@ class FeedbackQueueServiceTest {
         Long strangerId = 999L;
         when(currentUserProvider.requireCurrentUserId()).thenReturn(strangerId);
         when(authorizationService.verifyProjectOwnerOrManager(projectId, strangerId))
-            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới được thực hiện hành động này."));
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can do this."));
 
         assertThatThrownBy(() -> feedbackQueueService.resolveFeedback(projectId, 5L))
             .isInstanceOf(ForbiddenException.class)

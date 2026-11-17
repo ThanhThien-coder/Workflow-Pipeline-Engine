@@ -162,7 +162,7 @@ class NodeAssignmentServiceTest {
 
         assertThatThrownBy(() -> nodeAssignmentService.updateAssignment(nodeId, request, managerId))
             .isInstanceOf(OptimisticLockingFailureException.class)
-            .hasMessageContaining("Công việc đã bị thay đổi");
+            .hasMessageContaining("This task was changed by someone else");
     }
 
     @Test
@@ -205,7 +205,7 @@ class NodeAssignmentServiceTest {
 
         assertThatThrownBy(() -> nodeAssignmentService.updateAssignment(nodeId, request, managerId))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Cần ít nhất assignedUserId hoặc dueDate.");
+            .hasMessageContaining("Provide at least assignedUserId or dueDate.");
     }
 
     @Test
@@ -219,7 +219,7 @@ class NodeAssignmentServiceTest {
 
         assertThatThrownBy(() -> nodeAssignmentService.updateAssignment(nodeId, request, managerId))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Tác vụ đã hoàn tất, không thể đổi người làm hoặc hạn chót.");
+            .hasMessageContaining("This task is done. The assignee and due date can't be changed.");
     }
 
     @Test

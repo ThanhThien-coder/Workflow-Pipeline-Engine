@@ -52,7 +52,7 @@ public class AiDiagnosticService {
         Map<String, Object> analysis = project.getLatestAiAnalysis();
         if (analysis == null || analysis.isEmpty()) {
             return Map.of(
-                "message", "Chưa có dữ liệu chẩn đoán AI cho dự án này. Vui lòng bấm nút 'AI Diagnosis' để kích hoạt phân tích.",
+                "message", "No AI diagnosis is available for this project yet. Select 'AI diagnosis' to run an analysis.",
                 "hasAnalysis", false
             );
         }
@@ -105,7 +105,7 @@ public class AiDiagnosticService {
         try {
             return objectMapper.writeValueAsString(analysis);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Không chuyển được kết quả AI sang JSON", e);
+            throw new IllegalStateException("Failed to serialize the AI result to JSON", e);
         }
     }
 }

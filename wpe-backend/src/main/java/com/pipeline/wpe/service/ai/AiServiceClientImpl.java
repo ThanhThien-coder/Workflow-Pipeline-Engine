@@ -44,8 +44,8 @@ public class AiServiceClientImpl implements AiServiceClient {
                         "nodeCode", node.getCode(),
                         "title", node.getTitle(),
                         "reason", Boolean.TRUE.equals(node.getIsOverdue())
-                            ? "Tác vụ đã vượt quá hạn chót (due_date) và đang giữ chân downstream nodes."
-                            : "Tác vụ đang ngâm ở trạng thái IN_PROGRESS cần đẩy nhanh tiến độ.",
+                            ? "This task is past its due date and is blocking downstream tasks."
+                            : "This task has been in progress for a while and needs to move faster.",
                         "severity", "HIGH"
                     ));
 
@@ -53,13 +53,13 @@ public class AiServiceClientImpl implements AiServiceClient {
                         "nodeCode", node.getCode(),
                         "title", node.getTitle(),
                         "trapType", "POTENTIAL_STALL",
-                        "suggestion", "Nên phân rã nhỏ phạm vi công việc hoặc bổ sung người phối hợp pair-programming."
+                        "suggestion", "Consider splitting the scope into smaller tasks or adding a collaborator to pair on it."
                     ));
 
                     actionableAdvice.add(Map.of(
                         "action", "SPLIT_NODE",
                         "targetNodeCode", node.getCode(),
-                        "instruction", "Tách tác vụ " + node.getCode() + " thành 2 phần để giải phóng nhánh phụ thuộc.",
+                        "instruction", "Split task " + node.getCode() + " into two parts to unblock its dependents.",
                         "priority", "HIGH"
                     ));
                 }
@@ -71,7 +71,7 @@ public class AiServiceClientImpl implements AiServiceClient {
             actionableAdvice.add(Map.of(
                 "action", "RESOLVE_FEEDBACK",
                 "targetNodeCode", "GENERAL",
-                "instruction", "Dự án hiện có " + openFeedbacks.size() + " ý kiến đóng góp chưa giải quyết tại Feedback Queue.",
+                "instruction", "This project has " + openFeedbacks.size() + " unresolved feedback items in the feedback queue.",
                 "priority", "MEDIUM"
             ));
         }
@@ -79,14 +79,14 @@ public class AiServiceClientImpl implements AiServiceClient {
         if (bottlenecks.isEmpty()) {
             bottlenecks.add(Map.of(
                 "nodeCode", (nodes != null && !nodes.isEmpty()) ? nodes.get(0).getCode() : "N/A",
-                "title", (nodes != null && !nodes.isEmpty()) ? nodes.get(0).getTitle() : "Tác vụ khởi đầu",
-                "reason", "Tiến độ đang trong tầm kiểm soát ổn định (DriftScore < 20%).",
+                "title", (nodes != null && !nodes.isEmpty()) ? nodes.get(0).getTitle() : "Starting task",
+                "reason", "Progress is on track (drift score below 20%).",
                 "severity", "LOW"
             ));
             actionableAdvice.add(Map.of(
                 "action", "CONTINUE_PIPELINE",
                 "targetNodeCode", "GENERAL",
-                "instruction", "Duy trì nhịp độ thực hiện tác vụ theo đúng đường găng CPM.",
+                "instruction", "Keep the pace of work aligned with the critical path.",
                 "priority", "LOW"
             ));
         }

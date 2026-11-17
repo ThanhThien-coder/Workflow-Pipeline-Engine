@@ -55,14 +55,14 @@ public final class AdminAuditAction {
 
     public static List<String> actionsOfGroup(String group) {
         if (group == null || group.isBlank()) {
-            throw new IllegalArgumentException("Nhóm audit không hợp lệ: " + group);
+            throw new IllegalArgumentException("Invalid audit group: " + group);
         }
         String normalized = group.trim().toUpperCase();
         return switch (normalized) {
             case "LOGIN" -> LOGIN_ACTIONS;
             case "ADMIN" -> ADMIN_ACTIONS;
             case "TEMPLATE" -> TEMPLATE_ACTIONS;
-            default -> throw new IllegalArgumentException("Nhóm audit không hợp lệ: " + group);
+            default -> throw new IllegalArgumentException("Invalid audit group: " + group);
         };
     }
 }

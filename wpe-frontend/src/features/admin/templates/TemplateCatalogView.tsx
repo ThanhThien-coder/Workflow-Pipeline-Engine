@@ -46,7 +46,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
       const data = await container.templateService.getTemplates({ visibility: 'PUBLIC', includeHidden: true });
       setTemplates(data);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể tải danh sách template';
+      const msg = err instanceof Error ? err.message : 'Couldn\'t load templates';
       setError(msg);
     } finally {
       setLoading(false);
@@ -102,10 +102,10 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
       };
 
       await container.templateService.createTemplate(copyPayload);
-      onToast('Đã nhân bản template (trạng thái DRAFT)', 'blue');
+      onToast('Template duplicated as a draft', 'blue');
       await fetchTemplates();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi nhân bản template';
+      const msg = err instanceof Error ? err.message : 'Couldn\'t duplicate the template';
       onToast(msg, 'rose');
     } finally {
       setIsProcessing(false);
@@ -116,11 +116,11 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
     if (!deleteTarget) return;
     try {
       await container.templateService.deleteTemplate(deleteTarget.id);
-      onToast('Đã xóa template', 'blue');
+      onToast('Template deleted', 'blue');
       setDeleteTarget(null);
       await fetchTemplates();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi xóa template';
+      const msg = err instanceof Error ? err.message : 'Couldn\'t delete the template';
       onToast(msg, 'rose');
     }
   };
@@ -131,9 +131,9 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
       setTemplates((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...updated, isHidden: nextHidden } : t))
       );
-      onToast(nextHidden ? 'Đã ẩn template' : 'Đã hiện template', 'blue');
+      onToast(nextHidden ? 'Template hidden' : 'Template visible', 'blue');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái ẩn template';
+      const msg = err instanceof Error ? err.message : 'Couldn\'t update template visibility';
       onToast(msg, 'rose');
     }
   };
@@ -154,7 +154,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-            Template đang ẩn sẽ không hiện ở màn tạo dự án của người dùng.
+            Hidden templates don't appear when users create a project.
           </p>
         </div>
 
@@ -182,7 +182,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên hoặc mô tả template..."
+            placeholder="Search by template name or description..."
             className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
           />
         </div>
@@ -203,13 +203,13 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
       {/* 3. Counter */}
       <div className="mb-4 flex items-center justify-between text-xs text-slate-500">
         <span>
-          Hiển thị <strong className="text-slate-700">{filteredTemplates.length}</strong> /{' '}
+          Showing <strong className="text-slate-700">{filteredTemplates.length}</strong> /{' '}
           {templates.length} templates
         </span>
         {loading && (
           <span className="flex items-center gap-1.5 text-blue-600 font-medium">
             <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            Đang đồng bộ...
+            Syncing...
           </span>
         )}
       </div>
@@ -234,7 +234,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
         // Error state
         <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-8 text-center">
           <AlertCircle className="mx-auto h-8 w-8 text-rose-500" />
-          <h3 className="mt-2 text-base font-bold text-slate-900">Không thể tải dữ liệu</h3>
+          <h3 className="mt-2 text-base font-bold text-slate-900">Couldn't load data</h3>
           <p className="mt-1 text-sm text-slate-500">{error}</p>
           <button
             type="button"
@@ -242,7 +242,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
             className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            <span>Thử lại</span>
+            <span>Try again</span>
           </button>
         </div>
       ) : filteredTemplates.length === 0 ? (
@@ -250,12 +250,12 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
           <Layers className="mx-auto h-10 w-10 text-slate-300" />
           <h3 className="mt-3 text-base font-bold text-slate-900">
-            Không tìm thấy template phù hợp
+            No matching templates found
           </h3>
           <p className="mt-1 text-sm text-slate-500">
             {search || category !== 'All'
-              ? 'Thử thay đổi bộ lọc tìm kiếm hoặc từ khóa danh mục.'
-              : 'Chưa có template nào được tạo. Hãy bấm "+ Create Template" để bắt đầu.'}
+              ? 'Try changing your search or category filter.'
+              : 'No templates yet. Click "+ Create Template" to get started.'}
           </p>
           {(search || category !== 'All') && (
             <button
@@ -266,7 +266,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
               }}
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Xóa bộ lọc
+              Clear filters
             </button>
           )}
         </div>
@@ -292,8 +292,8 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
         title="Delete template?"
         message={
           deleteTarget?.isSystemStandard
-            ? `"${deleteTarget?.name}" là template mẫu của hệ thống. Xóa vĩnh viễn thì người dùng không chọn được mẫu này khi tạo dự án nữa. Các dự án đã tạo trước đó không bị ảnh hưởng.`
-            : `"${deleteTarget?.name}" sẽ bị xóa khỏi kho mẫu. Các dự án đã clone trước đó không bị ảnh hưởng.`
+            ? `"${deleteTarget?.name}" is a built-in system template. If you delete it permanently, users can no longer choose it when creating a project. Existing projects are not affected.`
+            : `"${deleteTarget?.name}" will be removed from the template library. Projects already cloned from it are not affected.`
         }
         confirmLabel="Delete"
         isDanger={true}

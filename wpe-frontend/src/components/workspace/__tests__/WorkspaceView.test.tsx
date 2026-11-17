@@ -20,7 +20,7 @@ const mockProjects: readonly ProjectCardVm[] = [
     tone: 'indigo',
     icon: 'A',
     roleLabel: 'Owner',
-    members: ['Alex', 'Bob'],
+    members: [{ name: 'Alex', avatarUrl: null }, { name: 'Bob', avatarUrl: null }],
   },
   {
     id: '2',
@@ -36,7 +36,7 @@ const mockProjects: readonly ProjectCardVm[] = [
     tone: 'sky',
     icon: 'B',
     roleLabel: 'Collaborator',
-    members: ['Charlie'],
+    members: [{ name: 'Charlie', avatarUrl: null }],
   },
 ]
 

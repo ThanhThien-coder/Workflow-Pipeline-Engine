@@ -203,7 +203,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
 
     // 1. Bấm nút "+" trên Track Card
     const trackEl = container.querySelector('[data-node-id="trk-1"]') as HTMLElement
-    const trackPlusBtn = trackEl.querySelector('button[title*="Thêm công việc vào Track"]') as HTMLButtonElement
+    const trackPlusBtn = trackEl.querySelector('button[title*="Add task to this track"]') as HTMLButtonElement
     expect(trackPlusBtn).toBeDefined()
     fireEvent.click(trackPlusBtn)
 
@@ -233,7 +233,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
     expect(trackEl.style.left).toBe('320px')   // Track ở Cột 1 (X = 320)
 
     // 2. Bấm nút "+" trên Task Card (Child Subtask sang phải)
-    const taskPlusBtn = newTaskEl.querySelector('button[title*="Thêm nhánh con phân rã"]') as HTMLButtonElement
+    const taskPlusBtn = newTaskEl.querySelector('button[title*="Add child task"]') as HTMLButtonElement
     expect(taskPlusBtn).toBeDefined()
     fireEvent.click(taskPlusBtn)
 
@@ -272,7 +272,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
       />
     )
 
-    const resetBtn = container.querySelector('button[title*="Khôi phục trạng thái gốc"]') as HTMLButtonElement
+    const resetBtn = container.querySelector('button[title*="restore the clean initial state"]') as HTMLButtonElement
     expect(resetBtn).toBeDefined()
     expect(resetBtn.textContent).toContain('Reset Phase Tree')
   })

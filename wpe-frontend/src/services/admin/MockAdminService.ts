@@ -147,7 +147,7 @@ export class MockAdminService implements IAdminService {
       action: 'LOGIN_SUCCESS',
       targetType: 'USER',
       targetId: '2',
-      detail: 'Đăng nhập thành công',
+      detail: 'Signed in successfully',
       maskedIp: '192.168.1.***',
     },
     {
@@ -167,7 +167,7 @@ export class MockAdminService implements IAdminService {
       action: 'LOGIN_FAILED',
       targetType: 'USER',
       targetId: null,
-      detail: 'Không tồn tại tài khoản',
+      detail: 'Account does not exist',
       maskedIp: '203.0.113.***',
     },
     {
@@ -177,7 +177,7 @@ export class MockAdminService implements IAdminService {
       action: 'USER_UNBANNED',
       targetType: 'USER',
       targetId: '3',
-      detail: 'Mở khóa tài khoản',
+      detail: 'Account unsuspended',
       maskedIp: '192.168.1.***',
     },
     {
@@ -187,7 +187,7 @@ export class MockAdminService implements IAdminService {
       action: 'TEMPLATE_UPDATED',
       targetType: 'TEMPLATE',
       targetId: '1',
-      detail: 'Cập nhật template SDLC',
+      detail: 'Updated SDLC template',
       maskedIp: '192.168.5.***',
     },
     {
@@ -197,7 +197,7 @@ export class MockAdminService implements IAdminService {
       action: 'ACCOUNT_LOCKED_LOGIN',
       targetType: 'USER',
       targetId: '3',
-      detail: 'Tài khoản bị khóa',
+      detail: 'Account suspended',
       maskedIp: '198.51.100.***',
     },
     {
@@ -207,7 +207,7 @@ export class MockAdminService implements IAdminService {
       action: 'LOGOUT',
       targetType: 'USER',
       targetId: '4',
-      detail: 'Đăng xuất',
+      detail: 'Signed out',
       maskedIp: '10.2.8.***',
     },
   ];
@@ -383,7 +383,7 @@ export class MockAdminService implements IAdminService {
       throw new Error(`User with ID ${userId} not found`);
     }
     if ((user.ownedProjectCount ?? 0) + (user.joinedProjectCount ?? 0) > 0) {
-      throw new Error('Tài khoản đã có dữ liệu. Hãy khóa tài khoản thay vì xóa.');
+      throw new Error('This account has data. Suspend it instead of deleting it.');
     }
     this.users = this.users.filter((u) => u.id !== userId);
   }
@@ -395,7 +395,7 @@ export class MockAdminService implements IAdminService {
 
   async transferProjectOwner(_projectId: string, _newOwnerId: string): Promise<OwnedProjectDto> {
     await this.delay(50);
-    throw new Error('Chưa có dữ liệu giả cho chuyển chủ dự án');
+    throw new Error('No mock data for project ownership transfer');
   }
 
   async getWorkspaces(query?: string, status?: string): Promise<AdminWorkspaceDto[]> {
@@ -454,7 +454,7 @@ export class MockAdminService implements IAdminService {
     return {
       id: ws.id,
       name: ws.name,
-      description: 'Dự án quản trị mẫu trong hệ thống',
+      description: 'Sample admin project in the system',
       status: ws.status,
       createdAt: ws.createdAt,
       updatedAt: ws.updatedAt,

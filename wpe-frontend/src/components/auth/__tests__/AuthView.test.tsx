@@ -71,11 +71,16 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
       'Alex Kim': 'Marcus Liu',
       'alex.kim@pipeline.engine': 'marcus.liu@pipeline.engine',
       'At least 8 characters': 'password123',
-      'Acme Engineering': 'Acme',
     })
 
     const expected = getAuthErrorMessage(apiError(409, code), '')
     await waitFor(() => expect(screen.getByText(expected)).toBeDefined())
+  })
+
+  it('form đăng ký không còn ô Workspace name', () => {
+    window.history.replaceState({}, '', '/auth?tab=signup')
+    render(<AuthView />)
+    expect(screen.queryByText(/Workspace name/i)).toBeNull()
   })
 
   it('đăng nhập thành công với vai trò USER -> điều hướng tới /workspaces', async () => {

@@ -73,6 +73,8 @@ public class ProjectActivityService {
                 .collect(Collectors.toMap(NodeEntity::getId, Function.identity(), (a, b) -> a));
 
         String ownerName = resolveUserDisplayName(userMap.get(project.getOwnerId()), project.getOwnerId(), "Project owner");
+        String ownerIdStr = idOf(project.getOwnerId());
+        String ownerAvatar = avatarOf(userMap.get(project.getOwnerId()));
         Instant projectCreatedAt = project.getCreatedAt() != null ? project.getCreatedAt() : Instant.EPOCH;
 
         List<ProjectActivityItemResponse> events = new ArrayList<>();
@@ -84,7 +86,9 @@ public class ProjectActivityService {
                 ownerName,
                 "Created project \"" + project.getName() + "\"",
                 null,
-                projectCreatedAt
+                projectCreatedAt,
+                ownerIdStr,
+                ownerAvatar
         ));
 
         // 2. Đổi trạng thái dự án (trạng thái hiện tại)
@@ -100,7 +104,9 @@ public class ProjectActivityService {
                     ownerName,
                     "Changed project status to " + project.getStatus(),
                     null,
-                    statusTime
+                    statusTime,
+                    ownerIdStr,
+                    ownerAvatar
             ));
         }
 
@@ -123,7 +129,9 @@ public class ProjectActivityService {
                         memberName,
                         memberLabel + " joined the project as " + m.getRole(),
                         null,
-                        joinedAt
+                        joinedAt,
+                        idOf(m.getUserId()),
+                        avatarOf(user)
                 ));
             }
 
@@ -134,7 +142,9 @@ public class ProjectActivityService {
                         memberName,
                         memberLabel + " left the project",
                         null,
-                        m.getRemovedAt()
+                        m.getRemovedAt(),
+                        idOf(m.getUserId()),
+                        avatarOf(user)
                 ));
             }
         }
@@ -154,7 +164,9 @@ public class ProjectActivityService {
                     inviterName,
                     "Invited " + inviteeLabel + " as " + inv.getRole(),
                     null,
-                    invCreatedAt
+                    invCreatedAt,
+                    idOf(inv.getInviterId()),
+                    avatarOf(inviter)
             ));
 
             if (inv.getStatus() != null && inv.getStatus() != InvitationStatus.PENDING && inv.getRespondedAt() != null) {
@@ -165,7 +177,9 @@ public class ProjectActivityService {
                             inviteeName,
                             inviteeLabel + " accepted the invitation (" + inv.getRole() + ")",
                             null,
-                            inv.getRespondedAt()
+                            inv.getRespondedAt(),
+                            idOf(inv.getInviteeId()),
+                            avatarOf(invitee)
                     ));
                     case REJECTED -> events.add(new ProjectActivityItemResponse(
                             "invitation-" + inv.getId() + "-rejected",
@@ -173,7 +187,9 @@ public class ProjectActivityService {
                             inviteeName,
                             inviteeLabel + " declined the invitation",
                             null,
-                            inv.getRespondedAt()
+                            inv.getRespondedAt(),
+                            idOf(inv.getInviteeId()),
+                            avatarOf(invitee)
                     ));
                     case REVOKED -> events.add(new ProjectActivityItemResponse(
                             "invitation-" + inv.getId() + "-revoked",
@@ -181,7 +197,9 @@ public class ProjectActivityService {
                             inviterName,
                             "Revoked the invitation for " + inviteeLabel,
                             null,
-                            inv.getRespondedAt()
+                            inv.getRespondedAt(),
+                            idOf(inv.getInviterId()),
+                            avatarOf(inviter)
                     ));
                     case EXPIRED -> events.add(new ProjectActivityItemResponse(
                             "invitation-" + inv.getId() + "-expired",
@@ -215,7 +233,9 @@ public class ProjectActivityService {
                     actor,
                     "Task " + node.getCode() + " (" + node.getTitle() + ") is now " + node.getStatus() + " (latest update)",
                     node.getCode(),
-                    node.getUpdatedAt()
+                    node.getUpdatedAt(),
+                    assignee != null ? idOf(node.getAssignedUserId()) : ownerIdStr,
+                    assignee != null ? avatarOf(assignee) : ownerAvatar
             ));
         }
 
@@ -229,7 +249,9 @@ public class ProjectActivityService {
                     unlockerName,
                     "Unlocked task " + node.getCode() + " (" + node.getTitle() + ") early, before its prerequisites were done",
                     node.getCode(),
-                    node.getForceUnlockedAt()
+                    node.getForceUnlockedAt(),
+                    idOf(node.getForceUnlockedBy()),
+                    avatarOf(userMap.get(node.getForceUnlockedBy()))
             ));
         }
 
@@ -250,7 +272,9 @@ public class ProjectActivityService {
                     uploaderName,
                     msg,
                     targetCode,
-                    artTime
+                    artTime,
+                    idOf(art.getUploadedBy()),
+                    avatarOf(uploader)
             ));
         }
 
@@ -266,7 +290,9 @@ public class ProjectActivityService {
                         ownerName,
                         "Revoked the guest link (revoke time not recorded)",
                         null,
-                        glTime
+                        glTime,
+                        ownerIdStr,
+                        ownerAvatar
                 ));
             }
             events.add(new ProjectActivityItemResponse(
@@ -275,7 +301,9 @@ public class ProjectActivityService {
                     ownerName,
                     "Created a guest link",
                     null,
-                    glTime
+                    glTime,
+                    ownerIdStr,
+                    ownerAvatar
             ));
         }
 
@@ -312,6 +340,14 @@ public class ProjectActivityService {
             return List.copyOf(events.subList(0, effectiveLimit));
         }
         return List.copyOf(events);
+    }
+
+    private static String idOf(Long id) {
+        return id != null ? String.valueOf(id) : null;
+    }
+
+    private static String avatarOf(UserEntity user) {
+        return user != null ? user.getAvatarUrl() : null;
     }
 
     private String resolveUserDisplayName(UserEntity user, Long userId, String fallback) {

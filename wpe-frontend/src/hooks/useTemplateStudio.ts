@@ -829,7 +829,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
 
     const trimmedName = currentDraft.name.trim();
     if (!trimmedName) {
-      throw new Error('Vui lòng nhập tên template');
+      throw new Error('Enter a template name.');
     }
 
     setStatus('saving');
@@ -838,7 +838,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       const validationRes = await container.templateService.validateGraph(currentDraft.graphData);
       setValidation(validationRes);
       if (!validationRes.valid) {
-        throw new Error('Không thể lưu: phát hiện chu trình lặp trong đồ thị template');
+        throw new Error('Can\'t save: the template graph contains a cycle.');
       }
 
       let saved: TemplateDetailDto;
@@ -875,7 +875,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
       return saved;
     } catch (err: unknown) {
       setStatus('error');
-      const msg = err instanceof Error ? err.message : 'Lỗi khi lưu template';
+      const msg = err instanceof Error ? err.message : 'Couldn\'t save the template.';
       setErrorMessage(msg);
       throw err;
     }

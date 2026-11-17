@@ -20,17 +20,17 @@ function inferNotificationKind(raw: BackendNotificationResponse): NotificationKi
   const title = (raw.title || '').toLowerCase()
   const message = (raw.message || '').toLowerCase()
 
-  // G23: backend đã đổi tiêu đề sang tiếng Anh; giữ từ khóa tiếng Việt cho thông báo cũ đã lưu
-  if (link.includes('open-invite-modal') || link.includes('invitationid=') || title.includes('lời mời') || title.includes('invitation') || message.includes('mời bạn tham gia')) {
+  // G23: backend trả tiêu đề tiếng Anh; chỉ so khớp từ khóa tiếng Anh theo tiêu đề và theo link
+  if (link.includes('open-invite-modal') || link.includes('invitationid=') || title.includes('invitation')) {
     return 'invitation'
   }
-  if (title.includes('quá hạn') || title.includes('trễ hạn') || title.includes('overdue')) {
+  if (title.includes('overdue')) {
     return 'overdue'
   }
-  if (title.includes('duyệt') || title.includes('nghiệm thu') || title.includes('approved') || title.includes('review') || title.includes('changes requested')) {
+  if (title.includes('approved') || title.includes('review') || title.includes('changes requested')) {
     return 'approval'
   }
-  if (title.includes('giao') || title.includes('assigned')) {
+  if (title.includes('assigned')) {
     return 'assignment'
   }
   return 'system'

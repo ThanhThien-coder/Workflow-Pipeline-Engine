@@ -268,7 +268,7 @@ export class HttpWorkflowService implements IWorkflowService {
 
       eventSource.addEventListener('INIT', (e) => {
         retryDelay = 3000
-        console.log('[SSE] Đã kết nối đường ống thời gian thực:', e.data)
+        console.log('[SSE] Connected to the real-time stream:', e.data)
       })
 
       eventSource.addEventListener('TASK_UNLOCKED', (e) => {
@@ -276,7 +276,7 @@ export class HttpWorkflowService implements IWorkflowService {
           const task = JSON.parse(e.data)
           onEvent('TASK_UNLOCKED', this.mapBackendTaskToKanban(task))
         } catch (err) {
-          console.error('[SSE] Lỗi parse dữ liệu TASK_UNLOCKED:', err)
+          console.error('[SSE] Failed to parse data TASK_UNLOCKED:', err)
         }
       })
 
@@ -285,7 +285,7 @@ export class HttpWorkflowService implements IWorkflowService {
           const task = JSON.parse(e.data)
           onEvent('TASK_STATUS_CHANGED', this.mapBackendTaskToKanban(task))
         } catch (err) {
-          console.error('[SSE] Lỗi parse dữ liệu TASK_STATUS_CHANGED:', err)
+          console.error('[SSE] Failed to parse data TASK_STATUS_CHANGED:', err)
         }
       })
 
@@ -294,7 +294,7 @@ export class HttpWorkflowService implements IWorkflowService {
           const task = JSON.parse(e.data)
           onEvent('TASK_OVERDUE', this.mapBackendTaskToKanban(task))
         } catch (err) {
-          console.error('[SSE] Lỗi parse dữ liệu TASK_OVERDUE:', err)
+          console.error('[SSE] Failed to parse data TASK_OVERDUE:', err)
         }
       })
 
@@ -303,7 +303,7 @@ export class HttpWorkflowService implements IWorkflowService {
           const notif = JSON.parse(e.data)
           onEvent('NOTIFICATION_RECEIVED', notif)
         } catch (err) {
-          console.error('[SSE] Lỗi parse dữ liệu NOTIFICATION_RECEIVED:', err)
+          console.error('[SSE] Failed to parse data NOTIFICATION_RECEIVED:', err)
         }
       })
 
@@ -312,7 +312,7 @@ export class HttpWorkflowService implements IWorkflowService {
           const task = JSON.parse(e.data)
           onEvent('TASK_SUBMITTED', this.mapBackendTaskToKanban(task))
         } catch (err) {
-          console.error('[SSE] Lỗi parse dữ liệu TASK_SUBMITTED:', err)
+          console.error('[SSE] Failed to parse data TASK_SUBMITTED:', err)
         }
       })
 
@@ -321,7 +321,7 @@ export class HttpWorkflowService implements IWorkflowService {
           const task = JSON.parse(e.data)
           onEvent('TASK_REJECTED', this.mapBackendTaskToKanban(task))
         } catch (err) {
-          console.error('[SSE] Lỗi parse dữ liệu TASK_REJECTED:', err)
+          console.error('[SSE] Failed to parse data TASK_REJECTED:', err)
         }
       })
 
@@ -330,7 +330,7 @@ export class HttpWorkflowService implements IWorkflowService {
           const payload = JSON.parse(e.data)
           onEvent('PROJECT_TASKS_CHANGED', payload)
         } catch (err) {
-          console.error('[SSE] Lỗi parse dữ liệu PROJECT_TASKS_CHANGED:', err)
+          console.error('[SSE] Failed to parse data PROJECT_TASKS_CHANGED:', err)
         }
       })
 
@@ -492,7 +492,7 @@ export class HttpWorkflowService implements IWorkflowService {
       isActive: false,
       token: '',
       expiresAt: '',
-      expiresLabel: 'Đã thu hồi',
+      expiresLabel: 'Revoked',
     }
     try {
       guestAccess = await guestApi.getGuestAccess(projectId)
@@ -502,7 +502,7 @@ export class HttpWorkflowService implements IWorkflowService {
           isActive: false,
           token: '',
           expiresAt: '',
-          expiresLabel: 'Chỉ chủ dự án mới có quyền quản lý link',
+          expiresLabel: 'Only the project owner can manage guest links',
         }
       } else {
         throw error
@@ -708,7 +708,7 @@ export class HttpWorkflowService implements IWorkflowService {
       throw new ApiError({
         status: 400,
         code: 'PHASE_NOT_LOADED',
-        message: `Chưa tải đồ thị chứa phase ${phaseId}. Tải lại trang rồi thử lại.`,
+        message: `The graph containing phase ${phaseId} hasn\'t been loaded yet. Reload the page and try again.`,
       })
     }
     return known.projectId
@@ -733,7 +733,7 @@ export class HttpWorkflowService implements IWorkflowService {
       throw new ApiError({
         status: 404,
         code: 'RESOURCE_NOT_FOUND',
-        message: `Không tìm thấy phase ${phaseId} trong dự án ${pid}.`,
+        message: `Phase ${phaseId} was not found in project ${pid}.`,
       })
     }
     return tree
@@ -788,7 +788,7 @@ export class HttpWorkflowService implements IWorkflowService {
       if (!this.phaseIndex.has(id)) await this.loadGraph(pid)
       const name = this.phaseIndex.get(id)?.name
       if (!name) {
-        throw new ApiError({ status: 404, code: 'RESOURCE_NOT_FOUND', message: `Không tìm thấy phase ${id} trong dự án ${pid}.` })
+        throw new ApiError({ status: 404, code: 'RESOURCE_NOT_FOUND', message: `Phase ${id} was not found in project ${pid}.` })
       }
       await graphApi.updatePhase(pid, id, {
         name,
@@ -824,7 +824,7 @@ export class HttpWorkflowService implements IWorkflowService {
       phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
       title: payload.title.trim(),
     })
-    const childId = graphApi.toBackendId(String(created.id), 'Task mới')
+    const childId = graphApi.toBackendId(String(created.id), 'New task')
     try {
       for (const parentId of parentIds) {
         await graphApi.createDependency(pid, parentId, childId)
@@ -855,7 +855,7 @@ export class HttpWorkflowService implements IWorkflowService {
       description: patch.description,
       joinPolicy: patch.joinPolicy,
       version: known.version,
-      ...(patch.assigneeId ? { assignedUserId: graphApi.toBackendId(patch.assigneeId, 'Người làm') } : { clearAssignee: true }),
+      ...(patch.assigneeId ? { assignedUserId: graphApi.toBackendId(patch.assigneeId, 'Assignee') } : { clearAssignee: true }),
       // G21: hạn chót là cuối ngày đã chọn (giờ máy), không phải 00:00 UTC (quá hạn từ 7h sáng ở VN)
       ...(patch.dueDate ? { dueDate: dateInputToEndOfDayIso(patch.dueDate) } : { clearDueDate: true }),
     })
@@ -893,8 +893,8 @@ export class HttpWorkflowService implements IWorkflowService {
     payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }
   ): Promise<GhostDependency> {
     const pid = this.projectIdOfPhase(phaseId)
-    const parentId = graphApi.toBackendId(payload.sourceTaskId, 'Node nguồn')
-    const childId = graphApi.toBackendId(payload.targetTaskId, 'Node đích')
+    const parentId = graphApi.toBackendId(payload.sourceTaskId, 'Source task')
+    const childId = graphApi.toBackendId(payload.targetTaskId, 'Target task')
     await graphApi.createDependency(pid, parentId, childId)
 
     const source = this.nodeIndex.get(payload.sourceTaskId)
@@ -964,7 +964,7 @@ export class HttpWorkflowService implements IWorkflowService {
       phaseLabel: '',
       dueDate: item.dueDate || new Date().toISOString(),
       isOverdue: item.isOverdue || false,
-      joinPolicySummary: item.joinPolicy === 'ALL_COMPLETED' ? 'AND-Join: Tất cả tiền đề hoàn thành' : 'OR-Join: 1 tiền đề hoàn thành',
+      joinPolicySummary: item.joinPolicy === 'ALL_COMPLETED' ? 'AND-Join: All prerequisites completed' : 'OR-Join: 1 prerequisite completed',
       artifacts: (item.artifacts || []).map(a => ({
         id: String(a.id),
         type: a.type as ArtifactType,

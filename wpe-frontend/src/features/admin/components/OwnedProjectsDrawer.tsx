@@ -72,11 +72,11 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
             <div className="flex items-center gap-2">
               <FolderGit2 className="h-5 w-5 text-blue-600" />
               <h3 id="ownedProjectsDrawerTitle" className="text-lg font-extrabold text-slate-900">
-                Dự án sở hữu: {user.name}
+                Owned projects: {user.name}
               </h3>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Chỉ hiện thông tin chung của dự án, không có nội dung task.
+              Shows general project info only, not task content.
             </p>
           </div>
           <button
@@ -84,7 +84,7 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
             onClick={onClose}
             disabled={!!submittingProjectId}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-50"
-            aria-label="Đóng"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
@@ -95,14 +95,14 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
           {loading && (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
-              <p className="text-sm">Đang tải danh sách dự án...</p>
+              <p className="text-sm">Loading projects...</p>
             </div>
           )}
 
           {!loading && projects.length === 0 && (
             <div className="text-center py-12 text-sm text-slate-500">
               <FolderGit2 className="h-10 w-10 text-slate-300 mx-auto mb-2" />
-              <p className="font-semibold text-slate-700">Người dùng này không sở hữu dự án nào.</p>
+              <p className="font-semibold text-slate-700">This user doesn't own any projects.</p>
             </div>
           )}
 
@@ -126,7 +126,7 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <Users className="h-3.5 w-3.5 text-slate-400" />
-                          {proj.memberCount} thành viên
+                          {proj.memberCount} members
                         </span>
                       </div>
                     </div>
@@ -136,12 +136,12 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
                   <div className="mt-4 pt-3 border-t border-slate-200/60">
                     {proj.status === 'ARCHIVED' || proj.status === 'COMPLETED' ? (
                       <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-200">
-                        Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.
+                        Archived or completed projects can't be transferred.
                       </p>
                     ) : hasCandidates ? (
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <select
-                          aria-label="Chủ mới"
+                          aria-label="New owner"
                           value={selectedCandidateId}
                           onChange={(e) =>
                             setSelectedOwners((prev) => ({
@@ -151,7 +151,7 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
                           }
                           className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 outline-none transition focus:border-blue-400"
                         >
-                          <option value="">-- Chọn chủ mới --</option>
+                          <option value="">-- Select new owner --</option>
                           {proj.candidates.map((c) => (
                             <option key={c.userId} value={c.userId}>
                               {c.name} (@{c.username})
@@ -164,12 +164,12 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
                           onClick={() => handleTransferClick(proj.projectId)}
                           className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
                         >
-                          {isSubmitting ? 'Đang chuyển...' : 'Chuyển chủ'}
+                          {isSubmitting ? 'Transferring...' : 'Transfer ownership'}
                         </button>
                       </div>
                     ) : (
                       <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-200">
-                        Dự án chỉ có một người, không chuyển được. Chỉ có thể lưu trữ.
+                        This project has only one member and can't be transferred. You can only archive it.
                       </p>
                     )}
                   </div>

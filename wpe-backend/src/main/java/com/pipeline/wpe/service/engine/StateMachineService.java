@@ -128,13 +128,13 @@ public class StateMachineService {
     @Transactional
     public KanbanTaskResponse updateStatus(Long taskId, UpdateNodeStatusRequest request, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(taskId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tác vụ ID: " + taskId));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
         // 1. Kiểm tra Optimistic Locking qua trường @Version
         if (request.version() != null && !Objects.equals(node.getVersion(), request.version())) {
             throw new OptimisticLockingFailureException(
-                "Tác vụ đã bị thay đổi bởi thành viên khác (Phiên bản máy chủ: " + node.getVersion() +
-                ", phiên bản yêu cầu: " + request.version() + "). Vui lòng làm mới trang."
+                "This task was changed by another member (server version: " + node.getVersion() +
+                ", your version: " + request.version() + "). Please refresh the page."
             );
         }
 
@@ -142,18 +142,18 @@ public class StateMachineService {
         try {
             targetStatus = NodeStatus.valueOf(request.status().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Trạng thái không hợp lệ: " + request.status());
+            throw new IllegalArgumentException("Invalid status: " + request.status());
         }
 
         NodeStatus currentStatus = node.getStatus();
 
         // 2. Không cho phép di chuyển task đã DONE (Terminal State)
         if (currentStatus == NodeStatus.DONE) {
-            throw new IllegalArgumentException("Tác vụ đã hoàn tất và đóng băng, không thể thay đổi.");
+            throw new IllegalArgumentException("This task is done and frozen, so it can't be changed.");
         }
 
         ProjectEntity project = projectRepository.findById(node.getProjectId())
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án ID: " + node.getProjectId()));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + node.getProjectId()));
         ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
@@ -166,10 +166,10 @@ public class StateMachineService {
         if (targetStatus == NodeStatus.DONE) {
             // Bước REVIEW -> DONE
             if (currentStatus != NodeStatus.REVIEW) {
-                throw new IllegalArgumentException("Tác vụ bắt buộc phải qua bước REVIEW trước khi nghiệm thu.");
+                throw new IllegalArgumentException("A task must go through REVIEW before it can be completed.");
             }
             if (!canReview) {
-                throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới có thẩm quyền phê duyệt hoàn thành tác vụ.");
+                throw new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can approve a task as done.");
             }
 
             node.setStatus(NodeStatus.DONE);
@@ -187,10 +187,10 @@ public class StateMachineService {
         } else if (targetStatus == NodeStatus.IN_PROGRESS && currentStatus == NodeStatus.REVIEW) {
             // Owner hoặc Manager từ chối bài nộp: REVIEW -> IN_PROGRESS
             if (!canReview) {
-                throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới có quyền yêu cầu làm lại tác vụ.");
+                throw new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can request changes on a task.");
             }
             if (request.rejectReason() == null || request.rejectReason().trim().isEmpty()) {
-                throw new IllegalArgumentException("Bắt buộc phải nhập lý do từ chối (rejectReason).");
+                throw new IllegalArgumentException("A rejection reason (rejectReason) is required.");
             }
 
             node.setStatus(NodeStatus.IN_PROGRESS);
@@ -217,7 +217,7 @@ public class StateMachineService {
         } else if (targetStatus == NodeStatus.IN_PROGRESS && currentStatus == NodeStatus.TODO) {
             // Bắt đầu làm: TODO -> IN_PROGRESS
             if (!isAssignee && !isOwner) {
-                throw new ForbiddenException("ACCESS_DENIED", "Bạn không phải người phụ trách tác vụ này.");
+                throw new ForbiddenException("ACCESS_DENIED", "You are not the assignee of this task.");
             }
             node.setStatus(NodeStatus.IN_PROGRESS);
             node.setStartedAt(Instant.now());
@@ -225,7 +225,7 @@ public class StateMachineService {
         } else if (targetStatus == NodeStatus.TODO && currentStatus == NodeStatus.IN_PROGRESS) {
             // Hủy nhận làm việc: IN_PROGRESS -> TODO
             if (!isAssignee && !isOwner) {
-                throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền hủy nhận tác vụ này.");
+                throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to unassign this task.");
             }
             node.setStatus(NodeStatus.TODO);
             node.setStartedAt(null);
@@ -233,14 +233,14 @@ public class StateMachineService {
         } else if (targetStatus == NodeStatus.REVIEW && currentStatus == NodeStatus.IN_PROGRESS) {
             // Nộp bài trực tiếp qua status: IN_PROGRESS -> REVIEW
             if (!isAssignee && !isOwner) {
-                throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền nộp bài cho tác vụ này.");
+                throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to submit this task.");
             }
             node.setStatus(NodeStatus.REVIEW);
             node.setRejectReason(null);
 
         } else {
             throw new IllegalArgumentException(
-                "Luồng chuyển đổi trạng thái từ " + currentStatus + " sang " + targetStatus + " không hợp lệ."
+                "Can't change the task status from " + currentStatus + " to " + targetStatus + "."
             );
         }
 
@@ -277,24 +277,24 @@ public class StateMachineService {
     @Transactional
     public SubmitTaskArtifactResponse submitTaskArtifact(Long taskId, SubmitTaskArtifactRequest request, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(taskId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tác vụ ID: " + taskId));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
         if (node.getStatus() != NodeStatus.IN_PROGRESS) {
-            throw new IllegalArgumentException("Tác vụ phải ở trạng thái IN_PROGRESS mới có thể nộp bài nghiệm thu.");
+            throw new IllegalArgumentException("A task must be IN_PROGRESS before it can be submitted for review.");
         }
 
         if (request.version() != null && !Objects.equals(node.getVersion(), request.version())) {
-            throw new OptimisticLockingFailureException("Phiên bản dữ liệu không khớp. Vui lòng làm mới trang.");
+            throw new OptimisticLockingFailureException("The data version doesn't match. Please refresh the page.");
         }
 
         ProjectEntity project = projectRepository.findById(node.getProjectId())
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án ID: " + node.getProjectId()));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + node.getProjectId()));
         ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
         if (!isOwner && !isAssignee) {
-            throw new ForbiddenException("ACCESS_DENIED", "Bạn không có quyền nộp bài cho tác vụ này.");
+            throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to submit this task.");
         }
 
         // Đọc minh chứng gửi kèm (hỗ trợ cả format trực tiếp và format bọc trong artifact object)
@@ -312,7 +312,7 @@ public class StateMachineService {
         // NodeController không có @Valid cho request này nên kiểm ở đây; lỗi → 400 BAD_REQUEST.
         if (hasArtifact && !ArtifactUrlValidator.isValid(artifactUrl)) {
             throw new IllegalArgumentException(
-                "Link minh chứng phải là http:// hoặc https:// hợp lệ (có tên miền), tối đa 500 ký tự.");
+                "The artifact link must be a valid http:// or https:// URL (with a domain), up to 500 characters.");
         }
 
         // Chuyển sang REVIEW
@@ -334,7 +334,7 @@ public class StateMachineService {
 
             String artifactName = artifactTitle != null && !artifactTitle.isBlank()
                 ? artifactTitle.trim()
-                : "Minh chứng " + node.getCode();
+                : "Artifact " + node.getCode();
             String url = artifactUrl.trim();
 
             // G17: minh chứng vào kho Artifacts. Trùng hoàn toàn (cùng dự án, tên, link) thì không thêm dòng lặp:
@@ -410,18 +410,18 @@ public class StateMachineService {
     @Transactional
     public KanbanTaskResponse forceUnlock(Long taskId, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(taskId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tác vụ ID: " + taskId));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
         ProjectEntity project = projectRepository.findById(node.getProjectId())
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án ID: " + node.getProjectId()));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + node.getProjectId()));
         ensureNotArchived(project);
 
         if (!project.getOwnerId().equals(currentUserId)) {
-            throw new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền mở khóa cưỡng bức (Force Unlock).");
+            throw new ForbiddenException("ACCESS_DENIED", "Only the project owner can force unlock a task.");
         }
 
         if (node.getStatus() != NodeStatus.LOCKED) {
-            throw new IllegalArgumentException("Chỉ có thể Force Unlock tác vụ đang ở trạng thái LOCKED.");
+            throw new IllegalArgumentException("Only tasks in LOCKED status can be force unlocked.");
         }
 
         node.setStatus(NodeStatus.TODO);
@@ -544,7 +544,7 @@ public class StateMachineService {
     private void ensureNotArchived(ProjectEntity project) {
         if (project.getStatus() == ProjectStatus.ARCHIVED) {
             throw new ConflictException("PROJECT_ARCHIVED",
-                "Dự án đã được lưu trữ, chỉ có thể xem. Không thể thay đổi trạng thái tác vụ.");
+                "This project is archived and read-only. Task status can't be changed.");
         }
     }
 

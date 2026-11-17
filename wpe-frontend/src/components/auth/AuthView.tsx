@@ -212,7 +212,7 @@ export const AuthView: FC = () => {
   const initialTab = searchParams.get('tab') === 'signup' ? 'signup' : 'signin'
 
   const [tab, setTab] = useState<'signin' | 'signup'>(initialTab)
-  const [f, setF] = useState({ name: '', org: '', email: '', pw: '' })
+  const [f, setF] = useState({ name: '', email: '', pw: '' })
   const [err, setErr] = useState<Record<string, string | null>>({})
   const [show, setShow] = useState(false)
   const [remember, setRemember] = useState(true)
@@ -252,7 +252,6 @@ export const AuthView: FC = () => {
   const validate = () => {
     const e: Record<string, string> = {}
     if (signup && !f.name.trim()) e.name = 'Full name is required.'
-    if (signup && !f.org.trim()) e.org = 'Workspace name is required.'
     // G22: đăng nhập và đăng ký đều bằng email (username có thể trùng)
     if (!f.email.trim()) {
       e.email = 'Email is required.'
@@ -279,7 +278,6 @@ export const AuthView: FC = () => {
       if (signup) {
         await registerAction({
           fullName: f.name.trim(),
-          workspaceName: f.org.trim(),
           email: f.email.trim(),
           password: f.pw,
         })
@@ -436,20 +434,6 @@ export const AuthView: FC = () => {
                   </button>
                 </div>
               </Field>
-
-              {signup && (
-                <div className="fade">
-                  <Field label="Workspace name" error={err.org}>
-                    <input
-                      className={inputCls(err.org)}
-                      placeholder="Acme Engineering"
-                      value={f.org}
-                      onChange={setField('org')}
-                      autoComplete="organization"
-                    />
-                  </Field>
-                </div>
-              )}
 
               {!signup && (
                 <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">

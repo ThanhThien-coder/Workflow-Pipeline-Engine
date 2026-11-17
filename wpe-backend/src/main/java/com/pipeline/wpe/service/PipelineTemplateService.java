@@ -68,7 +68,7 @@ public class PipelineTemplateService {
             } else if ("PRIVATE".equalsIgnoreCase(v)) {
                 targetVisibility = TemplateVisibility.PRIVATE;
             } else {
-                throw new IllegalArgumentException("visibility chỉ nhận PUBLIC hoặc PRIVATE");
+                throw new IllegalArgumentException("visibility must be PUBLIC or PRIVATE.");
             }
         } else {
             targetVisibility = null;
@@ -118,11 +118,11 @@ public class PipelineTemplateService {
     @Transactional(readOnly = true)
     public TemplateDetailResponse getTemplateById(Long id, Long currentUserId) {
         PipelineTemplateEntity template = templateRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với ID: " + id));
+            .orElseThrow(() -> new ResourceNotFoundException("Template not found with ID: " + id));
 
         boolean isHidden = Boolean.TRUE.equals(template.getIsHidden());
         if ((isHidden && !isAdmin(currentUserId)) || !canView(template, currentUserId)) {
-            throw new ResourceNotFoundException("Không tìm thấy Template với ID: " + id);
+            throw new ResourceNotFoundException("Template not found with ID: " + id);
         }
 
         return mapToDetailResponse(template);
@@ -140,9 +140,9 @@ public class PipelineTemplateService {
         if ((isHidden && !isAdmin(currentUserId)) || !canView(template, currentUserId)) {
             try {
                 Long.parseLong(idOrSlug.trim());
-                throw new ResourceNotFoundException("Không tìm thấy Template với ID: " + idOrSlug);
+                throw new ResourceNotFoundException("Template not found with ID: " + idOrSlug);
             } catch (NumberFormatException e) {
-                throw new ResourceNotFoundException("Không tìm thấy Template với slug: " + idOrSlug);
+                throw new ResourceNotFoundException("Template not found with slug: " + idOrSlug);
             }
         }
         return mapToDetailResponse(template);
@@ -162,16 +162,16 @@ public class PipelineTemplateService {
 
     public PipelineTemplateEntity findTemplateEntity(String idOrSlug) {
         if (idOrSlug == null || idOrSlug.isBlank()) {
-            throw new ResourceNotFoundException("ID hoặc slug của Template không được để trống.");
+            throw new ResourceNotFoundException("Template ID or slug is required.");
         }
         try {
             Long id = Long.parseLong(idOrSlug.trim());
             return templateRepository.findById(id)
                 .or(() -> templateRepository.findBySlug(idOrSlug.trim()))
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với ID: " + idOrSlug));
+                .orElseThrow(() -> new ResourceNotFoundException("Template not found with ID: " + idOrSlug));
         } catch (NumberFormatException e) {
             return templateRepository.findBySlug(idOrSlug.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với slug: " + idOrSlug));
+                .orElseThrow(() -> new ResourceNotFoundException("Template not found with slug: " + idOrSlug));
         }
     }
 
@@ -188,7 +188,7 @@ public class PipelineTemplateService {
             List<String> cycleNodes = validation.violations().stream()
                 .flatMap(v -> v.nodeIds().stream())
                 .toList();
-            throw new CycleDetectedException("Phát hiện chu trình lặp trong đồ thị Template mẫu.", cycleNodes);
+            throw new CycleDetectedException("A cycle was detected in the template pipeline.", cycleNodes);
         }
 
         PipelineTemplateEntity entity = PipelineTemplateEntity.builder()
@@ -214,7 +214,7 @@ public class PipelineTemplateService {
     @Transactional
     public TemplateDetailResponse updateTemplate(Long id, CreateTemplateRequest request, Long currentUserId) {
         PipelineTemplateEntity template = templateRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với ID: " + id));
+            .orElseThrow(() -> new ResourceNotFoundException("Template not found with ID: " + id));
 
         requireCanManage(template, currentUserId);
 
@@ -223,7 +223,7 @@ public class PipelineTemplateService {
             List<String> cycleNodes = validation.violations().stream()
                 .flatMap(v -> v.nodeIds().stream())
                 .toList();
-            throw new CycleDetectedException("Phát hiện chu trình lặp trong đồ thị Template mẫu.", cycleNodes);
+            throw new CycleDetectedException("A cycle was detected in the template pipeline.", cycleNodes);
         }
 
         template.setName(request.name().trim());
@@ -248,7 +248,7 @@ public class PipelineTemplateService {
     @Transactional
     public void deleteTemplate(Long id, Long currentUserId) {
         PipelineTemplateEntity template = templateRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Template với ID: " + id));
+            .orElseThrow(() -> new ResourceNotFoundException("Template not found with ID: " + id));
 
         requireCanManage(template, currentUserId);
 
@@ -263,7 +263,7 @@ public class PipelineTemplateService {
 
         PipelineTemplateEntity template = findTemplateEntity(idOrSlug);
         if (template.getVisibility() == TemplateVisibility.PRIVATE) {
-            throw new ConflictException("TEMPLATE_NOT_PUBLIC", "Chỉ ẩn/hiện được template công khai.");
+            throw new ConflictException("TEMPLATE_NOT_PUBLIC", "Only public templates can be hidden or shown.");
         }
 
         template.setIsHidden(Boolean.TRUE.equals(hidden));
@@ -383,7 +383,7 @@ public class PipelineTemplateService {
             List<String> cycleNodes = validation.violations().stream()
                 .flatMap(v -> v.nodeIds().stream())
                 .toList();
-            throw new CycleDetectedException("Phát hiện chu trình lặp trong đồ thị Template mẫu.", cycleNodes);
+            throw new CycleDetectedException("A cycle was detected in the template pipeline.", cycleNodes);
         }
 
         String category = (req.category() != null && !req.category().isBlank()) ? req.category().trim() : "General";
@@ -422,12 +422,12 @@ public class PipelineTemplateService {
 
     private void requireAdmin(Long currentUserId) {
         if (currentUserId == null) {
-            throw new ForbiddenException("ACCESS_DENIED", "Chỉ quản trị viên hệ thống mới được quản lý template.");
+            throw new ForbiddenException("ACCESS_DENIED", "Only system admins can manage templates.");
         }
         UserEntity user = userRepository.findById(currentUserId)
-            .orElseThrow(() -> new ForbiddenException("ACCESS_DENIED", "Chỉ quản trị viên hệ thống mới được quản lý template."));
+            .orElseThrow(() -> new ForbiddenException("ACCESS_DENIED", "Only system admins can manage templates."));
         if (user.getSystemRole() != SystemRole.ADMIN) {
-            throw new ForbiddenException("ACCESS_DENIED", "Chỉ quản trị viên hệ thống mới được quản lý template.");
+            throw new ForbiddenException("ACCESS_DENIED", "Only system admins can manage templates.");
         }
     }
 
@@ -443,10 +443,10 @@ public class PipelineTemplateService {
             if (isOwner) {
                 return;
             }
-            throw new ResourceNotFoundException("Không tìm thấy Template với ID: " + template.getId());
+            throw new ResourceNotFoundException("Template not found with ID: " + template.getId());
         }
 
-        throw new ForbiddenException("ACCESS_DENIED", "Chỉ quản trị viên hệ thống mới được quản lý template.");
+        throw new ForbiddenException("ACCESS_DENIED", "Only system admins can manage templates.");
     }
 
     /**

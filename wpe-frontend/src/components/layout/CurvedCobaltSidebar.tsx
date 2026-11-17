@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import type { NavigationTab } from '../../store/useWorkflowStore'
 import { getSavedAvatar } from '../../utils/avatarUtils'
+import { navigate } from '../../router/useRouter'
 
 export interface NavItemDef {
   id: NavigationTab
@@ -128,9 +129,9 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
             transition={{ type: 'spring', stiffness: 450, damping: 28 }}
             whileTap={{ scale: 0.9 }}
             onClick={toggleSidebar}
-            title="Mở rộng menu (Ctrl+B)"
+            title="Expand menu (Ctrl+B)"
             className="absolute -right-3.5 top-4 z-30 w-7 h-7 rounded-full bg-white shadow-md border border-blue-100 flex items-center justify-center text-blue-600 hover:scale-110 hover:shadow-lg transition-transform cursor-pointer"
-            aria-label="Mở rộng menu"
+            aria-label="Expand menu"
           >
             <ChevronsRight className="w-4 h-4" />
           </motion.button>
@@ -189,9 +190,9 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
                 exit={{ opacity: 0, x: -6, scale: 0.9 }}
                 transition={{ duration: 0.15 }}
                 whileTap={{ scale: 0.92 }}
-                title="Thu gọn menu (Ctrl+B)"
+                title="Collapse menu (Ctrl+B)"
                 className="ml-auto p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
-                aria-label="Thu gọn menu"
+                aria-label="Collapse menu"
               >
                 <ChevronsLeft className="w-4 h-4" />
               </motion.button>
@@ -422,12 +423,12 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
                   const avatar =
                     'avatarUrl' in m && m.avatarUrl ? m.avatarUrl : getSavedAvatar(name)
                   const bgClass = m.avatarClass || 'bg-blue-500'
+                  const memberId = ('userId' in m ? m.userId : m.id) || ''
 
-                  return avatar ? (
+                  const face = avatar ? (
                     <motion.img
                       whileHover={{ y: -3, scale: 1.15 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      key={('userId' in m ? m.userId : m.id) || idx}
                       src={avatar}
                       alt={name}
                       title={name}
@@ -437,12 +438,27 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
                     <motion.span
                       whileHover={{ y: -3, scale: 1.15 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      key={('userId' in m ? m.userId : m.id) || idx}
                       title={name}
                       className={`grid h-8 w-8 place-items-center rounded-full border-2 border-blue-600 text-[10px] font-bold text-white shadow-md ring-1 ring-white/20 ${bgClass}`}
                     >
                       {initials}
                     </motion.span>
+                  )
+
+                  if (!memberId) {
+                    return <span key={idx}>{face}</span>
+                  }
+                  return (
+                    <button
+                      type="button"
+                      key={memberId}
+                      title="View profile"
+                      aria-label={`View profile of ${name}`}
+                      onClick={() => navigate('/people/' + memberId)}
+                      className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    >
+                      {face}
+                    </button>
                   )
                 })
               )}

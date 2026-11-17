@@ -92,7 +92,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
         visibility,
       })
     } catch (error: any) {
-      setErr(error?.message || 'Có lỗi xảy ra khi tạo dự án.')
+      setErr(error?.message || 'Couldn\'t create the project.')
     } finally {
       setSubmitting(false)
     }
@@ -120,11 +120,11 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-extrabold text-slate-900">
-              {templateId ? 'Nhân bản quy trình từ Template' : 'Create New Pipeline'}
+              {templateId ? 'Clone workflow from template' : 'Create New Pipeline'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               {templateId
-                ? 'Sao chép sâu toàn bộ giai đoạn (Phases), tác vụ và cạnh phụ thuộc DAG.'
+                ? 'Deep-copies all Phases, tasks, and DAG dependencies.'
                 : 'Set up a deterministic workflow pipeline with DAG constraints.'}
             </p>
           </div>
@@ -155,11 +155,11 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
         <div>
           <label className="text-xs font-semibold text-slate-800 flex items-center justify-between">
             <span>
-              Khởi tạo từ Template mẫu{' '}
-              <span className="text-slate-400 font-normal">(Tùy chọn / Optional)</span>
+              Start from a template{' '}
+              <span className="text-slate-400 font-normal">(Optional)</span>
             </span>
             {loadingTemplates && (
-              <span className="text-[10px] text-indigo-500 font-normal">Đang tải templates…</span>
+              <span className="text-[10px] text-indigo-500 font-normal">Loading templates…</span>
             )}
           </label>
           <div className="relative mt-1.5">
@@ -175,10 +175,10 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
               }}
               className="w-full text-sm rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 outline-none transition-colors focus:border-indigo-500 text-slate-800 disabled:opacity-60"
             >
-              <option value="">Blank Project (Khởi tạo dự án trống - Mặc định)</option>
+              <option value="">Blank project (default)</option>
               {templates.map((tpl) => (
                 <option key={tpl.id} value={tpl.id}>
-                  {tpl.name}{tpl.visibility === 'PRIVATE' ? ' [Của tôi]' : ''} ({tpl.category} · {tpl.phaseCount} phases, {tpl.nodeCount} tasks)
+                  {tpl.name}{tpl.visibility === 'PRIVATE' ? ' [Mine]' : ''} ({tpl.category} · {tpl.phaseCount} phases, {tpl.nodeCount} tasks)
                 </option>
               ))}
             </select>
@@ -187,7 +187,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
             <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-indigo-50/60 px-2.5 py-1.5 text-[11px] text-indigo-700">
               <Layers size={13} className="shrink-0 text-indigo-600" />
               <span>
-                Hệ thống sẽ tự động nhân bản cấu trúc Phases & DAG Nodes từ template đã chọn.
+                The Phase and DAG structure of the selected template will be cloned automatically.
               </span>
             </div>
           )}
@@ -209,7 +209,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
 
         <div>
           <label className="text-xs font-semibold text-slate-800">
-            Chế độ hiển thị / Visibility
+            Visibility
           </label>
           <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs">
             <button
@@ -222,8 +222,8 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span className="block font-bold">Private (Riêng tư)</span>
-              <span className="text-[10px] text-slate-500 font-normal">Chỉ bạn và thành viên được mời</span>
+              <span className="block font-bold">Private</span>
+              <span className="text-[10px] text-slate-500 font-normal">Only you and invited members</span>
             </button>
             <button
               type="button"
@@ -235,8 +235,8 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span className="block font-bold">Public (Công khai)</span>
-              <span className="text-[10px] text-slate-500 font-normal">Mọi người trong workspace đều thấy</span>
+              <span className="block font-bold">Public</span>
+              <span className="text-[10px] text-slate-500 font-normal">Everyone in the workspace can see it</span>
             </button>
           </div>
         </div>
@@ -263,10 +263,10 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
             {submitting ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
-                <span>{templateId ? 'Đang nhân bản...' : 'Creating...'}</span>
+                <span>{templateId ? 'Cloning...' : 'Creating...'}</span>
               </>
             ) : (
-              <span>{templateId ? 'Nhân bản quy trình ➔' : 'Create Pipeline ➔'}</span>
+              <span>{templateId ? 'Clone workflow ➔' : 'Create Pipeline ➔'}</span>
             )}
           </button>
         </div>

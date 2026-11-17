@@ -75,9 +75,9 @@ public class CurrentUserProvider {
         }
         if (hasCredentials(currentRequest())) {
             throw new UnauthorizedException(TOKEN_EXPIRED,
-                "Access token không hợp lệ hoặc đã hết hạn. Vui lòng làm mới token hoặc đăng nhập lại.");
+                "Your access token is invalid or has expired. Please refresh it or sign in again.");
         }
-        throw new UnauthorizedException("Yêu cầu đăng nhập để thực hiện hành động này.");
+        throw new UnauthorizedException("Please sign in to do this.");
     }
 
     private Optional<Long> getAuthenticatedUserId() {

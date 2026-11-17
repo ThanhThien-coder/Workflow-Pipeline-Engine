@@ -1,11 +1,12 @@
 import type { IProfileService } from '../contracts/IProfileService'
-import { ProfileError } from '../../types/profile.types'
+import { ProfileError, ProfileNotFoundError } from '../../types/profile.types'
 import type {
   ChangePasswordCommand,
   DeleteAccountCommand,
   ProfileDto,
   ProfilePrivacyDto,
   ProfileProjectDto,
+  PublicProfileDto,
   UpdateProfileCommand,
 } from '../../types/profile.types'
 import { MockConfig } from './MockConfig'
@@ -143,6 +144,47 @@ export class MockProfileApi implements IProfileService {
       /* ignore */
     }
     this.state = JSON.parse(JSON.stringify(SEED)) as ProfileDto
+  }
+
+  /** Mock rules: your own id returns your profile; id "hidden" behaves like a private profile; anything else is a sample teammate. */
+  async getUserProfile(userId: string): Promise<PublicProfileDto> {
+    await this.tick()
+    if (userId === 'hidden') throw new ProfileNotFoundError()
+    const s = this.state
+    if (userId === s.userId) {
+      const totals = s.projects.reduce(
+        (acc, p) => ({ done: acc.done + p.stats.tasksDone, total: acc.total + p.stats.tasksTotal }),
+        { done: 0, total: 0 },
+      )
+      return {
+        userId: s.userId,
+        displayName: s.displayName,
+        title: s.title,
+        bio: s.bio,
+        avatarUrl: s.avatarUrl,
+        skills: s.skills,
+        links: s.links,
+        email: s.email,
+        stats: { tasksDone: totals.done, tasksTotal: totals.total, onTimePct: 86 },
+        projects: s.projects,
+        isSelf: true,
+      }
+    }
+    return {
+      userId,
+      displayName: 'Jamie Doe',
+      title: 'Frontend Developer',
+      bio: 'Building accessible interfaces and design systems.',
+      avatarUrl: null,
+      skills: ['React', 'TypeScript', 'Tailwind CSS'],
+      links: { github: 'https://github.com/jamiedoe', linkedin: '', website: 'https://jamie.example.com' },
+      email: null,
+      stats: { tasksDone: 9, tasksTotal: 12, onTimePct: 92 },
+      projects: [
+        { projectId: '1', name: 'Marketing Campaign Q4', phaseLabel: 'Phase 2 · Published', role: 'Collaborator', contribution: 'Completed 9 of 12 assigned tasks', isPublic: true, stats: { tasksDone: 9, tasksTotal: 12, onTimePct: 92 } },
+      ],
+      isSelf: false,
+    }
   }
 
   async updatePrivacy(cmd: ProfilePrivacyDto): Promise<ProfilePrivacyDto> {

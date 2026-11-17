@@ -37,7 +37,7 @@ describe('Domain: evaluateTransition', () => {
     const decision = evaluateTransition(todoTask, 'IN_PROGRESS', manager)
     expect(decision.kind).toBe('deny')
     if (decision.kind === 'deny') {
-      expect(decision.message).toBe('Bạn chỉ thao tác được trên task của mình.')
+      expect(decision.message).toBe('You can only update your own tasks.')
     }
   })
 
@@ -46,7 +46,7 @@ describe('Domain: evaluateTransition', () => {
     const decision = evaluateTransition(inProgressTask, 'DONE', manager)
     expect(decision.kind).toBe('deny')
     if (decision.kind === 'deny') {
-      expect(decision.message).toBe('Task phải qua bước Chờ duyệt trước khi được nghiệm thu.')
+      expect(decision.message).toBe('A task must go through Review before it can be accepted.')
     }
   })
 
@@ -54,7 +54,7 @@ describe('Domain: evaluateTransition', () => {
     const decision = evaluateTransition(taskOfCollab, 'DONE', otherMember)
     expect(decision.kind).toBe('deny')
     if (decision.kind === 'deny') {
-      expect(decision.message).toContain('Bạn chỉ thao tác được trên task của mình')
+      expect(decision.message).toContain('You can only update your own tasks')
     }
   })
 
@@ -62,7 +62,7 @@ describe('Domain: evaluateTransition', () => {
     const decision = evaluateTransition(taskOfCollab, 'DONE', collaborator)
     expect(decision.kind).toBe('deny')
     if (decision.kind === 'deny') {
-      expect(decision.message).toContain('Chỉ Owner hoặc Quản lý mới có quyền duyệt')
+      expect(decision.message).toContain('Only the project owner or a manager can approve')
     }
   })
 
@@ -71,7 +71,7 @@ describe('Domain: evaluateTransition', () => {
     const decision = evaluateTransition(todoTask, 'IN_PROGRESS', owner)
     expect(decision.kind).toBe('deny')
     if (decision.kind === 'deny') {
-      expect(decision.message).toContain('Bạn chỉ thao tác được trên task của mình')
+      expect(decision.message).toContain('You can only update your own tasks')
     }
   })
 
@@ -101,7 +101,7 @@ describe('Domain: evaluateTransition', () => {
     const decision = evaluateTransition(doneTask, 'IN_PROGRESS', owner)
     expect(decision.kind).toBe('deny')
     if (decision.kind === 'deny') {
-      expect(decision.message).toContain('Task đã DONE')
+      expect(decision.message).toContain('This task is Done')
     }
   })
 })

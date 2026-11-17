@@ -11,6 +11,7 @@ export interface AdminUserDto {
   ownedProjectCount: number;
   joinedProjectCount: number;
   createdAt: string;
+  avatarUrl?: string | null;
 }
 
 export interface SuspendUserRequestDto {

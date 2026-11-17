@@ -558,7 +558,7 @@ class PipelineTemplateServiceTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
             templateService.getTemplates(null, null, null, 5L, "abc")
         );
-        assertEquals("visibility chỉ nhận PUBLIC hoặc PRIVATE", ex.getMessage());
+        assertEquals("visibility must be PUBLIC or PRIVATE.", ex.getMessage());
         verify(templateRepository, never()).findAll();
     }
 
@@ -686,7 +686,7 @@ class PipelineTemplateServiceTest {
             templateService.setTemplateHidden("10", true, adminId)
         );
         assertEquals("TEMPLATE_NOT_PUBLIC", ex.getErrorCode());
-        assertEquals("Chỉ ẩn/hiện được template công khai.", ex.getMessage());
+        assertEquals("Only public templates can be hidden or shown.", ex.getMessage());
     }
 
     @Test

@@ -59,7 +59,7 @@ export function ProjectInviteAcceptModal({
       return 'This invitation has expired.'
     }
     if (errCode === 'INVITATION_NOT_PENDING') {
-      if (rawMsg.toUpperCase().includes('REVOKED') || rawMsg.includes('thu hồi')) {
+      if (rawMsg.toUpperCase().includes('REVOKED')) {
         return 'This invitation has been revoked.'
       }
       return rawMsg || 'This invitation is no longer pending.'

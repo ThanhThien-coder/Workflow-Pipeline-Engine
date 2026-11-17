@@ -54,12 +54,12 @@ public class ProjectService {
     public List<ProjectSummaryResponse> getMyProjects(Long currentUserId, String tab, String sort) {
         String normalizedTab = (tab == null || tab.isBlank()) ? "all" : tab.trim().toLowerCase();
         if (!Set.of("all", "mine", "shared", "archived").contains(normalizedTab)) {
-            throw new IllegalArgumentException("Tham số tab không hợp lệ: " + tab);
+            throw new IllegalArgumentException("Invalid tab parameter: " + tab);
         }
 
         String normalizedSort = (sort == null || sort.isBlank()) ? "ts" : sort.trim().toLowerCase();
         if (!Set.of("ts", "done", "nodes").contains(normalizedSort)) {
-            throw new IllegalArgumentException("Tham số sort không hợp lệ: " + sort);
+            throw new IllegalArgumentException("Invalid sort parameter: " + sort);
         }
 
         List<ProjectEntity> accessibleProjects = projectRepository.findAllAccessibleProjects(currentUserId);
@@ -86,13 +86,21 @@ public class ProjectService {
         List<Long> projectIds = filtered.stream().map(ProjectEntity::getId).toList();
         Map<Long, NodeStats> statsMap = countNodesByProjectIds(projectIds);
 
-        List<Long> ownerIds = filtered.stream().map(ProjectEntity::getOwnerId).distinct().toList();
-        Map<Long, String> ownerNames = userRepository.findAllById(ownerIds).stream()
-            .collect(Collectors.toMap(
-                UserEntity::getId,
-                u -> (u.getFullName() != null && !u.getFullName().isBlank()) ? u.getFullName() : u.getUsername(),
-                (a, b) -> a
-            ));
+        // Nạp theo lô: 1 truy vấn thành viên cho mọi dự án + 1 truy vấn user (chủ dự án và thành viên).
+        Map<Long, List<ProjectMemberEntity>> activeMembersByProject = projectMemberRepository.findByProjectIdIn(projectIds).stream()
+            .filter(m -> m.getRemovedAt() == null && m.getUserId() != null)
+            .sorted(Comparator.comparing(ProjectMemberEntity::getJoinedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+            .collect(Collectors.groupingBy(ProjectMemberEntity::getProjectId));
+
+        Set<Long> userIds = new LinkedHashSet<>();
+        for (ProjectEntity p : filtered) {
+            if (p.getOwnerId() != null) userIds.add(p.getOwnerId());
+        }
+        activeMembersByProject.values().forEach(list -> list.forEach(m -> userIds.add(m.getUserId())));
+        Map<Long, UserEntity> usersById = userRepository.findAllById(new ArrayList<>(userIds)).stream()
+            .collect(Collectors.toMap(UserEntity::getId, u -> u, (a, b) -> a));
+        Map<Long, String> ownerNames = usersById.values().stream()
+            .collect(Collectors.toMap(UserEntity::getId, ProjectService::displayNameOf, (a, b) -> a));
 
         List<ProjectSummaryResponse> result = new ArrayList<>(filtered.stream().map(project -> {
             String ownerName = ownerNames.getOrDefault(project.getOwnerId(), "User #" + project.getOwnerId());
@@ -103,7 +111,8 @@ public class ProjectService {
                 stats.nodeCount(),
                 stats.activeNodes(),
                 stats.doneNodes(),
-                stats.inProgressNodes()
+                stats.inProgressNodes(),
+                buildMemberBriefs(project, activeMembersByProject.getOrDefault(project.getId(), List.of()), usersById)
             );
         }).toList());
 
@@ -127,7 +136,7 @@ public class ProjectService {
                 int c = t2.compareTo(t1);
                 return (c != 0) ? c : Long.compare(p2.id(), p1.id());
             };
-            default -> throw new IllegalArgumentException("Tham số sort không hợp lệ: " + sort);
+            default -> throw new IllegalArgumentException("Invalid sort parameter: " + sort);
         };
 
         result.sort(comparator);
@@ -136,7 +145,7 @@ public class ProjectService {
 
     public ProjectDetailResponse getProjectDetail(Long projectId, Long currentUserId) {
         ProjectEntity project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án với ID: " + projectId));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + projectId));
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         boolean isMember = projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, currentUserId);
@@ -145,7 +154,7 @@ public class ProjectService {
             .orElse(false);
 
         if (!isOwner && !isMember && !isAdmin) {
-            throw new AccessDeniedException("Bạn không có quyền truy cập vào dự án này.");
+            throw new AccessDeniedException("You don't have access to this project.");
         }
 
         String ownerName = getOwnerDisplayName(project.getOwnerId());
@@ -227,7 +236,7 @@ public class ProjectService {
     @Transactional
     public ProjectSummaryResponse updateProjectStatus(Long projectId, UpdateProjectStatusRequest req, Long currentUserId) {
         ProjectEntity project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dự án với ID: " + projectId));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + projectId));
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         boolean isAdmin = userRepository.findById(currentUserId)
@@ -235,7 +244,7 @@ public class ProjectService {
             .orElse(false);
 
         if (!isOwner && !isAdmin) {
-            throw new AccessDeniedException("Chỉ chủ sở hữu dự án mới có quyền đổi trạng thái");
+            throw new AccessDeniedException("Only the project owner can change the project status.");
         }
 
         ProjectStatus newStatus;
@@ -245,19 +254,19 @@ public class ProjectService {
             }
             newStatus = ProjectStatus.valueOf(req.status().trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Trạng thái dự án không hợp lệ: " + req.status());
+            throw new IllegalArgumentException("Invalid project status: " + req.status());
         }
 
         ProjectStatus currentStatus = project.getStatus();
         if ((currentStatus == ProjectStatus.DRAFT || currentStatus == ProjectStatus.PLANNING)
                 && newStatus == ProjectStatus.ACTIVE) {
-            throw new ConflictException("USE_PUBLISH", "Dự án nháp chỉ chuyển sang ACTIVE bằng thao tác xuất bản (publish).");
+            throw new ConflictException("USE_PUBLISH", "A draft project can only become active by publishing it.");
         }
 
         Set<ProjectStatus> allowed = ALLOWED_TRANSITIONS.get(currentStatus);
         if (allowed == null || !allowed.contains(newStatus)) {
             throw new ConflictException("INVALID_PROJECT_STATUS",
-                "Không thể chuyển dự án từ " + currentStatus + " sang " + newStatus);
+                "Can't change the project status from " + currentStatus + " to " + newStatus + ".");
         }
 
         Map<Long, NodeStats> statsMap = countNodesByProjectIds(List.of(projectId));
@@ -294,18 +303,18 @@ public class ProjectService {
     @Transactional
     public ProjectDetailResponse updateProject(Long projectId, UpdateProjectRequest req, Long currentUserId) {
         if (req == null || req.name() == null || req.name().trim().isBlank()) {
-            throw new IllegalArgumentException("Tên dự án không được để trống");
+            throw new IllegalArgumentException("Project name is required.");
         }
         if (req.name().trim().length() > 100) {
-            throw new IllegalArgumentException("Tên dự án không được vượt quá 100 ký tự");
+            throw new IllegalArgumentException("Project name can't exceed 100 characters.");
         }
         if (req.description() != null && req.description().length() > 1000) {
-            throw new IllegalArgumentException("Mô tả dự án không được vượt quá 1000 ký tự");
+            throw new IllegalArgumentException("Project description can't exceed 1,000 characters.");
         }
 
         ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
         if (project.getStatus() == ProjectStatus.ARCHIVED) {
-            throw new ConflictException("PROJECT_ARCHIVED", "Dự án đã được lưu trữ, chỉ có thể xem.");
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only.");
         }
 
         project.setName(req.name().trim());
@@ -366,6 +375,30 @@ public class ProjectService {
             result.put(entry.getKey(), new NodeStats(c[0], c[1], c[2], c[3]));
         }
         return result;
+    }
+
+    private static String displayNameOf(UserEntity u) {
+        return (u.getFullName() != null && !u.getFullName().isBlank()) ? u.getFullName() : u.getUsername();
+    }
+
+    /** Chủ dự án trước, rồi thành viên đang hoạt động (đã sắp theo joinedAt), không trùng người. */
+    private static List<ProjectMemberBrief> buildMemberBriefs(
+        ProjectEntity project, List<ProjectMemberEntity> members, Map<Long, UserEntity> usersById
+    ) {
+        Set<Long> seen = new LinkedHashSet<>();
+        if (project.getOwnerId() != null) {
+            seen.add(project.getOwnerId());
+        }
+        for (ProjectMemberEntity m : members) {
+            seen.add(m.getUserId());
+        }
+        List<ProjectMemberBrief> briefs = new ArrayList<>();
+        for (Long uid : seen) {
+            UserEntity u = usersById.get(uid);
+            String name = u != null ? displayNameOf(u) : "User #" + uid;
+            briefs.add(new ProjectMemberBrief(String.valueOf(uid), name, u != null ? u.getAvatarUrl() : null));
+        }
+        return briefs;
     }
 
     private String getOwnerDisplayName(Long ownerId) {

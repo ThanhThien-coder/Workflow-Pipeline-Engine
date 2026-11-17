@@ -204,7 +204,7 @@ class SecurityRulesTest {
         mockMvc.perform(requestBuilder)
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
-            .andExpect(jsonPath("$.message").value("Yêu cầu đăng nhập để thực hiện hành động này."));
+            .andExpect(jsonPath("$.message").value("Please sign in to do this."));
     }
 
     @Test
@@ -242,7 +242,7 @@ class SecurityRulesTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer example-bad-token"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("TOKEN_EXPIRED"))
-            .andExpect(jsonPath("$.message").value("Access token không hợp lệ hoặc đã hết hạn. Vui lòng làm mới token hoặc đăng nhập lại."));
+            .andExpect(jsonPath("$.message").value("Your access token is invalid or has expired. Please refresh it or sign in again."));
     }
 
     @Test
@@ -255,7 +255,7 @@ class SecurityRulesTest {
                 .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("TOKEN_EXPIRED"))
-            .andExpect(jsonPath("$.message").value("Access token không hợp lệ hoặc đã hết hạn. Vui lòng làm mới token hoặc đăng nhập lại."));
+            .andExpect(jsonPath("$.message").value("Your access token is invalid or has expired. Please refresh it or sign in again."));
     }
 
     @Test
@@ -265,6 +265,6 @@ class SecurityRulesTest {
                 .header("X-Debug-User-Id", "2"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
-            .andExpect(jsonPath("$.message").value("Yêu cầu đăng nhập để thực hiện hành động này."));
+            .andExpect(jsonPath("$.message").value("Please sign in to do this."));
     }
 }

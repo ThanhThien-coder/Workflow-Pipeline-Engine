@@ -5,6 +5,7 @@ import com.pipeline.wpe.dto.response.auth.AuthResponse;
 import com.pipeline.wpe.dto.response.profile.ProfilePrivacyResponse;
 import com.pipeline.wpe.dto.response.profile.ProfileProjectResponse;
 import com.pipeline.wpe.dto.response.profile.ProfileResponse;
+import com.pipeline.wpe.dto.response.profile.PublicProfileResponse;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.profile.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +30,13 @@ public class UserProfileController {
     public ResponseEntity<ProfileResponse> getMyProfile() {
         Long userId = currentUserProvider.requireCurrentUserId();
         return ResponseEntity.ok(userProfileService.getMyProfile(userId));
+    }
+
+    @GetMapping("/users/{id}/profile")
+    @Operation(summary = "Xem hồ sơ của người dùng khác theo quyền riêng tư (404 nếu không được xem)")
+    public ResponseEntity<PublicProfileResponse> getUserProfile(@PathVariable("id") Long id) {
+        Long viewerId = currentUserProvider.requireCurrentUserId();
+        return ResponseEntity.ok(userProfileService.getPublicProfile(viewerId, id));
     }
 
     @PutMapping("/users/me/profile")

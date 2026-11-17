@@ -4,6 +4,7 @@ import type {
   ProfileDto,
   ProfilePrivacyDto,
   ProfileProjectDto,
+  PublicProfileDto,
   UpdateProfileCommand,
 } from '../../types/profile.types'
 
@@ -27,4 +28,6 @@ export interface IProfileService {
   deactivateAccount(): Promise<void>
   /** DELETE /users/me  { confirmation: "DELETE" }  (permanent) */
   deleteAccount(cmd: DeleteAccountCommand): Promise<void>
+  /** GET    /users/{id}/profile  (404 -> ProfileNotFoundError: private, hidden or missing) */
+  getUserProfile(userId: string): Promise<PublicProfileDto>
 }

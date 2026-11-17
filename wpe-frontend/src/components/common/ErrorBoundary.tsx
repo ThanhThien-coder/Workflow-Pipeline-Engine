@@ -52,10 +52,10 @@ export class ErrorBoundary extends Component<Props, State> {
             <AlertCircle className="h-8 w-8" />
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Đã xảy ra sự cố hiển thị giao diện
+            Something went wrong while displaying this page
           </h2>
           <p className="mt-2 max-w-md text-sm text-slate-500 leading-relaxed">
-            Hệ thống đã tự động bảo vệ phiên làm việc của bạn.
+            Your session has been protected automatically.
             {this.state.error?.message ? ` (${this.state.error.message})` : ''}
           </p>
           <div className="mt-6 flex items-center gap-3">
@@ -65,7 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" />
-              <span>Tải lại trang</span>
+              <span>Reload page</span>
             </button>
             <button
               type="button"
@@ -73,7 +73,7 @@ export class ErrorBoundary extends Component<Props, State> {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 cursor-pointer"
             >
               <Home className="h-4 w-4 text-slate-400" />
-              <span>Về Trang chủ</span>
+              <span>Go to Home</span>
             </button>
           </div>
         </div>

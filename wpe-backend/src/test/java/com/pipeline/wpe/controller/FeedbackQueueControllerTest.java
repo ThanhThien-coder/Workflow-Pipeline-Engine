@@ -68,7 +68,7 @@ class FeedbackQueueControllerTest {
     @DisplayName("GET /api/v1/projects/{id}/feedbacks - Không có quyền trả về 403 ACCESS_DENIED")
     void testGetProjectFeedbacks_AccessDenied() throws Exception {
         when(feedbackQueueService.getProjectFeedbacks(1L))
-            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         mockMvc.perform(get("/api/v1/projects/1/feedbacks"))
             .andExpect(status().isForbidden())
@@ -79,7 +79,7 @@ class FeedbackQueueControllerTest {
     @DisplayName("PATCH /api/v1/projects/{id}/feedbacks/{id}/resolve - Không có quyền trả về 403 ACCESS_DENIED")
     void testResolveFeedback_AccessDenied() throws Exception {
         when(feedbackQueueService.resolveFeedback(1L, 5L))
-            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         mockMvc.perform(patch("/api/v1/projects/1/feedbacks/5/resolve"))
             .andExpect(status().isForbidden())

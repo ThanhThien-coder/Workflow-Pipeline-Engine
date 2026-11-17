@@ -71,16 +71,16 @@ describe('OwnedProjectsDrawer Component', () => {
 
     // 1. Dự án candidates rỗng hiện "Dự án chỉ có một người"
     expect(
-      screen.getByText('Dự án chỉ có một người, không chuyển được. Chỉ có thể lưu trữ.')
+      screen.getByText("This project has only one member and can't be transferred. You can only archive it.")
     ).toBeTruthy();
 
     // 2. Chọn chủ mới cho Project 1
-    const select = screen.getByLabelText('Chủ mới');
+    const select = screen.getByLabelText('New owner');
     expect(select).toBeTruthy();
     fireEvent.change(select, { target: { value: '3' } });
 
     // Bấm nút "Chuyển chủ"
-    const transferBtn = screen.getByText('Chuyển chủ');
+    const transferBtn = screen.getByText('Transfer ownership');
     expect(transferBtn).toBeTruthy();
     fireEvent.click(transferBtn);
 
@@ -110,7 +110,7 @@ describe('OwnedProjectsDrawer Component', () => {
       />
     );
 
-    expect(await screen.findByText('Người dùng này không sở hữu dự án nào.')).toBeTruthy();
+    expect(await screen.findByText("This user doesn't own any projects.")).toBeTruthy();
   });
 
   it('dự án ARCHIVED hoặc COMPLETED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', async () => {
@@ -146,11 +146,11 @@ describe('OwnedProjectsDrawer Component', () => {
     expect(await screen.findByText('Completed Project')).toBeTruthy();
 
     const closedMessages = screen.getAllByText(
-      'Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.'
+      "Archived or completed projects can't be transferred."
     );
     expect(closedMessages).toHaveLength(2);
 
-    expect(screen.queryByLabelText('Chủ mới')).toBeNull();
-    expect(screen.queryByText('Chuyển chủ')).toBeNull();
+    expect(screen.queryByLabelText('New owner')).toBeNull();
+    expect(screen.queryByText('Transfer ownership')).toBeNull();
   });
 });

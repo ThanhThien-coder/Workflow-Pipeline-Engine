@@ -12,7 +12,7 @@ import java.time.Instant;
  * Muốn bỏ người phụ trách / hạn chót thì gửi clearAssignee / clearDueDate = true (null không có nghĩa là xóa).
  */
 public record UpdateNodeRequest(
-    @NotBlank(message = "Tiêu đề công việc không được để trống")
+    @NotBlank(message = "Task title is required.")
     String title,
     String description,
     Long phaseId,
@@ -22,7 +22,7 @@ public record UpdateNodeRequest(
     Integer estimatedHours,
 
     // Bắt buộc: version client đang giữ. Khác version trên máy chủ thì trả 409.
-    @NotNull(message = "Thiếu version của công việc")
+    @NotNull(message = "The task version is required.")
     Long version,
 
     Boolean clearAssignee,

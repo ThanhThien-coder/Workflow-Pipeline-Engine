@@ -25,6 +25,10 @@ export interface ProjectActivityItem {
   message: string
   targetCode: string | null
   createdAt: string
+  /** id người làm (null khi hệ thống/khách) */
+  actorId?: string | null
+  /** ảnh đại diện người làm (null khi chưa có) */
+  actorAvatarUrl?: string | null
 }
 
 /**

@@ -22,6 +22,7 @@ import { fmtDayMonth } from '../../utils/date'
 import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput } from '../../utils/dueDate'
 import { useDismiss } from '../../hooks/useDismiss'
 import { getSavedAvatar } from '../../utils/avatarUtils'
+import { navigate } from '../../router/useRouter'
 
 const statusConfigs: Record<
   TaskStatus,
@@ -243,7 +244,26 @@ export function TaskDetailModal({
           {/* Meta Info Grid: Assignee & Due Date */}
           <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 sm:grid-cols-2">
             {/* Assignee */}
-            <div className="flex items-center gap-2.5">
+            <div
+              role={assignee.id ? 'link' : undefined}
+              tabIndex={assignee.id ? 0 : undefined}
+              title={assignee.id ? 'View profile' : undefined}
+              aria-label={assignee.id ? `View profile of ${assignee.name}` : undefined}
+              onClick={assignee.id ? () => navigate('/people/' + assignee.id) : undefined}
+              onKeyDown={
+                assignee.id
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate('/people/' + assignee.id)
+                      }
+                    }
+                  : undefined
+              }
+              className={`flex items-center gap-2.5 rounded-lg ${
+                assignee.id ? 'cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-400' : ''
+              }`}
+            >
               {assigneeAvatar ? (
                 <img
                   src={assigneeAvatar}

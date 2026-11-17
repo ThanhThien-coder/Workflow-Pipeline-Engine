@@ -44,12 +44,12 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {template.isSystemStandard && (
             <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold tracking-wide text-emerald-700">
-              Template mẫu hệ thống
+              System template
             </span>
           )}
           {template.isHidden && (
             <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-600">
-              Đang ẩn
+              Hidden
             </span>
           )}
         </div>
@@ -74,7 +74,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
         {template.description ? (
           template.description
         ) : (
-          <span className="italic text-slate-400">Không có mô tả chi tiết.</span>
+          <span className="italic text-slate-400">No description.</span>
         )}
       </p>
 
@@ -122,7 +122,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           onClick={() => onToggleHidden(template.id, !template.isHidden)}
           className="inline-flex h-9 px-3 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 active:scale-95 shadow-sm"
         >
-          {template.isHidden ? 'Hiện' : 'Ẩn'}
+          {template.isHidden ? 'Show' : 'Hide'}
         </button>
 
         <button

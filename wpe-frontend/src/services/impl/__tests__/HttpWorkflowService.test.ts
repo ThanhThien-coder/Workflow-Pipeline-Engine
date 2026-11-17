@@ -189,7 +189,7 @@ describe('HttpWorkflowService: auth gọi backend thật (A4)', () => {
     const service = new HttpWorkflowService()
 
     await expect(
-      service.register({ fullName: 'A B', email: 'ab.c@x.io', password: 'password123', workspaceName: 'W' }),
+      service.register({ fullName: 'A B', email: 'ab.c@x.io', password: 'password123' }),
     ).rejects.toMatchObject({ code: 'EMAIL_TAKEN' })
     expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:8080/api/v1/auth/register')
   })

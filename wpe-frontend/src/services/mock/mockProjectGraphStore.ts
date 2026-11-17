@@ -164,7 +164,7 @@ export function convertTemplateToProjectGraph(
         status: isTrack ? 'IN_PROGRESS' : hasParentPhase ? 'LOCKED' : 'TODO',
         assignee: null,
         due: null,
-        blocker: 'Không có',
+        blocker: 'None',
         joinPolicy: n.joinPolicy === 'ANY_COMPLETED' ? 'ANY_COMPLETED' : 'AND',
         parentIds: [parentId],
         trackId: n.trackId || (isTrack ? n.id : null),
@@ -240,7 +240,7 @@ export function addPhaseToProject(
   const newPhase: MacroPhase = {
     id,
     name: dto.name || `PHASE ${graph.phases.length + 1}`,
-    sub: dto.sub || 'Giai đoạn mới',
+    sub: dto.sub || 'New phase',
     status: 'TODO',
     pct: 0,
     accent: dto.accent || (dto.parentPhaseId ? 'slate' : 'blue'),
@@ -273,7 +273,7 @@ export function addPhaseToProject(
         status: 'IN_PROGRESS',
         assignee: null,
         due: null,
-        blocker: 'Không có',
+        blocker: 'None',
         joinPolicy: 'AND',
         parentIds: [rootId],
         trackId: trackId,
@@ -284,13 +284,13 @@ export function addPhaseToProject(
         kind: 'branch',
         id: taskId,
         code: `WPE-${String(graph.phases.length * 10 + 1).padStart(3, '0')}`,
-        title: 'Task khởi đầu',
+        title: 'Starter task',
         description: '',
         isTrack: false,
         status: dto.parentPhaseId ? 'LOCKED' : 'TODO',
         assignee: null,
         due: null,
-        blocker: 'Không có',
+        blocker: 'None',
         joinPolicy: 'AND',
         parentIds: [trackId],
         trackId: trackId,
@@ -319,7 +319,7 @@ export function connectPhasesInProject(
 
   const phaseMap = Object.fromEntries(graph.phases.map((p) => [p.id, p]))
   if (isPhaseAncestor(phaseMap, targetId, sourceId)) {
-    throw new Error('Không thể nối ngược (tránh chu trình lặp đồ thị)')
+    throw new Error('Can\'t connect backwards: this would create a cycle in the graph.')
   }
 
   if (!target.parentPhaseIds.includes(sourceId)) {

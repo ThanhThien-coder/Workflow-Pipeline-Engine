@@ -64,7 +64,8 @@ public record GuestOverviewResponse(
         String initials,
         String actor,
         String text,
-        String ago
+        String ago,
+        String avatarUrl
     ) {}
 
     public record GuestArtifactDto(

@@ -56,7 +56,6 @@ describe('Auth Module (authSlice)', () => {
       fullName: 'Marcus Liu',
       email: 'marcus.liu@pipeline.engine',
       password: 'password123',
-      workspaceName: 'Acme Systems',
     })
 
     const authState = store.getState().auth

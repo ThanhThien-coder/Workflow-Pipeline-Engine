@@ -76,7 +76,7 @@ export const ConfirmActionModal: FC<ConfirmActionModalProps> = ({
             onClick={onClose}
             disabled={isSubmitting}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-50"
-            aria-label="Đóng"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
@@ -89,7 +89,7 @@ export const ConfirmActionModal: FC<ConfirmActionModalProps> = ({
             onClick={onClose}
             className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
           >
-            Hủy
+            Cancel
           </button>
           <button
             type="button"
@@ -99,7 +99,7 @@ export const ConfirmActionModal: FC<ConfirmActionModalProps> = ({
               isRose ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >
-            {isSubmitting ? 'Đang xử lý...' : confirmLabel}
+            {isSubmitting ? 'Processing...' : confirmLabel}
           </button>
         </div>
       </div>

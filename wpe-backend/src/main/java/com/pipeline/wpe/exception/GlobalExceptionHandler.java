@@ -144,7 +144,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.CONFLICT.value(),
             "OPTIMISTIC_LOCK_CONFLICT",
-            "Dữ liệu tác vụ đã bị thay đổi bởi một thành viên khác. Vui lòng làm mới trang.",
+            "This task was changed by another member. Please refresh the page.",
             request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
@@ -177,7 +177,7 @@ public class GlobalExceptionHandler {
             Instant.now(),
             HttpStatus.BAD_REQUEST.value(),
             "VALIDATION_FAILED",
-            "Dữ liệu gửi lên không hợp lệ",
+            "The submitted data is invalid.",
             request.getRequestURI(),
             validationErrors,
             null,
@@ -202,7 +202,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.BAD_REQUEST.value(),
             "FILE_TOO_LARGE",
-            "Kích thước tệp vượt quá giới hạn cho phép (tối đa 2MB).",
+            "The file is too large. The maximum size is 2 MB.",
             request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -213,7 +213,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.BAD_REQUEST.value(),
             "VALIDATION_FAILED",
-            "Thiếu phần tệp yêu cầu: " + ex.getRequestPartName(),
+            "Missing required file part: " + ex.getRequestPartName(),
             request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -235,7 +235,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.NOT_FOUND.value(),
             "NOT_FOUND",
-            "Không tìm thấy đường dẫn này.",
+            "The requested resource was not found.",
             request != null ? request.getRequestURI() : ""
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
@@ -243,7 +243,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
-        String msg = "Phương thức " + (ex.getMethod() != null ? ex.getMethod() : "") + " không được hỗ trợ.";
+        String msg = "Method " + (ex.getMethod() != null ? ex.getMethod() : "") + " is not supported.";
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.METHOD_NOT_ALLOWED.value(),
             "METHOD_NOT_ALLOWED",
@@ -258,7 +258,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
             "UNSUPPORTED_MEDIA_TYPE",
-            "Định dạng nội dung không được hỗ trợ.",
+            "The content type is not supported.",
             request != null ? request.getRequestURI() : ""
         );
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(error);
@@ -269,7 +269,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.BAD_REQUEST.value(),
             "MALFORMED_REQUEST",
-            "Dữ liệu gửi lên không đúng định dạng JSON.",
+            "The request body is not valid JSON.",
             request != null ? request.getRequestURI() : ""
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -277,11 +277,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
-        String paramName = ex.getName() != null ? ex.getName() : "tham số";
+        String paramName = ex.getName() != null ? ex.getName() : "parameter";
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.BAD_REQUEST.value(),
             "INVALID_PARAMETER",
-            "Tham số '" + paramName + "' không đúng định dạng.",
+            "Parameter '" + paramName + "' has an invalid format.",
             request != null ? request.getRequestURI() : ""
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -292,7 +292,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.BAD_REQUEST.value(),
             "MISSING_PARAMETER",
-            "Thiếu tham số bắt buộc: " + ex.getParameterName(),
+            "Missing required parameter: " + ex.getParameterName(),
             request != null ? request.getRequestURI() : ""
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -303,7 +303,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.BAD_REQUEST.value(),
             "VALIDATION_FAILED",
-            "Dữ liệu gửi lên không hợp lệ.",
+            "The submitted data is invalid.",
             request != null ? request.getRequestURI() : ""
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -317,7 +317,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
             "INTERNAL_SERVER_ERROR",
-            "Hệ thống gặp sự cố. Vui lòng thử lại sau giây lát.",
+            "Something went wrong on our end. Please try again in a moment.",
             uri
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
@@ -334,16 +334,16 @@ public class GlobalExceptionHandler {
             ErrorResponse error = ErrorResponse.of(
                 HttpStatus.UNAUTHORIZED.value(),
                 "UNAUTHORIZED",
-                "Yêu cầu đăng nhập để thực hiện hành động này.",
+                "Please sign in to do this.",
                 request.getRequestURI()
             );
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
         }
-        recordAdminDenied(request, "Không có quyền ADMIN");
+        recordAdminDenied(request, "ADMIN role required");
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.FORBIDDEN.value(),
             "ACCESS_DENIED",
-            "Bạn không có quyền thực hiện hành động này.",
+            "You don't have permission to do this.",
             request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
@@ -357,7 +357,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.UNAUTHORIZED.value(),
             "UNAUTHORIZED",
-            "Yêu cầu đăng nhập để thực hiện hành động này.",
+            "Please sign in to do this.",
             request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);

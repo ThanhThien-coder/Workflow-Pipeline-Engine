@@ -1,6 +1,6 @@
 export type AdminGuardResult = 'ALLOW' | 'TO_SIGNIN' | 'TO_WORKSPACES'
 
-export const ADMIN_ONLY_MESSAGE = 'Chỉ quản trị viên mới vào được trang này'
+export const ADMIN_ONLY_MESSAGE = 'Only admins can access this page.'
 
 export function resolveAdminAccess(
   isAuthenticated: boolean,

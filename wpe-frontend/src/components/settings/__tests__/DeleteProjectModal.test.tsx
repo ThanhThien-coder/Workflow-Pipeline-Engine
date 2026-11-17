@@ -23,9 +23,9 @@ describe('FC4: DeleteProjectModal', () => {
     const projectNameEl = screen.getByText('abcd')
     expect(projectNameEl).toBeTruthy()
     expect(['STRONG', 'B']).toContain(projectNameEl.tagName)
-    expect(screen.getByText(/Không thể hoàn tác/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Hủy/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Xóa vĩnh viễn/i })).toBeTruthy()
+    expect(screen.getByText(/cannot be undone/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Cancel/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Delete permanently/i })).toBeTruthy()
   })
 
   it('bấm "Xóa vĩnh viễn" gọi ngay hàm xóa (API) mà không cần gõ tên và khóa nút khi đang xóa', async () => {
@@ -47,8 +47,8 @@ describe('FC4: DeleteProjectModal', () => {
       />,
     )
 
-    const deleteBtn = screen.getByRole('button', { name: /Xóa vĩnh viễn/i }) as HTMLButtonElement
-    const cancelBtn = screen.getByRole('button', { name: /Hủy/i }) as HTMLButtonElement
+    const deleteBtn = screen.getByRole('button', { name: /Delete permanently/i }) as HTMLButtonElement
+    const cancelBtn = screen.getByRole('button', { name: /Cancel/i }) as HTMLButtonElement
     expect(deleteBtn.disabled).toBe(false)
 
     fireEvent.click(deleteBtn)
@@ -56,7 +56,7 @@ describe('FC4: DeleteProjectModal', () => {
     await waitFor(() => {
       expect(onConfirmDelete).toHaveBeenCalledTimes(1)
     })
-    expect(screen.getByRole('button', { name: /Đang xóa/i }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: /Deleting/i }).hasAttribute('disabled')).toBe(true)
     expect(cancelBtn.disabled).toBe(true)
 
     resolveDelete(true)
@@ -78,7 +78,7 @@ describe('FC4: DeleteProjectModal', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Xóa vĩnh viễn/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Delete permanently/i }))
 
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('Chỉ Chủ dự án mới có quyền xóa')

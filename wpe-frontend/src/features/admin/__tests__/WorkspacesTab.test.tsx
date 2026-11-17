@@ -67,17 +67,17 @@ describe('WorkspacesTab Component', () => {
 
     // 2. Bấm "Xem chi tiết" dòng 1 gọi onOpenDetail('1')
     const row1 = screen.getByText('Project Alpha').closest('tr')!;
-    const viewDetailBtn = within(row1).getByText('Xem chi tiết');
+    const viewDetailBtn = within(row1).getByText('View details');
     fireEvent.click(viewDetailBtn);
     expect(onOpenDetail).toHaveBeenCalledTimes(1);
     expect(onOpenDetail).toHaveBeenCalledWith('1');
 
     // 3. Dòng 1 (ACTIVE) có nút "Lưu trữ"
-    expect(within(row1).getByRole('button', { name: 'Lưu trữ' })).toBeTruthy();
+    expect(within(row1).getByRole('button', { name: 'Archive' })).toBeTruthy();
 
     // 4. Dòng 2 (ARCHIVED) KHÔNG có nút "Lưu trữ"
     const row2 = screen.getByText('Project Beta').closest('tr')!;
-    expect(within(row2).queryByRole('button', { name: 'Lưu trữ' })).toBeNull();
+    expect(within(row2).queryByRole('button', { name: 'Archive' })).toBeNull();
   });
 
   it('danh sách rỗng hiện thông báo "Chưa có dự án nào"', () => {
@@ -90,7 +90,7 @@ describe('WorkspacesTab Component', () => {
       />
     );
 
-    expect(screen.getByText('Chưa có dự án nào')).toBeTruthy();
+    expect(screen.getByText('No projects yet')).toBeTruthy();
   });
 
   it('có errorMessage hiện khung lỗi và không hiện bảng', () => {
@@ -104,7 +104,7 @@ describe('WorkspacesTab Component', () => {
       />
     );
 
-    expect(screen.getByText(/Chưa có dữ liệu: Không thể kết nối máy chủ/)).toBeTruthy();
+    expect(screen.getByText(/No data available: Không thể kết nối máy chủ/)).toBeTruthy();
     expect(screen.queryByText('Project Alpha')).toBeNull();
   });
 });

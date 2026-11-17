@@ -121,7 +121,7 @@ export const initialMockTemplates: TemplateDetailDto[] = [
   buildTemplateDetail(
     'tpl-sdlc',
     'Standard Software Development (SDLC)',
-    'Quy trình phát triển phần mềm chuẩn: từ phân tích yêu cầu, thiết kế kiến trúc, lập trình frontend/backend đến kiểm thử và phát hành.',
+    'Standard software development workflow: from requirements analysis and architecture design to frontend/backend development, testing, and release.',
     'Software Engineering',
     true,
     128,
@@ -240,7 +240,7 @@ export const initialMockTemplates: TemplateDetailDto[] = [
   buildTemplateDetail(
     'tpl-mkt',
     'Marketing Campaign Launch',
-    'Mẫu chiến dịch marketing: nghiên cứu thị trường, sản xuất nội dung sáng tạo, phân bổ ngân sách và triển khai đa kênh.',
+    'Marketing campaign template: market research, creative content production, budget allocation, and multichannel rollout.',
     'Marketing',
     true,
     86,
@@ -337,7 +337,7 @@ export const initialMockTemplates: TemplateDetailDto[] = [
   buildTemplateDetail(
     'tpl-etl',
     'Data Science / ETL Pipeline',
-    'Quy trình thu thập, làm sạch, biến đổi dữ liệu, huấn luyện mô hình học máy và giám sát inference drift.',
+    'Workflow for collecting, cleaning, and transforming data, training machine learning models, and monitoring inference drift.',
     'DevOps & Infra',
     false,
     4,

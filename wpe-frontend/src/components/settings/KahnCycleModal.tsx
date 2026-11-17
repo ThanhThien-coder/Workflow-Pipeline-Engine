@@ -35,7 +35,7 @@ export function KahnCycleModal({ violatingNodeIds, onClose }: KahnCycleModalProp
           </div>
           <div>
             <h3 id="kahn-cycle-title" className="text-base font-bold text-slate-800">
-              Phát hiện vòng lặp phụ thuộc
+              Dependency cycle detected
             </h3>
             <p className="text-xs text-slate-500">HTTP 422 CYCLE_DETECTED</p>
           </div>
@@ -43,13 +43,13 @@ export function KahnCycleModal({ violatingNodeIds, onClose }: KahnCycleModalProp
 
         <div className="space-y-3 rounded-xl border border-red-100 bg-red-50/70 p-4 text-xs text-slate-700">
           <p className="leading-relaxed">
-            Thuật toán Kahn phát hiện các công việc phụ thuộc vòng tròn vào nhau, nên không có thứ tự nào để làm
-            hết chúng. Thay đổi chưa được lưu.
+            The Kahn algorithm found tasks that depend on each other in a loop, so there is no valid order to
+            complete them all. Your changes have not been saved.
           </p>
 
           {violatingNodeIds.length > 0 ? (
             <div>
-              <p className="mb-1.5 font-semibold text-slate-800">Các công việc nằm trên vòng lặp:</p>
+              <p className="mb-1.5 font-semibold text-slate-800">Tasks on the cycle:</p>
               <ul className="flex flex-wrap gap-1.5">
                 {violatingNodeIds.map((code, idx) => (
                   <li
@@ -62,11 +62,11 @@ export function KahnCycleModal({ violatingNodeIds, onClose }: KahnCycleModalProp
               </ul>
             </div>
           ) : (
-            <p className="font-semibold text-slate-800">Máy chủ không gửi danh sách công việc trên vòng lặp.</p>
+            <p className="font-semibold text-slate-800">The server did not send the list of tasks on the cycle.</p>
           )}
 
           <p className="text-[11px] text-slate-500">
-            Gỡ ít nhất một cạnh phụ thuộc giữa các công việc trên, rồi thử lại.
+            Remove at least one dependency between the tasks above, then try again.
           </p>
         </div>
 
@@ -77,7 +77,7 @@ export function KahnCycleModal({ violatingNodeIds, onClose }: KahnCycleModalProp
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
           >
             <RotateCcw size={14} />
-            <span>Quay lại sửa đồ thị</span>
+            <span>Back to graph</span>
           </button>
         </div>
       </div>

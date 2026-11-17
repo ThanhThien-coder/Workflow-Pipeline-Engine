@@ -23,6 +23,7 @@ interface RawAdminUser {
   ownedProjectCount?: number | string;
   joinedProjectCount?: number | string;
   createdAt?: string;
+  avatarUrl?: string | null;
 }
 
 interface RawAuditLogItem {
@@ -146,6 +147,7 @@ export function mapAdminUser(raw: RawAdminUser): AdminUserDto {
     ownedProjectCount: Number(raw.ownedProjectCount ?? 0),
     joinedProjectCount: Number(raw.joinedProjectCount ?? 0),
     createdAt: raw.createdAt ?? '',
+    avatarUrl: raw.avatarUrl || null,
   };
 }
 
@@ -398,7 +400,7 @@ export class HttpAdminService implements IAdminService {
     return (data?.items || []).map((item) => ({
       id: String(item.id),
       timestamp: item.createdAt ?? '',
-      actorName: item.actorUsername ?? 'Không rõ',
+      actorName: item.actorUsername ?? 'Unknown',
       action: item.action,
       targetType: item.targetType ?? null,
       targetId: item.targetId ?? null,

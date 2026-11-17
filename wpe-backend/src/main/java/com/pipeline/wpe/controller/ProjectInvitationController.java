@@ -75,7 +75,7 @@ public class ProjectInvitationController {
         projectInvitationService.revokeInvitation(id, currentUserId);
         return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Đã thu hồi lời mời tham gia dự án.",
+                "message", "The invitation has been revoked.",
                 "invitationId", id
         ));
     }
@@ -99,7 +99,7 @@ public class ProjectInvitationController {
         projectInvitationService.acceptInvitation(id, currentUserId);
         return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Bạn đã gia nhập dự án thành công.",
+                "message", "You have joined the project.",
                 "invitationId", id
         ));
     }
@@ -113,7 +113,7 @@ public class ProjectInvitationController {
         projectInvitationService.rejectInvitation(id, currentUserId);
         return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Đã từ chối lời mời tham gia dự án.",
+                "message", "The invitation has been declined.",
                 "invitationId", id
         ));
     }

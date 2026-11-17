@@ -169,6 +169,6 @@ class AdminStatsServiceTest {
     void testGetTrends_invalidRange_throwsIllegalArgumentException() {
         assertThatThrownBy(() -> adminStatsService.getTrends("1Y"))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Khoảng thời gian không hợp lệ");
+            .hasMessageContaining("Invalid time range");
     }
 }

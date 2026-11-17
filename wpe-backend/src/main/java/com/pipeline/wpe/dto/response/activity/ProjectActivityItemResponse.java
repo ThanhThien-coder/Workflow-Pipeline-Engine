@@ -6,6 +6,7 @@ import java.time.Instant;
  * DTO phản hồi một dòng nhật ký hoạt động của dự án (FC5).
  * Lưu ý: Với các node/task, hệ thống chỉ phản ánh trạng thái hiện tại và lần cập nhật gần nhất
  * (DB không lưu lịch sử từng lần chuyển trạng thái).
+ * actorId / actorAvatarUrl là null khi người làm là hệ thống hoặc không xác định (vd. khách góp ý).
  */
 public record ProjectActivityItemResponse(
         String id,
@@ -13,6 +14,13 @@ public record ProjectActivityItemResponse(
         String actorName,
         String message,
         String targetCode,
-        Instant createdAt
+        Instant createdAt,
+        String actorId,
+        String actorAvatarUrl
 ) {
+    /** Constructor cũ: không có người làm xác định. */
+    public ProjectActivityItemResponse(String id, String type, String actorName, String message,
+                                       String targetCode, Instant createdAt) {
+        this(id, type, actorName, message, targetCode, createdAt, null, null);
+    }
 }
