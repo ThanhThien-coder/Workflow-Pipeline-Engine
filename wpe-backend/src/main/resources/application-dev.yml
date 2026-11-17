@@ -13,6 +13,8 @@ spring:
     out-of-order: true
 
 app:
+  frontend:
+    base-url: ${APP_PUBLIC_URL:http://localhost:5173}
   security:
     # Header X-Debug-User-Id và user mặc định CHỈ hoạt động trong profile dev.
     debug-user-id-enabled: true

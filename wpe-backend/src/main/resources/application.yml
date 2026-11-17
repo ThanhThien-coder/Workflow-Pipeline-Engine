@@ -50,6 +50,8 @@ spring:
 
 # Cấu hình RabbitMQ Topology (Exchanges, Queues, Routing Keys)
 app:
+  frontend:
+    base-url: ${APP_PUBLIC_URL:http://localhost:5173}
   upload:
     dir: ${APP_UPLOAD_DIR:uploads}
   rabbitmq:

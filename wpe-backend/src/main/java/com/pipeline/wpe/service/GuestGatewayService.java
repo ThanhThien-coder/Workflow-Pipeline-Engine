@@ -21,6 +21,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -254,7 +256,9 @@ public class GuestGatewayService {
     }
 
     private GuestAccessResponse toGuestAccessResponse(GuestLinkEntity link) {
-        String shareUrl = String.format("%s/guest/%s", frontendBaseUrl.replaceAll("/+$", ""), link.getToken());
+        String base = frontendBaseUrl != null ? frontendBaseUrl.replaceAll("/+$", "") : "";
+        String encodedToken = URLEncoder.encode(link.getToken(), StandardCharsets.UTF_8);
+        String shareUrl = String.format("%s/guest?token=%s", base, encodedToken);
         return new GuestAccessResponse(
             !Boolean.TRUE.equals(link.getIsRevoked()) && link.getExpiresAt().isAfter(Instant.now()),
             link.getToken(),
