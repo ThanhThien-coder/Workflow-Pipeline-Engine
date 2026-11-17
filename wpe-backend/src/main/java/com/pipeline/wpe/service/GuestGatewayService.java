@@ -13,7 +13,9 @@ import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ArtifactRepository;
 import com.pipeline.wpe.repository.GuestLinkRepository;
+import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
+import com.pipeline.wpe.service.engine.CriticalPathCalculator;
 import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
@@ -43,6 +45,7 @@ public class GuestGatewayService {
     private final ProjectAuthorizationService authorizationService;
     private final CurrentUserProvider currentUserProvider;
     private final UserRepository userRepository;
+    private final NodeDependencyRepository nodeDependencyRepository;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -131,6 +134,10 @@ public class GuestGatewayService {
         List<ArtifactEntity> publicArtifacts = artifactRepository.findByProjectIdAndIsPublicForGuestTrue(project.getId());
 
         int totalNodes = nodes.size();
+        // Cùng định nghĩa đường găng với thẻ dự án và Overview.
+        int criticalNodes = CriticalPathCalculator.compute(
+            nodes.stream().map(NodeEntity::getId).toList(),
+            nodeDependencyRepository.findByProjectId(project.getId()));
         int completedNodes = (int) nodes.stream().filter(n -> n.getStatus() == NodeStatus.DONE).count();
         double completionPct = totalNodes > 0 ? Math.round(((double) completedNodes / totalNodes * 100.0) * 10.0) / 10.0 : 0.0;
         int overdueCount = (int) nodes.stream().filter(n -> Boolean.TRUE.equals(n.getIsOverdue())).count();
@@ -151,7 +158,7 @@ public class GuestGatewayService {
         // Active phase label
         String phaseLabel = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(project.getId()).stream()
             .findFirst()
-            .map(p -> p.getOrderIndex() + ". " + p.getName())
+            .map(p -> p.getName())
             .orElse("Whole workflow");
 
         // Public artifacts mapping
@@ -174,7 +181,7 @@ public class GuestGatewayService {
             phaseLabel,
             project.getUpdatedAt() != null ? project.getUpdatedAt() : project.getCreatedAt(),
             totalNodes,
-            Math.max(1, (int) Math.ceil(totalNodes * 0.3)), // Ước tính nút critical
+            criticalNodes,
             completedNodes,
             completionPct,
             overdueCount,

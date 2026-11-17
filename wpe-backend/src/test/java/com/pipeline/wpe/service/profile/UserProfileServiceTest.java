@@ -165,6 +165,29 @@ class UserProfileServiceTest {
         assertThat(res.recentActivity()).isNotEmpty();
     }
 
+    @Test
+    @DisplayName("getMyProfile: chu du an khong bi ghi 'Joined ... as Collaborator', van co 'Created project'")
+    void getMyProfile_ownerRowIsNotShownAsCollaborator() {
+        when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
+        ProjectEntity project = ProjectEntity.builder().id(100L).name("E-commerce Flow").ownerId(10L)
+            .status(ProjectStatus.ACTIVE)
+            .createdAt(Instant.parse("2026-01-01T00:00:00Z")).updatedAt(Instant.parse("2026-01-02T00:00:00Z")).build();
+        when(projectRepository.findAllAccessibleProjects(10L)).thenReturn(List.of(project));
+        when(workPhaseRepository.findByProjectIdInAndParentPhaseIdIsNullOrderByOrderIndexAsc(List.of(100L)))
+            .thenReturn(List.of());
+        when(nodeRepository.findByProjectIdIn(List.of(100L))).thenReturn(List.of());
+        ProjectMemberEntity ownerRow = ProjectMemberEntity.builder().id(1L).projectId(100L).userId(10L)
+            .role(ProjectRole.OWNER).joinedAt(Instant.parse("2026-01-01T00:00:00Z")).build();
+        when(projectMemberRepository.findByProjectIdIn(List.of(100L))).thenReturn(List.of(ownerRow));
+        when(artifactRepository.findByProjectIdIn(List.of(100L))).thenReturn(List.of());
+
+        ProfileResponse res = userProfileService.getMyProfile(10L);
+
+        assertThat(res.recentActivity()).extracting(a -> a.text())
+            .contains("Created project E-commerce Flow")
+            .noneMatch(x -> x.startsWith("Joined "));
+    }
+
     // ==========================================
     // 2. Update Profile & Validation
     // ==========================================

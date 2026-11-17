@@ -98,6 +98,26 @@ describe('ProfileView Component', () => {
     expect(confirmPw.value).toBe('example-new-pass-2')
   })
 
+  it('đổi mật khẩu thành công hiện dòng thông báo cố định và xóa các ô', async () => {
+    render(<ProfileView />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Account & Security/i }))
+    const curPw = (await screen.findByLabelText(/Current password/i)) as HTMLInputElement
+    const newPw = (await screen.findByLabelText(/^New password/i)) as HTMLInputElement
+    const confirmPw = (await screen.findByLabelText(/Confirm new password/i)) as HTMLInputElement
+
+    fireEvent.change(curPw, { target: { value: 'example-current-pass-1' } })
+    fireEvent.change(newPw, { target: { value: 'example-new-pass-2' } })
+    fireEvent.change(confirmPw, { target: { value: 'example-new-pass-2' } })
+    fireEvent.click(screen.getByRole('button', { name: /Update password/i }))
+
+    const status = await screen.findByRole('status')
+    expect(status.textContent).toContain('Password updated. Other sessions have been signed out.')
+    expect(curPw.value).toBe('')
+    expect(newPw.value).toBe('')
+    expect(confirmPw.value).toBe('')
+  })
+
   it('nút Delete mở hộp xác nhận', async () => {
     render(<ProfileView />)
 

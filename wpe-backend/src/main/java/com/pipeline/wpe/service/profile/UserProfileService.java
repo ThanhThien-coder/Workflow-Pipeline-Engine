@@ -709,7 +709,12 @@ public class UserProfileService {
             String projectName = projectNameMap.getOrDefault(entry.getKey(), "a project");
             for (ProjectMemberEntity m : entry.getValue()) {
                 if (Objects.equals(m.getUserId(), userId) && m.getJoinedAt() != null) {
-                    String roleName = m.getRole() == ProjectRole.MANAGER ? "Manager" : "Collaborator";
+                    // Chủ dự án: dòng thành viên OWNER lúc tạo dự án đã được thể hiện bằng "Created project" bên dưới.
+                    if (m.getRole() == ProjectRole.OWNER) {
+                        continue;
+                    }
+                    String roleName = m.getRole() == ProjectRole.MANAGER ? "Manager"
+                        : m.getRole() == ProjectRole.VIEWER ? "Viewer" : "Collaborator";
                     activities.add(new ProfileActivityResponse(
                         "member-" + m.getId(),
                         "Joined " + projectName + " as " + roleName,

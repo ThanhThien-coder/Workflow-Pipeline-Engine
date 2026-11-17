@@ -84,6 +84,7 @@ export default function ProfileView() {
 
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+  const [pwStatus, setPwStatus] = useState<{ ok: boolean; text: string } | null>(null)
   const [activeTab, setActiveTab] = useState<'profile' | 'projects' | 'account'>('profile')
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -166,8 +167,22 @@ export default function ProfileView() {
   }
   const changePw = (e: FormEvent) => {
     e.preventDefault()
-    if (pw.next !== pw.confirm) return setNotice({ ok: false, text: 'New password and confirmation do not match.' })
-    void run('pw', async () => { await changePassword({ currentPassword: pw.cur, newPassword: pw.next }); setPw({ cur: '', next: '', confirm: '' }) }, 'Password updated')
+    setPwStatus(null)
+    if (pw.next !== pw.confirm) {
+      setPwStatus({ ok: false, text: 'New password and confirmation do not match.' })
+      return setNotice({ ok: false, text: 'New password and confirmation do not match.' })
+    }
+    void run('pw', async () => {
+      try {
+        await changePassword({ currentPassword: pw.cur, newPassword: pw.next })
+      } catch (err) {
+        setPwStatus({ ok: false, text: errText(err) })
+        throw err
+      }
+      setPw({ cur: '', next: '', confirm: '' })
+      // Dòng thông báo cố định dưới form (không tự biến mất như toast), mất khi người dùng gõ lại.
+      setPwStatus({ ok: true, text: 'Password updated. Other sessions have been signed out.' })
+    }, 'Password updated')
   }
   const togglePublic = (id: string, v: boolean) =>
     void run('proj:' + id, async () => {
@@ -396,10 +411,13 @@ export default function ProfileView() {
               <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
                 <Card title="Security" hint="Change your password">
                   <form onSubmit={changePw} className="space-y-3">
-                    <Field label="Current password"><input type="password" autoComplete="current-password" value={pw.cur} onChange={(e) => setPw({ ...pw, cur: e.target.value })} className={inputCls} /></Field>
-                    <Field label="New password"><input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} className={inputCls} /></Field>
-                    <Field label="Confirm new password"><input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} className={inputCls} /></Field>
+                    <Field label="Current password"><input type="password" autoComplete="current-password" value={pw.cur} onChange={(e) => { setPw({ ...pw, cur: e.target.value }); if (pwStatus) setPwStatus(null) }} className={inputCls} /></Field>
+                    <Field label="New password"><input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => { setPw({ ...pw, next: e.target.value }); if (pwStatus) setPwStatus(null) }} className={inputCls} /></Field>
+                    <Field label="Confirm new password"><input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => { setPw({ ...pw, confirm: e.target.value }); if (pwStatus) setPwStatus(null) }} className={inputCls} /></Field>
                     <button type="submit" disabled={!pw.cur || !pw.next || busy === 'pw'} className="btn-primary-solid mt-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy === 'pw' ? 'Updating…' : 'Update password'}</button>
+                    {pwStatus && (
+                      <p role={pwStatus.ok ? 'status' : 'alert'} className={clsx('mt-2 text-sm', pwStatus.ok ? 'text-emerald-700' : 'text-red-700')}>{pwStatus.text}</p>
+                    )}
                   </form>
                 </Card>
 
