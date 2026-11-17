@@ -86,13 +86,21 @@ public class ProjectService {
         List<Long> projectIds = filtered.stream().map(ProjectEntity::getId).toList();
         Map<Long, NodeStats> statsMap = countNodesByProjectIds(projectIds);
 
-        List<Long> ownerIds = filtered.stream().map(ProjectEntity::getOwnerId).distinct().toList();
-        Map<Long, String> ownerNames = userRepository.findAllById(ownerIds).stream()
-            .collect(Collectors.toMap(
-                UserEntity::getId,
-                u -> (u.getFullName() != null && !u.getFullName().isBlank()) ? u.getFullName() : u.getUsername(),
-                (a, b) -> a
-            ));
+        // Nạp theo lô: 1 truy vấn thành viên cho mọi dự án + 1 truy vấn user (chủ dự án và thành viên).
+        Map<Long, List<ProjectMemberEntity>> activeMembersByProject = projectMemberRepository.findByProjectIdIn(projectIds).stream()
+            .filter(m -> m.getRemovedAt() == null && m.getUserId() != null)
+            .sorted(Comparator.comparing(ProjectMemberEntity::getJoinedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+            .collect(Collectors.groupingBy(ProjectMemberEntity::getProjectId));
+
+        Set<Long> userIds = new LinkedHashSet<>();
+        for (ProjectEntity p : filtered) {
+            if (p.getOwnerId() != null) userIds.add(p.getOwnerId());
+        }
+        activeMembersByProject.values().forEach(list -> list.forEach(m -> userIds.add(m.getUserId())));
+        Map<Long, UserEntity> usersById = userRepository.findAllById(new ArrayList<>(userIds)).stream()
+            .collect(Collectors.toMap(UserEntity::getId, u -> u, (a, b) -> a));
+        Map<Long, String> ownerNames = usersById.values().stream()
+            .collect(Collectors.toMap(UserEntity::getId, ProjectService::displayNameOf, (a, b) -> a));
 
         List<ProjectSummaryResponse> result = new ArrayList<>(filtered.stream().map(project -> {
             String ownerName = ownerNames.getOrDefault(project.getOwnerId(), "User #" + project.getOwnerId());
@@ -103,7 +111,8 @@ public class ProjectService {
                 stats.nodeCount(),
                 stats.activeNodes(),
                 stats.doneNodes(),
-                stats.inProgressNodes()
+                stats.inProgressNodes(),
+                buildMemberBriefs(project, activeMembersByProject.getOrDefault(project.getId(), List.of()), usersById)
             );
         }).toList());
 
@@ -366,6 +375,30 @@ public class ProjectService {
             result.put(entry.getKey(), new NodeStats(c[0], c[1], c[2], c[3]));
         }
         return result;
+    }
+
+    private static String displayNameOf(UserEntity u) {
+        return (u.getFullName() != null && !u.getFullName().isBlank()) ? u.getFullName() : u.getUsername();
+    }
+
+    /** Chủ dự án trước, rồi thành viên đang hoạt động (đã sắp theo joinedAt), không trùng người. */
+    private static List<ProjectMemberBrief> buildMemberBriefs(
+        ProjectEntity project, List<ProjectMemberEntity> members, Map<Long, UserEntity> usersById
+    ) {
+        Set<Long> seen = new LinkedHashSet<>();
+        if (project.getOwnerId() != null) {
+            seen.add(project.getOwnerId());
+        }
+        for (ProjectMemberEntity m : members) {
+            seen.add(m.getUserId());
+        }
+        List<ProjectMemberBrief> briefs = new ArrayList<>();
+        for (Long uid : seen) {
+            UserEntity u = usersById.get(uid);
+            String name = u != null ? displayNameOf(u) : "User #" + uid;
+            briefs.add(new ProjectMemberBrief(String.valueOf(uid), name, u != null ? u.getAvatarUrl() : null));
+        }
+        return briefs;
     }
 
     private String getOwnerDisplayName(Long ownerId) {

@@ -8,11 +8,13 @@ import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.entity.UserEntity;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ArtifactRepository;
 import com.pipeline.wpe.repository.GuestLinkRepository;
 import com.pipeline.wpe.repository.NodeRepository;
+import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ public class GuestGatewayService {
     private final WorkPhaseRepository workPhaseRepository;
     private final ProjectAuthorizationService authorizationService;
     private final CurrentUserProvider currentUserProvider;
+    private final UserRepository userRepository;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -203,16 +206,28 @@ public class GuestGatewayService {
 
     /** 5 task được cập nhật gần nhất (bỏ task chưa từng sửa sau khi tạo). */
     private List<GuestOverviewResponse.GuestActivityDto> buildRecentActivity(List<NodeEntity> nodes, Instant now) {
-        return nodes.stream()
+        List<NodeEntity> recent = nodes.stream()
             .filter(n -> n.getUpdatedAt() != null && n.getCreatedAt() != null && n.getUpdatedAt().isAfter(n.getCreatedAt()))
             .sorted(Comparator.comparing(NodeEntity::getUpdatedAt).reversed())
             .limit(5)
+            .toList();
+        // Ảnh của người được giao task: nạp 1 lô cho tối đa 5 task.
+        Set<Long> assigneeIds = recent.stream().map(NodeEntity::getAssignedUserId)
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, String> avatarByUser = new HashMap<>();
+        if (!assigneeIds.isEmpty()) {
+            for (UserEntity u : userRepository.findAllById(new ArrayList<>(assigneeIds))) {
+                if (u.getAvatarUrl() != null) avatarByUser.put(u.getId(), u.getAvatarUrl());
+            }
+        }
+        return recent.stream()
             .map(n -> new GuestOverviewResponse.GuestActivityDto(
                 "node-" + n.getId(),
                 "WPE",
                 n.getCode(),
                 n.getTitle() + " is now " + n.getStatus().name().replace('_', ' '),
-                agoEn(n.getUpdatedAt(), now)
+                agoEn(n.getUpdatedAt(), now),
+                n.getAssignedUserId() != null ? avatarByUser.get(n.getAssignedUserId()) : null
             ))
             .toList();
     }

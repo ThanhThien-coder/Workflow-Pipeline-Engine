@@ -8,10 +8,12 @@ import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.entity.UserEntity;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.repository.ArtifactRepository;
 import com.pipeline.wpe.repository.GuestLinkRepository;
 import com.pipeline.wpe.repository.NodeRepository;
+import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +56,9 @@ class GuestGatewayServiceTest {
 
     @Mock
     private CurrentUserProvider currentUserProvider;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private GuestGatewayService guestGatewayService;
@@ -111,6 +116,41 @@ class GuestGatewayServiceTest {
         verify(guestLinkRepository).save(activeLink);
     }
 
+
+    @Test
+    @DisplayName("Overview: hoạt động gần đây mang avatarUrl của người được giao, null khi không có ảnh hoặc chưa giao")
+    void testGetGuestOverview_recentActivityIncludesAvatar() {
+        String token = "example-guest-token-avatar";
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token).isRevoked(false)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS)).build();
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("Test Pipeline")
+            .ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        Instant created = Instant.now().minus(3, ChronoUnit.DAYS);
+        NodeEntity withAvatar = NodeEntity.builder().id(1L).projectId(projectId).status(NodeStatus.DONE)
+            .code("WPE-1").title("Task 1").assignedUserId(7L).createdAt(created).updatedAt(created.plusSeconds(3600)).build();
+        NodeEntity noAvatar = NodeEntity.builder().id(2L).projectId(projectId).status(NodeStatus.IN_PROGRESS)
+            .code("WPE-2").title("Task 2").assignedUserId(8L).createdAt(created).updatedAt(created.plusSeconds(7200)).build();
+        NodeEntity unassigned = NodeEntity.builder().id(3L).projectId(projectId).status(NodeStatus.TODO)
+            .code("WPE-3").title("Task 3").createdAt(created).updatedAt(created.plusSeconds(100)).build();
+        UserEntity u7 = UserEntity.builder().id(7L).username("alex").avatarUrl("/uploads/avatars/example-alex.png").build();
+        UserEntity u8 = UserEntity.builder().id(8L).username("sarah").build();
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of(withAvatar, noAvatar, unassigned));
+        when(artifactRepository.findByProjectIdAndIsPublicForGuestTrue(projectId)).thenReturn(List.of());
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId)).thenReturn(List.of());
+        when(userRepository.findAllById(any())).thenReturn(List.of(u7, u8));
+
+        GuestOverviewResponse overview = guestGatewayService.getGuestOverview(token);
+
+        List<GuestOverviewResponse.GuestActivityDto> acts = overview.recentActivity();
+        assertThat(acts).hasSize(3);
+        assertThat(acts.stream().filter(a -> a.actor().equals("WPE-1")).findFirst().orElseThrow().avatarUrl())
+            .isEqualTo("/uploads/avatars/example-alex.png");
+        assertThat(acts.stream().filter(a -> a.actor().equals("WPE-2")).findFirst().orElseThrow().avatarUrl()).isNull();
+        assertThat(acts.stream().filter(a -> a.actor().equals("WPE-3")).findFirst().orElseThrow().avatarUrl()).isNull();
+    }
     @Test
     @DisplayName("7.2 Get Guest Overview - Token hợp lệ trả về tổng quan dự án")
     void testGetGuestOverview_Success() {

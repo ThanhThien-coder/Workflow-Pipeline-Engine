@@ -376,4 +376,33 @@ class ProjectMemberServiceTest {
         assertThat(history.get(1).removedAt()).isNull();
         assertThat(history.get(1).active()).isTrue();
     }
+
+    @Test
+    @DisplayName("getMembers: avatarUrl lấy từ user, null khi user chưa có ảnh")
+    void getMembers_returnsAvatarUrlFromUser() {
+        Long projectId = 1L;
+        ProjectMemberEntity owner = ProjectMemberEntity.builder()
+                .id(101L).projectId(projectId).userId(1L).role(ProjectRole.OWNER)
+                .joinedAt(Instant.now().minus(5, ChronoUnit.DAYS)).build();
+        ProjectMemberEntity collab = ProjectMemberEntity.builder()
+                .id(102L).projectId(projectId).userId(2L).role(ProjectRole.COLLABORATOR)
+                .joinedAt(Instant.now().minus(2, ChronoUnit.DAYS)).build();
+        UserEntity user1 = UserEntity.builder().id(1L).username("owner.alex").fullName("Alex Kim")
+                .email("alex@wpe.io").avatarUrl("/uploads/avatars/example-alex.png").build();
+        UserEntity user2 = UserEntity.builder().id(2L).username("sarah.c").fullName("Sarah Chen")
+                .email("sarah@wpe.io").build();
+
+        when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, 1L))
+                .thenReturn(ProjectEntity.builder().id(projectId).ownerId(1L).build());
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId))
+                .thenReturn(List.of(owner, collab));
+        when(userRepository.findAllById(any())).thenReturn(List.of(user1, user2));
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+
+        List<ProjectMemberResponse> result = projectMemberService.getMembers(projectId, 1L);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).avatarUrl()).isEqualTo("/uploads/avatars/example-alex.png");
+        assertThat(result.get(1).avatarUrl()).isNull();
+    }
 }

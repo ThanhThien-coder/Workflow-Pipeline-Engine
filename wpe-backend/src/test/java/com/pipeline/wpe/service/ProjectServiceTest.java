@@ -6,6 +6,7 @@ import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.project.CreateProjectRequest;
 import com.pipeline.wpe.dto.project.ProjectDetailResponse;
+import com.pipeline.wpe.dto.project.ProjectMemberBrief;
 import com.pipeline.wpe.dto.project.ProjectSummaryResponse;
 import com.pipeline.wpe.dto.project.UpdateProjectRequest;
 import com.pipeline.wpe.dto.project.UpdateProjectStatusRequest;
@@ -709,5 +710,48 @@ class ProjectServiceTest {
 
         assertThatThrownBy(() -> projectService.updateProject(projectId, new UpdateProjectRequest("Valid Name", "d".repeat(1001)), userId))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("getMyProjects: members gồm chủ dự án trước rồi thành viên đang hoạt động theo joinedAt, kèm avatarUrl (nạp theo lô)")
+    void shouldIncludeMemberBriefsWithAvatarsLoadedInBatch() {
+        Instant now = Instant.now();
+        ProjectEntity p1 = ProjectEntity.builder().id(1L).name("P1").ownerId(userId).status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+        ProjectEntity p2 = ProjectEntity.builder().id(2L).name("P2").ownerId(otherUserId).status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+
+        ProjectMemberEntity ownerRow = ProjectMemberEntity.builder().id(10L).projectId(1L).userId(userId)
+            .role(ProjectRole.OWNER).joinedAt(now.minusSeconds(500)).build();
+        ProjectMemberEntity lateMember = ProjectMemberEntity.builder().id(11L).projectId(1L).userId(30L)
+            .role(ProjectRole.COLLABORATOR).joinedAt(now.minusSeconds(100)).build();
+        ProjectMemberEntity earlyMember = ProjectMemberEntity.builder().id(12L).projectId(1L).userId(20L)
+            .role(ProjectRole.COLLABORATOR).joinedAt(now.minusSeconds(300)).build();
+        ProjectMemberEntity removed = ProjectMemberEntity.builder().id(13L).projectId(1L).userId(40L)
+            .role(ProjectRole.COLLABORATOR).joinedAt(now.minusSeconds(200)).removedAt(now).build();
+
+        when(projectRepository.findAllAccessibleProjects(userId)).thenReturn(List.of(p1, p2));
+        when(projectMemberRepository.findByProjectIdIn(any())).thenReturn(List.of(lateMember, removed, ownerRow, earlyMember));
+        when(userRepository.findAllById(any())).thenReturn(List.of(
+            UserEntity.builder().id(userId).fullName("Alex Kim").avatarUrl("/uploads/avatars/example-alex.png").build(),
+            UserEntity.builder().id(otherUserId).fullName("Other User").build(),
+            UserEntity.builder().id(20L).username("early.user").build(),
+            UserEntity.builder().id(30L).fullName("Late User").avatarUrl("/uploads/avatars/example-late.png").build()
+        ));
+        when(nodeRepository.countByProjectIdsGroupByStatus(any())).thenReturn(List.of());
+
+        List<ProjectSummaryResponse> result = projectService.getMyProjects(userId, "all", "nodes");
+
+        ProjectSummaryResponse s1 = result.stream().filter(s -> s.id() == 1L).findFirst().orElseThrow();
+        assertThat(s1.members()).extracting(ProjectMemberBrief::id).containsExactly(String.valueOf(userId), "20", "30");
+        assertThat(s1.members()).extracting(ProjectMemberBrief::displayName)
+            .containsExactly("Alex Kim", "early.user", "Late User");
+        assertThat(s1.members()).extracting(ProjectMemberBrief::avatarUrl)
+            .containsExactly("/uploads/avatars/example-alex.png", null, "/uploads/avatars/example-late.png");
+
+        ProjectSummaryResponse s2 = result.stream().filter(s -> s.id() == 2L).findFirst().orElseThrow();
+        assertThat(s2.members()).hasSize(1);
+        assertThat(s2.members().get(0).avatarUrl()).isNull();
+
+        verify(projectMemberRepository, times(1)).findByProjectIdIn(any());
+        verify(userRepository, times(1)).findAllById(any());
     }
 }

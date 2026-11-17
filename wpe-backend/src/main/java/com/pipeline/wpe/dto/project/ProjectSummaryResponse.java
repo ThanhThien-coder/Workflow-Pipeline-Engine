@@ -3,6 +3,7 @@ package com.pipeline.wpe.dto.project;
 import com.pipeline.wpe.entity.ProjectEntity;
 
 import java.time.Instant;
+import java.util.List;
 
 public record ProjectSummaryResponse(
     Long id,
@@ -19,8 +20,19 @@ public record ProjectSummaryResponse(
     Instant updatedAt,
     int nodeCount,
     int activeNodes,
-    int doneNodes
+    int doneNodes,
+    List<ProjectMemberBrief> members
 ) {
+    /** Constructor cũ (chưa có danh sách thành viên). */
+    public ProjectSummaryResponse(
+        Long id, String name, String description, String status, Long ownerId, String ownerName,
+        int totalNodes, int completedNodes, int inProgressNodes, double progressPercentage,
+        Instant createdAt, Instant updatedAt, int nodeCount, int activeNodes, int doneNodes
+    ) {
+        this(id, name, description, status, ownerId, ownerName, totalNodes, completedNodes, inProgressNodes,
+            progressPercentage, createdAt, updatedAt, nodeCount, activeNodes, doneNodes, List.of());
+    }
+
     public static ProjectSummaryResponse fromEntity(
         ProjectEntity project,
         String ownerName,
@@ -47,7 +59,8 @@ public record ProjectSummaryResponse(
             project.getUpdatedAt(),
             totalNodes,
             inProgressNodes,
-            completedNodes
+            completedNodes,
+            List.of()
         );
     }
 
@@ -75,6 +88,18 @@ public record ProjectSummaryResponse(
         int doneNodes,
         int inProgressNodes
     ) {
+        return withNodeStats(project, ownerName, nodeCount, activeNodes, doneNodes, inProgressNodes, List.of());
+    }
+
+    public static ProjectSummaryResponse withNodeStats(
+        ProjectEntity project,
+        String ownerName,
+        int nodeCount,
+        int activeNodes,
+        int doneNodes,
+        int inProgressNodes,
+        List<ProjectMemberBrief> members
+    ) {
         if (project == null) {
             return null;
         }
@@ -98,7 +123,8 @@ public record ProjectSummaryResponse(
             project.getUpdatedAt(),
             nodeCount,
             activeNodes,
-            doneNodes
+            doneNodes,
+            members != null ? members : List.of()
         );
     }
 }

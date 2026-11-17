@@ -576,4 +576,28 @@ class AdminUserServiceTest {
 
         verify(userRepository, never()).delete(any());
     }
+
+    @Test
+    @DisplayName("listUsers trả avatarUrl khi user có ảnh và null khi không có")
+    void testListUsers_includesAvatarUrl() {
+        UserEntity withAvatar = UserEntity.builder()
+            .id(2L).username("alex.kim").fullName("Alex Kim").email("alex.kim@pipeline.engine")
+            .systemRole(SystemRole.USER).isLocked(false).createdAt(Instant.now())
+            .avatarUrl("/uploads/avatars/example-alex.png")
+            .build();
+        UserEntity noAvatar = UserEntity.builder()
+            .id(3L).username("sarah.chen").fullName("Sarah Chen").email("sarah.chen@acme.io")
+            .systemRole(SystemRole.USER).isLocked(false).createdAt(Instant.now())
+            .build();
+
+        when(userRepository.findAll()).thenReturn(List.of(withAvatar, noAvatar));
+        when(projectRepository.countByOwnerId(anyLong())).thenReturn(0L);
+        when(projectMemberRepository.countByUserIdAndRemovedAtIsNullAndRoleNot(anyLong(), eq(ProjectRole.OWNER))).thenReturn(0L);
+
+        List<AdminUserResponse> all = adminUserService.listUsers(null, null);
+
+        assertThat(all).hasSize(2);
+        assertThat(all.get(0).avatarUrl()).isEqualTo("/uploads/avatars/example-alex.png");
+        assertThat(all.get(1).avatarUrl()).isNull();
+    }
 }

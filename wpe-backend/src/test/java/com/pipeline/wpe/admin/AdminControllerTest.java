@@ -106,7 +106,8 @@ class AdminControllerTest {
         "ACTIVE",
         3L,
         5L,
-        Instant.now()
+        Instant.now(),
+        "/uploads/avatars/example-alex.png"
     );
 
     @Test
@@ -119,7 +120,8 @@ class AdminControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].id").value("2"))
             .andExpect(jsonPath("$[0].username").value("alex.kim"))
-            .andExpect(jsonPath("$[0].maskedEmail").value("a***@pipeline.engine"));
+            .andExpect(jsonPath("$[0].maskedEmail").value("a***@pipeline.engine"))
+            .andExpect(jsonPath("$[0].avatarUrl").value("/uploads/avatars/example-alex.png"));
     }
 
     @Test
@@ -170,7 +172,8 @@ class AdminControllerTest {
             "SUSPENDED",
             3L,
             5L,
-            Instant.now()
+            Instant.now(),
+            null
         );
         when(adminUserService.suspendUser(eq(2L), any(SuspendUserRequest.class), eq(1L)))
             .thenReturn(suspended);

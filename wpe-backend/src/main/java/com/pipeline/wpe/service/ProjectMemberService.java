@@ -86,7 +86,7 @@ public class ProjectMemberService {
                     m.getJoinedAt(),
                     activeNodeCount,
                     initials,
-                    null
+                    user != null ? user.getAvatarUrl() : null
             );
         }).toList();
     }
@@ -220,7 +220,7 @@ public class ProjectMemberService {
                 member.getJoinedAt(),
                 activeNodeCount,
                 initials,
-                null
+                user != null ? user.getAvatarUrl() : null
         );
     }
 

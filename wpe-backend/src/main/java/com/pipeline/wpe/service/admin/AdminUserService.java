@@ -234,7 +234,8 @@ public class AdminUserService {
             status,
             ownedCount,
             joinedCount,
-            user.getCreatedAt()
+            user.getCreatedAt(),
+            user.getAvatarUrl()
         );
     }
 }
