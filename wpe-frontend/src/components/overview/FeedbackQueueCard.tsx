@@ -2,6 +2,7 @@ import { Check, CheckCircle2 } from 'lucide-react'
 import type { FeedbackItem } from '../../types/overview.types'
 import { relativeEn } from '../../utils/relativeTime'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { isMockMode } from '../../services/env'
 
 export interface FeedbackQueueCardProps {
   items: FeedbackItem[]
@@ -12,8 +13,8 @@ export interface FeedbackQueueCardProps {
 export function FeedbackQueueCard({ items, onResolve, canResolve }: FeedbackQueueCardProps) {
   const simulatedRole = useWorkflowStore((state) => state.settings.simulatedRole)
   const overviewRole = useWorkflowStore((state) => state.overview.data?.project.role)
-  const userRole = simulatedRole || overviewRole
-  const isAllowedRole = userRole ? (userRole === 'OWNER' || userRole === 'MANAGER') : true
+  const userRole = isMockMode ? (simulatedRole || overviewRole) : overviewRole
+  const isAllowedRole = userRole ? (userRole === 'OWNER' || userRole === 'MANAGER') : isMockMode
   const effectiveCanResolve = canResolve !== undefined ? canResolve : isAllowedRole
 
   const openCount = items.filter((item) => item.status === 'OPEN').length

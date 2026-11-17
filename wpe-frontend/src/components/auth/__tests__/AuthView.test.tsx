@@ -11,6 +11,13 @@ import { getAuthErrorMessage } from '../../../services/impl/http/auth'
  * USERNAME_TAKEN, EMAIL_TAKEN) ngay trên form, không chỉ hiện message thô của backend.
  */
 
+const envMock = vi.hoisted(() => ({ isMock: false }))
+vi.mock('../../../services/env', () => ({
+  get isMockMode() {
+    return envMock.isMock
+  },
+}))
+
 function apiError(status: number, code: string): ApiError {
   return new ApiError({ status, code, message: `backend: ${code}` })
 }
@@ -118,5 +125,29 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
 
     await waitFor(() => expect(screen.getByText('Enter a valid email address.')).toBeDefined())
     expect(login).not.toHaveBeenCalled()
+  })
+
+  it('Forgot password?: ở chế độ thật (!isMockMode) hiện thông báo liên hệ admin', () => {
+    envMock.isMock = false
+    const showToast = vi.fn()
+    useWorkflowStore.setState((s) => ({ ui: { ...s.ui, showToast } }))
+    render(<AuthView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Forgot password\?/i }))
+
+    expect(showToast).toHaveBeenCalledWith(
+      'Password reset by email is not available yet. Please contact your workspace administrator.',
+    )
+  })
+
+  it('Forgot password?: ở chế độ mock (isMockMode) hiện thông báo demo', () => {
+    envMock.isMock = true
+    const showToast = vi.fn()
+    useWorkflowStore.setState((s) => ({ ui: { ...s.ui, showToast } }))
+    render(<AuthView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Forgot password\?/i }))
+
+    expect(showToast).toHaveBeenCalledWith('Password reset link sent (demo).')
   })
 })
