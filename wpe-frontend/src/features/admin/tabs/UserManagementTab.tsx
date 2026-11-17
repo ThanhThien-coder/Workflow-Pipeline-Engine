@@ -184,16 +184,16 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
       {/* Users Table */}
       <div className="admin-surface overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-[1120px] w-full text-left text-sm">
+          <table className="min-w-[760px] w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-5 py-4 font-semibold">User Info</th>
-                <th className="px-4 py-4 font-semibold">Masked Email</th>
+                <th className="hidden px-4 py-4 font-semibold xl:table-cell">Masked Email</th>
                 <th className="px-4 py-4 font-semibold">Role</th>
                 <th className="px-4 py-4 font-semibold">Workspaces</th>
-                <th className="px-4 py-4 font-semibold">Created</th>
+                <th className="hidden px-4 py-4 font-semibold xl:table-cell">Created</th>
                 <th className="px-4 py-4 font-semibold">Status</th>
-                <th className="px-5 py-4 text-right font-semibold">Actions</th>
+                <th className="px-4 py-4 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody id="userTableBody" className="divide-y divide-slate-100">
@@ -218,12 +218,14 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                         <div>
                           <div className="font-bold text-slate-800">{user.name}</div>
                           <div className="font-mono text-[11px] text-slate-400">{user.id}</div>
+                          {/* Màn < 1280px ẩn cột email: hiện email dưới tên */}
+                          <div className="font-mono text-[11px] text-slate-500 xl:hidden">{user.maskedEmail}</div>
                         </div>
                       </div>
                     </td>
 
                     {/* Masked Email */}
-                    <td className="px-4 py-4 font-mono text-xs text-slate-500">
+                    <td className="hidden px-4 py-4 font-mono text-xs text-slate-500 xl:table-cell">
                       {user.maskedEmail}
                     </td>
 
@@ -236,7 +238,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                     </td>
 
                     {/* Ngày tạo */}
-                    <td className="px-4 py-4">
+                    <td className="hidden px-4 py-4 xl:table-cell">
                       <div className="text-xs text-slate-600">
                         {formatCreatedAt(user.createdAt)}
                       </div>
@@ -246,7 +248,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                     <td className="px-4 py-4">{formatStatusBadge(user.status)}</td>
 
                     {/* Actions */}
-                    <td className="min-w-[340px] px-5 py-4 text-right">
+                    <td className="w-[240px] px-4 py-4">
                       {(() => {
                         const isCurrent =
                           currentUserId !== undefined &&
@@ -258,7 +260,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                         const canDelete = !isAdmin && !isCurrent;
 
                         return (
-                          <div className="flex flex-wrap items-center justify-end gap-1.5 [&>button]:whitespace-nowrap">
+                          <div className="grid w-[224px] grid-cols-2 gap-1.5 [&>button]:w-full [&>button]:whitespace-nowrap [&>button]:text-center">
                             {/* Change Role: Nâng quản trị / Hạ về người dùng */}
                             {!isCurrent && user.role === 'STANDARD_USER' && (
                               <button
