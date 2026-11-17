@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, lazy, Suspense, type FC } from 'react'
 import { LandingView } from './components/landing/LandingView'
 import { AuthView } from './components/auth/AuthView'
+import { ResetPasswordView } from './components/auth/ResetPasswordView'
 import { WorkspaceView } from './components/workspace/WorkspaceView'
 import { ProjectWorkspaceView } from './views/ProjectWorkspaceView'
 import GuestView from './views/GuestView' // NEW
@@ -60,6 +61,7 @@ export default function App() {
 
   // Route Guarding & Dispatch
   const isAuthRoute = pathname === '/auth'
+  const isResetPasswordRoute = pathname === '/reset-password'
   const isLandingRoute = pathname === '/' || pathname === ''
   const isWorkspaceRoute = pathname === '/workspaces' || pathname === '/workspace'
   const isProjectRoute = pathname.startsWith('/project/')
@@ -118,6 +120,10 @@ export default function App() {
     
     if (isLandingRoute) {
       return <LandingView />
+    }
+
+    if (isResetPasswordRoute) {
+      return <ResetPasswordView />
     }
 
     if (isAuthRoute) {

@@ -132,27 +132,90 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
     expect(login).not.toHaveBeenCalled()
   })
 
-  it('Forgot password?: ở chế độ thật (!isMockMode) hiện thông báo liên hệ admin', () => {
-    envMock.isMock = false
-    const showToast = vi.fn()
-    useWorkflowStore.setState((s) => ({ ui: { ...s.ui, showToast } }))
-    render(<AuthView />)
+  describe('quên mật khẩu (?tab=forgot)', () => {
+    const json = (status: number, body: unknown) =>
+      new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-    fireEvent.click(screen.getByRole('button', { name: /Forgot password\?/i }))
+    function mockFetch(handler: (url: string) => Response) {
+      const fetchMock = vi.fn(async (url: string) => handler(url))
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
 
-    expect(showToast).toHaveBeenCalledWith(
-      'Password reset by email is not available yet. Please contact your workspace administrator.',
-    )
-  })
+    const EMAIL_PH = 'alex.kim@pipeline.engine'
 
-  it('Forgot password?: ở chế độ mock (isMockMode) hiện thông báo demo', () => {
-    envMock.isMock = true
-    const showToast = vi.fn()
-    useWorkflowStore.setState((s) => ({ ui: { ...s.ui, showToast } }))
-    render(<AuthView />)
+    afterEach(() => vi.unstubAllGlobals())
 
-    fireEvent.click(screen.getByRole('button', { name: /Forgot password\?/i }))
+    it('bấm Forgot password? mở màn Reset your password, điền sẵn email đang gõ', async () => {
+      envMock.isMock = true
+      render(<AuthView />)
+      fireEvent.change(screen.getByPlaceholderText(EMAIL_PH), { target: { value: 'me@x.io' } })
 
-    expect(showToast).toHaveBeenCalledWith('Password reset link sent (demo).')
+      fireEvent.click(screen.getByRole('button', { name: /Forgot password\?/i }))
+
+      await waitFor(() => expect(screen.getByText('Reset your password')).toBeDefined())
+      expect(window.location.search).toBe('?tab=forgot')
+      expect((screen.getByPlaceholderText(EMAIL_PH) as HTMLInputElement).value).toBe('me@x.io')
+      fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
+      await waitFor(() => expect(window.location.search).toBe('?tab=signin'))
+    })
+
+    it('email sai dạng: báo lỗi dưới ô, không gọi API gửi mail', async () => {
+      envMock.isMock = false
+      const fetchMock = mockFetch((url) =>
+        url.endsWith('/password-reset/status') ? json(200, { enabled: true }) : json(200, { success: true }),
+      )
+      window.history.replaceState({}, '', '/auth?tab=forgot')
+      render(<AuthView />)
+
+      fireEvent.change(screen.getByPlaceholderText(EMAIL_PH), { target: { value: 'khong-phai-email' } })
+      fireEvent.submit(document.querySelector('form') as HTMLFormElement)
+
+      await waitFor(() => expect(screen.getByText('Enter a valid email address.')).toBeDefined())
+      expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/auth/forgot-password'))).toBe(false)
+    })
+
+    it('gửi thành công: hiện Check your inbox và câu hướng dẫn', async () => {
+      envMock.isMock = false
+      mockFetch((url) =>
+        url.endsWith('/password-reset/status') ? json(200, { enabled: true }) : json(200, { success: true, message: 'ok' }),
+      )
+      window.history.replaceState({}, '', '/auth?tab=forgot')
+      render(<AuthView />)
+
+      fireEvent.change(screen.getByPlaceholderText(EMAIL_PH), { target: { value: 'me@x.io' } })
+      fireEvent.submit(document.querySelector('form') as HTMLFormElement)
+
+      await waitFor(() => expect(screen.getByText('Check your inbox')).toBeDefined())
+      expect(document.body.textContent).toContain("If an account exists for me@x.io, we've sent a password reset link.")
+      expect(screen.getByRole('button', { name: 'Send again' })).toBeDefined()
+    })
+
+    it('status enabled:false: hiện câu "isn\'t available" và ẩn form', async () => {
+      envMock.isMock = false
+      mockFetch(() => json(200, { enabled: false }))
+      window.history.replaceState({}, '', '/auth?tab=forgot')
+      render(<AuthView />)
+
+      await waitFor(() => expect(document.body.textContent).toContain("isn't available right now"))
+      expect(document.querySelector('form')).toBeNull()
+    })
+
+    it('gửi bị 503 PASSWORD_RESET_UNAVAILABLE: hiện câu "isn\'t available"', async () => {
+      envMock.isMock = false
+      mockFetch((url) =>
+        url.endsWith('/password-reset/status')
+          ? json(200, { enabled: true })
+          : json(503, { status: 503, error: 'PASSWORD_RESET_UNAVAILABLE', message: 'off', path: '/x' }),
+      )
+      window.history.replaceState({}, '', '/auth?tab=forgot')
+      render(<AuthView />)
+
+      fireEvent.change(screen.getByPlaceholderText(EMAIL_PH), { target: { value: 'me@x.io' } })
+      fireEvent.submit(document.querySelector('form') as HTMLFormElement)
+
+      await waitFor(() => expect(document.body.textContent).toContain("isn't available right now"))
+      expect(document.querySelector('form')).toBeNull()
+    })
   })
 })
