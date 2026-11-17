@@ -57,7 +57,7 @@ export class MockAuthApi {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
     return {
-      accessToken: `mock-jwt-token-${btoa(JSON.stringify({ sub: username, org: cmd.workspaceName, exp: Date.now() + 86400000 }))}`,
+      accessToken: `mock-jwt-token-${btoa(JSON.stringify({ sub: username, exp: Date.now() + 86400000 }))}`,
       tokenType: 'Bearer',
       expiresAt,
       user: this.currentUser,

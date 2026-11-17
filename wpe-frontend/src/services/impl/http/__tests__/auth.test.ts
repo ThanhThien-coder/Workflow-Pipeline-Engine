@@ -134,7 +134,7 @@ describe('auth.ts: login, register, logout, getStoredUser', () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(409, errorBody(409, 'EMAIL_TAKEN')))
       .mockResolvedValueOnce(jsonResponse(409, errorBody(409, 'USERNAME_TAKEN')))
-    const cmd = { fullName: 'Marcus Liu', email: 'Marcus.Liu@pipeline.engine', password: 'password123', workspaceName: 'Acme' }
+    const cmd = { fullName: 'Marcus Liu', email: 'Marcus.Liu@pipeline.engine', password: 'password123' }
 
     await expect(register(cmd)).rejects.toMatchObject({ status: 409, code: 'EMAIL_TAKEN' })
     await expect(register(cmd)).rejects.toMatchObject({ status: 409, code: 'USERNAME_TAKEN' })
@@ -152,7 +152,7 @@ describe('auth.ts: login, register, logout, getStoredUser', () => {
   it('register thành công: 201 trả AuthResponseDto có refreshToken', async () => {
     fetchMock.mockResolvedValue(jsonResponse(201, authBody('jwt-new', 'rt_new')))
 
-    const res = await register({ fullName: 'Alex Kim', email: 'alex.kim@x.io', password: 'password123', workspaceName: 'W' })
+    const res = await register({ fullName: 'Alex Kim', email: 'alex.kim@x.io', password: 'password123' })
 
     expect(res.accessToken).toBe('jwt-new')
     expect(res.refreshToken).toBe('rt_new')

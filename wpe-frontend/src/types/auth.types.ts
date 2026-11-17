@@ -8,7 +8,6 @@ export interface RegisterUserCommand {
   fullName: string
   email: string
   password: string
-  workspaceName: string
 }
 
 export interface UserDto {
