@@ -113,6 +113,7 @@ def health_check():
         "status": "UP",
         "geminiConfigured": settings.has_gemini_key,
         "model": settings.GEMINI_MODEL,
+        "fallbackModels": settings.gemini_models[1:],
     }
 
 
@@ -123,6 +124,7 @@ def readiness_check():
         "geminiConfigured": settings.has_gemini_key,
         "internalKeyEnabled": bool(settings.AI_INTERNAL_KEY),
         "model": settings.GEMINI_MODEL,
+        "fallbackModels": settings.gemini_models[1:],
     }
 
 

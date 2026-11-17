@@ -2,7 +2,7 @@
 
 > **Phân hệ**: AI Intelligence & Diagnostics Microservice  
 > **Dự án**: Workflow-Pipeline-Engine (WPE)  
-> **Công nghệ**: Python 3.11+, FastAPI, Google Gemini API (`gemini-2.5-flash`), Network DAG / CPM  
+> **Công nghệ**: Python 3.11+, FastAPI, Google Gemini API (`gemini-3.8-flash`, dự phòng `gemini-3.1-flash-lite`), Network DAG / CPM  
 > **Cổng mặc định**: `8081`  
 > **Hợp đồng tích hợp SSOT**: [`docs/specs/ai-service-contract.md`](../docs/specs/ai-service-contract.md)
 
@@ -47,12 +47,16 @@ PORT=8081
 APP_RELOAD=false
 AI_INTERNAL_KEY=
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
-GEMINI_TIMEOUT_MS=15000
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_FALLBACK_MODEL=gemini-3.1-flash-lite
+GEMINI_TIMEOUT_MS=12000
+GEMINI_TOTAL_TIMEOUT_MS=25000
+GEMINI_THINKING_LEVEL=LOW
 GEMINI_THINKING_BUDGET=256
 ```
 - Khi `AI_INTERNAL_KEY` được đặt giá trị, mọi request tới `/api/ai/diagnose` và `/api/ai/scaffold-dag` bắt buộc có header `X-Internal-Key` khớp chính xác (sai hoặc thiếu trả `401 Unauthorized`).
-- Nếu không có `GEMINI_API_KEY` hoặc gặp rate limit 429 / lỗi mạng, service tự chuyển sang `source = "HEURISTIC_FALLBACK"` kèm `tokenUsage.source = "HEURISTIC_FALLBACK"`.
+- Gọi lần lượt `GEMINI_MODEL` rồi các model trong `GEMINI_FALLBACK_MODEL`: model trước lỗi (503 quá tải, 504, 429, 404, quá giờ, JSON hỏng) thì gọi model sau; lỗi key (401/403) thì dừng. `tokenUsage.model` ghi model đã trả lời.
+- Nếu không có `GEMINI_API_KEY` hoặc mọi model đều lỗi (rate limit 429 / lỗi mạng), service tự chuyển sang `source = "HEURISTIC_FALLBACK"` kèm `tokenUsage.source = "HEURISTIC_FALLBACK"`.
 
 ### Bước 3: Khởi động Microservice
 ```bash

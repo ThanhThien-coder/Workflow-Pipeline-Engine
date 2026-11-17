@@ -56,6 +56,8 @@ class TokenUsageDto(BaseModel):
     totalTokens: int = 0
     estimatedCostUsd: float = 0.0
     source: Literal["GEMINI_API", "HEURISTIC_FALLBACK"] = "GEMINI_API"
+    # Model Gemini đã trả lời (model chính hoặc model dự phòng); null khi dùng luật dự phòng
+    model: Optional[str] = None
 
 
 class GeminiTaskTrapSchema(BaseModel):
