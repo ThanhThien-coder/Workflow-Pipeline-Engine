@@ -1076,7 +1076,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - Bảng tác động: `PROJECT` (`ai_requested_at`, `latest_ai_analysis`), đọc `NODE`, `NODE_DEPENDENCY`, `PROJECT_FEEDBACK`.
    - Kiểm quyền thành viên/chủ dự án (không phải thì `403`).
    - Giữ chỗ nguyên tử trên `project.ai_requested_at`; còn trong 180 giây thì `429 COOLDOWN_ACTIVE` kèm `retryAfterSeconds`.
-   - Gọi microservice AI Python (`HttpAiServiceClient`, `POST /api/ai/diagnose`, header `X-Internal-Key`) NGOÀI transaction DB. Python gọi Gemini `gemini-2.5-flash`.
+   - Gọi microservice AI Python (`HttpAiServiceClient`, `POST /api/ai/diagnose`, header `X-Internal-Key`) NGOÀI transaction DB. Python gọi Gemini `gemini-3.8-flash`, lỗi thì gọi `gemini-3.1-flash-lite`.
    - Kiểm khuôn response; dịch vụ AI tắt, quá giờ, lỗi hoặc sai khuôn → `503 AI_SERVICE_UNAVAILABLE`, không tạo dữ liệu giả, không ghi DB, trả lại chỗ (không tính cooldown).
    - Thành công: backend đặt `analyzedAt` bằng giờ backend, chỉ ghi cột `PROJECT.latest_ai_analysis` (không đổi `updated_at` của dự án).
    - Hợp đồng chi tiết: `docs/specs/ai-service-contract.md`.

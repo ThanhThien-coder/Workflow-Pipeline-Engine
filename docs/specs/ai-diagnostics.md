@@ -2,7 +2,7 @@
 
 > **Dự án**: Workflow-Pipeline-Engine  
 > **Tài liệu**: Single Source of Truth (SSOT) — Đặc tả Phân hệ AI: Kiến trúc sư Quy trình & Bộ Giám sát Quỹ đạo Dự án  
-> **Công nghệ áp dụng**: Google Gemini API (`gemini-2.5-flash` / `gemini-2.5-pro`) + Spring Boot 3 Engine + PostgreSQL JSONB
+> **Công nghệ áp dụng**: Google Gemini API (`gemini-3.8-flash`, dự phòng `gemini-3.1-flash-lite`) + Spring Boot 3 Engine + PostgreSQL JSONB
 
 ---
 
@@ -11,7 +11,7 @@
 > Mục này mô tả **những gì đang chạy thật** và **các quy tắc nhóm đã chốt**. Khi các mục sau (thiết kế tầm nhìn ban đầu) mâu thuẫn với mục 0, **mục 0 và [`ai-service-contract.md`](ai-service-contract.md) là đúng**.
 
 ### 0.1 Kiến trúc đang chạy
-- Frontend → Backend Spring Boot → **microservice AI Python** (`wpe-ai-service`, FastAPI, gọi Google Gemini `gemini-2.5-flash`). Backend không gọi Gemini trực tiếp và không giữ Gemini API key.
+- Frontend → Backend Spring Boot → **microservice AI Python** (`wpe-ai-service`, FastAPI, gọi Google Gemini `gemini-3.8-flash`, lỗi thì gọi `gemini-3.1-flash-lite`). Backend không gọi Gemini trực tiếp và không giữ Gemini API key.
 - Hợp đồng Java ↔ Python (SSOT): [`ai-service-contract.md`](ai-service-contract.md).
 - Endpoint đang dùng:
 

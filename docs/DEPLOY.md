@@ -134,7 +134,7 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
 ## 8. Cấu hình Dịch vụ AI (Google Gemini)
 
 - **Chế độ mặc định (Phân tích dự phòng)**: Nếu để trống biến `GEMINI_API_KEY` trong `deploy/.env`, microservice AI vẫn tính toán đường găng CPM, xác định nút tắc nghẽn và tự động áp dụng thuật toán phân tích dự phòng (heuristic fallback) nội bộ để trả lời chẩn đoán nhanh chóng, không tốn token.
-- **Kích hoạt Google Gemini**: Để sử dụng mô hình trí tuệ nhân tạo Gemini (ví dụ: `gemini-2.5-flash`), điền API Key vào biến `GEMINI_API_KEY` trong `deploy/.env` rồi chạy lại:
+- **Kích hoạt Google Gemini**: Để sử dụng mô hình trí tuệ nhân tạo Gemini (mặc định `gemini-3.8-flash`, model này quá tải hoặc lỗi thì tự gọi `gemini-3.1-flash-lite` qua `GEMINI_FALLBACK_MODEL`), điền API Key vào biến `GEMINI_API_KEY` trong `deploy/.env` rồi chạy lại:
   ```bash
   docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d
   ```
