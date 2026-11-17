@@ -3,20 +3,30 @@ package com.pipeline.wpe.exception;
 import com.pipeline.wpe.service.admin.AdminAuditAction;
 import com.pipeline.wpe.service.admin.AdminAuditService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.List;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -220,13 +230,95 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFound(Exception ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.NOT_FOUND.value(),
+            "NOT_FOUND",
+            "Không tìm thấy đường dẫn này.",
+            request != null ? request.getRequestURI() : ""
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        String msg = "Phương thức " + (ex.getMethod() != null ? ex.getMethod() : "") + " không được hỗ trợ.";
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.METHOD_NOT_ALLOWED.value(),
+            "METHOD_NOT_ALLOWED",
+            msg,
+            request != null ? request.getRequestURI() : ""
+        );
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(error);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
+            "UNSUPPORTED_MEDIA_TYPE",
+            "Định dạng nội dung không được hỗ trợ.",
+            request != null ? request.getRequestURI() : ""
+        );
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(error);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.BAD_REQUEST.value(),
+            "MALFORMED_REQUEST",
+            "Dữ liệu gửi lên không đúng định dạng JSON.",
+            request != null ? request.getRequestURI() : ""
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        String paramName = ex.getName() != null ? ex.getName() : "tham số";
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.BAD_REQUEST.value(),
+            "INVALID_PARAMETER",
+            "Tham số '" + paramName + "' không đúng định dạng.",
+            request != null ? request.getRequestURI() : ""
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingServletRequestParameter(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.BAD_REQUEST.value(),
+            "MISSING_PARAMETER",
+            "Thiếu tham số bắt buộc: " + ex.getParameterName(),
+            request != null ? request.getRequestURI() : ""
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException ex, HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.of(
+            HttpStatus.BAD_REQUEST.value(),
+            "VALIDATION_FAILED",
+            "Dữ liệu gửi lên không hợp lệ.",
+            request != null ? request.getRequestURI() : ""
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex, HttpServletRequest request) {
+        String method = (request != null && request.getMethod() != null) ? request.getMethod() : "UNKNOWN";
+        String uri = (request != null && request.getRequestURI() != null) ? request.getRequestURI() : "";
+        log.error("Lỗi không lường trước tại {} {}", method, uri, ex);
         ErrorResponse error = ErrorResponse.of(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
             "INTERNAL_SERVER_ERROR",
-            ex.getMessage() != null ? ex.getMessage() : "Hệ thống gặp sự cố. Vui lòng thử lại sau giây lát.",
-            request.getRequestURI()
+            "Hệ thống gặp sự cố. Vui lòng thử lại sau giây lát.",
+            uri
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
