@@ -4,7 +4,8 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { create } from 'zustand'
 import { HttpWorkflowService, METHODS_STILL_MOCKED } from '../../HttpWorkflowService'
 import { MockWorkflowService } from '../../../MockWorkflowService'
-import { computeOverviewStats, mapAiAnalysisToReport } from '../overview'
+import { computeOverviewStats, computeWeeklyVelocity, mapAiAnalysisToReport } from '../overview'
+import { WeeklyVelocityCard } from '../../../../components/overview/WeeklyVelocityCard'
 import { createOverviewSlice, type OverviewSlice } from '../../../../store/slices/overviewSlice'
 import { GuestAccessPopover } from '../../../../components/popovers/GuestAccessPopover'
 import { AiDiagnosisPopover } from '../../../../components/popovers/AiDiagnosisPopover'
@@ -137,7 +138,7 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
     expect(calls.some((c) => c.url.includes('/projects/5/activity?limit=10'))).toBe(true)
   })
 
-  it('computeOverviewStats: đồ thị 4 node (2 DONE, 1 trễ hạn) → 50%, overdue 1; ẩn velocity khi thiếu updatedAt', () => {
+  it('computeOverviewStats: đồ thị 4 node (2 DONE, 1 trễ hạn) → 50%, overdue 1; dự án có node thì hasData: true (cột 0 khi thiếu completedAt/updatedAt)', () => {
     const nowMs = Date.parse('2026-11-13T12:00:00Z')
     const stats = computeOverviewStats(
       {
@@ -162,9 +163,9 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
     expect(stats.metrics.completionRate).toBe(50)
     expect(stats.metrics.overdueCount).toBe(1)
     expect(stats.metrics.criticalPathNodes).toBe(3)
-    expect(stats.velocity.hasData).toBe(false)
-    expect(stats.velocity.days).toEqual([])
-    expect(stats.velocity.unavailableNote).toBeTruthy()
+    expect(stats.velocity.hasData).toBe(true)
+    expect(stats.velocity.days).toHaveLength(7)
+    expect(stats.velocity.days.every((d) => d.tasks === 0)).toBe(true)
   })
 
   it('computeOverviewStats: tính Weekly Velocity 7 ngày khi node có updatedAt', () => {
@@ -304,7 +305,7 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
     expect(onGenerate).not.toHaveBeenCalled()
   })
 
-  it('OverviewView: ẩn card Weekly Velocity khi không có updatedAt, hiện "Chưa có chẩn đoán" khi AI rỗng', () => {
+  it('OverviewView: ẩn card Weekly Velocity khi hasData = false, hiện "No diagnosis yet" khi AI rỗng', () => {
     const sampleData: OverviewData = {
       project: {
         id: '5',
@@ -326,7 +327,7 @@ describe('FC2 — Overview dự án dùng dữ liệu thật & link khách theo 
         periodLabel: 'Last 7 days',
         days: [],
         hasData: false,
-        unavailableNote: 'Biểu đồ Weekly Velocity tạm ẩn vì dữ liệu node từ server chưa có updatedAt.',
+        unavailableNote: 'No tasks yet. The chart will appear once the pipeline has tasks.',
       },
       statusBreakdown: {
         totalTasks: 4,
@@ -775,5 +776,56 @@ describe('overviewSlice — runAiDiagnosis', () => {
 
     expect(store.getState().overview.projectId).toBe('6')
     expect(store.getState().overview.aiScanError).toBeNull()
+  })
+})
+
+describe('TASK_51: Weekly Velocity & computeWeeklyVelocity', () => {
+  const fixedNow = new Date('2026-11-17T12:00:00').getTime()
+
+  it('dự án không có node -> hasData: false, unavailableNote câu mới', () => {
+    const res = computeWeeklyVelocity([], fixedNow)
+    expect(res.hasData).toBe(false)
+    expect(res.days).toEqual([])
+    expect(res.unavailableNote).toBe('No tasks yet. The chart will appear once the pipeline has tasks.')
+  })
+
+  it('dự án có node nhưng chưa task nào xong -> hasData: true, mọi cột 0', () => {
+    const nodes = [
+      { id: '1', code: 'WPE-001', title: 'Task 1', status: 'TODO' as const },
+      { id: '2', code: 'WPE-002', title: 'Task 2', status: 'IN_PROGRESS' as const },
+    ]
+    const res = computeWeeklyVelocity(nodes, fixedNow)
+    expect(res.hasData).toBe(true)
+    expect(res.days).toHaveLength(7)
+    expect(res.days.every((d) => d.tasks === 0)).toBe(true)
+  })
+
+  it('node DONE có completedAt hôm nay -> cột hôm nay = 1', () => {
+    const todayIso = new Date(fixedNow).toISOString()
+    const nodes = [
+      { id: '1', code: 'WPE-001', title: 'Task 1', status: 'DONE' as const, completedAt: todayIso },
+    ]
+    const res = computeWeeklyVelocity(nodes, fixedNow)
+    expect(res.hasData).toBe(true)
+    expect(res.days).toHaveLength(7)
+    const todayBucket = res.days[res.days.length - 1]
+    expect(todayBucket.tasks).toBe(1)
+  })
+
+  it('node DONE ngoài 7 ngày không tính', () => {
+    const tenDaysAgo = new Date('2026-11-07T12:00:00').toISOString()
+    const nodes = [
+      { id: '1', code: 'WPE-001', title: 'Old Task', status: 'DONE' as const, completedAt: tenDaysAgo },
+    ]
+    const res = computeWeeklyVelocity(nodes, fixedNow)
+    expect(res.hasData).toBe(true)
+    expect(res.days.every((d) => d.tasks === 0)).toBe(true)
+  })
+
+  it('WeeklyVelocityCard không còn câu "chưa có updatedAt"', () => {
+    render(<WeeklyVelocityCard velocity={{ periodLabel: 'Last 7 days', days: [], hasData: false }} />)
+    const cardEl = screen.getByTestId('weekly-velocity-unavailable')
+    expect(cardEl.textContent).not.toContain('chưa có updatedAt')
+    expect(cardEl.textContent).toBe('No tasks yet. The chart will appear once the pipeline has tasks.')
   })
 })

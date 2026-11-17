@@ -1025,4 +1025,31 @@ class WorkflowGraphServiceTest {
         assertEquals("NODE_IN_USE", ex.getErrorCode());
         verify(nodeRepository, never()).delete(any());
     }
+
+    @Test
+    @DisplayName("TASK_51: Node DONE có completedAt thì GraphNodeResponse có completedAt")
+    void testGetGraphMapsCompletedAtWhenDone() {
+        Instant completedAt = Instant.parse("2026-11-17T12:00:00Z");
+        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build();
+        NodeEntity n1 = NodeEntity.builder()
+            .id(100L)
+            .projectId(1L)
+            .phaseId(10L)
+            .code("WPE-001")
+            .title("Task 1")
+            .status(NodeStatus.DONE)
+            .joinPolicy(JoinPolicy.ALL_COMPLETED)
+            .completedAt(completedAt)
+            .build();
+
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(p1));
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(n1));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        WorkflowGraphResponse graph = workflowGraphService.getGraph(1L, 2L);
+
+        assertNotNull(graph);
+        assertEquals(1, graph.nodes().size());
+        assertEquals(completedAt, graph.nodes().get(0).completedAt());
+    }
 }

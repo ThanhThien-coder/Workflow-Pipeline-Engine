@@ -30,6 +30,7 @@ import type { ProjectActivityItem } from './activity'
 export interface OverviewGraphNode extends BackendGraphNodeDto {
   isOverdue?: boolean | null
   updatedAt?: string | null
+  completedAt?: string | null
 }
 
 export interface OverviewGraphResponse extends Omit<BackendGraphResponse, 'nodes'> {
@@ -131,41 +132,42 @@ function computeCriticalPathLength(
   return maxLen
 }
 
-function toUtcDateKey(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10)
+function toLocalDateKey(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
-function computeWeeklyVelocity(nodes: readonly OverviewGraphNode[], nowMs: number): WeeklyVelocity {
-  const hasAnyUpdatedAt = nodes.some(
-    (node) => typeof node.updatedAt === 'string' && node.updatedAt.trim().length > 0 && Number.isFinite(Date.parse(node.updatedAt)),
-  )
-
-  if (!hasAnyUpdatedAt) {
+export function computeWeeklyVelocity(nodes: readonly OverviewGraphNode[], nowMs: number): WeeklyVelocity {
+  if (nodes.length === 0) {
     return {
       periodLabel: 'Last 7 days',
       days: [],
       hasData: false,
-      unavailableNote: 'Biểu đồ Weekly Velocity tạm ẩn vì dữ liệu node từ server chưa có updatedAt.',
+      unavailableNote: 'No tasks yet. The chart will appear once the pipeline has tasks.',
     }
   }
 
-  const dayMs = 24 * 60 * 60 * 1000
+  const today = new Date(nowMs)
   const bucketCounts = new Map<string, number>()
   const buckets: Array<{ dateKey: string; day: WeekdayLabel }> = []
 
   for (let offset = 6; offset >= 0; offset--) {
-    const targetMs = nowMs - offset * dayMs
-    const dateKey = toUtcDateKey(targetMs)
-    const day = WEEKDAYS[new Date(targetMs).getUTCDay()]
+    const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset)
+    const dateKey = toLocalDateKey(targetDate)
+    const day = WEEKDAYS[targetDate.getDay()]
     buckets.push({ dateKey, day })
     bucketCounts.set(dateKey, 0)
   }
 
   for (const node of nodes) {
-    if (node.status !== 'DONE' || !node.updatedAt) continue
-    const updatedMs = Date.parse(node.updatedAt)
-    if (!Number.isFinite(updatedMs)) continue
-    const key = toUtcDateKey(updatedMs)
+    if (node.status !== 'DONE') continue
+    const dateStr = node.completedAt || node.updatedAt
+    if (!dateStr || typeof dateStr !== 'string') continue
+    const timeMs = Date.parse(dateStr)
+    if (!Number.isFinite(timeMs)) continue
+    const key = toLocalDateKey(new Date(timeMs))
     if (bucketCounts.has(key)) {
       bucketCounts.set(key, (bucketCounts.get(key) ?? 0) + 1)
     }

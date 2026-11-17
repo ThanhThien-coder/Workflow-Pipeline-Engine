@@ -6,7 +6,7 @@ export function WeeklyVelocityCard({ velocity }: { velocity: WeeklyVelocity }) {
   if (velocity.hasData === false || velocity.days.length === 0) {
     return (
       <div data-testid="weekly-velocity-unavailable" className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-        {velocity.unavailableNote || 'Biểu đồ Weekly Velocity tạm ẩn vì dữ liệu node từ server chưa có updatedAt.'}
+        {velocity.unavailableNote || 'No tasks yet. The chart will appear once the pipeline has tasks.'}
       </div>
     )
   }

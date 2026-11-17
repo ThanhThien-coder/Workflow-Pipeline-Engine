@@ -22,13 +22,23 @@ public record GraphNodeResponse(
     String forceUnlockedBy,
     Instant forceUnlockedAt,
     // G21: ngày tạo task, hạn chót không được sớm hơn ngày này
-    Instant createdAt
+    Instant createdAt,
+    // TASK_51: thời điểm hoàn thành task (khi sang DONE)
+    Instant completedAt
 ) {
     public GraphNodeResponse(
         String id, String phaseId, String code, String title, String description, String status, String joinPolicy,
         String assignedUserId, Instant dueDate, Integer estimatedHours, Long version, Map<String, Object> uiMetadata
     ) {
-        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, null, null, null);
+        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, null, null, null, null);
+    }
+
+    public GraphNodeResponse(
+        String id, String phaseId, String code, String title, String description, String status, String joinPolicy,
+        String assignedUserId, Instant dueDate, Integer estimatedHours, Long version, Map<String, Object> uiMetadata,
+        String forceUnlockedBy, Instant forceUnlockedAt, Instant createdAt
+    ) {
+        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, forceUnlockedBy, forceUnlockedAt, createdAt, null);
     }
 
     public static GraphNodeResponse from(NodeEntity n, Map<String, Object> uiMetadata) {
@@ -47,7 +57,8 @@ public record GraphNodeResponse(
             uiMetadata,
             n.getForceUnlockedBy() != null ? String.valueOf(n.getForceUnlockedBy()) : null,
             n.getForceUnlockedAt(),
-            n.getCreatedAt()
+            n.getCreatedAt(),
+            n.getCompletedAt()
         );
     }
 }
