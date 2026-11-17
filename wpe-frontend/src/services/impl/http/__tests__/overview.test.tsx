@@ -829,3 +829,52 @@ describe('TASK_51: Weekly Velocity & computeWeeklyVelocity', () => {
     expect(cardEl.textContent).toBe('No tasks yet. The chart will appear once the pipeline has tasks.')
   })
 })
+
+describe('TASK_61 — khung AI: rootCauseNotes, chưa có phân tích, kicker nguồn dự phòng', () => {
+  beforeEach(() => cleanup())
+  afterEach(() => cleanup())
+
+  const advice = [{ action: 'Prioritize', targetNodeCode: 'WPE-002', instruction: 'Review WPE-002 early', priority: 'HIGH' }]
+
+  function open(report: AiDiagnosticReport) {
+    render(<AiDiagnosisPopover report={report} onRescan={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /AI Diagnosis/ }))
+  }
+
+  it('có rootCauseNotes thì hiện khối Root cause', () => {
+    const report = mapAiAnalysisToReport(
+      { source: 'AI_SERVICE', analyzedAt: '2026-11-16T08:00:00Z', rootCauseNotes: ' Review queue is the choke point. ', actionableAdvice: advice },
+      't',
+    )
+    expect(report.rootCauseNotes).toBe('Review queue is the choke point.')
+    open(report)
+    const block = screen.getByTestId('ai-root-cause')
+    expect(block.textContent).toContain('Root cause')
+    expect(block.textContent).toContain('Review queue is the choke point.')
+  })
+
+  it('không có rootCauseNotes thì không hiện khối Root cause', () => {
+    const report = mapAiAnalysisToReport({ source: 'AI_SERVICE', analyzedAt: '2026-11-16T08:00:00Z', rootCauseNotes: null, actionableAdvice: advice }, 't')
+    open(report)
+    expect(screen.queryByTestId('ai-root-cause')).toBeNull()
+  })
+
+  it('chưa có phân tích: dòng phụ "No diagnosis yet", không có Unknown source/Updated, nút "Run AI scan"', () => {
+    open(mapAiAnalysisToReport(null, '2026-11-16T09:00:00Z'))
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('No diagnosis yet')
+    expect(text).toContain('Run a scan to get insights on bottlenecks, task traps and next steps.')
+    expect(text).not.toContain('Unknown source')
+    expect(text).not.toContain('Updated')
+    expect(screen.getByRole('button', { name: /Run AI scan/ })).toBeTruthy()
+  })
+
+  it('nguồn HEURISTIC_FALLBACK dùng kicker "Recommended action"; AI_SERVICE giữ "AI Actionable Advice"', () => {
+    const fallback = mapAiAnalysisToReport({ source: 'HEURISTIC_FALLBACK', analyzedAt: '2026-11-16T08:00:00Z', actionableAdvice: advice }, 't')
+    expect(fallback.insights[0].kicker).toBe('Recommended action')
+    const ai = mapAiAnalysisToReport({ source: 'AI_SERVICE', analyzedAt: '2026-11-16T08:00:00Z', actionableAdvice: advice }, 't')
+    expect(ai.insights[0].kicker).toBe('AI Actionable Advice')
+    open(fallback)
+    expect(document.body.textContent).toContain('Recommended action')
+  })
+})

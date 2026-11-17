@@ -319,6 +319,10 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
     source,
     warning: readAiWarning(record),
     metrics: readAiMetrics(record),
+    rootCauseNotes:
+      typeof record.rootCauseNotes === 'string' && record.rootCauseNotes.trim()
+        ? record.rootCauseNotes.trim()
+        : undefined,
   }
 
   const analyzedAt =
@@ -394,7 +398,7 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
         kind: 'RECOMMENDATION',
         severity: 'ADVICE',
         icon: '🟢',
-        kicker: 'AI Actionable Advice',
+        kicker: source === 'HEURISTIC_FALLBACK' ? 'Recommended action' : 'AI Actionable Advice',
         tag: String(a.priority || 'Advice'),
         title: targetCode && targetCode !== 'GENERAL' ? `${action} · ${targetCode}` : action,
         description: String(a.instruction || ''),

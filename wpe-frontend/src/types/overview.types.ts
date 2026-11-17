@@ -78,6 +78,8 @@ export interface AiDiagnosticReport {
   /** Gộp `warning` và `rateLimitWarning` của backend; có thì popover hiện dòng cảnh báo vàng. */
   warning?: string
   metrics?: AiDiagnosisMetrics
+  /** Nhận định nguyên nhân gốc (chuỗi từ backend/Python, có thể thiếu). */
+  rootCauseNotes?: string
   generatedAt: ISODateTime
   insights: AiDiagnosticInsight[]
   hasAnalysis?: boolean

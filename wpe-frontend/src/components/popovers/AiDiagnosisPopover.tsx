@@ -92,6 +92,7 @@ export function AiDiagnosisPopover({
   const popoverRef = useRef<HTMLDivElement>(null)
   const position = useAnchoredPosition(isOpen, buttonRef)
   const close = useCallback(() => setIsOpen(false), [])
+  const noAnalysis = report.hasAnalysis === false
   useDismiss(isOpen, close, [buttonRef, popoverRef])
 
   return (
@@ -134,8 +135,14 @@ export function AiDiagnosisPopover({
                 <div>
                   <h3 className="text-base font-semibold">AI Pipeline Diagnostic Insights</h3>
                   <span className="mt-1 inline-block rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
-                    {report.engine === 'Gemini' ? 'Model: Gemini Engine' : `Source: ${report.engine}`} · Updated{' '}
-                    {relativeEn(report.generatedAt)}
+                    {noAnalysis ? (
+                      'No diagnosis yet'
+                    ) : (
+                      <>
+                        {report.engine === 'Gemini' ? 'Model: Gemini Engine' : `Source: ${report.engine}`} · Updated{' '}
+                        {relativeEn(report.generatedAt)}
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -169,6 +176,25 @@ export function AiDiagnosisPopover({
               >
                 <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-600" />
                 <span>{scanError}</span>
+              </div>
+            )}
+
+            {noAnalysis && (
+              <p
+                data-testid="ai-popover-empty"
+                className="mx-6 my-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-center text-sm text-slate-500"
+              >
+                Run a scan to get insights on bottlenecks, task traps and next steps.
+              </p>
+            )}
+
+            {report.rootCauseNotes && (
+              <div
+                data-testid="ai-root-cause"
+                className="mx-6 mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Root cause</div>
+                <p className="mt-1 text-sm leading-relaxed text-slate-800">{report.rootCauseNotes}</p>
               </div>
             )}
 
@@ -207,7 +233,7 @@ export function AiDiagnosisPopover({
                 className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-xs font-semibold text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 disabled:opacity-70"
               >
                 <RefreshCw size={14} className={scanning ? 'spin-360' : ''} />
-                {scanning ? 'Scanning…' : 'Re-scan Pipeline'}
+                {scanning ? 'Scanning…' : noAnalysis ? 'Run AI scan' : 'Re-scan Pipeline'}
               </button>
             </div>
           </div>
