@@ -1,5 +1,5 @@
 import { apiRequest, getStoredUserId } from '../../http/apiClient'
-import type { ProjectRole, ProjectSettingsDto, ProjectStatus } from '../../../types/settings.types'
+import type { ProjectRole, ProjectSettingsDto, ProjectStatus, UpdateProjectCommand } from '../../../types/settings.types'
 
 /**
  * Thông tin chung của dự án cho màn Settings, lấy từ backend thật.
@@ -27,10 +27,7 @@ interface BackendProjectMember {
   role: string
 }
 
-export async function fetchProjectSettings(projectId: string): Promise<ProjectSettingsDto> {
-  const detail = await apiRequest<BackendProjectDetail>('GET', `/projects/${projectId}`)
-  const myRole = await resolveMyRole(projectId, String(detail.ownerId))
-
+function mapToProjectSettingsDto(detail: BackendProjectDetail, myRole: ProjectRole): ProjectSettingsDto {
   return {
     id: String(detail.id),
     name: detail.name,
@@ -42,6 +39,26 @@ export async function fetchProjectSettings(projectId: string): Promise<ProjectSe
     createdAt: detail.createdAt ?? '',
     updatedAt: detail.updatedAt ?? '',
   }
+}
+
+export async function fetchProjectSettings(projectId: string): Promise<ProjectSettingsDto> {
+  const detail = await apiRequest<BackendProjectDetail>('GET', `/projects/${projectId}`)
+  const myRole = await resolveMyRole(projectId, String(detail.ownerId))
+  return mapToProjectSettingsDto(detail, myRole)
+}
+
+export async function updateProjectSettings(
+  projectId: string,
+  cmd: UpdateProjectCommand,
+): Promise<ProjectSettingsDto> {
+  const detail = await apiRequest<BackendProjectDetail>('PUT', `/projects/${projectId}`, {
+    body: {
+      name: cmd.name,
+      description: cmd.description,
+    },
+  })
+  const myRole = await resolveMyRole(projectId, String(detail.ownerId))
+  return mapToProjectSettingsDto(detail, myRole)
 }
 
 async function resolveMyRole(projectId: string, ownerId: string): Promise<ProjectRole> {

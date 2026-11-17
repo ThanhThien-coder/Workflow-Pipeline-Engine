@@ -59,6 +59,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 - `RABBITMQ_PASSWORD`: Mật khẩu cho hàng đợi RabbitMQ.
 - `JWT_SECRET`: Khóa bí mật ký JWT Token (ít nhất 32 byte).
 - `AI_INTERNAL_KEY`: Khóa xác thực nội bộ giữa Backend và AI Service (sinh chuỗi an toàn tương tự JWT_SECRET).
+- `APP_PUBLIC_URL`: Địa chỉ công khai của trang web dùng tạo link chia sẻ cho khách (mặc định `http://localhost`, ví dụ `https://wpe.example.com`).
 
 ### Bước 3: Khởi tạo và chạy hệ thống
 Chạy lệnh build và bật các service chạy ngầm:
@@ -112,6 +113,11 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
 - **Sao lưu cơ sở dữ liệu (Backup PostgreSQL)**:
   ```bash
   docker compose -f docker-compose.prod.yml --env-file deploy/.env exec postgres pg_dump -U wpe_user wpe_db > backup.sql
+  ```
+- **Sao lưu ảnh đại diện người dùng (Backup volume uploads)**:
+  Ảnh đại diện người dùng được lưu trong volume `uploads` (`/app/uploads`). Cần sao lưu volume này cùng cơ sở dữ liệu:
+  ```bash
+  docker run --rm -v wpe-prod_uploads:/data -v $(pwd):/backup alpine tar czf /backup/uploads_backup.tar.gz -C /data .
   ```
 
 ---

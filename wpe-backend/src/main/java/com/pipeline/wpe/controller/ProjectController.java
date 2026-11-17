@@ -3,6 +3,7 @@ package com.pipeline.wpe.controller;
 import com.pipeline.wpe.dto.project.CreateProjectRequest;
 import com.pipeline.wpe.dto.project.ProjectDetailResponse;
 import com.pipeline.wpe.dto.project.ProjectSummaryResponse;
+import com.pipeline.wpe.dto.project.UpdateProjectRequest;
 import com.pipeline.wpe.dto.project.UpdateProjectStatusRequest;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.ProjectService;
@@ -68,6 +69,20 @@ public class ProjectController {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
         ProjectDetailResponse created = projectService.createProject(req, currentUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PutMapping("/{id}")
+    @Operation(
+        summary = "Cập nhật thông tin dự án",
+        description = "Chỉ chủ dự án (OWNER) mới có quyền cập nhật tên và mô tả của dự án"
+    )
+    public ResponseEntity<ProjectDetailResponse> updateProject(
+        @Parameter(description = "ID của dự án") @PathVariable Long id,
+        @Valid @RequestBody UpdateProjectRequest req
+    ) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        ProjectDetailResponse updated = projectService.updateProject(id, req, currentUserId);
+        return ResponseEntity.ok(updated);
     }
 
     @PatchMapping("/{id}/status")

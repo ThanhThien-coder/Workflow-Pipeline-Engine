@@ -256,11 +256,13 @@ export const AdminPortalView: FC = () => {
         </div>
 
         {/* Floating Live Environment Indicator */}
-        <div className="fixed bottom-5 right-5 z-30 hidden items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-3 py-2 text-[10px] font-bold tracking-wide text-blue-700 shadow-lg sm:flex select-none">
-          ⚡ DEV <span className="text-slate-300">|</span> ADMIN{' '}
-          <span className="text-slate-300">|</span> LIVE{' '}
-          <span className="animate-pulse">⌃</span>
-        </div>
+        {import.meta.env.DEV && (
+          <div className="fixed bottom-5 right-5 z-30 hidden items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-3 py-2 text-[10px] font-bold tracking-wide text-blue-700 shadow-lg sm:flex select-none">
+            ⚡ DEV <span className="text-slate-300">|</span> ADMIN{' '}
+            <span className="text-slate-300">|</span> LIVE{' '}
+            <span className="animate-pulse">⌃</span>
+          </div>
+        )}
       </main>
 
       {/* Visual Template Studio Modal Overlay */}

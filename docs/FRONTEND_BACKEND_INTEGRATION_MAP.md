@@ -502,6 +502,31 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
 
 ---
 
+### 3.5 Cập nhật thông tin dự án (`PUT /api/v1/projects/{id}`)
+1. **Mục tiêu Nghiệp vụ**: Chủ dự án (OWNER) cập nhật tên và mô tả của dự án. Dự án `ARCHIVED` là chỉ đọc, trả về `409 Conflict` (`PROJECT_ARCHIVED`).
+2. **Luồng Mã Nguồn**:
+   - `src/components/settings/GeneralSettingsSection.tsx` -> `useWorkflowStore.settings.updateGeneralSettings` -> `container.workflowService.updateProjectSettings(projectId, cmd)` -> `IWorkflowService.updateProjectSettings(projectId: string, cmd: UpdateProjectCommand): Promise<ProjectSettingsDto>`.
+3. **Request DTO**:
+   - **Method & URL**: `PUT /api/v1/projects/{id}` (hoặc `PUT /api/projects/{id}`)
+   - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
+   - **Body JSON**:
+     ```json
+     {
+       "name": "Updated Pipeline Name",
+       "description": "Updated pipeline description"
+     }
+     ```
+4. **Xử lý Backend & Bảng CSDL Tác động**:
+   - Bảng tác động: `PROJECT`.
+   - Kiểm tra RBAC: Caller bắt buộc là chủ sở hữu dự án (`owner_id = currentUserId`), sai trả `403 Forbidden`. Không tìm thấy dự án trả `404 Not Found`.
+   - Kiểm tra trạng thái: Dự án `ARCHIVED` ném `409 Conflict` (`PROJECT_ARCHIVED`).
+   - Cập nhật `PROJECT.name`, `PROJECT.description` (trim; rỗng/null theo cột) và `PROJECT.updated_at = NOW()`.
+5. **Response DTO & UI Mutation**:
+   - **Status Code**: `200 OK`. Body: `ProjectDetailResponse`.
+   - **UI Mutation**: Ánh xạ sang `ProjectSettingsDto`, cập nhật `settings.settings`, hiển thị Toast xanh "Settings saved".
+
+---
+
 ## Cụm 4: Đồ Thị Quy Trình & Thiết Kế DAG Canvas (Dual-View Workflow)
 
 ### 4.1 Lấy cấu trúc Macro Phases & Nodes của dự án (`GET /api/projects/{id}/graph`)
@@ -861,6 +886,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      | `TASK_REJECTED` | `KanbanTaskResponse` | Owner từ chối bài (gửi người phụ trách) |
      | `NOTIFICATION_RECEIVED` | `NotificationResponse` `{ id (chuỗi), title, message, linkUrl, isRead, createdAt }` | Có thông báo mới, kể cả lời mời |
      | `TASK_OVERDUE` | `KanbanTaskResponse` | Bộ quét trễ hạn (15 phút) đánh dấu task trễ hạn |
+     | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason }` | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
 
      FE hiện mới nghe `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `NOTIFICATION_RECEIVED`; `TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE` và `PING` chưa có listener (FE nối ở C6, chuông ở C3).
    - Lời mời (C2): `InvitationCreatedEvent` / `InvitationAcceptedEvent` đi routing key `wpe.invitation.created` / `wpe.invitation.accepted` vào queue riêng `wpe.invitation.queue`. `InvitationEventConsumer` đẩy `NOTIFICATION_RECEIVED` cho người được mời **đúng 1 lần** bằng bản ghi `ProjectInvitationService` đã lưu, không lưu thêm.

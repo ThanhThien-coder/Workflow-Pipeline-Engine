@@ -21,6 +21,7 @@ import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +69,9 @@ class StateMachineServiceTest {
     private SseEmitterService sseEmitterService;
 
     @Mock
+    private ProjectRealtimeNotifier projectRealtimeNotifier;
+
+    @Mock
     private NodeMapper nodeMapper;
 
     @InjectMocks
@@ -113,7 +117,7 @@ class StateMachineServiceTest {
     void testMoveTodoToInProgress_success() {
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L);
@@ -132,7 +136,7 @@ class StateMachineServiceTest {
 
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("TODO", null, 0L);
@@ -149,7 +153,7 @@ class StateMachineServiceTest {
 
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("DONE", null, 0L);
@@ -158,6 +162,7 @@ class StateMachineServiceTest {
         assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.DONE);
         assertThat(mockNode.getCompletedAt()).isNotNull();
         verify(eventPublisher).publishTaskCompleted(any(TaskCompletedEvent.class));
+        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), taskId, "STATUS_CHANGED");
     }
 
     @Test
@@ -190,7 +195,7 @@ class StateMachineServiceTest {
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
         when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, managerId))
             .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(managerId).role(ProjectRole.MANAGER).build()));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("DONE", null, 0L);
@@ -210,7 +215,7 @@ class StateMachineServiceTest {
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
         when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, managerId))
             .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(managerId).role(ProjectRole.MANAGER).build()));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("IN_PROGRESS", "example-reason: Cần làm lại", 0L);
@@ -220,6 +225,34 @@ class StateMachineServiceTest {
         assertThat(mockNode.getRejectReason()).isEqualTo("example-reason: Cần làm lại");
         verify(eventPublisher).publishNotification(any());
         verify(sseEmitterService).sendToUser(eq(collaboratorId), eq("TASK_REJECTED"), any());
+    }
+
+    @Test
+    @DisplayName("updateStatus: dùng saveAndFlush và response nhận version mới từ entity đã flush")
+    void testUpdateStatus_usesSaveAndFlush_andReturnsNewVersion() {
+        mockNode.setVersion(1L);
+        NodeEntity flushedNode = NodeEntity.builder()
+            .id(taskId)
+            .projectId(projectId)
+            .status(NodeStatus.IN_PROGRESS)
+            .version(2L)
+            .uiMetadata(Map.of())
+            .build();
+        KanbanTaskResponse flushedResponse = new KanbanTaskResponse(
+            "10", "1", "WPE-010", "Test Task", "Desc", "IN_PROGRESS",
+            "3", "ALL_COMPLETED", null, Instant.now(), false, 2L, Map.of()
+        );
+
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(nodeRepository.saveAndFlush(mockNode)).thenReturn(flushedNode);
+        when(nodeMapper.toKanbanTaskResponse(flushedNode)).thenReturn(flushedResponse);
+
+        UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("IN_PROGRESS", null, 1L);
+        KanbanTaskResponse result = stateMachineService.updateStatus(taskId, request, collaboratorId);
+
+        verify(nodeRepository).saveAndFlush(mockNode);
+        assertThat(result.version()).isEqualTo(2L);
     }
 
     @Test
@@ -244,7 +277,7 @@ class StateMachineServiceTest {
 
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         UpdateNodeStatusRequest request = new UpdateNodeStatusRequest("IN_PROGRESS", "Thiếu test case", 0L);
@@ -306,7 +339,7 @@ class StateMachineServiceTest {
 
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         KanbanTaskResponse result = stateMachineService.forceUnlock(taskId, ownerId);
@@ -437,7 +470,7 @@ class StateMachineServiceTest {
 
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
 
         ArtifactEntity savedArtifact = ArtifactEntity.builder()

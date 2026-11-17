@@ -8,6 +8,8 @@ import {
   register,
   logout,
   getStoredUser,
+  updateStoredUser,
+  replaceSessionTokens,
   saveSession,
   installAuthRefresh,
   getAuthErrorMessage,
@@ -192,6 +194,71 @@ describe('auth.ts: login, register, logout, getStoredUser', () => {
     expect(getStoredUser()).toBeNull()
     seedSession(sessionStorage)
     expect(getStoredUser()).toMatchObject({ id: '1', username: 'alex.kim' })
+  })
+
+  it('updateStoredUser: cập nhật thông tin user trong đúng storage đang lưu', () => {
+    // 1. Lưu ở localStorage
+    seedSession(localStorage)
+    updateStoredUser({ name: 'Alex Super', avatarUrl: '/uploads/avatars/alex.png' })
+    const userLocal = JSON.parse(localStorage.getItem('wpe_auth_user')!)
+    expect(userLocal.name).toBe('Alex Super')
+    expect(userLocal.avatarUrl).toBe('/uploads/avatars/alex.png')
+    expect(userLocal.email).toBe('a@b.c')
+
+    // 2. Lưu ở sessionStorage
+    localStorage.clear()
+    seedSession(sessionStorage)
+    updateStoredUser({ name: 'Alex Session', avatarUrl: null })
+    const userSession = JSON.parse(sessionStorage.getItem('wpe_auth_user')!)
+    expect(userSession.name).toBe('Alex Session')
+    expect(userSession.avatarUrl).toBeNull()
+
+    // 3. Không có user thì bỏ qua, không crash
+    sessionStorage.clear()
+    expect(() => updateStoredUser({ name: 'No one' })).not.toThrow()
+  })
+
+  it('replaceSessionTokens: lưu token và refresh token mới vào đúng nơi phiên đang lưu, cập nhật user', () => {
+    // Phiên ở localStorage
+    seedSession(localStorage, 'old-token', 'old-rt')
+    const newDto = {
+      accessToken: 'new-token-123',
+      refreshToken: 'new-rt-456',
+      tokenType: 'Bearer' as const,
+      expiresAt: '',
+      user: {
+        id: '1',
+        username: 'alex.kim',
+        email: 'alex@work.io',
+        name: 'Alex Kim',
+        systemRole: 'ADMIN' as const,
+        avatarUrl: '/uploads/avatars/new.png',
+      },
+    }
+
+    replaceSessionTokens(newDto)
+
+    expect(localStorage.getItem('wpe_auth_token')).toBe('new-token-123')
+    expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('new-rt-456')
+    const updatedUser = JSON.parse(localStorage.getItem('wpe_auth_user')!)
+    expect(updatedUser.email).toBe('alex@work.io')
+    expect(updatedUser.avatarUrl).toBe('/uploads/avatars/new.png')
+    expect(sessionStorage.getItem('wpe_auth_token')).toBeNull()
+
+    // Phiên ở sessionStorage
+    localStorage.clear()
+    seedSession(sessionStorage, 'old-sess-token', 'old-sess-rt')
+    const newDto2 = {
+      ...newDto,
+      accessToken: 'new-sess-token',
+      refreshToken: 'new-sess-rt',
+    }
+
+    replaceSessionTokens(newDto2)
+
+    expect(sessionStorage.getItem('wpe_auth_token')).toBe('new-sess-token')
+    expect(sessionStorage.getItem(REFRESH_TOKEN_KEY)).toBe('new-sess-rt')
+    expect(localStorage.getItem('wpe_auth_token')).toBeNull()
   })
 
   it('getAuthErrorMessage: có câu riêng cho BAD_CREDENTIALS, ACCOUNT_LOCKED, USERNAME_TAKEN, EMAIL_TAKEN', () => {

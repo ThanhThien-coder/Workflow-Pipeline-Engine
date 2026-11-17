@@ -19,6 +19,7 @@ import com.pipeline.wpe.repository.PhaseDependencyRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import com.pipeline.wpe.dto.event.NotificationEvent;
@@ -51,6 +52,7 @@ public class WorkflowGraphService {
     private final KahnDagService kahnDagService;
     private final ProjectMemberRepository projectMemberRepository;
     private final SseEmitterService sseEmitterService;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
     private final NodeMapper nodeMapper;
     private final WorkflowEventPublisher eventPublisher;
 
@@ -210,6 +212,7 @@ public class WorkflowGraphService {
 
         // Các cạnh trong bảng phase_dependency tự xóa theo ON DELETE CASCADE (V6)
         workPhaseRepository.delete(entity);
+        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, null, "PHASE_DELETED");
     }
 
     /**
@@ -316,6 +319,7 @@ public class WorkflowGraphService {
             .build();
 
         NodeEntity saved = nodeRepository.save(node);
+        projectRealtimeNotifier.notifyTasksChanged(saved.getProjectId(), saved.getPhaseId(), saved.getId(), "NODE_CREATED");
         return mapToGraphNodeResponse(saved);
     }
 
@@ -387,7 +391,13 @@ public class WorkflowGraphService {
         if (parents.stream().noneMatch(n -> parentId.equals(n.getId()))) {
             parents.add(parent);
         }
-        recomputeNodeStatus(child, parents);
+        boolean unlocked = recomputeNodeStatus(child, parents);
+        projectRealtimeNotifier.notifyTasksChanged(
+            projectId,
+            child.getPhaseId(),
+            childId,
+            unlocked ? "UNLOCKED" : "DEPENDENCY_CHANGED"
+        );
 
         return new DependencyResponse(String.valueOf(parentId), String.valueOf(childId));
     }
@@ -410,8 +420,17 @@ public class WorkflowGraphService {
         nodeDependencyRepository.delete(existing.get());
 
         // Gỡ cạnh có thể làm node con đủ điều kiện mở khóa (ví dụ mất hết cha)
+        final boolean[] childUnlocked = { false };
         nodeRepository.findById(childNodeId)
-            .ifPresent(child -> recomputeNodeStatus(child, loadParentsExcluding(childNodeId, parentNodeId)));
+            .ifPresent(child -> {
+                childUnlocked[0] = recomputeNodeStatus(child, loadParentsExcluding(childNodeId, parentNodeId));
+            });
+        projectRealtimeNotifier.notifyTasksChanged(
+            projectId,
+            null,
+            childNodeId,
+            childUnlocked[0] ? "UNLOCKED" : "DEPENDENCY_CHANGED"
+        );
     }
 
     /**
@@ -465,17 +484,25 @@ public class WorkflowGraphService {
             }
         }
 
+        boolean unlocked = false;
         if (request.joinPolicy() != null && request.joinPolicy() != node.getJoinPolicy()) {
             node.setJoinPolicy(request.joinPolicy());
             // Đổi AND/OR có thể làm đổi điều kiện hội tụ. Node chưa có cha thì không đụng trạng thái.
             List<NodeEntity> parents = loadParentsExcluding(nodeId, null);
             if (!parents.isEmpty()) {
-                recomputeNodeStatus(node, parents);
+                unlocked = recomputeNodeStatus(node, parents);
             }
         }
 
         // saveAndFlush để response mang version mới, client dùng cho lần sửa kế tiếp
-        return mapToGraphNodeResponse(nodeRepository.saveAndFlush(node));
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
+        projectRealtimeNotifier.notifyTasksChanged(
+            saved.getProjectId(),
+            saved.getPhaseId(),
+            saved.getId(),
+            unlocked ? "UNLOCKED" : "NODE_UPDATED"
+        );
+        return mapToGraphNodeResponse(saved);
     }
 
     /**
@@ -485,7 +512,9 @@ public class WorkflowGraphService {
     public void deleteNode(Long nodeId, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(nodeId)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
-        ensureNotArchived(authorizationService.verifyProjectOwner(node.getProjectId(), currentUserId));
+        Long projectId = node.getProjectId();
+        Long phaseId = node.getPhaseId();
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         if (node.getStatus() != NodeStatus.LOCKED && node.getStatus() != NodeStatus.TODO) {
             throw new ConflictException("NODE_IN_USE",
@@ -503,6 +532,8 @@ public class WorkflowGraphService {
             nodeRepository.findById(childId)
                 .ifPresent(child -> recomputeNodeStatus(child, loadParentsExcluding(childId, nodeId)));
         }
+
+        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, nodeId, "NODE_DELETED");
     }
 
     /**
@@ -612,6 +643,7 @@ public class WorkflowGraphService {
         }
 
         log.info("Project #{} published successfully. Unlocked {} root tasks.", projectId, unlockedCount);
+        projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "PUBLISHED");
         return new PublishPipelineResponse(true, "ACTIVE", publishedAt, unlockedCount);
     }
 
@@ -632,7 +664,7 @@ public class WorkflowGraphService {
      * ALL_COMPLETED cần mọi cha DONE, ANY_COMPLETED cần ít nhất một cha DONE. Không còn cha thì coi như thỏa.
      * Chỉ đụng tới node LOCKED hoặc TODO; node đã bắt đầu làm thì giữ nguyên.
      */
-    private void recomputeNodeStatus(NodeEntity child, List<NodeEntity> parents) {
+    private boolean recomputeNodeStatus(NodeEntity child, List<NodeEntity> parents) {
         boolean satisfied = parents.isEmpty()
             || (child.getJoinPolicy() == JoinPolicy.ANY_COMPLETED
                 ? parents.stream().anyMatch(p -> p.getStatus() == NodeStatus.DONE)
@@ -643,6 +675,7 @@ public class WorkflowGraphService {
             child.setStatus(NodeStatus.LOCKED);
             nodeRepository.save(child);
             log.info("Node {} chuyển TODO -> LOCKED vì điều kiện hội tụ không còn thỏa.", child.getCode());
+            return false;
         } else if (child.getStatus() == NodeStatus.LOCKED && satisfied) {
             child.setStatus(NodeStatus.TODO);
             NodeEntity saved = nodeRepository.save(child);
@@ -650,7 +683,9 @@ public class WorkflowGraphService {
             if (saved.getAssignedUserId() != null) {
                 sseEmitterService.sendToUser(saved.getAssignedUserId(), "TASK_UNLOCKED", nodeMapper.toKanbanTaskResponse(saved));
             }
+            return true;
         }
+        return false;
     }
 
     /**

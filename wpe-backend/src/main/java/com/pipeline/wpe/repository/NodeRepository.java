@@ -47,4 +47,6 @@ public interface NodeRepository extends JpaRepository<NodeEntity, Long> {
     @Modifying
     @Query("DELETE FROM NodeEntity n WHERE n.projectId = :projectId")
     void deleteByProjectId(@Param("projectId") Long projectId);
+
+    List<NodeEntity> findByProjectIdIn(Collection<Long> projectIds);
 }

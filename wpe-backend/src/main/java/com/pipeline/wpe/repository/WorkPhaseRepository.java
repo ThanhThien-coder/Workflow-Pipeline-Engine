@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -19,4 +20,6 @@ public interface WorkPhaseRepository extends JpaRepository<WorkPhaseEntity, Long
     @Modifying
     @Query("DELETE FROM WorkPhaseEntity w WHERE w.projectId = :projectId")
     void deleteByProjectId(@Param("projectId") Long projectId);
+
+    List<WorkPhaseEntity> findByProjectIdInAndParentPhaseIdIsNullOrderByOrderIndexAsc(Collection<Long> projectIds);
 }

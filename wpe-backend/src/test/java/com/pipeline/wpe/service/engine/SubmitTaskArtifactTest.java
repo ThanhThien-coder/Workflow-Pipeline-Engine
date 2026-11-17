@@ -15,6 +15,7 @@ import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,7 @@ class SubmitTaskArtifactTest {
     @Mock private ArtifactRepository artifactRepository;
     @Mock private WorkflowEventPublisher eventPublisher;
     @Mock private SseEmitterService sseEmitterService;
+    @Mock private ProjectRealtimeNotifier projectRealtimeNotifier;
     @Mock private NodeMapper nodeMapper;
 
     @InjectMocks
@@ -73,6 +75,7 @@ class SubmitTaskArtifactTest {
         when(nodeRepository.findById(TASK_ID)).thenReturn(Optional.of(node));
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
         when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(artifactRepository.save(any(ArtifactEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(new KanbanTaskResponse(
             "10", "1", "WPE-010", "Test Task", "Desc", "REVIEW", "3", "ALL_COMPLETED", null, Instant.now(), false, 1L, Map.of()));
@@ -114,6 +117,7 @@ class SubmitTaskArtifactTest {
 
         verify(artifactRepository, never()).save(any());
         verify(nodeRepository, never()).save(any());
+        verify(nodeRepository, never()).saveAndFlush(any());
         assertThat(node.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
     }
 

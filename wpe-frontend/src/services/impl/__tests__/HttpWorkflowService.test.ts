@@ -124,9 +124,50 @@ describe('HttpWorkflowService: auth gọi backend thật (A4)', () => {
 
   it('login, register, getCurrentUser, logout không còn nằm trong METHODS_STILL_MOCKED', () => {
     const list: readonly string[] = METHODS_STILL_MOCKED
-    for (const name of ['login', 'register', 'getCurrentUser', 'logout']) {
+    for (const name of ['login', 'register', 'getCurrentUser', 'logout', 'updateProjectSettings']) {
       expect(list).not.toContain(name)
     }
+    expect(METHODS_STILL_MOCKED).toHaveLength(0)
+  })
+
+  it('updateProjectSettings gọi PUT /projects/{id} đúng path, body và trả DTO đã đổi', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        id: '1',
+        name: 'Renamed Project',
+        description: 'New Description',
+        status: 'ACTIVE',
+        ownerId: '10',
+        createdAt: '2026-11-01T00:00:00Z',
+        updatedAt: '2026-11-17T12:00:00Z',
+      }),
+    )
+    localStorage.setItem('wpe_auth_user', JSON.stringify({ id: '10', username: 'alex' }))
+
+    const service = new HttpWorkflowService()
+    const result = await service.updateProjectSettings('1', {
+      name: 'Renamed Project',
+      description: 'New Description',
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://localhost:8080/api/v1/projects/1')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(String(init.body))).toEqual({
+      name: 'Renamed Project',
+      description: 'New Description',
+    })
+    expect(result).toEqual({
+      id: '1',
+      name: 'Renamed Project',
+      description: 'New Description',
+      status: 'ACTIVE',
+      ownerId: '10',
+      myRole: 'OWNER',
+      createdAt: '2026-11-01T00:00:00Z',
+      updatedAt: '2026-11-17T12:00:00Z',
+    })
   })
 
   it('login gọi POST /auth/login và lỗi BAD_CREDENTIALS thì ném ApiError (không trả phiên giả)', async () => {

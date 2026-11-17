@@ -11,6 +11,5 @@ public interface UserMapper {
     @Mapping(target = "id", expression = "java(String.valueOf(entity.getId()))")
     @Mapping(target = "name", source = "fullName")
     @Mapping(target = "role", expression = "java(entity.getSystemRole().name())")
-    @Mapping(target = "avatarUrl", ignore = true)
     AuthResponse.UserSummary toUserSummary(UserEntity entity);
 }

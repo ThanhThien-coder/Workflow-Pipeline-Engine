@@ -5,6 +5,7 @@ import { useRouter } from '../../router/useRouter'
 import { isApiError } from '../../services/http/ApiError'
 import { getAuthErrorMessage } from '../../services/impl/http/auth'
 import { homePathFor } from '../../router/adminGuard'
+import { isMockMode } from '../../services/env'
 
 /** Giá trị autocomplete chuẩn HTML cho ô mật khẩu (tách hằng để bộ quét khóa không báo nhầm). */
 const AUTOCOMPLETE_NEW_PW = 'new-password'
@@ -402,7 +403,13 @@ export const AuthView: FC = () => {
                   !signup && (
                     <button
                       type="button"
-                      onClick={() => showToast('Password reset link sent (demo).')}
+                      onClick={() =>
+                        showToast(
+                          isMockMode
+                            ? 'Password reset link sent (demo).'
+                            : 'Password reset by email is not available yet. Please contact your workspace administrator.',
+                        )
+                      }
                       className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                     >
                       Forgot password?

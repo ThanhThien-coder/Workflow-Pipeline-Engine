@@ -5,6 +5,11 @@ spring:
   application:
     name: wpe-backend
 
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -45,6 +50,10 @@ spring:
 
 # Cấu hình RabbitMQ Topology (Exchanges, Queues, Routing Keys)
 app:
+  frontend:
+    base-url: ${APP_PUBLIC_URL:http://localhost:5173}
+  upload:
+    dir: ${APP_UPLOAD_DIR:uploads}
   rabbitmq:
     exchange: wpe.workflow.exchange
     queues:

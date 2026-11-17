@@ -2,7 +2,7 @@
 
 Người làm: A
 Người review: B
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: A1
 Cần trước bước frontend: không
 Mở khóa: A4, A5, A6, A8

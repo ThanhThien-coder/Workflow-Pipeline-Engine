@@ -137,12 +137,9 @@ export const WorkspaceView: FC = () => {
           <div className="flex-1 max-w-md mx-auto relative">
             <input
               ref={searchInputRef}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                  showToast(`Global search for "${e.currentTarget.value.trim()}" (demo).`)
-                }
-              }}
-              placeholder="Search projects, pipelines, nodes... (⌘K)"
+              value={q}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search projects... (⌘K)"
               className="w-full text-xs rounded-xl border border-slate-200/90 bg-slate-50 focus:bg-white focus:border-indigo-500 px-3.5 py-2 outline-none transition-colors"
             />
           </div>

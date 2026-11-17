@@ -11,6 +11,7 @@ FROM eclipse-temurin:17-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /app.jar /app/app.jar
+RUN mkdir -p /app/uploads && chown app:app /app/uploads
 USER app
 EXPOSE 8080
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75"

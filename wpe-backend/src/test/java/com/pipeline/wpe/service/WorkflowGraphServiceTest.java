@@ -25,6 +25,7 @@ import com.pipeline.wpe.dto.request.graph.UpdateNodeMetadataRequest;
 import com.pipeline.wpe.dto.request.graph.UpdateNodeRequest;
 import org.springframework.dao.OptimisticLockingFailureException;
 import com.pipeline.wpe.mapper.NodeMapper;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.service.engine.KahnDagService;
@@ -74,6 +75,9 @@ class WorkflowGraphServiceTest {
 
     @Mock
     private SseEmitterService sseEmitterService;
+
+    @Mock
+    private ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @Mock
     private NodeMapper nodeMapper;
@@ -1007,6 +1011,7 @@ class WorkflowGraphServiceTest {
 
         verify(nodeDependencyRepository).deleteAll(outgoing);
         verify(nodeRepository).delete(n);
+        verify(projectRealtimeNotifier).notifyTasksChanged(1L, null, 100L, "NODE_DELETED");
         assertEquals(NodeStatus.TODO, child.getStatus());
     }
 
@@ -1019,5 +1024,32 @@ class WorkflowGraphServiceTest {
 
         assertEquals("NODE_IN_USE", ex.getErrorCode());
         verify(nodeRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("TASK_51: Node DONE có completedAt thì GraphNodeResponse có completedAt")
+    void testGetGraphMapsCompletedAtWhenDone() {
+        Instant completedAt = Instant.parse("2026-11-17T12:00:00Z");
+        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build();
+        NodeEntity n1 = NodeEntity.builder()
+            .id(100L)
+            .projectId(1L)
+            .phaseId(10L)
+            .code("WPE-001")
+            .title("Task 1")
+            .status(NodeStatus.DONE)
+            .joinPolicy(JoinPolicy.ALL_COMPLETED)
+            .completedAt(completedAt)
+            .build();
+
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(p1));
+        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of(n1));
+        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        WorkflowGraphResponse graph = workflowGraphService.getGraph(1L, 2L);
+
+        assertNotNull(graph);
+        assertEquals(1, graph.nodes().size());
+        assertEquals(completedAt, graph.nodes().get(0).completedAt());
     }
 }

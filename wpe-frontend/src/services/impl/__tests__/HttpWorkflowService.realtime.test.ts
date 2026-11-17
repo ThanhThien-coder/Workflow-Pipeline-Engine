@@ -270,4 +270,99 @@ describe('HttpWorkflowService.connectRealtime', () => {
 
     expect(MockEventSource.instances.length).toBe(0)
   })
+
+  it('đăng ký và parse đúng các sự kiện mới: TASK_SUBMITTED, TASK_REJECTED, PROJECT_TASKS_CHANGED', async () => {
+    localStorage.setItem(AUTH_TOKEN_KEY, 'example-token')
+    const service = new HttpWorkflowService()
+    const onEvent = vi.fn()
+    const unsubscribe = service.connectRealtime('example-user-id', onEvent)
+    await flushMicrotasks()
+
+    const es = MockEventSource.instances[0]
+
+    // 1. TASK_SUBMITTED
+    const sampleTask = { id: 101, code: 'WPE-101', title: 'Task Submit', status: 'REVIEW', version: 1 }
+    es.dispatchEvent('TASK_SUBMITTED', JSON.stringify(sampleTask))
+    expect(onEvent).toHaveBeenCalledWith('TASK_SUBMITTED', expect.objectContaining({
+      id: '101',
+      code: 'WPE-101',
+      title: 'Task Submit',
+      status: 'REVIEW',
+    }))
+
+    // 2. TASK_REJECTED
+    const rejectTask = { id: 102, code: 'WPE-102', title: 'Task Reject', status: 'TODO', rejectReason: 'Needs fix', version: 2 }
+    es.dispatchEvent('TASK_REJECTED', JSON.stringify(rejectTask))
+    expect(onEvent).toHaveBeenCalledWith('TASK_REJECTED', expect.objectContaining({
+      id: '102',
+      code: 'WPE-102',
+      status: 'TODO',
+      rejectReason: 'Needs fix',
+    }))
+
+    // 3. PROJECT_TASKS_CHANGED
+    const projectEvent = { projectId: '10', phaseId: '20', taskId: '30', reason: 'STATUS_CHANGED' }
+    es.dispatchEvent('PROJECT_TASKS_CHANGED', JSON.stringify(projectEvent))
+    expect(onEvent).toHaveBeenCalledWith('PROJECT_TASKS_CHANGED', projectEvent)
+
+    // 4. TASK_OVERDUE
+    const overdueTask = { id: 103, code: 'WPE-103', title: 'Task Overdue', status: 'IN_PROGRESS', isOverdue: true, version: 1 }
+    es.dispatchEvent('TASK_OVERDUE', JSON.stringify(overdueTask))
+    expect(onEvent).toHaveBeenCalledWith('TASK_OVERDUE', expect.objectContaining({
+      id: '103',
+      code: 'WPE-103',
+      status: 'IN_PROGRESS',
+      isOverdue: true,
+    }))
+
+    unsubscribe()
+  })
+
+  it('xử lý error khi readyState là CONNECTING: đóng eventSource và áp dụng backoff', async () => {
+    localStorage.setItem(AUTH_TOKEN_KEY, 'example-token')
+    const service = new HttpWorkflowService()
+    const unsubscribe = service.connectRealtime('example-user-id', vi.fn())
+    await flushMicrotasks()
+
+    expect(MockEventSource.instances.length).toBe(1)
+    const es1 = MockEventSource.instances[0]
+    es1.readyState = MockEventSource.CONNECTING // readyState là CONNECTING chứ không phải CLOSED
+
+    es1.dispatchEvent('error')
+
+    // Phải đóng eventSource ngay lập tức
+    expect(es1.closed).toBe(true)
+
+    // Chưa đủ 3s -> chưa mở kết nối lại
+    vi.advanceTimersByTime(2500)
+    await flushMicrotasks()
+    expect(MockEventSource.instances.length).toBe(1)
+
+    // Đủ 3s -> mở lại
+    vi.advanceTimersByTime(500)
+    await flushMicrotasks()
+    expect(MockEventSource.instances.length).toBe(2)
+
+    unsubscribe()
+  })
+
+  it('nhiều sự kiện error liên tiếp trong thời gian chờ không hẹn trùng lịch', async () => {
+    localStorage.setItem(AUTH_TOKEN_KEY, 'example-token')
+    const service = new HttpWorkflowService()
+    const unsubscribe = service.connectRealtime('example-user-id', vi.fn())
+    await flushMicrotasks()
+
+    const es1 = MockEventSource.instances[0]
+    es1.dispatchEvent('error')
+    es1.dispatchEvent('error')
+    es1.dispatchEvent('error')
+
+    vi.advanceTimersByTime(3000)
+    await flushMicrotasks()
+
+    // Chỉ có 1 instance mới được mở, không tạo dư thừa
+    expect(MockEventSource.instances.length).toBe(2)
+
+    unsubscribe()
+  })
 })

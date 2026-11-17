@@ -11,6 +11,7 @@ import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NodeAssignmentServiceTest {
@@ -40,6 +41,9 @@ class NodeAssignmentServiceTest {
 
     @Mock
     private ProjectAuthorizationService authorizationService;
+
+    @Mock
+    private ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @InjectMocks
     private NodeAssignmentService nodeAssignmentService;
@@ -82,13 +86,41 @@ class NodeAssignmentServiceTest {
         when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(mockNode));
         when(authorizationService.verifyProjectOwnerOrManager(projectId, managerId)).thenReturn(mockProject);
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, newAssigneeId)).thenReturn(true);
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
 
         UpdateNodeAssignmentRequest request = new UpdateNodeAssignmentRequest(newAssigneeId, null, 1L);
         GraphNodeResponse response = nodeAssignmentService.updateAssignment(nodeId, request, managerId);
 
         assertThat(response.assignedUserId()).isEqualTo(String.valueOf(newAssigneeId));
         assertThat(mockNode.getAssignedUserId()).isEqualTo(newAssigneeId);
+        verify(nodeRepository).saveAndFlush(mockNode);
+        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), nodeId, "ASSIGNMENT_CHANGED");
+    }
+
+    @Test
+    @DisplayName("updateAssignment: dùng saveAndFlush và response nhận version mới từ entity đã flush")
+    void testUpdateAssignment_usesSaveAndFlush_andReturnsNewVersion() {
+        NodeEntity flushedNode = NodeEntity.builder()
+            .id(nodeId)
+            .projectId(projectId)
+            .code("example-node-100")
+            .title("example-title")
+            .status(NodeStatus.TODO)
+            .assignedUserId(newAssigneeId)
+            .version(2L)
+            .uiMetadata(Map.of())
+            .build();
+
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(mockNode));
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, managerId)).thenReturn(mockProject);
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, newAssigneeId)).thenReturn(true);
+        when(nodeRepository.saveAndFlush(mockNode)).thenReturn(flushedNode);
+
+        UpdateNodeAssignmentRequest request = new UpdateNodeAssignmentRequest(newAssigneeId, null, 1L);
+        GraphNodeResponse response = nodeAssignmentService.updateAssignment(nodeId, request, managerId);
+
+        verify(nodeRepository).saveAndFlush(mockNode);
+        assertThat(response.version()).isEqualTo(2L);
     }
 
     @Test
@@ -153,7 +185,7 @@ class NodeAssignmentServiceTest {
         Instant future = Instant.now().plusSeconds(3600);
         when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(mockNode));
         when(authorizationService.verifyProjectOwnerOrManager(projectId, managerId)).thenReturn(mockProject);
-        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
 
         UpdateNodeAssignmentRequest request = new UpdateNodeAssignmentRequest(null, future, 1L);
         GraphNodeResponse response = nodeAssignmentService.updateAssignment(nodeId, request, managerId);

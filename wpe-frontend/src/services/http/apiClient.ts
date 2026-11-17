@@ -99,7 +99,8 @@ export function buildUrl(path: string, query?: Record<string, QueryValue>): stri
 
 function buildHeaders(options: ApiRequestOptions, token: string | null): Record<string, string> {
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (options.body !== undefined) {
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+  if (options.body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json'
   }
   if (token) {
@@ -159,7 +160,11 @@ async function send(method: HttpMethod, path: string, options: ApiRequestOptions
     signal: options.signal,
   }
   if (options.body !== undefined) {
-    init.body = JSON.stringify(options.body)
+    if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+      init.body = options.body
+    } else {
+      init.body = JSON.stringify(options.body)
+    }
   }
   try {
     const res = await fetch(buildUrl(path, options.query), init)

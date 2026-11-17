@@ -26,6 +26,7 @@ import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,7 @@ public class StateMachineService {
     private final ArtifactRepository artifactRepository;
     private final WorkflowEventPublisher eventPublisher;
     private final SseEmitterService sseEmitterService;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
     private final NodeMapper nodeMapper;
 
     /**
@@ -242,8 +244,16 @@ public class StateMachineService {
             );
         }
 
-        NodeEntity saved = nodeRepository.save(node);
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
+
+        boolean isRejected = (targetStatus == NodeStatus.TODO && currentStatus == NodeStatus.REVIEW);
+        projectRealtimeNotifier.notifyTasksChanged(
+            saved.getProjectId(),
+            saved.getPhaseId(),
+            saved.getId(),
+            isRejected ? "REJECTED" : "STATUS_CHANGED"
+        );
 
         // Bắn tín hiệu real-time cập nhật trạng thái tới tất cả các bên (sau commit)
         // Người làm + mọi người duyệt (chủ dự án, quản lý; G18) trừ chính người thao tác
@@ -308,7 +318,7 @@ public class StateMachineService {
         // Chuyển sang REVIEW
         node.setStatus(NodeStatus.REVIEW);
         node.setRejectReason(null);
-        NodeEntity savedNode = nodeRepository.save(node);
+        NodeEntity savedNode = nodeRepository.saveAndFlush(node);
 
         // Lưu Artifact nếu có gửi kèm. Nộp bài không kèm link vẫn hợp lệ (artifactResponse = null).
         NodeArtifactResponse artifactResponse = null;
@@ -379,6 +389,13 @@ public class StateMachineService {
 
         KanbanTaskResponse taskResponse = nodeMapper.toKanbanTaskResponse(savedNode);
 
+        projectRealtimeNotifier.notifyTasksChanged(
+            savedNode.getProjectId(),
+            savedNode.getPhaseId(),
+            savedNode.getId(),
+            "SUBMITTED"
+        );
+
         // Bắn SSE real-time cho Owner (sau commit)
         // G18: cả quản lý cũng duyệt được nên cũng nhận tín hiệu (cập nhật số "Chờ duyệt")
         List<Long> reviewers = reviewerIds(project);
@@ -411,8 +428,15 @@ public class StateMachineService {
         // Lưu ai mở, lúc nào: không bị khóa lại khi sửa dây phụ thuộc, và hiện trong nhật ký hoạt động
         node.setForceUnlockedBy(currentUserId);
         node.setForceUnlockedAt(Instant.now());
-        NodeEntity saved = nodeRepository.save(node);
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
+
+        projectRealtimeNotifier.notifyTasksChanged(
+            saved.getProjectId(),
+            saved.getPhaseId(),
+            saved.getId(),
+            "FORCE_UNLOCKED"
+        );
 
         log.info("Force unlock: task ID {} ({}) trong dự án {} được user {} mở khóa sớm LOCKED -> TODO",
             saved.getId(), saved.getCode(), saved.getProjectId(), currentUserId);
@@ -444,6 +468,11 @@ public class StateMachineService {
         log.info("Engine executing downstream check for parentTaskId: {}", parentTaskId);
         List<NodeDependencyEntity> childDependencies = dependencyRepository.findByParentNodeId(parentTaskId);
 
+        int unlockedCount = 0;
+        Long unlockedProjectId = null;
+        Long lastPhaseId = null;
+        Long lastTaskId = null;
+
         for (NodeDependencyEntity dep : childDependencies) {
             Long childId = dep.getChildNodeId();
             NodeEntity childNode = nodeRepository.findById(childId).orElse(null);
@@ -473,6 +502,11 @@ public class StateMachineService {
                     NodeEntity savedChild = nodeRepository.save(childNode);
                     KanbanTaskResponse taskResponse = nodeMapper.toKanbanTaskResponse(savedChild);
 
+                    unlockedCount++;
+                    unlockedProjectId = savedChild.getProjectId();
+                    lastPhaseId = savedChild.getPhaseId();
+                    lastTaskId = savedChild.getId();
+
                     // Bắn notification event
                     if (savedChild.getAssignedUserId() != null) {
                         eventPublisher.publishNotification(new NotificationEvent(
@@ -491,6 +525,15 @@ public class StateMachineService {
                     }
                 }
             }
+        }
+
+        if (unlockedCount > 0 && unlockedProjectId != null) {
+            projectRealtimeNotifier.notifyTasksChanged(
+                unlockedProjectId,
+                unlockedCount == 1 ? lastPhaseId : null,
+                unlockedCount == 1 ? lastTaskId : null,
+                "UNLOCKED"
+            );
         }
     }
 

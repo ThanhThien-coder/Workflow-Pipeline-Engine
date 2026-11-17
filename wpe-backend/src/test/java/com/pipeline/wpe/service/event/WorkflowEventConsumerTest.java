@@ -97,7 +97,7 @@ class WorkflowEventConsumerTest {
         WorkflowEventPublisher eventPublisher = mock(WorkflowEventPublisher.class);
         StateMachineService realEngine = new StateMachineService(nodeRepository, dependencyRepository,
             mock(ProjectRepository.class), mock(ProjectMemberRepository.class), mock(ArtifactRepository.class),
-            eventPublisher, sseEmitterService, mock(NodeMapper.class));
+            eventPublisher, sseEmitterService, mock(ProjectRealtimeNotifier.class), mock(NodeMapper.class));
 
         NodeDependencyEntity edge = NodeDependencyEntity.builder().parentNodeId(3L).childNodeId(4L).build();
         NodeEntity parent = NodeEntity.builder().id(3L).status(NodeStatus.DONE).build();

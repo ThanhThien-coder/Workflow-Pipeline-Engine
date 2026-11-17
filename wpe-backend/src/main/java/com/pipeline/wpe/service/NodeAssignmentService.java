@@ -10,6 +10,7 @@ import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -27,6 +28,7 @@ public class NodeAssignmentService {
     private final NodeRepository nodeRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectAuthorizationService authorizationService;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @Transactional
     public GraphNodeResponse updateAssignment(Long nodeId, UpdateNodeAssignmentRequest req, Long currentUserId) {
@@ -70,7 +72,13 @@ public class NodeAssignmentService {
             }
         }
 
-        NodeEntity saved = nodeRepository.save(node);
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
+        projectRealtimeNotifier.notifyTasksChanged(
+            saved.getProjectId(),
+            saved.getPhaseId(),
+            saved.getId(),
+            "ASSIGNMENT_CHANGED"
+        );
         return mapToGraphNodeResponse(saved);
     }
 

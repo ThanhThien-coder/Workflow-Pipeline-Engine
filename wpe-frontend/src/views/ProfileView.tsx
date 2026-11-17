@@ -61,6 +61,9 @@ function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: (v: 
 export default function ProfileView() {
   const currentUserId = useWorkflowStore((state) => state.auth.currentUser?.id)
   const syncUserAvatar = useWorkflowStore((state) => state.auth.syncUserAvatar)
+  const patchCurrentUser = useWorkflowStore((state) => state.auth.patchCurrentUser)
+  const endSessionLocally = useWorkflowStore((state) => state.auth.endSessionLocally)
+  const showToast = useWorkflowStore((state) => state.ui.showToast)
   const p = useProfileStore((state) => state.profile)
   const loadProfile = useProfileStore((state) => state.loadProfile)
   const uploadAvatar = useProfileStore((state) => state.uploadAvatar)
@@ -143,7 +146,15 @@ export default function ProfileView() {
   }
   const save = (e: FormEvent) => {
     e.preventDefault()
-    void run('save', async () => loadForm(await updateProfileData(form)), 'Profile saved')
+    void run('save', async () => {
+      const nextProfile = await updateProfileData(form)
+      loadForm(nextProfile)
+      patchCurrentUser({
+        name: nextProfile.displayName,
+        email: nextProfile.email,
+        avatarUrl: nextProfile.avatarUrl,
+      })
+    }, 'Profile saved')
   }
   const addSkill = () => {
     const s = skill.trim()
@@ -166,8 +177,21 @@ export default function ProfileView() {
   const setPrivacy = (patch: Partial<ProfileDto['privacy']>) =>
     void run('privacy', async () => { await updatePrivacy({ ...p.privacy, ...patch }) }, 'Privacy settings updated')
 
-  const deactivateAccount = () => void run('deactivate', async () => { await deactivateAccountStore(); navigate('/') }, 'Account deactivated')
-  const deleteAccount = () => void run('delete', async () => { await deleteAccountStore({ confirmation: 'DELETE' }); navigate('/') }, 'Account deleted')
+  const deactivateAccount = () =>
+    void run('deactivate', async () => {
+      await deactivateAccountStore()
+      showToast('Your account has been deactivated. Sign in again any time to reactivate it.')
+      endSessionLocally()
+      navigate('/auth?tab=signin')
+    }, 'Account deactivated')
+
+  const deleteAccount = () =>
+    void run('delete', async () => {
+      await deleteAccountStore({ confirmation: 'DELETE' })
+      showToast('Your account has been deleted.')
+      endSessionLocally()
+      navigate('/auth?tab=signin')
+    }, 'Account deleted')
 
   return (
     <Shell>
@@ -184,9 +208,6 @@ export default function ProfileView() {
 
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-6 pb-20">
         <h1 className="text-2xl font-bold text-slate-900">My profile</h1>
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
-          Tính năng chưa hỗ trợ: Chỉnh sửa hồ sơ, đổi ảnh đại diện, cài đặt riêng tư, đổi mật khẩu và đóng tài khoản hiện đang tạm khóa (chỉ xem).
-        </p>
 
         <div className="flex flex-col gap-6 lg:flex-row">
           <aside className="w-full lg:w-64">
@@ -242,7 +263,13 @@ export default function ProfileView() {
                 <div className="space-y-6">
                   <Card title="Identity">
                     <div className="flex flex-col items-center text-center">
-                      <div title="Tính năng chưa hỗ trợ" className={clsx('group relative flex h-24 w-24 cursor-not-allowed items-center justify-center overflow-hidden rounded-full shadow ring-4 ring-white opacity-90', busy === 'avatar' && 'opacity-50 pointer-events-none')}>
+                      <div
+                        onClick={() => !busy && fileRef.current?.click()}
+                        className={clsx(
+                          'group relative flex h-24 w-24 cursor-pointer items-center justify-center overflow-hidden rounded-full shadow ring-4 ring-white',
+                          busy === 'avatar' && 'opacity-50 pointer-events-none',
+                        )}
+                      >
                         {p.avatarUrl
                           ? <img src={p.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
                           : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 to-violet-500 text-2xl font-bold text-white">{initials(p.displayName)}</div>}
@@ -250,14 +277,24 @@ export default function ProfileView() {
                           <Camera className="text-white" size={24} />
                         </div>
                       </div>
-                      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled onChange={onFile} />
+                      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile} />
 
                       <div className="mt-3 flex h-7 items-center gap-2">
-                        {p.avatarUrl && <button type="button" disabled onClick={() => void run('avatar', async () => {
-                          const nextProfile = await removeAvatar()
-                          syncUserAvatar(nextProfile.avatarUrl)
-                        }, 'Photo removed')} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"><Trash2 size={13} /> Remove</button>}
-                        <span className="text-[11px] text-slate-400">Tính năng đổi ảnh đại diện chưa hỗ trợ</span>
+                        {p.avatarUrl ? (
+                          <button
+                            type="button"
+                            disabled={busy === 'avatar'}
+                            onClick={() => void run('avatar', async () => {
+                              const nextProfile = await removeAvatar()
+                              syncUserAvatar(nextProfile.avatarUrl)
+                            }, 'Photo removed')}
+                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            <Trash2 size={13} /> Remove
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">PNG, JPG or WebP, up to 2 MB</span>
+                        )}
                       </div>
 
                       <h3 className="mt-4 text-lg font-bold text-slate-900">{p.displayName}</h3>
@@ -295,8 +332,13 @@ export default function ProfileView() {
                       </div>
                     </Field>
                     <div className="flex items-center gap-3">
-                      <button type="submit" disabled className="btn-primary-gradient rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy === 'save' ? 'Saving…' : 'Save changes'}</button>
-                      <span className="text-xs text-slate-400">Tính năng chỉnh sửa hồ sơ chưa hỗ trợ</span>
+                      <button
+                        type="submit"
+                        disabled={!dirty || busy === 'save'}
+                        className="btn-primary-gradient rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                      >
+                        {busy === 'save' ? 'Saving…' : 'Save changes'}
+                      </button>
                       {dirty && <button type="button" onClick={() => loadForm(p)} className="text-xs font-medium text-slate-500 hover:text-indigo-600">Discard</button>}
                     </div>
                   </form>
@@ -306,22 +348,22 @@ export default function ProfileView() {
 
             {activeTab === 'projects' && (
               <div className="space-y-6">
-                <Card title="Privacy" hint="Control who can see your profile (Tính năng chưa hỗ trợ)">
+                <Card title="Privacy" hint="Control who can see your profile">
                   <div className="space-y-2">
                     {VIS.map((v) => (
-                      <button key={v.value} type="button" disabled onClick={() => setPrivacy({ visibility: v.value })}
+                      <button key={v.value} type="button" disabled={busy === 'privacy'} onClick={() => setPrivacy({ visibility: v.value })}
                         className={clsx('w-full rounded-lg border px-3 py-2 text-left disabled:opacity-60', p.privacy.visibility === v.value ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50')}>
                         <div className="text-sm font-semibold text-slate-800">{v.label}</div><div className="text-[11px] text-slate-500">{v.hint}</div>
                       </button>
                     ))}
                   </div>
                   <div className="mt-4 space-y-3 text-sm text-slate-700">
-                    <div className="flex items-center justify-between"><span>Show my email</span><Switch on={p.privacy.showEmail} label="Show email" disabled onChange={(v) => setPrivacy({ showEmail: v })} /></div>
-                    <div className="flex items-center justify-between"><span>Show my task statistics</span><Switch on={p.privacy.showStats} label="Show statistics" disabled onChange={(v) => setPrivacy({ showStats: v })} /></div>
+                    <div className="flex items-center justify-between"><span>Show my email</span><Switch on={p.privacy.showEmail} label="Show email" disabled={busy === 'privacy'} onChange={(v) => setPrivacy({ showEmail: v })} /></div>
+                    <div className="flex items-center justify-between"><span>Show my task statistics</span><Switch on={p.privacy.showStats} label="Show statistics" disabled={busy === 'privacy'} onChange={(v) => setPrivacy({ showStats: v })} /></div>
                   </div>
                 </Card>
 
-                <Card title="My projects" hint="Only projects switched to Public appear on your public profile (Tính năng chưa hỗ trợ)">
+                <Card title="My projects" hint="Only projects switched to Public appear on your public profile">
                   <div className="space-y-3">
                     {p.projects.map((x) => (
                       <div key={x.projectId} className="rounded-xl border border-slate-200 p-4">
@@ -333,7 +375,7 @@ export default function ProfileView() {
                             <p className="mt-1 text-xs text-slate-600">{x.contribution}</p>
                             <p className="mt-1 text-[11px] text-slate-500">{x.stats.tasksDone}/{x.stats.tasksTotal} tasks done · {x.stats.onTimePct}% on time</p>
                           </div>
-                          <div className="flex shrink-0 flex-col items-center gap-1"><Switch on={x.isPublic} label={`Public: ${x.name}`} disabled onChange={(v) => togglePublic(x.projectId, v)} /><span className="text-[10px] text-slate-500">{x.isPublic ? 'Public' : 'Private'}</span></div>
+                          <div className="flex shrink-0 flex-col items-center gap-1"><Switch on={x.isPublic} label={`Public: ${x.name}`} disabled={busy === 'proj:' + x.projectId} onChange={(v) => togglePublic(x.projectId, v)} /><span className="text-[10px] text-slate-500">{x.isPublic ? 'Public' : 'Private'}</span></div>
                         </div>
                       </div>
                     ))}
@@ -352,37 +394,37 @@ export default function ProfileView() {
 
             {activeTab === 'account' && (
               <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-                <Card title="Security" hint="Change your password (Tính năng chưa hỗ trợ)">
+                <Card title="Security" hint="Change your password">
                   <form onSubmit={changePw} className="space-y-3">
-                    <Field label="Current password"><input type="password" autoComplete="current-password" value={pw.cur} onChange={(e) => setPw({ ...pw, cur: e.target.value })} className={inputCls} disabled /></Field>
-                    <Field label="New password"><input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} className={inputCls} disabled /></Field>
-                    <Field label="Confirm new password"><input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} className={inputCls} disabled /></Field>
-                    <button type="submit" disabled className="btn-primary-solid mt-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy === 'pw' ? 'Updating…' : 'Update password'}</button>
+                    <Field label="Current password"><input type="password" autoComplete="current-password" value={pw.cur} onChange={(e) => setPw({ ...pw, cur: e.target.value })} className={inputCls} /></Field>
+                    <Field label="New password"><input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} className={inputCls} /></Field>
+                    <Field label="Confirm new password"><input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} className={inputCls} /></Field>
+                    <button type="submit" disabled={!pw.cur || !pw.next || busy === 'pw'} className="btn-primary-solid mt-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy === 'pw' ? 'Updating…' : 'Update password'}</button>
                   </form>
                 </Card>
 
-                <Card title="Danger Zone" hint="Irreversible actions (Tính năng chưa hỗ trợ)">
+                <Card title="Danger Zone" hint="Irreversible actions">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="text-sm font-semibold text-slate-800">Deactivate account</h3>
                         <p className="text-[11px] text-slate-500">Temporarily hide your profile.</p>
                       </div>
-                      <button onClick={deactivateAccount} disabled className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Deactivate</button>
+                      <button onClick={deactivateAccount} disabled={busy === 'deactivate'} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Deactivate</button>
                     </div>
                     <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                       <div>
                         <h3 className="text-sm font-semibold text-red-600">Delete account</h3>
                         <p className="text-[11px] text-slate-500">Permanently remove all data.</p>
                       </div>
-                      <button onClick={() => setShowDelete(true)} disabled className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50">Delete</button>
+                      <button onClick={() => setShowDelete(true)} disabled={busy === 'delete'} className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50">Delete</button>
                     </div>
                     {showDelete && (
                       <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
                         <p className="mb-2 text-xs font-medium text-red-800">Type "DELETE" to confirm:</p>
                         <div className="flex gap-2">
                           <input value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} className={clsx(inputCls, 'bg-white py-1.5')} placeholder="DELETE" />
-                          <button onClick={deleteAccount} disabled className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50">Confirm</button>
+                          <button onClick={deleteAccount} disabled={deleteConfirm !== 'DELETE' || busy === 'delete'} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50">Confirm</button>
                           <button onClick={() => { setShowDelete(false); setDeleteConfirm(''); }} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
                         </div>
                       </div>

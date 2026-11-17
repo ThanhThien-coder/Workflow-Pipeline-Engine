@@ -300,6 +300,74 @@ class AuthServiceTest {
         verify(userRepository, never()).findByEmailIgnoreCase(anyString());
     }
 
+    @Test
+    @DisplayName("login: user đã xóa (deletedAt != null) -> 401 BAD_CREDENTIALS, không lộ tài khoản đã xóa")
+    void login_deletedUser_badCredentials() {
+        UserEntity deletedUser = alex(false);
+        deletedUser.setDeletedAt(java.time.Instant.now());
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(deletedUser));
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("alex.kim@pipeline.engine", "Password123!", false)))
+            .isInstanceOf(UnauthorizedException.class)
+            .extracting("errorCode")
+            .isEqualTo("BAD_CREDENTIALS");
+    }
+
+    @Test
+    @DisplayName("login: user đã vô hiệu hóa (deactivatedAt != null) đăng nhập đúng mật khẩu -> deactivatedAt về null, đăng nhập thành công")
+    void login_deactivatedUser_reactivates() {
+        UserEntity deactivatedUser = alex(false);
+        deactivatedUser.setDeactivatedAt(java.time.Instant.now());
+        when(userRepository.findByEmailIgnoreCase("alex.kim@pipeline.engine")).thenReturn(Optional.of(deactivatedUser));
+        when(jwtService.generateAccessToken(any())).thenReturn("jwt-reactivated");
+        when(refreshTokenService.issue(2L)).thenReturn("rt-reactivated");
+        when(userMapper.toUserSummary(any())).thenReturn(summary);
+
+        AuthResponse res = authService.login(new LoginRequest("alex.kim@pipeline.engine", "Password123!", false));
+
+        assertThat(res.token()).isEqualTo("jwt-reactivated");
+        assertThat(deactivatedUser.getDeactivatedAt()).isNull();
+        verify(userRepository).save(deactivatedUser);
+    }
+
+    @Test
+    @DisplayName("refresh: user đã bị xóa hoặc vô hiệu hóa -> từ chối với INVALID_REFRESH_TOKEN")
+    void refresh_deletedOrDeactivatedUser_rejected() {
+        when(refreshTokenService.rotate("rt_valid")).thenReturn(new RefreshTokenService.RotationResult(2L, "rt_next"));
+        UserEntity deactivatedUser = alex(false);
+        deactivatedUser.setDeactivatedAt(java.time.Instant.now());
+        when(userRepository.findById(2L)).thenReturn(Optional.of(deactivatedUser));
+
+        assertThatThrownBy(() -> authService.refresh("rt_valid"))
+            .isInstanceOf(UnauthorizedException.class)
+            .extracting("errorCode")
+            .isEqualTo(RefreshTokenService.INVALID_REFRESH_TOKEN);
+
+        UserEntity deletedUser = alex(false);
+        deletedUser.setDeletedAt(java.time.Instant.now());
+        when(userRepository.findById(2L)).thenReturn(Optional.of(deletedUser));
+
+        assertThatThrownBy(() -> authService.refresh("rt_valid"))
+            .isInstanceOf(UnauthorizedException.class)
+            .extracting("errorCode")
+            .isEqualTo(RefreshTokenService.INVALID_REFRESH_TOKEN);
+    }
+
+    @Test
+    @DisplayName("issueSession: cấp cặp token mới cho phiên hiện tại của user")
+    void issueSession_success() {
+        UserEntity user = alex(false);
+        when(jwtService.generateAccessToken(user)).thenReturn("session-jwt");
+        when(refreshTokenService.issue(2L)).thenReturn("session-rt");
+        when(userMapper.toUserSummary(user)).thenReturn(summary);
+
+        AuthResponse res = authService.issueSession(user);
+
+        assertThat(res.token()).isEqualTo("session-jwt");
+        assertThat(res.refreshToken()).isEqualTo("session-rt");
+        verify(refreshTokenService).issue(2L);
+    }
+
     private static Throwable catchUnauthorized(Runnable r) {
         try {
             r.run();

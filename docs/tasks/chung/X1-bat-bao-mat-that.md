@@ -2,7 +2,7 @@
 
 Người làm: A (chính, bước 1–2), C (bước 3), B và D (bước 4)
 Người review: cả nhóm (mỗi người duyệt phần controller của mảng mình)
-Trạng thái: chờ kiểm (17/11/2026: đủ 5 tiêu chí, kiểm thật trên stack Docker production; xem "Kết quả test")
+Trạng thái: xong
 Cần có trước: A4, A5, A6, B6, C3, C4, C5, C6, D2, D4, D5, D6
 Cần trước bước frontend: không
 Mở khóa: X2
@@ -143,7 +143,7 @@ Người dán file này là **một trong các người làm** của task chung.
 Trình duyệt (Sarah, profile mặc định): đăng nhập → mở dự án → Kanban → Start Task (`PATCH /nodes/2/status` 200) → đổi trạng thái WPE-002 từ nơi khác → trang My Tasks tự tải lại, task sang cột In Progress không cần tải lại trang. Console không có lỗi.
 
 ### Điều chưa chắc / cần nhóm quyết
-- Bảng Kanban trong trang Workflow (ngăn phase) không nghe realtime; chỉ trang My Tasks và chuông thông báo tự cập nhật. Cần B/C quyết có nối thêm không.
+- Bảng Kanban trong trang Workflow (ngăn phase) không nghe realtime; chỉ trang My Tasks và chuông thông báo tự cập nhật. Cần B/C quyết có nối thêm không. — Đã làm 17/11/2026 (nhóm thống nhất nối realtime): Kanban trang Workflow tự cập nhật, đã kiểm trên trình duyệt.
 - Bước 4 (B, D tự rà các controller khác của mảng mình) chưa có ghi chép trong file này.
 - Trạng thái để "chờ kiểm" để nhóm duyệt; người làm không tự ghi "xong".
 

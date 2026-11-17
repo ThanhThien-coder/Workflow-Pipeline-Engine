@@ -5,6 +5,7 @@ import com.pipeline.wpe.dto.project.CloneTemplateRequest;
 import com.pipeline.wpe.dto.project.CreateProjectRequest;
 import com.pipeline.wpe.dto.project.ProjectDetailResponse;
 import com.pipeline.wpe.dto.project.ProjectSummaryResponse;
+import com.pipeline.wpe.dto.project.UpdateProjectRequest;
 import com.pipeline.wpe.dto.project.UpdateProjectStatusRequest;
 import com.pipeline.wpe.exception.AccessDeniedException;
 import com.pipeline.wpe.exception.ConflictException;
@@ -282,5 +283,42 @@ class ProjectControllerTest {
 
         mockMvc.perform(delete("/api/v1/projects/999"))
             .andExpect(status().isNotFound());
+    }
+
+    // ===================== TASK_51: PUT /api/v1/projects/{id} =====================
+
+    @Test
+    @DisplayName("PUT /api/v1/projects/{id} - Trả về HTTP 200 và chi tiết dự án sau cập nhật")
+    void testUpdateProject_returns200() throws Exception {
+        UpdateProjectRequest request = new UpdateProjectRequest("Updated Pipeline", "Updated Description");
+        ProjectDetailResponse updatedResponse = new ProjectDetailResponse(
+            1L, "Updated Pipeline", "Updated Description", "ACTIVE",
+            2L, "Alex Kim", 10, 6, 2, 60.0, now, now,
+            null, List.of()
+        );
+
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(2L);
+        when(projectService.updateProject(eq(1L), any(UpdateProjectRequest.class), eq(2L))).thenReturn(updatedResponse);
+
+        mockMvc.perform(put("/api/v1/projects/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1))
+            .andExpect(jsonPath("$.name").value("Updated Pipeline"))
+            .andExpect(jsonPath("$.description").value("Updated Description"));
+
+        verify(projectService).updateProject(eq(1L), any(UpdateProjectRequest.class), eq(2L));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/projects/{id} - Trả về HTTP 400 BAD REQUEST khi tên rỗng")
+    void testUpdateProject_returns400_whenNameIsBlank() throws Exception {
+        UpdateProjectRequest invalidRequest = new UpdateProjectRequest("", "Valid Description");
+
+        mockMvc.perform(put("/api/v1/projects/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(invalidRequest)))
+            .andExpect(status().isBadRequest());
     }
 }

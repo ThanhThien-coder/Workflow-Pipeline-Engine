@@ -83,7 +83,7 @@ class GuestGatewayServiceTest {
 
         assertThat(response.enabled()).isTrue();
         assertThat(response.token()).hasSize(64);
-        assertThat(response.shareUrl()).contains(response.token());
+        assertThat(response.shareUrl()).isEqualTo("http://localhost:5173/guest?token=" + response.token());
         assertThat(response.expiresAt()).isAfter(Instant.now());
         verify(guestLinkRepository).save(any(GuestLinkEntity.class));
     }
@@ -285,6 +285,7 @@ class GuestGatewayServiceTest {
 
         assertThat(response.enabled()).isTrue();
         assertThat(response.token()).isEqualTo("active-token-123");
+        assertThat(response.shareUrl()).isEqualTo("http://localhost:5173/guest?token=active-token-123");
         verify(authorizationService).verifyProjectOwner(projectId, ownerId);
         verify(authorizationService, never()).verifyProjectMemberOrOwner(any(), any());
     }

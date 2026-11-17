@@ -41,6 +41,8 @@ export interface AuthSlice {
     logout: () => Promise<void>
     hydrate: () => void
     syncUserAvatar: (avatarUrl: string | null) => void
+    patchCurrentUser: (patch: Partial<UserDto>) => void
+    endSessionLocally: () => void
   }
 }
 
@@ -284,6 +286,25 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
       } catch {
         // Lỗi mạng hoặc backend lỗi: vẫn xóa phiên trên máy.
       }
+      signOutLocally()
+    },
+
+    patchCurrentUser: (patch: Partial<UserDto>) => {
+      set((state: any) => {
+        if (!state.auth?.currentUser) return state
+        return {
+          auth: {
+            ...state.auth,
+            currentUser: {
+              ...state.auth.currentUser,
+              ...patch,
+            },
+          },
+        }
+      })
+    },
+
+    endSessionLocally: () => {
       signOutLocally()
     },
   },
