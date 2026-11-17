@@ -3,9 +3,9 @@ package com.pipeline.wpe.dto.request.graph;
 import jakarta.validation.constraints.NotNull;
 
 public record CreateDependencyRequest(
-    @NotNull(message = "parentNodeId không được để trống")
+    @NotNull(message = "parentNodeId is required.")
     Long parentNodeId,
 
-    @NotNull(message = "childNodeId không được để trống")
+    @NotNull(message = "childNodeId is required.")
     Long childNodeId
 ) {}

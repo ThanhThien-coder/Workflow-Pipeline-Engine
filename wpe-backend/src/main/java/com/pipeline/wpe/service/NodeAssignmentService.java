@@ -33,33 +33,33 @@ public class NodeAssignmentService {
     @Transactional
     public GraphNodeResponse updateAssignment(Long nodeId, UpdateNodeAssignmentRequest req, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(nodeId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + nodeId));
 
         ProjectEntity project = authorizationService.verifyProjectOwnerOrManager(node.getProjectId(), currentUserId);
 
         if (project.getStatus() == ProjectStatus.ARCHIVED) {
-            throw new ConflictException("PROJECT_ARCHIVED", "Dự án đã được lưu trữ, chỉ có thể xem.");
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only.");
         }
 
         if (node.getStatus() == NodeStatus.DONE) {
-            throw new IllegalArgumentException("Tác vụ đã hoàn tất, không thể đổi người làm hoặc hạn chót.");
+            throw new IllegalArgumentException("This task is done. The assignee and due date can't be changed.");
         }
 
         if (!Objects.equals(node.getVersion(), req.version())) {
             throw new OptimisticLockingFailureException(
-                "Công việc đã bị thay đổi (phiên bản máy chủ: " + node.getVersion() + ", phiên bản yêu cầu: " + req.version() + ")."
+                "This task was changed by someone else (server version: " + node.getVersion() + ", your version: " + req.version() + "). Please refresh and try again."
             );
         }
 
         if (req.assignedUserId() == null && req.dueDate() == null) {
-            throw new IllegalArgumentException("Cần ít nhất assignedUserId hoặc dueDate.");
+            throw new IllegalArgumentException("Provide at least assignedUserId or dueDate.");
         }
 
         if (req.assignedUserId() != null) {
             boolean isMember = req.assignedUserId().equals(project.getOwnerId())
                 || projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), req.assignedUserId());
             if (!isMember) {
-                throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: Người phụ trách phải là thành viên của dự án.");
+                throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: The assignee must be a member of the project.");
             }
             node.setAssignedUserId(req.assignedUserId());
         }

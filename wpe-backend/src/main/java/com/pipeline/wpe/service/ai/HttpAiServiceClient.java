@@ -42,11 +42,11 @@ public class HttpAiServiceClient implements AiServiceClient {
     static String findContractViolation(Map<String, Object> body) {
         for (String key : REQUIRED_ARRAY_KEYS) {
             if (!(body.get(key) instanceof List<?>)) {
-                return key + " thiếu hoặc không phải mảng";
+                return key + " is missing or is not an array";
             }
         }
         if (!(body.get("metrics") instanceof Map<?, ?>)) {
-            return "metrics thiếu hoặc không phải object";
+            return "metrics is missing or is not an object";
         }
         return null;
     }
@@ -104,7 +104,7 @@ public class HttpAiServiceClient implements AiServiceClient {
             String violation = findContractViolation(responseBody);
             if (violation != null) {
                 log.warn("Dịch vụ AI trả dữ liệu sai hợp đồng (dự án ID: {}): {}", projectId, violation);
-                throw new AiServiceUnavailableException("sai hợp đồng: " + violation, null);
+                throw new AiServiceUnavailableException("contract violation: " + violation, null);
             }
 
             Map<String, Object> result = new LinkedHashMap<>(responseBody);
@@ -137,7 +137,7 @@ public class HttpAiServiceClient implements AiServiceClient {
             if (rae.getMessage() != null && !rae.getMessage().isBlank()) {
                 return rae.getMessage();
             }
-            return "kết nối thất bại hoặc quá giờ";
+            return "connection failed or timed out";
         }
         if (ex.getMessage() != null && !ex.getMessage().isBlank()) {
             return ex.getMessage();

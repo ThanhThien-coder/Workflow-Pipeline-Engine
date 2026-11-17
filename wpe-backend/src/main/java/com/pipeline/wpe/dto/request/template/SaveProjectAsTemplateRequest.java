@@ -4,8 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record SaveProjectAsTemplateRequest(
-    @NotBlank(message = "Tên Template không được để trống")
-    @Size(max = 150, message = "Tên Template không được vượt quá 150 ký tự")
+    @NotBlank(message = "Template name is required.")
+    @Size(max = 150, message = "Template name can't exceed 150 characters.")
     String name,
 
     String description,

@@ -179,7 +179,7 @@ public class AdminStatsService {
     public List<AdminTrendPointResponse> getTrends(String range) {
         String effectiveRange = (range == null || range.isBlank()) ? "7D" : range.trim().toUpperCase();
         if (!"7D".equals(effectiveRange) && !"30D".equals(effectiveRange)) {
-            throw new IllegalArgumentException("Khoảng thời gian không hợp lệ: " + range);
+            throw new IllegalArgumentException("Invalid time range: " + range);
         }
 
         int days = "30D".equals(effectiveRange) ? 30 : 7;

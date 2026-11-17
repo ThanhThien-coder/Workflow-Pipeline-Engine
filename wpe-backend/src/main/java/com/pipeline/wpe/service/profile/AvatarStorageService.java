@@ -38,10 +38,10 @@ public class AvatarStorageService {
      */
     public String storeAvatar(Long userId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("VALIDATION_FAILED", "Tệp ảnh không được để trống.");
+            throw new BadRequestException("VALIDATION_FAILED", "The image file is required.");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new BadRequestException("FILE_TOO_LARGE", "Kích thước ảnh vượt quá giới hạn cho phép (tối đa 2MB).");
+            throw new BadRequestException("FILE_TOO_LARGE", "The image is too large. The maximum size is 2 MB.");
         }
 
         byte[] bytes;
@@ -49,12 +49,12 @@ public class AvatarStorageService {
             bytes = file.getBytes();
         } catch (IOException e) {
             log.error("Không thể đọc dữ liệu ảnh tải lên của user #{}", userId, e);
-            throw new BadRequestException("VALIDATION_FAILED", "Không thể đọc dữ liệu tệp tải lên.");
+            throw new BadRequestException("VALIDATION_FAILED", "Couldn't read the uploaded file.");
         }
 
         ImageTypeDetector.ImageType imageType = ImageTypeDetector.detect(bytes)
             .orElseThrow(() -> new BadRequestException("UNSUPPORTED_MEDIA",
-                "Định dạng ảnh không được hỗ trợ. Chỉ chấp nhận PNG, JPEG hoặc WebP."));
+                "Unsupported image format. Use PNG, JPEG, or WebP."));
 
         byte[] randomBytes = new byte[8];
         secureRandom.nextBytes(randomBytes);
@@ -74,7 +74,7 @@ public class AvatarStorageService {
             }
         } catch (IOException e) {
             log.error("Lỗi khi ghi tệp ảnh đại diện cho user #{}: {}", userId, fileName, e);
-            throw new RuntimeException("Không thể lưu ảnh đại diện. Vui lòng thử lại sau.", e);
+            throw new RuntimeException("Couldn't save the profile photo. Please try again later.", e);
         }
 
         return AVATAR_URL_PREFIX + fileName;

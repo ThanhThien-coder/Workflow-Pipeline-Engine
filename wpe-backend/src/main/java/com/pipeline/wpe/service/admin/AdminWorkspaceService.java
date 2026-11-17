@@ -140,13 +140,13 @@ public class AdminWorkspaceService {
     @Transactional
     public AdminWorkspaceResponse archiveWorkspace(Long projectId, Long actorUserId) {
         if (projectId == null) {
-            throw new ResourceNotFoundException("Dự án không tồn tại: null");
+            throw new ResourceNotFoundException("Project not found: null");
         }
         ProjectEntity project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Dự án không tồn tại: " + projectId));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
 
         if (project.getStatus() == ProjectStatus.ARCHIVED) {
-            throw new ConflictException("ALREADY_ARCHIVED", "Dự án đã được lưu trữ.");
+            throw new ConflictException("ALREADY_ARCHIVED", "This project is already archived.");
         }
 
         ProjectStatus oldStatus = project.getStatus();
@@ -198,10 +198,10 @@ public class AdminWorkspaceService {
     @Transactional(readOnly = true)
     public AdminWorkspaceDetailResponse getWorkspaceDetail(Long projectId) {
         if (projectId == null) {
-            throw new ResourceNotFoundException("Dự án không tồn tại: null");
+            throw new ResourceNotFoundException("Project not found: null");
         }
         ProjectEntity project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Dự án không tồn tại: " + projectId));
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
 
         UserEntity owner = userRepository.findById(project.getOwnerId()).orElse(null);
         String ownerName = owner != null

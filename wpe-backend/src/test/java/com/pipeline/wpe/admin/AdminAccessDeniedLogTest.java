@@ -77,7 +77,7 @@ class AdminAccessDeniedLogTest {
             eq(AdminAuditAction.ADMIN_ACCESS_DENIED),
             eq("API"),
             eq("GET /api/v1/admin/users"),
-            eq("Không có quyền ADMIN")
+            eq("ADMIN role required")
         );
     }
 

@@ -179,7 +179,7 @@ class StateMachineServiceTest {
 
         assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, request, collaboratorId))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("Chỉ Chủ dự án hoặc Quản lý");
+            .hasMessageContaining("Only the project owner or a manager");
 
         assertThat(mockNode.getCompletedAt()).isNull();
         verify(eventPublisher, never()).publishTaskCompleted(any());
@@ -267,7 +267,7 @@ class StateMachineServiceTest {
 
         assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, request, ownerId))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Bắt buộc phải nhập lý do từ chối");
+            .hasMessageContaining("A rejection reason (rejectReason) is required");
     }
 
     @Test
@@ -300,7 +300,7 @@ class StateMachineServiceTest {
 
         assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, request, collaboratorId))
             .isInstanceOf(OptimisticLockingFailureException.class)
-            .hasMessageContaining("Tác vụ đã bị thay đổi bởi thành viên khác");
+            .hasMessageContaining("This task was changed by another member");
     }
 
     @Test
@@ -314,7 +314,7 @@ class StateMachineServiceTest {
 
         assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, request, ownerId))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Tác vụ đã hoàn tất và đóng băng");
+            .hasMessageContaining("This task is done and frozen");
     }
 
     @Test
@@ -329,7 +329,7 @@ class StateMachineServiceTest {
 
         assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, request, ownerId))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Tác vụ bắt buộc phải qua bước REVIEW trước khi nghiệm thu");
+            .hasMessageContaining("A task must go through REVIEW before it can be completed");
     }
 
     @Test
@@ -358,7 +358,7 @@ class StateMachineServiceTest {
 
         assertThatThrownBy(() -> stateMachineService.forceUnlock(taskId, collaboratorId))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("Chỉ Chủ dự án (Project Owner) mới có quyền mở khóa cưỡng bức");
+            .hasMessageContaining("Only the project owner can force unlock a task");
     }
 
     @Test

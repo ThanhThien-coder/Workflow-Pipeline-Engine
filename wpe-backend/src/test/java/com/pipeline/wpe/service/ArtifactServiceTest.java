@@ -107,7 +107,7 @@ class ArtifactServiceTest {
         @DisplayName("Không phải thành viên → 403 (từ verifyProjectMemberOrOwner), không lưu")
         void nonMember_forbidden() {
             when(projectAuthorizationService.verifyProjectMemberOrOwner(PROJECT_ID, 99L))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
             assertThatThrownBy(() -> artifactService.createArtifact(PROJECT_ID, link(null), 99L))
                 .isInstanceOf(ForbiddenException.class);
@@ -250,7 +250,7 @@ class ArtifactServiceTest {
         @DisplayName("Không phải thành viên → 403, không đọc kho")
         void nonMember_forbidden() {
             when(projectAuthorizationService.verifyProjectMemberOrOwner(PROJECT_ID, 99L))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
             assertThatThrownBy(() -> artifactService.getProjectArtifacts(PROJECT_ID, null, null, 99L))
                 .isInstanceOf(ForbiddenException.class);

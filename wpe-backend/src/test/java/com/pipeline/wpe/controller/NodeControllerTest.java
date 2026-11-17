@@ -239,7 +239,7 @@ class NodeControllerTest {
         void nonMember_403() throws Exception {
             when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
             when(projectAuthorizationService.verifyProjectMemberOrOwner(1L, 99L))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
             mockMvc.perform(get("/api/v1/projects/1/my-tasks").param("userId", "2"))
                 .andExpect(status().isForbidden())
@@ -282,7 +282,7 @@ class NodeControllerTest {
         void nonMember_403() throws Exception {
             when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
             when(projectAuthorizationService.verifyProjectMemberOrOwner(1L, 99L))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
             mockMvc.perform(get("/api/v1/projects/1/phases/5/tasks"))
                 .andExpect(status().isForbidden());
@@ -311,7 +311,7 @@ class NodeControllerTest {
         void collaborator_403() throws Exception {
             when(currentUserProvider.requireCurrentUserId()).thenReturn(3L);
             when(projectAuthorizationService.verifyProjectOwnerOrManager(1L, 3L))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án hoặc Quản lý mới được thực hiện hành động này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can do this."));
 
             mockMvc.perform(get("/api/v1/projects/1/review-tasks"))
                 .andExpect(status().isForbidden());

@@ -214,7 +214,7 @@ class ProjectServiceTest {
 
         assertThatThrownBy(() -> projectService.getProjectDetail(projectId, otherUserId))
             .isInstanceOf(AccessDeniedException.class)
-            .hasMessageContaining("Bạn không có quyền truy cập vào dự án này.");
+            .hasMessageContaining("You don't have access to this project.");
     }
 
     @Test
@@ -338,7 +338,7 @@ class ProjectServiceTest {
     void shouldThrowIllegalArgumentException_whenTabIsInvalid() {
         assertThatThrownBy(() -> projectService.getMyProjects(userId, "xyz", "ts"))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Tham số tab không hợp lệ: xyz");
+            .hasMessageContaining("Invalid tab parameter: xyz");
     }
 
     @ParameterizedTest
@@ -542,7 +542,7 @@ class ProjectServiceTest {
         // otherUserId (99) không phải owner (2) và không phải ADMIN
         assertThatThrownBy(() -> projectService.updateProjectStatus(projectId, req, otherUserId))
             .isInstanceOf(AccessDeniedException.class)
-            .hasMessageContaining("Chỉ chủ sở hữu dự án mới có quyền đổi trạng thái");
+            .hasMessageContaining("Only the project owner can change the project status.");
 
         verify(projectRepository, never()).save(any(ProjectEntity.class));
     }
@@ -582,7 +582,7 @@ class ProjectServiceTest {
 
         assertThatThrownBy(() -> projectService.updateProjectStatus(999L, req, userId))
             .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Không tìm thấy dự án với ID: 999");
+            .hasMessageContaining("Project not found with ID: 999");
     }
 
     @Test
@@ -610,7 +610,7 @@ class ProjectServiceTest {
     @DisplayName("FC4: deleteProject bởi người không phải OWNER ném ForbiddenException (403)")
     void shouldThrowForbiddenWhenNonOwnerDeletesProject() {
         when(projectAuthorizationService.verifyProjectOwner(projectId, otherUserId))
-            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."));
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner can do this."));
 
         assertThatThrownBy(() -> projectService.deleteProject(projectId, otherUserId))
             .isInstanceOf(ForbiddenException.class);
@@ -625,7 +625,7 @@ class ProjectServiceTest {
     @DisplayName("FC4: deleteProject khi dự án không tồn tại ném ResourceNotFoundException (404)")
     void shouldThrowNotFoundWhenDeletingNonExistentProject() {
         when(projectAuthorizationService.verifyProjectOwner(999L, userId))
-            .thenThrow(new ResourceNotFoundException("Không tìm thấy dự án với ID: 999"));
+            .thenThrow(new ResourceNotFoundException("Project not found with ID: 999"));
 
         assertThatThrownBy(() -> projectService.deleteProject(999L, userId))
             .isInstanceOf(ResourceNotFoundException.class);
@@ -667,7 +667,7 @@ class ProjectServiceTest {
     @DisplayName("updateProject: Người không phải OWNER ném ForbiddenException (403)")
     void shouldThrowForbiddenWhenNonOwnerUpdatesProject() {
         when(projectAuthorizationService.verifyProjectOwner(projectId, otherUserId))
-            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."));
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner can do this."));
 
         UpdateProjectRequest req = new UpdateProjectRequest("New Name", "New Desc");
         assertThatThrownBy(() -> projectService.updateProject(projectId, req, otherUserId))

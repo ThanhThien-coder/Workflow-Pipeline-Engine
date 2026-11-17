@@ -8,7 +8,7 @@ import java.util.Map;
 public record CreateNodeRequest(
     Long phaseId,
     String code,
-    @NotBlank(message = "Tiêu đề công việc không được để trống")
+    @NotBlank(message = "Task title is required.")
     String title,
     String description,
     JoinPolicy joinPolicy,

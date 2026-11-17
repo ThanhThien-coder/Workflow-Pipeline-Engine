@@ -123,12 +123,12 @@ public class RefreshTokenService {
         log.warn("Phát hiện refresh token bị dùng lại cho user #{}: thu hồi toàn bộ phiên", userId);
         refreshTokenRepository.revokeAllByUserId(userId);
         throw new UnauthorizedException(REFRESH_TOKEN_REUSED,
-            "Refresh token đã bị dùng lại. Mọi phiên đăng nhập đã bị thu hồi, vui lòng đăng nhập lại.");
+            "This refresh token was already used. All sessions have been signed out. Please sign in again.");
     }
 
     private static UnauthorizedException invalid() {
         return new UnauthorizedException(INVALID_REFRESH_TOKEN,
-            "Refresh token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.");
+            "Your session is invalid or has expired. Please sign in again.");
     }
 
     public record RotationResult(Long userId, String refreshToken) {

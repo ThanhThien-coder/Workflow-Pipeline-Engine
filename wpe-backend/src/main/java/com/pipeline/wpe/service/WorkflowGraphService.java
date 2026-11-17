@@ -104,9 +104,9 @@ public class WorkflowGraphService {
 
         if (request.parentPhaseId() != null) {
             WorkPhaseEntity parent = workPhaseRepository.findById(request.parentPhaseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase cha với ID: " + request.parentPhaseId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Parent phase not found with ID: " + request.parentPhaseId()));
             if (!parent.getProjectId().equals(projectId)) {
-                throw new IllegalArgumentException("Phase cha không thuộc về dự án này.");
+                throw new IllegalArgumentException("The parent phase does not belong to this project.");
             }
         }
 
@@ -150,20 +150,20 @@ public class WorkflowGraphService {
         ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         WorkPhaseEntity entity = workPhaseRepository.findById(phaseId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase với ID: " + phaseId));
+            .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + phaseId));
 
         if (!entity.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Phase không thuộc về dự án này.");
+            throw new IllegalArgumentException("The phase does not belong to this project.");
         }
 
         if (request.parentPhaseId() != null) {
             if (request.parentPhaseId().equals(phaseId)) {
-                throw new IllegalArgumentException("Phase không thể phụ thuộc vào chính nó.");
+                throw new IllegalArgumentException("A phase can't depend on itself.");
             }
             WorkPhaseEntity parent = workPhaseRepository.findById(request.parentPhaseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase cha với ID: " + request.parentPhaseId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Parent phase not found with ID: " + request.parentPhaseId()));
             if (!parent.getProjectId().equals(projectId)) {
-                throw new IllegalArgumentException("Phase cha không thuộc về dự án này.");
+                throw new IllegalArgumentException("The parent phase does not belong to this project.");
             }
             // Thêm Phase tiền nhiệm (giữ các cha cũ), có kiểm tra chu trình
             addPhaseEdge(projectId, parent, entity);
@@ -190,10 +190,10 @@ public class WorkflowGraphService {
         ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         WorkPhaseEntity entity = workPhaseRepository.findById(phaseId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase với ID: " + phaseId));
+            .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + phaseId));
 
         if (!entity.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Phase không thuộc về dự án này.");
+            throw new IllegalArgumentException("The phase does not belong to this project.");
         }
 
         // Chuyển toàn bộ node thuộc phase này sang standalone (phase_id = null)
@@ -223,16 +223,16 @@ public class WorkflowGraphService {
         ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         if (sourcePhaseId.equals(targetPhaseId)) {
-            throw new IllegalArgumentException("Phase không thể phụ thuộc vào chính nó.");
+            throw new IllegalArgumentException("A phase can't depend on itself.");
         }
 
         WorkPhaseEntity target = workPhaseRepository.findById(targetPhaseId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase đích với ID: " + targetPhaseId));
+            .orElseThrow(() -> new ResourceNotFoundException("Target phase not found with ID: " + targetPhaseId));
         WorkPhaseEntity source = workPhaseRepository.findById(sourcePhaseId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase nguồn với ID: " + sourcePhaseId));
+            .orElseThrow(() -> new ResourceNotFoundException("Source phase not found with ID: " + sourcePhaseId));
 
         if (!target.getProjectId().equals(projectId) || !source.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Hai Phase phải thuộc về cùng dự án này.");
+            throw new IllegalArgumentException("Both phases must belong to this project.");
         }
 
         // Thêm cạnh vào bảng nối (giữ nguyên các Phase cha đã có), chặn chu trình
@@ -247,10 +247,10 @@ public class WorkflowGraphService {
         ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         WorkPhaseEntity target = workPhaseRepository.findById(targetPhaseId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase đích với ID: " + targetPhaseId));
+            .orElseThrow(() -> new ResourceNotFoundException("Target phase not found with ID: " + targetPhaseId));
 
         if (!target.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Phase không thuộc về dự án này.");
+            throw new IllegalArgumentException("The phase does not belong to this project.");
         }
 
         phaseDependencyRepository.deleteByParentPhaseIdAndChildPhaseId(sourcePhaseId, targetPhaseId);
@@ -272,9 +272,9 @@ public class WorkflowGraphService {
 
         if (request.phaseId() != null) {
             WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase với ID: " + request.phaseId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + request.phaseId()));
             if (!phase.getProjectId().equals(projectId)) {
-                throw new IllegalArgumentException("Phase không thuộc về dự án này.");
+                throw new IllegalArgumentException("The phase does not belong to this project.");
             }
         }
 
@@ -293,7 +293,7 @@ public class WorkflowGraphService {
         } else {
             code = code.trim().toUpperCase();
             if (nodeRepository.findByProjectIdAndCode(projectId, code).isPresent()) {
-                throw new ConflictException("DUPLICATE_NODE_CODE", "Mã công việc '" + code + "' đã tồn tại trong dự án.");
+                throw new ConflictException("DUPLICATE_NODE_CODE", "Task code '" + code + "' already exists in this project.");
             }
         }
 
@@ -334,16 +334,16 @@ public class WorkflowGraphService {
         Long childId = request.childNodeId();
 
         if (parentId.equals(childId)) {
-            throw new IllegalArgumentException("Không thể nối một công việc phụ thuộc vào chính nó.");
+            throw new IllegalArgumentException("A task can't depend on itself.");
         }
 
         NodeEntity parent = nodeRepository.findById(parentId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc cha với ID: " + parentId));
+            .orElseThrow(() -> new ResourceNotFoundException("Parent task not found with ID: " + parentId));
         NodeEntity child = nodeRepository.findById(childId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc con với ID: " + childId));
+            .orElseThrow(() -> new ResourceNotFoundException("Child task not found with ID: " + childId));
 
         if (!parent.getProjectId().equals(projectId) || !child.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Hai công việc phải thuộc về cùng dự án này.");
+            throw new IllegalArgumentException("Both tasks must belong to this project.");
         }
 
         // Idempotent: nếu đã nối rồi thì trả về luôn
@@ -366,7 +366,7 @@ public class WorkflowGraphService {
             List<NodeDependencyEntity> edgesWithNew = new ArrayList<>(projectEdges);
             edgesWithNew.add(entity);
             throw new CycleDetectedException(
-                "Không thể nối: tạo chu trình lặp phụ thuộc giữa các công việc.",
+                "Can't add this dependency: it would create a cycle between tasks.",
                 kahnDagService.validateProjectDag(projectNodes, edgesWithNew).cycleNodeCodes()
             );
         }
@@ -374,7 +374,7 @@ public class WorkflowGraphService {
         // Công việc đã bắt đầu làm thì không được thêm tiền đề mới
         if (child.getStatus() != NodeStatus.LOCKED && child.getStatus() != NodeStatus.TODO) {
             throw new ConflictException("NODE_IN_USE",
-                "Công việc " + child.getCode() + " đang ở trạng thái " + child.getStatus() + ", không thể thêm tiền đề mới.");
+                "Task " + child.getCode() + " is " + child.getStatus() + ", so a new dependency can't be added.");
         }
 
         nodeDependencyRepository.save(entity);
@@ -415,7 +415,7 @@ public class WorkflowGraphService {
         }
         // Chặn xóa cạnh của dự án khác qua projectId của dự án mình
         if (!existing.get().getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("Liên kết phụ thuộc không thuộc về dự án này.");
+            throw new IllegalArgumentException("The dependency does not belong to this project.");
         }
         nodeDependencyRepository.delete(existing.get());
 
@@ -439,21 +439,21 @@ public class WorkflowGraphService {
     @Transactional
     public GraphNodeResponse updateNode(Long nodeId, UpdateNodeRequest request, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(nodeId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + nodeId));
         Long projectId = node.getProjectId();
         ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
         ensureNotArchived(project);
 
         if (!Objects.equals(node.getVersion(), request.version())) {
             throw new OptimisticLockingFailureException(
-                "Công việc đã bị thay đổi (phiên bản máy chủ: " + node.getVersion() + ", phiên bản yêu cầu: " + request.version() + ").");
+                "This task was changed by someone else (server version: " + node.getVersion() + ", your version: " + request.version() + "). Please refresh and try again.");
         }
 
         if (request.phaseId() != null && !request.phaseId().equals(node.getPhaseId())) {
             WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Phase với ID: " + request.phaseId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + request.phaseId()));
             if (!phase.getProjectId().equals(projectId)) {
-                throw new IllegalArgumentException("Phase không thuộc về dự án này.");
+                throw new IllegalArgumentException("The phase does not belong to this project.");
             }
             node.setPhaseId(request.phaseId());
         }
@@ -464,7 +464,7 @@ public class WorkflowGraphService {
             boolean isMember = request.assignedUserId().equals(project.getOwnerId())
                 || projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, request.assignedUserId());
             if (!isMember) {
-                throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: Người phụ trách phải là thành viên của dự án.");
+                throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: The assignee must be a member of the project.");
             }
             node.setAssignedUserId(request.assignedUserId());
         }
@@ -511,14 +511,14 @@ public class WorkflowGraphService {
     @Transactional
     public void deleteNode(Long nodeId, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(nodeId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + nodeId));
         Long projectId = node.getProjectId();
         Long phaseId = node.getPhaseId();
         ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         if (node.getStatus() != NodeStatus.LOCKED && node.getStatus() != NodeStatus.TODO) {
             throw new ConflictException("NODE_IN_USE",
-                "Công việc " + node.getCode() + " đang ở trạng thái " + node.getStatus() + ", không thể xóa.");
+                "Task " + node.getCode() + " is " + node.getStatus() + " and can't be deleted.");
         }
 
         List<NodeDependencyEntity> outgoing = nodeDependencyRepository.findByParentNodeId(nodeId);
@@ -542,7 +542,7 @@ public class WorkflowGraphService {
     @Transactional
     public GraphNodeResponse updateNodeMetadata(Long nodeId, UpdateNodeMetadataRequest request, Long currentUserId) {
         NodeEntity node = nodeRepository.findById(nodeId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc với ID: " + nodeId));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + nodeId));
 
         ensureNotArchived(authorizationService.verifyProjectOwner(node.getProjectId(), currentUserId));
 
@@ -565,7 +565,7 @@ public class WorkflowGraphService {
         if (currentStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT
             && currentStatus != com.pipeline.wpe.common.enums.ProjectStatus.PLANNING) {
             throw new ConflictException("INVALID_PROJECT_STATUS",
-                "Chỉ xuất bản được dự án đang ở trạng thái DRAFT hoặc PLANNING. Trạng thái hiện tại: " + currentStatus + ".");
+                "Only projects in DRAFT or PLANNING status can be published. Current status: " + currentStatus + ".");
         }
 
         List<NodeEntity> nodes = nodeRepository.findByProjectId(projectId);
@@ -575,7 +575,7 @@ public class WorkflowGraphService {
 
         if (!result.isValid()) {
             throw new CycleDetectedException(
-                "Phát hiện chu trình lặp phụ thuộc trong đồ thị quy trình. Không thể xuất bản.",
+                "A dependency cycle was detected in the pipeline. The project can't be published.",
                 result.cycleNodeCodes()
             );
         }
@@ -693,7 +693,7 @@ public class WorkflowGraphService {
      */
     private void ensureNotArchived(ProjectEntity project) {
         if (project.getStatus() == com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED) {
-            throw new ConflictException("PROJECT_ARCHIVED", "Dự án đã được lưu trữ, chỉ có thể xem. Không thể chỉnh sửa đồ thị.");
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. The pipeline can't be edited.");
         }
     }
 
@@ -734,7 +734,7 @@ public class WorkflowGraphService {
             Long current = queue.poll();
             if (current.equals(parent.getId())) {
                 throw new CycleDetectedException(
-                    "Không thể nối Phase: tạo chu trình lặp giữa các Phase.",
+                    "Can't add this dependency: it would create a cycle between phases.",
                     List.of(parent.getName(), child.getName())
                 );
             }

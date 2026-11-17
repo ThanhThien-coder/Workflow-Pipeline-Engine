@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.Map;
 
 public record CreatePhaseRequest(
-    @NotBlank(message = "Tên Phase không được để trống")
+    @NotBlank(message = "Phase name is required.")
     String name,
 
     @JsonAlias({"sub", "subTitle"})

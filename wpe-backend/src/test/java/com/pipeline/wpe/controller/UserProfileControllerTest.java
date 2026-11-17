@@ -152,7 +152,7 @@ class UserProfileControllerTest {
             "Alex Dev", "other@example.com", "", "", List.of(), null
         );
         when(userProfileService.updateProfile(eq(10L), any()))
-            .thenThrow(new ConflictException("EMAIL_TAKEN", "Email đã được sử dụng."));
+            .thenThrow(new ConflictException("EMAIL_TAKEN", "This email is already in use."));
 
         mockMvc.perform(put("/api/v1/users/me/profile")
                 .contentType(MediaType.APPLICATION_JSON)

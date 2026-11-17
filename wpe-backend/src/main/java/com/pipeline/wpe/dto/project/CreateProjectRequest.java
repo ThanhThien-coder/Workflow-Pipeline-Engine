@@ -4,8 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CreateProjectRequest(
-    @NotBlank(message = "Tên dự án không được để trống")
-    @Size(max = 100, message = "Tên dự án không được vượt quá 100 ký tự")
+    @NotBlank(message = "Project name is required.")
+    @Size(max = 100, message = "Project name can't exceed 100 characters.")
     String name,
 
     String description,

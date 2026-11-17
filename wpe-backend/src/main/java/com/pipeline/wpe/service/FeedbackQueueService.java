@@ -54,7 +54,7 @@ public class FeedbackQueueService {
         Long projectId = guestLink.getProjectId();
 
         if (request.content() != null && request.content().trim().length() > MAX_CONTENT_LENGTH) {
-            throw new IllegalArgumentException("Nội dung góp ý tối đa 2000 ký tự.");
+            throw new IllegalArgumentException("Feedback can be at most 2,000 characters.");
         }
 
         Instant since = Instant.now().minus(Duration.ofHours(1));
@@ -77,9 +77,9 @@ public class FeedbackQueueService {
         Long validNodeId = null;
         if (request.nodeId() != null) {
             NodeEntity node = nodeRepository.findById(request.nodeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tác vụ với ID: " + request.nodeId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + request.nodeId()));
             if (!Objects.equals(node.getProjectId(), projectId)) {
-                throw new IllegalArgumentException("Tác vụ này không thuộc về dự án được chia sẻ.");
+                throw new IllegalArgumentException("This task does not belong to the shared project.");
             }
             validNodeId = node.getId();
         }
@@ -177,10 +177,10 @@ public class FeedbackQueueService {
         authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
 
         ProjectFeedbackEntity feedback = feedbackRepository.findById(feedbackId)
-            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản ghi góp ý với ID: " + feedbackId));
+            .orElseThrow(() -> new ResourceNotFoundException("Feedback not found with ID: " + feedbackId));
 
         if (!Objects.equals(feedback.getProjectId(), projectId)) {
-            throw new IllegalArgumentException("Bản ghi góp ý không thuộc về dự án này.");
+            throw new IllegalArgumentException("This feedback does not belong to this project.");
         }
 
         feedback.setStatus(FeedbackStatus.RESOLVED);

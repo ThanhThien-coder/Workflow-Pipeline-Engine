@@ -33,7 +33,7 @@ public class JsonAccessDeniedHandler implements AccessDeniedHandler {
         ErrorResponse errorResponse = ErrorResponse.of(
             HttpServletResponse.SC_FORBIDDEN,
             "ACCESS_DENIED",
-            "Bạn không có quyền thực hiện hành động này.",
+            "You don't have permission to do this.",
             request.getRequestURI()
         );
 

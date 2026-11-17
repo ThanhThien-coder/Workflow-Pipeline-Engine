@@ -227,7 +227,7 @@ class AdminProjectOwnerServiceTest {
             .satisfies(ex -> {
                 ConflictException ce = (ConflictException) ex;
                 assertThat(ce.getErrorCode()).isEqualTo("PROJECT_CLOSED");
-                assertThat(ce.getMessage()).isEqualTo("Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.");
+                assertThat(ce.getMessage()).isEqualTo("This project is archived or completed, so its owner can't be changed.");
             });
 
         verify(projectRepository, never()).save(any());
@@ -252,7 +252,7 @@ class AdminProjectOwnerServiceTest {
             .satisfies(ex -> {
                 ConflictException ce = (ConflictException) ex;
                 assertThat(ce.getErrorCode()).isEqualTo("PROJECT_CLOSED");
-                assertThat(ce.getMessage()).isEqualTo("Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được.");
+                assertThat(ce.getMessage()).isEqualTo("This project is archived or completed, so its owner can't be changed.");
             });
 
         verify(projectRepository, never()).save(any());

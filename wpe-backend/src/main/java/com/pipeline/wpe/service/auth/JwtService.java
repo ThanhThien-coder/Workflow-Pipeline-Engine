@@ -31,7 +31,7 @@ public class JwtService {
         @Value("${jwt.access-token-expiration-ms:900000}") long accessTokenExpirationMs
     ) {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
-            throw new IllegalStateException("jwt.secret phải dài ít nhất 32 byte (256 bit) cho HS256");
+            throw new IllegalStateException("jwt.secret must be at least 32 bytes (256 bits) for HS256");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpirationMs = accessTokenExpirationMs;
@@ -58,7 +58,7 @@ public class JwtService {
      */
     public AccessTokenClaims parseAccessToken(String token) {
         if (token == null || token.isBlank()) {
-            throw new JwtException("Token rỗng");
+            throw new JwtException("Token is empty");
         }
         Claims claims = Jwts.parser()
             .verifyWith(key)
@@ -70,11 +70,11 @@ public class JwtService {
         try {
             userId = Long.parseLong(claims.getSubject());
         } catch (NumberFormatException e) {
-            throw new JwtException("sub không phải userId hợp lệ");
+            throw new JwtException("sub is not a valid userId");
         }
         Integer tokenVersion = claims.get(CLAIM_TOKEN_VERSION, Integer.class);
         if (tokenVersion == null) {
-            throw new JwtException("Thiếu claim tv");
+            throw new JwtException("Missing claim tv");
         }
         return new AccessTokenClaims(
             userId,

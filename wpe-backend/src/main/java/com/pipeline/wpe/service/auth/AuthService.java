@@ -47,10 +47,10 @@ public class AuthService {
         String username = request.username().trim();
         String email = request.email().trim();
         if (userRepository.existsByUsername(username)) {
-            throw new ConflictException(USERNAME_TAKEN, "Tên đăng nhập đã được sử dụng.");
+            throw new ConflictException(USERNAME_TAKEN, "This username is already taken.");
         }
         if (userRepository.existsByEmail(email)) {
-            throw new ConflictException(EMAIL_TAKEN, "Email đã được sử dụng.");
+            throw new ConflictException(EMAIL_TAKEN, "This email is already in use.");
         }
 
         UserEntity user = UserEntity.builder()
@@ -106,7 +106,7 @@ public class AuthService {
         UserEntity user = userRepository.findById(rotation.userId()).orElse(null);
         if (user == null || user.getDeletedAt() != null || user.getDeactivatedAt() != null) {
             throw new UnauthorizedException(RefreshTokenService.INVALID_REFRESH_TOKEN,
-                "Refresh token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.");
+                "Your session is invalid or has expired. Please sign in again.");
         }
         if (Boolean.TRUE.equals(user.getIsLocked())) {
             refreshTokenService.revokeAllForUser(user.getId());
@@ -147,6 +147,6 @@ public class AuthService {
     }
 
     private static ForbiddenException accountLocked() {
-        return new ForbiddenException(ACCOUNT_LOCKED, "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.");
+        return new ForbiddenException(ACCOUNT_LOCKED, "This account has been suspended. Please contact an administrator.");
     }
 }

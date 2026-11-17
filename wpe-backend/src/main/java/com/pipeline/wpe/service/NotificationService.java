@@ -41,7 +41,7 @@ public class NotificationService {
         NotificationEntity entity = notificationRepository.findByIdAndUserId(notificationId, userId)
                 .or(() -> notificationRepository.findById(notificationId)
                         .filter(n -> Objects.equals(n.getUserId(), userId)))
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo với ID: " + notificationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found with ID: " + notificationId));
 
         if (!Boolean.TRUE.equals(entity.getIsRead())) {
             entity.setIsRead(true);

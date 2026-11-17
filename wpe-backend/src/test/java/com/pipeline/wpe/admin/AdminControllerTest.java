@@ -148,7 +148,7 @@ class AdminControllerTest {
         loginAs(1L, "ADMIN");
         when(currentUserProvider.requireCurrentUserId()).thenReturn(1L);
         when(adminUserService.suspendUser(eq(99L), any(SuspendUserRequest.class), eq(1L)))
-            .thenThrow(new ForbiddenException("CANNOT_SUSPEND_ADMIN", "Không thể khóa tài khoản quản trị viên."));
+            .thenThrow(new ForbiddenException("CANNOT_SUSPEND_ADMIN", "Admin accounts can't be suspended."));
 
         mockMvc.perform(post("/api/v1/admin/users/99/suspend")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -352,7 +352,7 @@ class AdminControllerTest {
     void testGetWorkspaceDetail_notFound_returns404() throws Exception {
         loginAs(1L, "ADMIN");
         when(adminWorkspaceService.getWorkspaceDetail(999L))
-            .thenThrow(new ResourceNotFoundException("Dự án không tồn tại: 999"));
+            .thenThrow(new ResourceNotFoundException("Project not found: 999"));
 
         mockMvc.perform(get("/api/v1/admin/workspaces/999"))
             .andExpect(status().isNotFound())

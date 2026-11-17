@@ -300,11 +300,11 @@ class ProjectActivityServiceTest {
         Long outsiderId = 99L;
 
         when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, outsiderId))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         assertThatThrownBy(() -> projectActivityService.getProjectActivity(projectId, outsiderId, 50))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Bạn không phải là thành viên của dự án này.");
+                .hasMessageContaining("You are not a member of this project.");
 
         verifyNoInteractions(nodeRepository, artifactRepository, projectMemberRepository);
     }

@@ -60,11 +60,11 @@ class ProjectMemberServiceTest {
         Long outsiderId = 99L;
 
         when(projectAuthorizationService.verifyProjectMemberOrOwner(projectId, outsiderId))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Bạn không phải là thành viên của dự án này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
 
         assertThatThrownBy(() -> projectMemberService.getMembers(projectId, outsiderId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Bạn không phải là thành viên của dự án này.");
+                .hasMessageContaining("You are not a member of this project.");
 
         verify(projectMemberRepository, never()).findByProjectIdAndRemovedAtIsNull(any());
     }
@@ -236,11 +236,11 @@ class ProjectMemberServiceTest {
         Long nonOwnerId = 2L;
 
         when(projectAuthorizationService.verifyProjectOwner(projectId, nonOwnerId))
-                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này."));
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner can do this."));
 
         assertThatThrownBy(() -> projectMemberService.updateRole(projectId, 3L, ProjectRole.COLLABORATOR, nonOwnerId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("Chỉ Chủ dự án (Project Owner) mới có quyền thực hiện hành động này.");
+                .hasMessageContaining("Only the project owner can do this.");
 
         verify(projectMemberRepository, never()).findByProjectIdAndUserIdAndRemovedAtIsNull(any(), any());
     }

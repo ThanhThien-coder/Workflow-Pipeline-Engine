@@ -7,12 +7,12 @@ import jakarta.validation.constraints.Size;
 
 @Schema(description = "Yêu cầu nhân bản quy trình từ mẫu có sẵn (DAG Clone Request)")
 public record CloneTemplateRequest(
-    @NotNull(message = "ID mẫu quy trình không được để trống")
+    @NotNull(message = "Template ID is required.")
     @Schema(description = "ID hoặc Slug của mẫu quy trình hoặc dự án nguồn", example = "1")
     Object templateId,
 
-    @NotBlank(message = "Tên dự án không được để trống")
-    @Size(max = 100, message = "Tên dự án không được vượt quá 100 ký tự")
+    @NotBlank(message = "Project name is required.")
+    @Size(max = 100, message = "Project name can't exceed 100 characters.")
     @Schema(description = "Tên của dự án mới được khởi tạo", example = "E-Commerce Microservices Pipeline")
     String projectName,
 

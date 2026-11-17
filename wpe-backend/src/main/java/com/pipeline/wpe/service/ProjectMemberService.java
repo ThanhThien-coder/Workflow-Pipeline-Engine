@@ -133,7 +133,7 @@ public class ProjectMemberService {
 
         ProjectMemberEntity targetMember = projectMemberRepository
                 .findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thành viên trong dự án: " + targetUserId));
+                .orElseThrow(() -> new ResourceNotFoundException("Project member not found: " + targetUserId));
 
         if (newRole == ProjectRole.OWNER) {
             if (targetUserId.equals(project.getOwnerId())) {
@@ -163,7 +163,7 @@ public class ProjectMemberService {
         } else {
             // newRole là COLLABORATOR hoặc VIEWER
             if (targetUserId.equals(project.getOwnerId())) {
-                throw new IllegalArgumentException("OWNER_ROLE_LOCKED: Không thể hạ vai trò của chủ dự án. Hãy chuyển quyền sở hữu trước.");
+                throw new IllegalArgumentException("OWNER_ROLE_LOCKED: The owner's role can't be changed. Transfer ownership first.");
             }
             targetMember.setRole(newRole);
             targetMember = projectMemberRepository.save(targetMember);
@@ -180,12 +180,12 @@ public class ProjectMemberService {
         ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
 
         if (targetUserId.equals(project.getOwnerId())) {
-            throw new IllegalArgumentException("CANNOT_REMOVE_OWNER: Không thể xóa chủ dự án.");
+            throw new IllegalArgumentException("CANNOT_REMOVE_OWNER: The project owner can't be removed.");
         }
 
         ProjectMemberEntity targetMember = projectMemberRepository
                 .findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thành viên trong dự án: " + targetUserId));
+                .orElseThrow(() -> new ResourceNotFoundException("Project member not found: " + targetUserId));
 
         targetMember.setRemovedAt(Instant.now());
         projectMemberRepository.save(targetMember);
