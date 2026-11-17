@@ -1,0 +1,7 @@
+target
+.mvn
+mvnw
+mvnw.cmd
+docker-compose.yml
+**/.env
+**/.env.*
