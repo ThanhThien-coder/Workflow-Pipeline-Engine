@@ -2,7 +2,7 @@
 
 Người làm: D
 Người review: A
-Trạng thái: chờ kiểm
+Trạng thái: xong
 Cần có trước: T0
 Cần trước bước frontend: A2
 Mở khóa: D2, D3
