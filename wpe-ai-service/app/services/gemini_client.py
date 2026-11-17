@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import time
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from google import genai
@@ -25,10 +26,33 @@ MAX_SCAFFOLD_PROMPT_CHARS = 2000
 MIN_ATTEMPT_TIMEOUT_MS = 2000
 ALLOWED_THINKING_LEVELS = frozenset({"MINIMAL", "LOW", "MEDIUM", "HIGH"})
 
-# Bảng giá tham chiếu Gemini 2.5 Flash (USD / 1M tokens)
-# Input: $0.30 / 1M | Output (bao gồm cả thinking tokens): $2.50 / 1M
-PRICE_INPUT_PER_1M_USD = 0.30
-PRICE_OUTPUT_PER_1M_USD = 2.50
+# Bảng giá gói trả phí (Standard, USD / 1M tokens) theo https://aistudio.google.com/docs/pricing (đọc ngày 18/11/2026).
+# Gói miễn phí không tính tiền: estimatedCostUsd là số tiền ƯỚC TÍNH nếu dùng gói trả phí.
+# Mỗi model: danh sách (ngày bắt đầu áp dụng, giá input, giá output kể cả thinking tokens), sắp theo ngày tăng dần.
+# Model không có trong bảng thì estimatedCostUsd = 0.0 (không tự đoán giá).
+MODEL_PRICES_PER_1M_USD: Dict[str, List[Tuple[date, float, float]]] = {
+    "gemini-3.8-flash": [(date.min, 0.75, 3.75), (date(2027, 1, 1), 1.50, 7.50)],
+    "gemini-3.1-flash-lite": [(date.min, 0.25, 1.50)],
+    "gemini-2.5-flash": [(date.min, 0.30, 2.50)],
+}
+
+
+def _price_for(model: Optional[str], on_day: Optional[date] = None) -> Optional[Tuple[float, float]]:
+    """Trả (giá input, giá output) / 1M token của model tại ngày on_day (UTC), hoặc None nếu chưa có giá."""
+    if not model:
+        return None
+    name = model.strip().lower()
+    if name.startswith("models/"):
+        name = name[len("models/"):]
+    schedule = MODEL_PRICES_PER_1M_USD.get(name)
+    if not schedule:
+        return None
+    day = on_day or datetime.now(timezone.utc).date()
+    current: Optional[Tuple[float, float]] = None
+    for effective_from, price_in, price_out in schedule:
+        if day >= effective_from:
+            current = (price_in, price_out)
+    return current
 
 DIAGNOSIS_SYSTEM_INSTRUCTION = """You are a Senior Technical Project Advisor for a DAG workflow management system.
 Analyze the workflow DAG and progress data and respond concisely and accurately in English.
@@ -146,10 +170,11 @@ class GeminiClient:
             if usage
             else (prompt_tokens + billable_output_tokens)
         )
-        estimated_cost = round(
-            (prompt_tokens * PRICE_INPUT_PER_1M_USD + billable_output_tokens * PRICE_OUTPUT_PER_1M_USD)
-            / 1_000_000,
-            6,
+        price = _price_for(model or settings.GEMINI_MODEL)
+        estimated_cost = (
+            round((prompt_tokens * price[0] + billable_output_tokens * price[1]) / 1_000_000, 6)
+            if price
+            else 0.0
         )
         return {
             "promptTokens": int(prompt_tokens),
