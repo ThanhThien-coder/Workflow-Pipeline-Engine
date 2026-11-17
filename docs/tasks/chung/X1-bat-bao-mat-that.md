@@ -2,7 +2,7 @@
 
 Người làm: A (chính, bước 1–2), C (bước 3), B và D (bước 4)
 Người review: cả nhóm (mỗi người duyệt phần controller của mảng mình)
-Trạng thái: chưa làm
+Trạng thái: chờ kiểm (17/11/2026: đủ 5 tiêu chí, kiểm thật trên stack Docker production; xem "Kết quả test")
 Cần có trước: A4, A5, A6, B6, C3, C4, C5, C6, D2, D4, D5, D6
 Cần trước bước frontend: không
 Mở khóa: X2
@@ -62,11 +62,11 @@ Trả lời (mỗi người trả lời cho mảng mình):
 5. (Cả nhóm) Chạy toàn bộ app ở profile mặc định (không phải dev), không dùng header debug.
 
 ## Tiêu chí xong
-- [ ] `grep -rn "orElse(2L)\|orElse(1L)" wpe-backend/src/main` không còn kết quả.
-- [ ] Có test tham số hóa dựa trên bảng ở bước 1: mọi endpoint không công khai, gọi không token → 401.
-- [ ] User thường gọi endpoint admin → 403.
-- [ ] Gọi `?currentUserId=3` hoặc `?userId=3` không còn đóng vai được user 3.
-- [ ] FE chạy trọn luồng đăng nhập → làm task → nhận realtime ở profile mặc định.
+- [x] `grep -rn "orElse(2L)\|orElse(1L)" wpe-backend/src/main` không còn kết quả. — 17/11: không còn kết quả.
+- [x] Có test tham số hóa dựa trên bảng ở bước 1: mọi endpoint không công khai, gọi không token → 401. — `SecurityRulesTest` tự quét mọi endpoint: 150 trường hợp, đều 401.
+- [x] User thường gọi endpoint admin → 403. — chạy thật (backend profile mặc định và stack Docker): 403 `ACCESS_DENIED`; admin gọi được (200).
+- [x] Gọi `?currentUserId=3` hoặc `?userId=3` không còn đóng vai được user 3. — PR #80 bỏ `?currentUserId=`/`?userId=` giả danh; `my-tasks?userId=` giữ lại nhưng người gọi phải đăng nhập và là thành viên (403).
+- [x] FE chạy trọn luồng đăng nhập → làm task → nhận realtime ở profile mặc định. — 17/11 trên stack Docker production (nginx + backend không profile dev): đăng nhập, bấm Start Task, trang My Tasks tự cập nhật khi task đổi trạng thái.
 
 ## Câu hỏi bảo vệ (người review hỏi, trả lời không nhìn code)
 1. Vì sao chỉ cho token qua query với SSE, không cho mọi API?
@@ -119,8 +119,33 @@ Người dán file này là **một trong các người làm** của task chung.
   Dữ liệu không đổi (WPE-004 vẫn LOCKED v0).
 
 ### Kết quả test (dán output thật)
+**Backend (16/11/2026, sau TASK_43):** `./mvnw test` → 827 test, 0 lỗi (trong đó `SecurityRulesTest` 150, `DevDebugAuthFilterTest` 8, `WebCorsConfigTest` 2). CI PR #81 xanh.
+
+**Chạy thật backend, profile mặc định (16/11/2026):** 17/17 kịch bản đúng. Thiếu biến môi trường thì backend dừng ngay (`DB_URL`). Profile dev: không token vẫn là user 2; header debug đọc đúng vai trò (admin 200, user 403); token rác vẫn 401.
+
+**Stack Docker production (17/11/2026, `docker-compose.prod.yml`, chỉ nginx mở cổng):** backend log `No active profile set, falling back to 1 default profile: "default"`. Gọi qua nginx:
+```
+1. Trang chu (nginx tra index.html)            -> 200
+2. Duong SPA khong co file -> index.html       -> 200
+4. Health cong khai                            -> 200
+5. Khong token GET graph                       -> 401 UNAUTHORIZED
+6. Chi header X-Debug-User-Id                  -> 401 UNAUTHORIZED
+7. Token rac                                   -> 401 TOKEN_EXPIRED
+8. Swagger khong mo ra ngoai qua nginx         -> dung
+9. Alex dang nhap that GET graph               -> 200
+10. SSE qua nginx; Sarah doi WPE-002; Alex nhan TASK_STATUS_CHANGED -> dung
+11. Bam AI (Python trong Docker)               -> 200 AI_SERVICE; bam lai -> 429 COOLDOWN_ACTIVE
+13. User thuong goi API admin                  -> 403 ACCESS_DENIED
+14. Admin goi API admin                        -> 200
+15. Gui X-Forwarded-For gia 1.2.3.4            -> nhat ky ghi IP that, khong ghi IP gia
+16. Lam moi token                              -> 200
+```
+Trình duyệt (Sarah, profile mặc định): đăng nhập → mở dự án → Kanban → Start Task (`PATCH /nodes/2/status` 200) → đổi trạng thái WPE-002 từ nơi khác → trang My Tasks tự tải lại, task sang cột In Progress không cần tải lại trang. Console không có lỗi.
 
 ### Điều chưa chắc / cần nhóm quyết
+- Bảng Kanban trong trang Workflow (ngăn phase) không nghe realtime; chỉ trang My Tasks và chuông thông báo tự cập nhật. Cần B/C quyết có nối thêm không.
+- Bước 4 (B, D tự rà các controller khác của mảng mình) chưa có ghi chép trong file này.
+- Trạng thái để "chờ kiểm" để nhóm duyệt; người làm không tự ghi "xong".
 
 ## Nhật ký sprint (chế độ làm nhanh — xem `docs/tasks/SPRINT_2_NGAY.md`)
 Đã học lại: chưa
