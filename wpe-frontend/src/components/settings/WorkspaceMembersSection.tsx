@@ -37,6 +37,8 @@ function formatDate(iso: string): string {
   }
 }
 
+const displayName = (member: ProjectMemberDetail): string => member.fullName?.trim() || member.username
+
 export function WorkspaceMembersSection({
   members,
   pendingInvitations = [],
@@ -54,7 +56,7 @@ export function WorkspaceMembersSection({
   const handleRoleSelect = (member: ProjectMemberDetail, targetRole: ProjectRole) => {
     if (targetRole === member.role) return
     if (targetRole === 'OWNER') {
-      const targetName = member.username || 'this member'
+      const targetName = displayName(member) || 'this member'
       const confirmed = window.confirm(
         `Transfer project ownership to ${targetName}? You will become a Collaborator.`
       )
@@ -108,7 +110,7 @@ export function WorkspaceMembersSection({
                     role="link"
                     tabIndex={0}
                     title="View profile"
-                    aria-label={`View profile of ${member.username}`}
+                    aria-label={`View profile of ${displayName(member)}`}
                     onClick={() => navigate('/people/' + member.userId)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -121,7 +123,7 @@ export function WorkspaceMembersSection({
                     {member.avatarUrl ? (
                       <img
                         src={member.avatarUrl}
-                        alt={member.username}
+                        alt={displayName(member)}
                         className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
                       />
                     ) : (
@@ -134,7 +136,7 @@ export function WorkspaceMembersSection({
                       </span>
                     )}
                     <div className="min-w-0">
-                      <div className="truncate text-[13px] font-semibold text-slate-800 hover:text-indigo-600">{member.username}</div>
+                      <div className="truncate text-[13px] font-semibold text-slate-800 hover:text-indigo-600">{displayName(member)}</div>
                       <div className="truncate text-[11px] text-slate-400">{member.email}</div>
                     </div>
                   </div>

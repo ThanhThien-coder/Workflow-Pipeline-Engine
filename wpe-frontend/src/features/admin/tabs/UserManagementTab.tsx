@@ -184,7 +184,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
       {/* Users Table */}
       <div className="admin-surface overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-[930px] w-full text-left text-sm">
+          <table className="min-w-[1120px] w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-5 py-4 font-semibold">User Info</th>
@@ -246,7 +246,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                     <td className="px-4 py-4">{formatStatusBadge(user.status)}</td>
 
                     {/* Actions */}
-                    <td className="px-5 py-4 text-right">
+                    <td className="min-w-[340px] px-5 py-4 text-right">
                       {(() => {
                         const isCurrent =
                           currentUserId !== undefined &&
@@ -258,7 +258,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                         const canDelete = !isAdmin && !isCurrent;
 
                         return (
-                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5 [&>button]:whitespace-nowrap">
                             {/* Change Role: Nâng quản trị / Hạ về người dùng */}
                             {!isCurrent && user.role === 'STANDARD_USER' && (
                               <button

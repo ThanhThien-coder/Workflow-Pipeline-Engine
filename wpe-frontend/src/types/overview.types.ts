@@ -91,6 +91,8 @@ export interface GuestAccessState {
   token: string
   expiresAt: ISODateTime
   expiresLabel: string
+  /** true only when this session revoked a link; the backend cannot tell "never created" from "revoked" */
+  revoked?: boolean
 }
 export interface GuestAccessActions {
   copyLink: () => Promise<void>

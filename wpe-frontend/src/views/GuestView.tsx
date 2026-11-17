@@ -20,6 +20,7 @@ import type {
   GuestSessionDto,
   GuestStatusKey,
 } from '../types/guest.types'
+import { pluralize } from '../utils/pluralize'
 
 type Phase =
   | { kind: 'loading' }
@@ -388,7 +389,7 @@ function Overview({
         } else if (err.status === 429) {
           const sec = err.retryAfterSeconds ?? 60
           const minutes = Math.max(1, Math.ceil(sec / 60))
-          setFeedbackError(`You have sent too much feedback. Please try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`)
+          setFeedbackError(`You have sent too much feedback. Please try again in ${pluralize(minutes, 'minute')}.`)
         } else if (err.status === 400) {
           setFeedbackError(err.message)
         } else {
@@ -465,7 +466,7 @@ function Overview({
         {data && (
           <>
             <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard icon={<GitBranch size={18} />} tone="bg-indigo-50 text-indigo-600" label="Total Nodes" value={data.totalNodes} sub={`${data.criticalNodes} nodes on critical path`} />
+              <StatCard icon={<GitBranch size={18} />} tone="bg-indigo-50 text-indigo-600" label="Total Nodes" value={data.totalNodes} sub={`${pluralize(data.criticalNodes, 'node')} on critical path`} />
               <StatCard icon={<CheckCircle2 size={18} />} tone="bg-emerald-50 text-emerald-600" label="Completion" value={`${data.completionPct}%`} sub={`${data.completedNodes} / ${data.totalNodes} nodes completed`} right={<Ring pct={data.completionPct} />} />
               <StatCard icon={<AlertCircle size={18} />} tone="bg-red-50 text-red-600" label="Overdue" value={data.overdueCount} sub={`${data.blockingCount} blocking release`} />
             </div>
@@ -477,7 +478,7 @@ function Overview({
                   <div className="mt-4 flex h-44 items-end gap-3">
                     {data.velocity.map((v) => (
                       <div key={v.day} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-                        <div className={clsx('bar animate-bar w-full max-w-[40px] rounded-t-md', v.value === peak ? 'bg-emerald-500' : 'bg-indigo-300')} style={{ height: `${(v.value / peak) * 100}%` }} title={`${v.value} tasks`} />
+                        <div className={clsx('bar animate-bar w-full max-w-[40px] rounded-t-md', v.value === peak ? 'bg-emerald-500' : 'bg-indigo-300')} style={{ height: `${(v.value / peak) * 100}%` }} title={pluralize(v.value, 'task')} />
                         <span className="text-[11px] text-slate-500">{v.day}</span>
                       </div>
                     ))}
@@ -487,7 +488,7 @@ function Overview({
                 <section className="rise rounded-2xl border border-slate-200 bg-white p-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-sm font-bold text-slate-900">Task Status Breakdown</h2>
-                    <span className="text-xs text-slate-500">Total {data.totalTasks} tasks</span>
+                    <span className="text-xs text-slate-500">Total {pluralize(data.totalTasks, 'task')}</span>
                   </div>
                   <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
                     {data.totalTasks > 0 && data.statusBreakdown.map((s) => <div key={s.key} className={STATUS_BAR[s.key]} style={{ width: `${(s.count / data.totalTasks) * 100}%` }} />)}

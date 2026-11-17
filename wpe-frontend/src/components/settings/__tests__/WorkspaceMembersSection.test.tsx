@@ -171,4 +171,22 @@ describe('WorkspaceMembersSection Component', () => {
     fireEvent.keyDown(link, { key: 'Enter' })
     expect(window.location.pathname).toBe('/people/usr-1')
   })
+
+  it('shows the full name when available and falls back to username', () => {
+    const named: ProjectMemberDetail = { ...mockMember, userId: 'usr-2', username: 'ui-k7q2x', fullName: 'UI Tester', email: 'ui@example.com' }
+    const unnamed: ProjectMemberDetail = { ...mockMember, userId: 'usr-3', username: 'plain.user', fullName: null, email: 'plain@example.com' }
+    render(
+      <WorkspaceMembersSection
+        members={[named, unnamed]}
+        simulatedRole="OWNER"
+        onOpenInvite={vi.fn()}
+        onRoleChange={vi.fn()}
+        onPromptDemote={vi.fn()}
+        onPromptKick={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('UI Tester')).toBeDefined()
+    expect(screen.queryByText('ui-k7q2x')).toBeNull()
+    expect(screen.getByText('plain.user')).toBeDefined()
+  })
 })

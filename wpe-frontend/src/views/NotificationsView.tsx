@@ -47,16 +47,18 @@ export default function NotificationsView() {
               {unreadCount === 0 ? 'You are all caught up' : `${unreadCount} unread`}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void markAllRead()}
-            disabled={unreadCount === 0 || loading}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-default disabled:text-slate-400 disabled:hover:bg-transparent sm:text-sm cursor-pointer"
-          >
-            <CheckCheck size={16} />
-            <span className="hidden sm:inline">Mark all as read</span>
-            <span className="sm:hidden">Mark all</span>
-          </button>
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={() => void markAllRead()}
+              disabled={loading}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-default disabled:text-slate-400 disabled:hover:bg-transparent sm:text-sm cursor-pointer"
+            >
+              <CheckCheck size={16} />
+              <span className="hidden sm:inline">Mark all as read</span>
+              <span className="sm:hidden">Mark all</span>
+            </button>
+          )}
         </div>
       </header>
 

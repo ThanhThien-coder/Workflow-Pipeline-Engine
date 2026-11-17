@@ -144,10 +144,12 @@ export default function NotificationBell() {
         <div role="dialog" aria-label="Notifications" className="pop absolute right-0 top-full z-50 mt-2 w-[380px] max-w-[calc(100vw-1rem)] origin-top-right overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-bold text-slate-900">Notifications</h2>
-            <button type="button" onClick={() => void markAllRead()} disabled={unreadCount === 0}
-              className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline disabled:cursor-default disabled:text-slate-400 disabled:no-underline">
-              <CheckCheck size={14} /> Mark all as read
-            </button>
+            {unreadCount > 0 && (
+              <button type="button" onClick={() => void markAllRead()}
+                className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline">
+                <CheckCheck size={14} /> Mark all as read
+              </button>
+            )}
           </div>
 
           <div className="max-h-96 overflow-y-auto">

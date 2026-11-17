@@ -105,9 +105,8 @@ export const AuthView: FC = () => {
           password: f.pw,
           rememberMe: remember,
         })
-        const who = f.email.includes('@')
-          ? f.email.split('@')[0].replace(/[._]/g, ' ')
-          : f.email
+        const signedIn = useWorkflowStore.getState().auth.currentUser
+        const who = signedIn?.name?.trim() || signedIn?.username || f.email.trim()
         showToast(`Welcome back, ${who}! Redirecting to Workspace...`)
       }
 

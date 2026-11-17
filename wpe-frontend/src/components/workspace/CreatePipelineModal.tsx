@@ -3,6 +3,7 @@ import { Layers, Loader2 } from 'lucide-react'
 import { StatusBadge } from '../common/StatusBadge'
 import { container } from '../../services/container'
 import type { TemplateSummaryDto } from '../../types/template.types'
+import { pluralize } from '../../utils/pluralize'
 
 interface CreatePipelineModalProps {
   isOpen: boolean
@@ -178,7 +179,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
               <option value="">Blank project (default)</option>
               {templates.map((tpl) => (
                 <option key={tpl.id} value={tpl.id}>
-                  {tpl.name}{tpl.visibility === 'PRIVATE' ? ' [Mine]' : ''} ({tpl.category} · {tpl.phaseCount} phases, {tpl.nodeCount} tasks)
+                  {tpl.name}{tpl.visibility === 'PRIVATE' ? ' [Mine]' : ''} ({tpl.category} · {pluralize(tpl.phaseCount, 'phase')}, {pluralize(tpl.nodeCount, 'task')})
                 </option>
               ))}
             </select>

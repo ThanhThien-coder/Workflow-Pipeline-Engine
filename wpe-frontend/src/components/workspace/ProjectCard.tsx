@@ -3,6 +3,7 @@ import type { ProjectCardVm, ProjectTone } from '../../types/workspace.types'
 import { StatusBadge } from '../common/StatusBadge'
 import { RoleBadge } from '../common/RoleBadge'
 import { Avatar } from '../common/Avatar'
+import { pluralize } from '../../utils/pluralize'
 
 const TONES: Record<ProjectTone, string> = {
   indigo: 'bg-indigo-100 text-indigo-600',
@@ -75,7 +76,7 @@ export const ProjectCard: FC<ProjectCardProps> = ({ p, index, onOpen }) => {
         <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-2">
           <BranchIcon />
           <span>
-            {p.nodes} nodes · {p.crit} on critical path
+            {pluralize(p.nodes, 'node')} · {p.crit} on critical path
           </span>
         </div>
       </div>

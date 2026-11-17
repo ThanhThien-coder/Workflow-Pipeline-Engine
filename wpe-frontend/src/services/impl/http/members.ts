@@ -47,6 +47,7 @@ export function mapMemberResponse(item: BackendMemberResponse): ProjectMemberDet
   return {
     userId: uid,
     username,
+    fullName: item.fullName?.trim() || null,
     email: item.email || '',
     role: item.role as ProjectRole,
     joinedAt: item.joinedAt ? new Date(item.joinedAt).toISOString() : new Date().toISOString(),

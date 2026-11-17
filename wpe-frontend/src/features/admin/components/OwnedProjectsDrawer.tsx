@@ -1,6 +1,7 @@
 import { useState, useEffect, type FC } from 'react';
 import type { AdminUserDto, OwnedProjectDto } from '../../../types/admin.types';
 import { X, FolderGit2, Users, Loader2 } from 'lucide-react';
+import { pluralize } from '../../../utils/pluralize'
 
 export interface OwnedProjectsDrawerProps {
   user: AdminUserDto | null;
@@ -126,7 +127,7 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <Users className="h-3.5 w-3.5 text-slate-400" />
-                          {proj.memberCount} members
+                          {pluralize(proj.memberCount, 'member')}
                         </span>
                       </div>
                     </div>

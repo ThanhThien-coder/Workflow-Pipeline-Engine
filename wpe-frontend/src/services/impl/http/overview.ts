@@ -26,6 +26,7 @@ import type {
 } from '../../../types/workflow.types'
 import { getSavedAvatar } from '../../../utils/avatarUtils'
 import type { ProjectActivityItem } from './activity'
+import { pluralize } from '../../../utils/pluralize'
 
 export interface OverviewGraphNode extends BackendGraphNodeDto {
   isOverdue?: boolean | null
@@ -480,7 +481,7 @@ export function formatPhaseLabel(status: string, phaseCount: number): string {
   }
   const statusLabel = statusMap[status] || status || 'Active'
   if (phaseCount > 0) {
-    return `${phaseCount} phase${phaseCount > 1 ? 's' : ''} · ${statusLabel}`
+    return `${pluralize(phaseCount, 'phase')} · ${statusLabel}`
   }
   return statusLabel
 }

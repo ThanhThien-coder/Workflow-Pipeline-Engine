@@ -1,5 +1,6 @@
 import { Layers, Search } from 'lucide-react'
 import type { KanbanTask, PhaseFilterId } from '../../types/kanban.types'
+import { pluralize } from '../../utils/pluralize'
 
 /** Lựa chọn lọc phase: một mục cho mỗi phase thật có trong danh sách task (giữ thứ tự xuất hiện) kèm số task. */
 function phaseOptions(tasks: KanbanTask[]): { id: string; label: string; count: number }[] {
@@ -51,7 +52,7 @@ export function KanbanToolbar({ query, phase, tasks, onQuery, onPhase }: { query
           {missing && <option value={phase}>Phase {phase} (0)</option>}
         </select>
       </label>
-      <div className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs">Total: {tasks.length} tasks <span className="text-slate-300">|</span> <b className="text-blue-600">In Progress: {tasks.filter((task) => task.status === 'IN_PROGRESS').length}</b> <span className="text-slate-300">|</span> <b className={tasks.some((task) => task.isOverdue) ? 'text-red-600' : ''}>Overdue: {tasks.filter((task) => task.isOverdue).length}</b></div>
+      <div className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs">Total: {pluralize(tasks.length, 'task')} <span className="text-slate-300">|</span> <b className="text-blue-600">In Progress: {tasks.filter((task) => task.status === 'IN_PROGRESS').length}</b> <span className="text-slate-300">|</span> <b className={tasks.some((task) => task.isOverdue) ? 'text-red-600' : ''}>Overdue: {tasks.filter((task) => task.isOverdue).length}</b></div>
     </div>
   )
 }

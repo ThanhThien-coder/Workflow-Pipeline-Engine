@@ -38,6 +38,7 @@ function fillAndSubmit(fields: Record<string, string>) {
 
 describe('AuthView: báo lỗi theo ApiError.code', () => {
   const originalAuth = useWorkflowStore.getState().auth
+  const originalUi = useWorkflowStore.getState().ui
 
   beforeEach(() => {
     window.history.replaceState({}, '', '/auth?tab=signin')
@@ -45,7 +46,7 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
 
   afterEach(() => {
     cleanup()
-    useWorkflowStore.setState({ auth: originalAuth })
+    useWorkflowStore.setState({ auth: originalAuth, ui: originalUi })
   })
 
   it.each([
@@ -100,6 +101,41 @@ describe('AuthView: báo lỗi theo ApiError.code', () => {
     await waitFor(() => {
       expect(window.location.pathname).toBe('/workspaces')
     })
+  })
+
+  it('toast đăng nhập dùng họ tên từ phản hồi đăng nhập, không lấy từ email', async () => {
+    const showToast = vi.fn()
+    const login = vi.fn().mockImplementation(async () => {
+      useWorkflowStore.setState((s) => ({
+        auth: {
+          ...s.auth,
+          currentUser: { id: 3, username: 'sarah.c', name: 'Sarah Chen', email: 'sarah.chen@pipeline.engine', systemRole: 'USER' },
+        },
+      }))
+    })
+    useWorkflowStore.setState((s) => ({ auth: { ...s.auth, login }, ui: { ...s.ui, showToast } }))
+    render(<AuthView />)
+
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'sarah.chen@pipeline.engine', 'Enter your password': 'Password123!' })
+
+    await waitFor(() => expect(showToast).toHaveBeenCalled())
+    expect(showToast.mock.calls[0][0]).toContain('Welcome back, Sarah Chen!')
+  })
+
+  it('toast đăng nhập: không có họ tên thì dùng username', async () => {
+    const showToast = vi.fn()
+    const login = vi.fn().mockImplementation(async () => {
+      useWorkflowStore.setState((s) => ({
+        auth: { ...s.auth, currentUser: { id: 4, username: 'ui-k7q2x', email: 'ui@pipeline.engine', systemRole: 'USER' } },
+      }))
+    })
+    useWorkflowStore.setState((s) => ({ auth: { ...s.auth, login }, ui: { ...s.ui, showToast } }))
+    render(<AuthView />)
+
+    fillAndSubmit({ 'alex.kim@pipeline.engine': 'ui@pipeline.engine', 'Enter your password': 'Password123!' })
+
+    await waitFor(() => expect(showToast).toHaveBeenCalled())
+    expect(showToast.mock.calls[0][0]).toContain('Welcome back, ui-k7q2x!')
   })
 
   it('đăng nhập thành công với vai trò ADMIN -> điều hướng tới /admin', async () => {
