@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import type { NavigationTab } from '../../store/useWorkflowStore'
 import { getSavedAvatar } from '../../utils/avatarUtils'
+import { navigate } from '../../router/useRouter'
 
 export interface NavItemDef {
   id: NavigationTab
@@ -422,12 +423,12 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
                   const avatar =
                     'avatarUrl' in m && m.avatarUrl ? m.avatarUrl : getSavedAvatar(name)
                   const bgClass = m.avatarClass || 'bg-blue-500'
+                  const memberId = ('userId' in m ? m.userId : m.id) || ''
 
-                  return avatar ? (
+                  const face = avatar ? (
                     <motion.img
                       whileHover={{ y: -3, scale: 1.15 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      key={('userId' in m ? m.userId : m.id) || idx}
                       src={avatar}
                       alt={name}
                       title={name}
@@ -437,12 +438,27 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
                     <motion.span
                       whileHover={{ y: -3, scale: 1.15 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      key={('userId' in m ? m.userId : m.id) || idx}
                       title={name}
                       className={`grid h-8 w-8 place-items-center rounded-full border-2 border-blue-600 text-[10px] font-bold text-white shadow-md ring-1 ring-white/20 ${bgClass}`}
                     >
                       {initials}
                     </motion.span>
+                  )
+
+                  if (!memberId) {
+                    return <span key={idx}>{face}</span>
+                  }
+                  return (
+                    <button
+                      type="button"
+                      key={memberId}
+                      title="View profile"
+                      aria-label={`View profile of ${name}`}
+                      onClick={() => navigate('/people/' + memberId)}
+                      className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    >
+                      {face}
+                    </button>
                   )
                 })
               )}

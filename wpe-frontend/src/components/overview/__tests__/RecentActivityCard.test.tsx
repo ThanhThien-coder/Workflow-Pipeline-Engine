@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { RecentActivityCard } from '../RecentActivityCard'
 import type { ActivityItem } from '../../../types/overview.types'
 
@@ -26,5 +26,17 @@ describe('RecentActivityCard (TASK_55)', () => {
     render(<RecentActivityCard items={[item({})]} />)
     expect(screen.queryByAltText('Alex Kim')).toBeNull()
     expect(screen.getByText('AK')).toBeTruthy()
+  })
+
+  it('TASK_56: bấm tên người làm mở /people/<id>', () => {
+    render(<RecentActivityCard items={[item({ id: '42' })]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Alex Kim' }))
+    expect(window.location.pathname).toBe('/people/42')
+  })
+
+  it('TASK_56: hoạt động hệ thống (không có actor.id) không bấm được', () => {
+    render(<RecentActivityCard items={[item({ id: null, name: 'System' })]} />)
+    expect(screen.queryByRole('button', { name: /System/ })).toBeNull()
+    expect(screen.getByText('System')).toBeTruthy()
   })
 })

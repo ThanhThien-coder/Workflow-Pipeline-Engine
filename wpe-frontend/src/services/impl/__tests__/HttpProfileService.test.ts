@@ -6,7 +6,7 @@ import { HttpProfileService, formatAgo, mapProfileError } from '../HttpProfileSe
 import { HttpWorkflowService } from '../HttpWorkflowService'
 import { saveSession, REFRESH_TOKEN_KEY } from '../http/auth'
 import { ApiError } from '../../http/ApiError'
-import { ProfileError } from '../../../types/profile.types'
+import { ProfileError, ProfileNotFoundError } from '../../../types/profile.types'
 import { createWorkflowStore, useWorkflowStore } from '../../../store/useWorkflowStore'
 import { useProfileStore } from '../../../store/useProfileStore'
 import { GlobalProfileMenu } from '../../../components/common/GlobalProfileMenu'
@@ -111,6 +111,52 @@ describe('HttpProfileService: 9 chức năng API thật', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('TASK_56: getUserProfile gọi GET /users/{id}/profile và ánh xạ email/stats null', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        userId: '7',
+        displayName: 'Sam Lee',
+        title: null,
+        bio: null,
+        avatarUrl: '/uploads/avatars/example-sam.png',
+        skills: ['Figma'],
+        links: { github: 'https://github.com/samlee', linkedin: null, website: null },
+        email: null,
+        stats: null,
+        projects: [
+          {
+            projectId: '10',
+            name: 'Project Alpha',
+            phaseLabel: 'Active',
+            role: 'Collaborator',
+            contribution: 'x',
+            isPublic: true,
+            stats: { tasksDone: 1, tasksTotal: 2, onTimePct: 100 },
+          },
+        ],
+        isSelf: false,
+      }),
+    )
+
+    const dto = await service.getUserProfile('7')
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('http://localhost:8080/api/v1/users/7/profile')
+    expect(init?.method).toBe('GET')
+    expect(dto.userId).toBe('7')
+    expect(dto.title).toBe('')
+    expect(dto.email).toBeNull()
+    expect(dto.stats).toBeNull()
+    expect(dto.isSelf).toBe(false)
+    expect(dto.links.linkedin).toBe('')
+    expect(dto.projects[0].projectId).toBe('10')
+  })
+
+  it('TASK_56: getUserProfile gặp 404 thì ném ProfileNotFoundError', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(404, { error: 'NOT_FOUND', message: 'Profile not found.' }))
+    await expect(service.getUserProfile('7')).rejects.toBeInstanceOf(ProfileNotFoundError)
   })
 
   it('1. getMyProfile: GET /users/me/profile, ánh xạ activity.ago và updateStoredUser', async () => {

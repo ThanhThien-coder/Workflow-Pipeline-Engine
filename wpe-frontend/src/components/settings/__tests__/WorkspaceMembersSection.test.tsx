@@ -151,4 +151,24 @@ describe('WorkspaceMembersSection Component', () => {
 
     confirmSpy.mockRestore()
   })
+
+  it('TASK_56: bấm hàng thành viên điều hướng tới /people/<userId>, bàn phím Enter cũng được', () => {
+    render(
+      <WorkspaceMembersSection
+        members={[mockMember]}
+        simulatedRole="OWNER"
+        onOpenInvite={vi.fn()}
+        onRoleChange={vi.fn()}
+        onPromptDemote={vi.fn()}
+        onPromptKick={vi.fn()}
+      />
+    )
+    const link = screen.getByRole('link', { name: /View profile of alex\.kim/ })
+    fireEvent.click(link)
+    expect(window.location.pathname).toBe('/people/usr-1')
+
+    window.history.pushState({}, '', '/')
+    fireEvent.keyDown(link, { key: 'Enter' })
+    expect(window.location.pathname).toBe('/people/usr-1')
+  })
 })

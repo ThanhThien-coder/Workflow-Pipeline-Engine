@@ -293,6 +293,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
    - `src/views/ProfileView.tsx` -> `useProfileStore` (`loadProfile`, `updateProfileData`) -> `container.profileService.getMyProfile()`, `updateProfile(cmd)` -> `IProfileService.getMyProfile()`, `updateProfile()`.
 3. **Request DTO**:
    - **Method & URL**: `GET /api/users/me/profile`, `PUT /api/users/me/profile`
+   - **Xem hồ sơ người khác (TASK_56)**: `GET /api/v1/users/{id}/profile` (cần đăng nhập) -> `PublicProfileDto` (`email`/`stats` có thể `null`, `isSelf`); không được xem (không tồn tại, đã xóa/vô hiệu hóa, `private`, `members` mà không chung dự án) -> `404`. Route FE: `/people/:id`.
    - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
    - **Body JSON (PUT)**:
      ```json

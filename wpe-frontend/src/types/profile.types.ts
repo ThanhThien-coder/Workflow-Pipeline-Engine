@@ -85,3 +85,27 @@ export interface ChangePasswordCommand {
   currentPassword: string
   newPassword: string
 }
+
+/** Thrown when another user's profile is private, hidden from the viewer, or does not exist (HTTP 404). */
+export class ProfileNotFoundError extends Error {
+  constructor() {
+    super('Profile not found')
+    this.name = 'ProfileNotFoundError'
+  }
+}
+
+/** What another signed-in user is allowed to see. email/stats are null when the owner hides them. */
+export interface PublicProfileDto {
+  userId: string
+  displayName: string
+  title: string
+  bio: string
+  avatarUrl: string | null
+  skills: readonly string[]
+  links: ProfileLinksDto
+  email: string | null
+  stats: ProfileProjectStats | null
+  projects: readonly ProfileProjectDto[]
+  /** true when the viewer is looking at their own profile */
+  isSelf: boolean
+}

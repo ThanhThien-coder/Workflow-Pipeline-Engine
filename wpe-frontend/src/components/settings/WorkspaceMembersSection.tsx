@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Clock, History, Mail, Trash2, UserPlus, UserX } from 'lucide-react'
+import { navigate } from '../../router/useRouter'
 import type {
   ProjectInvitationDto,
   ProjectMemberDetail,
@@ -103,7 +104,20 @@ export function WorkspaceMembersSection({
             {members.map((member) => (
               <tr key={member.userId} className="transition-colors hover:bg-slate-50/60">
                 <td className="px-3 py-2.5">
-                  <div className="flex items-center gap-2.5">
+                  <div
+                    role="link"
+                    tabIndex={0}
+                    title="View profile"
+                    aria-label={`View profile of ${member.username}`}
+                    onClick={() => navigate('/people/' + member.userId)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate('/people/' + member.userId)
+                      }
+                    }}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                  >
                     {member.avatarUrl ? (
                       <img
                         src={member.avatarUrl}
@@ -120,7 +134,7 @@ export function WorkspaceMembersSection({
                       </span>
                     )}
                     <div className="min-w-0">
-                      <div className="truncate text-[13px] font-semibold text-slate-800">{member.username}</div>
+                      <div className="truncate text-[13px] font-semibold text-slate-800 hover:text-indigo-600">{member.username}</div>
                       <div className="truncate text-[11px] text-slate-400">{member.email}</div>
                     </div>
                   </div>
