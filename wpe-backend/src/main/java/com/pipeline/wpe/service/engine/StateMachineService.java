@@ -244,7 +244,7 @@ public class StateMachineService {
             );
         }
 
-        NodeEntity saved = nodeRepository.save(node);
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
 
         boolean isRejected = (targetStatus == NodeStatus.TODO && currentStatus == NodeStatus.REVIEW);
@@ -318,7 +318,7 @@ public class StateMachineService {
         // Chuyển sang REVIEW
         node.setStatus(NodeStatus.REVIEW);
         node.setRejectReason(null);
-        NodeEntity savedNode = nodeRepository.save(node);
+        NodeEntity savedNode = nodeRepository.saveAndFlush(node);
 
         // Lưu Artifact nếu có gửi kèm. Nộp bài không kèm link vẫn hợp lệ (artifactResponse = null).
         NodeArtifactResponse artifactResponse = null;
@@ -428,7 +428,7 @@ public class StateMachineService {
         // Lưu ai mở, lúc nào: không bị khóa lại khi sửa dây phụ thuộc, và hiện trong nhật ký hoạt động
         node.setForceUnlockedBy(currentUserId);
         node.setForceUnlockedAt(Instant.now());
-        NodeEntity saved = nodeRepository.save(node);
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
         KanbanTaskResponse response = nodeMapper.toKanbanTaskResponse(saved);
 
         projectRealtimeNotifier.notifyTasksChanged(

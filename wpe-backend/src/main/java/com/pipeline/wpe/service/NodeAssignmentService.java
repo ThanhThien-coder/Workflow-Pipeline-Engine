@@ -72,7 +72,7 @@ public class NodeAssignmentService {
             }
         }
 
-        NodeEntity saved = nodeRepository.save(node);
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
         projectRealtimeNotifier.notifyTasksChanged(
             saved.getProjectId(),
             saved.getPhaseId(),

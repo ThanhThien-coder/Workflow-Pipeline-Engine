@@ -127,6 +127,7 @@ class StateMachineServiceMatrixTest {
         when(nodeRepository.findById(TASK_ID)).thenReturn(Optional.of(node));
         when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
         when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(response);
 
         // Thành viên đang hoạt động của dự án. REMOVED_MANAGER không có bản ghi nào → Optional.empty().
@@ -174,7 +175,7 @@ class StateMachineServiceMatrixTest {
         stateMachineService.updateStatus(TASK_ID, move(to, reason), role.userId);
 
         assertThat(node.getStatus()).isEqualTo(to);
-        verify(nodeRepository).save(node);
+        verify(nodeRepository).saveAndFlush(node);
     }
 
     static Stream<Arguments> forbiddenTransitions() {
@@ -207,6 +208,8 @@ class StateMachineServiceMatrixTest {
 
         assertThat(node.getStatus()).isEqualTo(from);
         verify(nodeRepository, never()).save(any());
+        verify(nodeRepository, never()).saveAndFlush(any());
+        verify(nodeRepository, never()).saveAndFlush(any());
         verify(eventPublisher, never()).publishTaskCompleted(any());
     }
 
@@ -237,6 +240,7 @@ class StateMachineServiceMatrixTest {
 
         assertThat(node.getStatus()).isEqualTo(from);
         verify(nodeRepository, never()).save(any());
+        verify(nodeRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -364,6 +368,7 @@ class StateMachineServiceMatrixTest {
                 .isInstanceOf(IllegalArgumentException.class);
             assertThat(node.getStatus()).isEqualTo(NodeStatus.REVIEW);
             verify(nodeRepository, never()).save(any());
+            verify(nodeRepository, never()).saveAndFlush(any());
         }
 
         @Test
@@ -421,6 +426,7 @@ class StateMachineServiceMatrixTest {
                 .extracting("errorCode").isEqualTo("PROJECT_ARCHIVED");
             assertThat(node.getStatus()).isEqualTo(NodeStatus.TODO);
             verify(nodeRepository, never()).save(any());
+            verify(nodeRepository, never()).saveAndFlush(any());
         }
 
         @Test
