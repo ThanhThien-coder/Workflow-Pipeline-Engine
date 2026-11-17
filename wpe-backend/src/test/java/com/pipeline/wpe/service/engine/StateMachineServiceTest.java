@@ -21,6 +21,7 @@ import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,6 +67,9 @@ class StateMachineServiceTest {
 
     @Mock
     private SseEmitterService sseEmitterService;
+
+    @Mock
+    private ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @Mock
     private NodeMapper nodeMapper;
@@ -158,6 +162,7 @@ class StateMachineServiceTest {
         assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.DONE);
         assertThat(mockNode.getCompletedAt()).isNotNull();
         verify(eventPublisher).publishTaskCompleted(any(TaskCompletedEvent.class));
+        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), taskId, "STATUS_CHANGED");
     }
 
     @Test

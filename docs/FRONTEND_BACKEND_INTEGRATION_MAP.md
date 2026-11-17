@@ -861,6 +861,7 @@ Toàn bộ hệ thống lập tức chuyển sang vận hành trên dữ liệu 
      | `TASK_REJECTED` | `KanbanTaskResponse` | Owner từ chối bài (gửi người phụ trách) |
      | `NOTIFICATION_RECEIVED` | `NotificationResponse` `{ id (chuỗi), title, message, linkUrl, isRead, createdAt }` | Có thông báo mới, kể cả lời mời |
      | `TASK_OVERDUE` | `KanbanTaskResponse` | Bộ quét trễ hạn (15 phút) đánh dấu task trễ hạn |
+     | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason }` | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
 
      FE hiện mới nghe `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `NOTIFICATION_RECEIVED`; `TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE` và `PING` chưa có listener (FE nối ở C6, chuông ở C3).
    - Lời mời (C2): `InvitationCreatedEvent` / `InvitationAcceptedEvent` đi routing key `wpe.invitation.created` / `wpe.invitation.accepted` vào queue riêng `wpe.invitation.queue`. `InvitationEventConsumer` đẩy `NOTIFICATION_RECEIVED` cho người được mời **đúng 1 lần** bằng bản ghi `ProjectInvitationService` đã lưu, không lưu thêm.

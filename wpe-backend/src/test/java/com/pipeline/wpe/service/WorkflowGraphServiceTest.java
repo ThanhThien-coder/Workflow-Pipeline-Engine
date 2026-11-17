@@ -25,6 +25,7 @@ import com.pipeline.wpe.dto.request.graph.UpdateNodeMetadataRequest;
 import com.pipeline.wpe.dto.request.graph.UpdateNodeRequest;
 import org.springframework.dao.OptimisticLockingFailureException;
 import com.pipeline.wpe.mapper.NodeMapper;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.service.engine.KahnDagService;
@@ -74,6 +75,9 @@ class WorkflowGraphServiceTest {
 
     @Mock
     private SseEmitterService sseEmitterService;
+
+    @Mock
+    private ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @Mock
     private NodeMapper nodeMapper;
@@ -1007,6 +1011,7 @@ class WorkflowGraphServiceTest {
 
         verify(nodeDependencyRepository).deleteAll(outgoing);
         verify(nodeRepository).delete(n);
+        verify(projectRealtimeNotifier).notifyTasksChanged(1L, null, 100L, "NODE_DELETED");
         assertEquals(NodeStatus.TODO, child.getStatus());
     }
 

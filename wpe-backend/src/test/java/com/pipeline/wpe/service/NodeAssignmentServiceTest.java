@@ -11,6 +11,7 @@ import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NodeAssignmentServiceTest {
@@ -40,6 +41,9 @@ class NodeAssignmentServiceTest {
 
     @Mock
     private ProjectAuthorizationService authorizationService;
+
+    @Mock
+    private ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @InjectMocks
     private NodeAssignmentService nodeAssignmentService;
@@ -89,6 +93,7 @@ class NodeAssignmentServiceTest {
 
         assertThat(response.assignedUserId()).isEqualTo(String.valueOf(newAssigneeId));
         assertThat(mockNode.getAssignedUserId()).isEqualTo(newAssigneeId);
+        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), nodeId, "ASSIGNMENT_CHANGED");
     }
 
     @Test

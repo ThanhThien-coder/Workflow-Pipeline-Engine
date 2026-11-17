@@ -15,6 +15,7 @@ import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.SseEmitterService;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,7 @@ class SubmitTaskArtifactTest {
     @Mock private ArtifactRepository artifactRepository;
     @Mock private WorkflowEventPublisher eventPublisher;
     @Mock private SseEmitterService sseEmitterService;
+    @Mock private ProjectRealtimeNotifier projectRealtimeNotifier;
     @Mock private NodeMapper nodeMapper;
 
     @InjectMocks
