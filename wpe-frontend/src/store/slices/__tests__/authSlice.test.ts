@@ -129,4 +129,43 @@ describe('Auth Module (authSlice)', () => {
 
     expect(localStorage.getItem('wpe_user_avatar')).toBe(newAvatar)
   })
+
+  it('patchCurrentUser: cập nhật trường trong currentUser trên bộ nhớ không gọi mạng', async () => {
+    await store.getState().auth.login({
+      identifier: 'alex.kim@pipeline.engine',
+      password: 'password123',
+      rememberMe: true,
+    })
+
+    store.getState().auth.patchCurrentUser({
+      name: 'Alex Pro',
+      avatarUrl: '/uploads/avatars/alex.png',
+      email: 'alex.pro@pipeline.engine',
+    })
+
+    const user = store.getState().auth.currentUser
+    expect(user?.name).toBe('Alex Pro')
+    expect(user?.avatarUrl).toBe('/uploads/avatars/alex.png')
+    expect(user?.email).toBe('alex.pro@pipeline.engine')
+    expect(user?.username).toBe('alex.kim')
+  })
+
+  it('endSessionLocally: xóa phiên chỉ trên máy, không gọi mạng logout và không hiện toast hết hạn', async () => {
+    await store.getState().auth.login({
+      identifier: 'alex.kim@pipeline.engine',
+      password: 'password123',
+      rememberMe: true,
+    })
+
+    expect(store.getState().auth.isAuthenticated).toBe(true)
+
+    store.getState().auth.endSessionLocally()
+
+    const authState = store.getState().auth
+    expect(authState.isAuthenticated).toBe(false)
+    expect(authState.currentUser).toBeNull()
+    expect(authState.token).toBeNull()
+    expect(localStorage.getItem('wpe_auth_token')).toBeNull()
+    expect(sessionStorage.getItem('wpe_auth_token')).toBeNull()
+  })
 })

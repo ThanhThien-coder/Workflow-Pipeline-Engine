@@ -92,6 +92,32 @@ export function getStoredUser(): UserDto | null {
   }, null)
 }
 
+export function updateStoredUser(patch: Partial<UserDto>): void {
+  safe(() => {
+    const storage = activeStorage() ?? (localStorage.getItem(AUTH_USER_KEY) ? localStorage : (sessionStorage.getItem(AUTH_USER_KEY) ? sessionStorage : null))
+    if (!storage) return
+    const raw = storage.getItem(AUTH_USER_KEY)
+    if (!raw) return
+    const currentUser = JSON.parse(raw) as UserDto
+    const updated = { ...currentUser, ...patch }
+    storage.setItem(AUTH_USER_KEY, JSON.stringify(updated))
+  }, undefined)
+}
+
+export function replaceSessionTokens(response: AuthResponseDto): void {
+  safe(() => {
+    const storage = activeStorage() ?? (localStorage.getItem(STORAGE_TYPE_KEY) === 'local' ? localStorage : sessionStorage)
+    storage.setItem(AUTH_TOKEN_KEY, response.accessToken)
+    storage.setItem(AUTH_USER_KEY, JSON.stringify(response.user))
+    if (response.refreshToken) {
+      storage.setItem(REFRESH_TOKEN_KEY, response.refreshToken)
+    } else {
+      storage.removeItem(REFRESH_TOKEN_KEY)
+    }
+    onTokenRefreshed(response)
+  }, undefined)
+}
+
 // ───────────────────────── Gọi API ─────────────────────────
 
 /** Lấy `exp` trong JWT để điền expiresAt; không đọc được thì coi hạn 15 phút (hạn access token của A3). */

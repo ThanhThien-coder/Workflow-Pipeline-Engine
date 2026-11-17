@@ -11,6 +11,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/uploads': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   // A2: test luôn chạy chế độ mock, không phụ thuộc .env.local hay biến môi trường của từng máy.

@@ -1,6 +1,33 @@
+import { isMockMode } from '../services/env'
+
 export function getSavedAvatar(nameOrId?: string): string | null {
   try {
     const target = nameOrId?.trim().toLowerCase()
+
+    if (!isMockMode) {
+      const rawUser =
+        (typeof localStorage !== 'undefined' ? localStorage.getItem('wpe_auth_user') : null) ??
+        (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('wpe_auth_user') : null)
+      if (!rawUser) return null
+      const parsed = JSON.parse(rawUser) as {
+        id?: string | number
+        username?: string
+        name?: string | null
+        avatarUrl?: string | null
+      }
+      if (!parsed.avatarUrl) return null
+
+      if (!target) return parsed.avatarUrl
+
+      const uId = parsed.id != null ? String(parsed.id).trim().toLowerCase() : ''
+      const uUsername = parsed.username ? parsed.username.trim().toLowerCase() : ''
+      const uName = parsed.name ? parsed.name.trim().toLowerCase() : ''
+
+      if (target === uId || target === uUsername || target === uName) {
+        return parsed.avatarUrl
+      }
+      return null
+    }
 
     // 1. Check Profile storage
     const rawProfile = localStorage.getItem('wpe_mock_profile_v2')
@@ -55,4 +82,3 @@ export function getSavedAvatar(nameOrId?: string): string | null {
 
   return null
 }
-

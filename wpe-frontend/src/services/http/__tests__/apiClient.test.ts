@@ -104,6 +104,20 @@ describe('apiClient', () => {
     expect(sentHeaders(fetchMock)['Content-Type']).toBe('application/json')
   })
 
+  it('gửi body dạng FormData thì không đặt header Content-Type và gán thẳng init.body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }))
+
+    const formData = new FormData()
+    formData.append('file', new Blob(['test-avatar']), 'avatar.png')
+
+    await apiRequest('POST', '/users/me/avatar', { body: formData })
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe(formData)
+    expect(sentHeaders(fetchMock)['Content-Type']).toBeUndefined()
+  })
+
   it('409: ném ApiError với status, code (trường error), message, validationErrors', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(409, {
