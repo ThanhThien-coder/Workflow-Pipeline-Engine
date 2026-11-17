@@ -54,6 +54,7 @@ export interface BackendGuestActivity {
   actor: string
   text: string
   ago: string
+  avatarUrl?: string | null
 }
 
 export interface BackendGuestOverviewResponse {
@@ -170,6 +171,7 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
       actor: a.actor || 'System',
       text: a.text || '',
       ago: a.ago || 'recently',
+      avatarUrl: a.avatarUrl || null,
     })),
   }
 }

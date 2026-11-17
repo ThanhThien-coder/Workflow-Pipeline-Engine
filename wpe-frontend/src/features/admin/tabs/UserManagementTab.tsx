@@ -2,6 +2,7 @@ import { useState, type FC } from 'react';
 import type { AdminUserDto, AdminRole, UserAccountStatus } from '../../../types/admin.types';
 import { Search, ShieldAlert, Shield } from 'lucide-react';
 import { ConfirmActionModal } from '../components/ConfirmActionModal';
+import { AvatarImage } from '../../../components/common/Avatar';
 
 interface UserManagementTabProps {
   users: AdminUserDto[];
@@ -204,9 +205,16 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                     {/* User Info */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-xs font-bold text-indigo-700 select-none">
-                          {initials}
-                        </div>
+                        <AvatarImage
+                          src={user.avatarUrl}
+                          alt={user.name}
+                          className="h-9 w-9 shrink-0 rounded-full object-cover select-none"
+                          fallback={
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-xs font-bold text-indigo-700 select-none">
+                              {initials}
+                            </div>
+                          }
+                        />
                         <div>
                           <div className="font-bold text-slate-800">{user.name}</div>
                           <div className="font-mono text-[11px] text-slate-400">{user.id}</div>

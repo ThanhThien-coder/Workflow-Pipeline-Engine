@@ -32,7 +32,10 @@ describe('projectMapper', () => {
     expect(vm.roleLabel).toBe('Owner')
     expect(vm.tone).toBe('indigo')
     expect(vm.icon).toBe('◆')
-    expect(vm.members).toEqual(['Alex Kim', 'Sarah Chen'])
+    expect(vm.members).toEqual([
+      { name: 'Alex Kim', avatarUrl: null },
+      { name: 'Sarah Chen', avatarUrl: null },
+    ])
     expect(vm.upd).toContain('2 hours ago')
   })
 

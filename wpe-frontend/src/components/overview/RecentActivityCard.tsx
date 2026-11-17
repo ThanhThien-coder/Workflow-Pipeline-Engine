@@ -1,6 +1,7 @@
 import type { ActivityItem } from '../../types/overview.types'
 import { relativeEn } from '../../utils/relativeTime'
 import { getSavedAvatar } from '../../utils/avatarUtils'
+import { AvatarImage } from '../common/Avatar'
 
 export function RecentActivityCard({ items }: { items: ActivityItem[] }) {
   return (
@@ -17,21 +18,19 @@ export function RecentActivityCard({ items }: { items: ActivityItem[] }) {
 
             return (
               <li key={item.id} className="flex items-center gap-3">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={item.actor.name}
-                    title={item.actor.name}
-                    className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
-                  />
-                ) : (
-                  <span
-                    title={item.actor.name}
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${item.actor.avatarClass}`}
-                  >
-                    {item.actor.initials}
-                  </span>
-                )}
+                <AvatarImage
+                  src={avatarUrl}
+                  alt={item.actor.name}
+                  className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                  fallback={
+                    <span
+                      title={item.actor.name}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${item.actor.avatarClass}`}
+                    >
+                      {item.actor.initials}
+                    </span>
+                  }
+                />
                 <div className="flex-1 text-sm">
                   <b>{item.actor.name}</b> <span className="text-slate-600">{item.message}</span>
                 </div>

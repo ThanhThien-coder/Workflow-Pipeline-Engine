@@ -25,7 +25,7 @@ export interface BackendProjectSummaryResponse {
   criticalPathLength?: number
   completionPercent?: number
   role?: string
-  members?: Array<{ id: number | string; displayName?: string; username?: string }>
+  members?: Array<{ id: number | string; displayName?: string; username?: string; avatarUrl?: string | null }>
 }
 
 /**
@@ -73,6 +73,7 @@ export async function fetchProjects(params?: FetchProjectsParams): Promise<Proje
       members: (item.members || (item.ownerName ? [{ id: String(item.ownerId || '1'), displayName: item.ownerName }] : [])).map((m) => ({
         id: String(m.id),
         displayName: m.displayName || m.username || 'Member',
+        avatarUrl: m.avatarUrl || null,
       })),
     }
   })

@@ -48,6 +48,7 @@ describe('HttpAdminService', () => {
       ownedProjectCount: 3,
       joinedProjectCount: 5,
       createdAt: '2026-10-01T10:00:00Z',
+      avatarUrl: null,
     });
   });
 

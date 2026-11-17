@@ -83,7 +83,7 @@ export const ProjectCard: FC<ProjectCardProps> = ({ p, index, onOpen }) => {
       <div className="flex items-center">
         <div className="flex -space-x-1.5">
           {p.members.slice(0, 3).map((m, k) => (
-            <Avatar key={m} name={m} index={k} />
+            <Avatar key={`${m.name}-${k}`} name={m.name} avatarUrl={m.avatarUrl} index={k} />
           ))}
         </div>
         {p.members.length > 3 && (

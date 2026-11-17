@@ -450,10 +450,11 @@ export function mapProjectActivities(items: readonly ProjectActivityItem[]): Act
     return {
       id: item.id,
       actor: {
+        id: item.actorId ?? null,
         name: actorName,
         initials: toInitials(actorName),
         avatarClass: pickAvatarClass(actorName),
-        avatarUrl: getSavedAvatar(actorName),
+        avatarUrl: item.actorAvatarUrl || getSavedAvatar(actorName),
       },
       action: toActivityAction(item.type),
       message: item.message,
