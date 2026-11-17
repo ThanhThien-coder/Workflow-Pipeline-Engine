@@ -113,6 +113,11 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
   ```bash
   docker compose -f docker-compose.prod.yml --env-file deploy/.env exec postgres pg_dump -U wpe_user wpe_db > backup.sql
   ```
+- **Sao lưu ảnh đại diện người dùng (Backup volume uploads)**:
+  Ảnh đại diện người dùng được lưu trong volume `uploads` (`/app/uploads`). Cần sao lưu volume này cùng cơ sở dữ liệu:
+  ```bash
+  docker run --rm -v wpe-prod_uploads:/data -v $(pwd):/backup alpine tar czf /backup/uploads_backup.tar.gz -C /data .
+  ```
 
 ---
 
