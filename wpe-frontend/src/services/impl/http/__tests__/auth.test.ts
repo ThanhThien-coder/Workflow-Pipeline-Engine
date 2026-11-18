@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { apiRequest, setUnauthorizedHandler } from '../../../http/apiClient'
 import { ApiError } from '../../../http/ApiError'
 import {
@@ -278,14 +278,14 @@ describe('auth.ts: login, register, logout, getStoredUser', () => {
 
 describe('auth.ts: tự làm mới token khi gặp 401 (single-flight)', () => {
   let fetchMock: ReturnType<typeof vi.fn>
-  let onExpired: ReturnType<typeof vi.fn>
+  let onExpired: Mock<() => void>
 
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    onExpired = vi.fn()
+    onExpired = vi.fn<() => void>()
     installAuthRefresh(onExpired)
   })
 
