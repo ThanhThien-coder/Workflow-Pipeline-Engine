@@ -1,0 +1,10 @@
+# Caddy đứng trước frontend (nginx): tự xin và gia hạn chứng chỉ HTTPS Let's Encrypt cho SITE_DOMAIN,
+# tự chuyển http:// sang https://. Dùng cùng deploy/docker-compose.https.yml.
+# SITE_DOMAIN=localhost thì Caddy dùng chứng chỉ tự ký nội bộ (chỉ để thử trên máy).
+{$SITE_DOMAIN} {
+	# Trình duyệt nhớ chỉ dùng HTTPS cho tên miền này trong 1 năm
+	header Strict-Transport-Security "max-age=31536000"
+
+	# Caddy tự đẩy luồng SSE (text/event-stream) đi ngay, không giữ đệm, không cắt kết nối dài.
+	reverse_proxy frontend:80
+}
