@@ -464,7 +464,8 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="relative">
       <div className="fixed-ambient-bg" />
-      <div className="relative z-10 h-screen overflow-y-auto">{children}</div>
+      {/* Luôn chừa chỗ cho thanh cuộn: tab dài (Projects & Privacy) hiện thanh cuộn mà tab ngắn thì không, nếu không chừa thì nội dung căn giữa bị xô lệch khi đổi tab */}
+      <div className="relative z-10 h-screen overflow-y-auto [scrollbar-gutter:stable]">{children}</div>
     </div>
   )
 }
