@@ -63,6 +63,7 @@ Truy cập giao diện:
 
 Hệ thống đã nạp sẵn 3 tài khoản trong database để nhóm test ngay:
 * **Mật khẩu chung cho tất cả tài khoản**: `Password123!`
+* Mật khẩu này chỉ dùng trên máy lập trình (profile `dev`). Bản production (`docker-compose.prod.yml`) tự đổi các tài khoản này sang `SEED_ACCOUNT_PASSWORD` trong `deploy/.env` lúc khởi động, xem `docs/DEPLOY.md` mục 7.
 
 | Username | Email | Quyền Hệ thống | Quyền trong Project mẫu |
 | :--- | :--- | :---: | :---: |

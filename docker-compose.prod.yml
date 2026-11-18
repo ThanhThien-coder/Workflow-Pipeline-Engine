@@ -81,6 +81,10 @@ services:
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Workflow Pipeline Engine}
       PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
+      # Tài khoản mẫu (admin, alex.kim, sarah.chen) còn mật khẩu công khai trong README thì backend đổi sang
+      # SEED_ACCOUNT_PASSWORD lúc khởi động; thiếu biến này thì backend không chạy (xem docs/DEPLOY.md mục 7)
+      SEED_ACCOUNT_PASSWORD: ${SEED_ACCOUNT_PASSWORD:-}
+      SEED_ACCOUNT_GUARD_ENABLED: ${SEED_ACCOUNT_GUARD_ENABLED:-true}
     volumes:
       - uploads:/app/uploads
     depends_on:

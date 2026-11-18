@@ -40,8 +40,9 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
     setCopied(true)
   }
 
-  const isRevoked = !state.isActive && Boolean(state.revoked)
-  const noLink = !state.isActive && !isRevoked
+  const isRevoked = !state.isActive && (Boolean(state.revoked) || state.status === 'revoked')
+  const isExpired = !state.isActive && !isRevoked && state.status === 'expired'
+  const noLink = !state.isActive && !isRevoked && !isExpired
 
   return (
     <div ref={wrapperRef} className="relative z-[45] shrink-0">
@@ -71,7 +72,9 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
             ? 'Guest Link (Owner only)'
             : isRevoked
               ? 'Guest Link (Revoked)'
-              : 'Guest Link'}
+              : isExpired
+                ? 'Guest Link (Expired)'
+                : 'Guest Link'}
         {isRevoked && canManage && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />}
       </button>
 
@@ -145,14 +148,16 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
                   canManage && noLink ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-700'
                 }`}
               >
-                {!canManage ? '🔴 Owner Only' : isRevoked ? '🔴 Link Revoked' : 'No Guest Link'}
+                {!canManage ? '🔴 Owner Only' : isRevoked ? '🔴 Link Revoked' : isExpired ? '🔴 Link Expired' : 'No Guest Link'}
               </span>
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                 {!canManage
                   ? state.expiresLabel || 'Only the project owner can manage guest links.'
                   : isRevoked
                     ? 'External guests can no longer access this project using previous links.'
-                    : 'No guest link has been created yet. Generate one to share a read-only view of this project with external guests.'}
+                    : isExpired
+                      ? 'The previous guest link has expired. Generate a new link to share this project again.'
+                      : 'No guest link has been created yet. Generate one to share a read-only view of this project with external guests.'}
               </p>
               <button
                 type="button"
@@ -161,7 +166,7 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
                 onClick={() => void onGenerate()}
                 className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
               >
-                {isRevoked || !canManage ? 'Generate New Token' : 'Create Guest Link'}
+                {isRevoked || isExpired || !canManage ? 'Generate New Token' : 'Create Guest Link'}
               </button>
               {!canManage && (
                 <p data-testid="guest-owner-only-note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

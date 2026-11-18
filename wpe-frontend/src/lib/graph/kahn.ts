@@ -3,54 +3,21 @@ import type {
   DagValidationResult,
   DagViolation,
 } from '../../types/template.types';
+import { findNodesOnCycle } from './scc';
 
 /**
  * Kết quả kiểm DAG.
  * - `violations`: mọi node còn in-degree > 0 sau Kahn (nằm trên vòng **và** đứng sau vòng).
- *   Giữ nguyên nghĩa cũ vì khớp phần kiểm template của backend (`KahnDagService.validateSimpleDag`).
- * - `cycleNodes` (B6): chỉ node **nằm trên** vòng lặp (hoặc giữa 2 vòng), bỏ node chỉ đứng sau vòng.
- *   Khớp `cycleNodeCodes` của backend (`validateProjectDag`, B1) — đây là danh sách backend trả trong 422.
+ *   Dùng để đếm số node đã duyệt (`visitedCount`).
+ * - `cycleNodes`: chỉ node **nằm trên** vòng lặp, tức thuộc thành phần liên thông mạnh (SCC) từ 2 node
+ *   trở lên hoặc có cạnh tự nối. Node chỉ đứng trước, sau hay giữa các vòng không được tính.
+ *   Khớp `cycleNodeCodes` của backend (422) và `violations[].nodeIds` của `validateTemplateGraph`.
  *   Cả hai giữ thứ tự như trong `vertices`.
  */
 export interface DagCheckResult {
   valid: boolean
   violations: string[]
   cycleNodes: string[]
-}
-
-/**
- * Bỏ dần các node "đứng sau" vòng lặp: trong tập node bị chặn, node không còn cạnh đi ra tới node
- * bị chặn nào thì không nằm trên vòng; bỏ nó rồi lặp lại. Phần còn lại là node trên vòng.
- * Cùng thuật toán với `KahnDagService.peelNodesBehindCycle` ở backend.
- */
-function peelNodesBehindCycle(blocked: string[], adj: Record<string, string[]>): Set<string> {
-  const blockedSet = new Set(blocked)
-  const outDegree: Record<string, number> = {}
-  const parents: Record<string, string[]> = {}
-  for (const id of blocked) {
-    outDegree[id] = 0
-    parents[id] = []
-  }
-  for (const from of blocked) {
-    for (const to of adj[from]) {
-      if (blockedSet.has(to)) {
-        outDegree[from]++
-        parents[to].push(from)
-      }
-    }
-  }
-
-  const queue = blocked.filter((id) => outDegree[id] === 0)
-  const remaining = new Set(blocked)
-  while (queue.length > 0) {
-    const removed = queue.shift()!
-    remaining.delete(removed)
-    for (const parent of parents[removed]) {
-      outDegree[parent]--
-      if (outDegree[parent] === 0) queue.push(parent)
-    }
-  }
-  return remaining
 }
 
 /**
@@ -98,7 +65,7 @@ export function validateDag(
 
   // Nodes remaining with in-degree > 0 are part of or influenced by a cycle
   const violations = vertices.filter((v) => indeg[v] > 0);
-  const onCycle = peelNodesBehindCycle(violations, adj);
+  const onCycle = findNodesOnCycle(violations, adj);
   return { valid: false, violations, cycleNodes: violations.filter((v) => onCycle.has(v)) };
 }
 
@@ -127,7 +94,7 @@ export function validateTemplateGraph(payload: GraphDataPayload): DagValidationR
   if (!phaseResult.valid) {
     violations.push({
       scope: 'PHASE',
-      nodeIds: phaseResult.violations,
+      nodeIds: phaseResult.cycleNodes,
     });
   }
 
@@ -169,7 +136,7 @@ export function validateTemplateGraph(payload: GraphDataPayload): DagValidationR
       violations.push({
         scope: 'NODE',
         phaseId: phase.id,
-        nodeIds: nodeResult.violations,
+        nodeIds: nodeResult.cycleNodes,
       });
     }
   }

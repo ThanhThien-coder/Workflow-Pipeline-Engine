@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -12,5 +12,6 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 COPY --from=deploy nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=deploy nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /src/dist /usr/share/nginx/html
 EXPOSE 80

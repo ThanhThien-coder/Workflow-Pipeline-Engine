@@ -102,6 +102,7 @@ public class GuestGatewayService {
             link.setIsRevoked(true);
             guestLinkRepository.save(link);
             log.info("Revoked guest token for project ID: {}", projectId);
+            return GuestAccessResponse.revoked();
         }
 
         return GuestAccessResponse.disabled();
@@ -115,9 +116,17 @@ public class GuestGatewayService {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
         authorizationService.verifyProjectOwner(projectId, currentUserId);
 
-        return guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId)
-            .filter(link -> link.getExpiresAt().isAfter(Instant.now()))
-            .map(this::toGuestAccessResponse)
+        Optional<GuestLinkEntity> unrevoked = guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId);
+        if (unrevoked.isPresent()) {
+            GuestLinkEntity link = unrevoked.get();
+            if (link.getExpiresAt().isAfter(Instant.now())) {
+                return toGuestAccessResponse(link);
+            }
+            return GuestAccessResponse.expired(link.getExpiresAt());
+        }
+        return guestLinkRepository.findFirstByProjectIdOrderByCreatedAtDesc(projectId)
+            .filter(link -> Boolean.TRUE.equals(link.getIsRevoked()))
+            .map(link -> GuestAccessResponse.revoked())
             .orElseGet(GuestAccessResponse::disabled);
     }
 
@@ -281,11 +290,13 @@ public class GuestGatewayService {
         String base = frontendBaseUrl != null ? frontendBaseUrl.replaceAll("/+$", "") : "";
         String encodedToken = URLEncoder.encode(link.getToken(), StandardCharsets.UTF_8);
         String shareUrl = String.format("%s/guest?token=%s", base, encodedToken);
+        boolean active = !Boolean.TRUE.equals(link.getIsRevoked()) && link.getExpiresAt().isAfter(Instant.now());
         return new GuestAccessResponse(
-            !Boolean.TRUE.equals(link.getIsRevoked()) && link.getExpiresAt().isAfter(Instant.now()),
+            active,
             link.getToken(),
             shareUrl,
-            link.getExpiresAt()
+            link.getExpiresAt(),
+            active ? GuestAccessResponse.Status.ACTIVE : GuestAccessResponse.Status.NONE
         );
     }
 

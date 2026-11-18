@@ -912,7 +912,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      | `TASK_OVERDUE` | `KanbanTaskResponse` | Bộ quét trễ hạn (15 phút) đánh dấu task trễ hạn |
      | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason }` | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
 
-     FE hiện mới nghe `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `NOTIFICATION_RECEIVED`; `TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE` và `PING` chưa có listener (FE nối ở C6, chuông ở C3).
+     FE (`HttpWorkflowService.connectRealtime`) nghe đủ `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `TASK_OVERDUE`, `NOTIFICATION_RECEIVED`, `TASK_SUBMITTED`, `TASK_REJECTED`, `PROJECT_TASKS_CHANGED`. `PING` chỉ là nhịp giữ kết nối, FE không cần xử lý.
    - Lời mời (C2): `InvitationCreatedEvent` / `InvitationAcceptedEvent` đi routing key `wpe.invitation.created` / `wpe.invitation.accepted` vào queue riêng `wpe.invitation.queue`. `InvitationEventConsumer` đẩy `NOTIFICATION_RECEIVED` cho người được mời **đúng 1 lần** bằng bản ghi `ProjectInvitationService` đã lưu, không lưu thêm.
 5. **Response Stream & UI Mutation**:
    - **Status Code**: `200 OK` (Content-Type: `text/event-stream`).
@@ -981,13 +981,15 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 3. **Request DTO**:
    - Sinh token: `POST /api/projects/{id}/guest-token`, Body: `{ "expiryDays": 30 }`.
    - Thu hồi: `DELETE /api/projects/{id}/guest-token`.
+   - Đọc trạng thái (chỉ OWNER): `GET /api/projects/{id}/guest-token`.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `GUEST_LINK`.
    - Kiểm tra caller là `OWNER`.
    - Khi sinh: Sinh chuỗi hex 64 ký tự ngẫu nhiên bằng `SecureRandom`. Chèn/cập nhật `GUEST_LINK` (`token`, `is_revoked = FALSE`, `expires_at = NOW() + 30 days`).
    - Khi thu hồi: Cập nhật `GUEST_LINK.is_revoked = TRUE`.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `200 OK`. Body: `GuestAccessState` (`{ "enabled": true, "token": "...", "shareUrl": "...", "expiresAt": "..." }`).
+   - **Status Code**: `200 OK`. Body: `GuestAccessState` (`{ "enabled": true, "token": "...", "shareUrl": "...", "expiresAt": "...", "status": "ACTIVE" }`).
+   - **Trường `status`** (`NONE | ACTIVE | EXPIRED | REVOKED`; các trường cũ giữ nguyên): `ACTIVE` = có link chưa thu hồi và còn hạn (`enabled=true`, có `token`, `shareUrl`, `expiresAt`); `EXPIRED` = link chưa thu hồi nhưng hết hạn (`enabled=false`, KHÔNG trả `token`/`shareUrl`, vẫn có `expiresAt`); `REVOKED` = không còn link hiệu lực và link mới nhất của dự án đã thu hồi (`enabled=false`, không token); `NONE` = chưa từng tạo link. `POST` luôn trả `ACTIVE`; `DELETE` trả `REVOKED` nếu vừa thu hồi được link, `NONE` nếu không có gì để thu hồi. FE thiếu `status` thì suy từ `enabled`.
    - **UI Mutation**: Hiển thị liên kết chia sẻ và nút Copy Link trên thanh công cụ Overview.
 
 ---

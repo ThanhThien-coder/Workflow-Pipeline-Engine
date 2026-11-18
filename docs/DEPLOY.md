@@ -8,6 +8,8 @@ Tài liệu hướng dẫn triển khai toàn diện hệ thống **Workflow Pip
 
 Chỉ duy nhất dịch vụ **Frontend (Nginx)** mở cổng ra máy chủ bên ngoài (cổng `WEB_PORT`, mặc định 80). Toàn bộ các dịch vụ còn lại (Backend, AI Service, PostgreSQL, RabbitMQ) nằm hoàn toàn trong mạng nội bộ Docker (`wpe-prod_default`), không truy cập trực tiếp được từ bên ngoài.
 
+Khi bật HTTPS (mục 3.1), **Caddy** đứng trước Nginx và là dịch vụ duy nhất mở cổng 80/443; Nginx không còn mở cổng ra ngoài.
+
 ```text
 Trình duyệt người dùng
        │
@@ -59,7 +61,8 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 - `RABBITMQ_PASSWORD`: Mật khẩu cho hàng đợi RabbitMQ.
 - `JWT_SECRET`: Khóa bí mật ký JWT Token (ít nhất 32 byte).
 - `AI_INTERNAL_KEY`: Khóa xác thực nội bộ giữa Backend và AI Service (sinh chuỗi an toàn tương tự JWT_SECRET).
-- `APP_PUBLIC_URL`: Địa chỉ công khai của trang web dùng tạo link chia sẻ cho khách (mặc định `http://localhost`, ví dụ `https://wpe.example.com`).
+- `SEED_ACCOUNT_PASSWORD`: Mật khẩu riêng (ít nhất 12 ký tự, có chữ số) cho 3 tài khoản mẫu `admin`, `alex.kim`, `sarah.chen`. Xem mục 7.1.
+- `APP_PUBLIC_URL`: Địa chỉ công khai của trang web dùng tạo link chia sẻ cho khách và link trong email (mặc định `http://localhost`, ví dụ `https://wpe.example.com`).
 
 ### Bước 3: Khởi tạo và chạy hệ thống
 Chạy lệnh build và bật các service chạy ngầm:
@@ -70,6 +73,23 @@ docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d --build
 ### Bước 4: Truy cập ứng dụng
 Mở trình duyệt và truy cập:
 👉 `http://localhost` (hoặc `http://localhost:<WEB_PORT>` nếu đổi cổng trong `deploy/.env`).
+
+Đăng nhập tài khoản `admin@pipeline.engine` bằng mật khẩu đã đặt ở `SEED_ACCOUNT_PASSWORD`, rồi vào Profile đổi mật khẩu riêng cho từng tài khoản mẫu.
+
+### 3.1 Chạy với tên miền và HTTPS (bắt buộc khi đưa lên Internet)
+File `deploy/docker-compose.https.yml` thêm **Caddy**: tự xin chứng chỉ Let's Encrypt miễn phí, tự gia hạn, tự chuyển `http://` sang `https://`, gửi header HSTS.
+1. Trỏ tên miền về máy chủ: tạo bản ghi DNS `A` (và `AAAA` nếu có IPv6) của tên miền, ví dụ `wpe.example.com`, về IP công khai của máy chủ.
+2. Mở cổng `80` và `443` (TCP, thêm `443/UDP` cho HTTP/3) trên tường lửa của máy chủ/nhà cung cấp VPS.
+3. Trong `deploy/.env`: `SITE_DOMAIN=wpe.example.com` và `APP_PUBLIC_URL=https://wpe.example.com`.
+4. Chạy (thay cho lệnh ở Bước 3):
+   ```bash
+   docker compose -f docker-compose.prod.yml -f deploy/docker-compose.https.yml --env-file deploy/.env up -d --build
+   ```
+5. Mở `https://wpe.example.com`. Lần đầu Caddy cần vài giây để lấy chứng chỉ; lỗi chứng chỉ thì xem `docker compose ... logs caddy` (thường do DNS chưa trỏ đúng hoặc cổng 80 bị chặn).
+
+Khi đã bật HTTPS, mọi lệnh `docker compose` ở các mục dưới đều thêm `-f deploy/docker-compose.https.yml` ngay sau `-f docker-compose.prod.yml`. Chứng chỉ lưu ở volume `caddy_data`; đừng xóa volume này (Let's Encrypt giới hạn số lần cấp lại).
+
+Thử trên máy không có tên miền: `SITE_DOMAIN=localhost`, `HTTP_PORT=8091`, `HTTPS_PORT=8443` rồi mở `https://localhost:8443` (Caddy dùng chứng chỉ tự ký nên trình duyệt sẽ cảnh báo).
 
 ---
 
@@ -124,10 +144,11 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
 
 ## 7. Lưu ý bảo mật quan trọng
 
-1. **Đổi mật khẩu tài khoản mẫu**: Migration `V2__seed_initial_data.sql` tạo sẵn các tài khoản mẫu thử nghiệm (`admin`, `alex.kim`, `sarah.chen`) với mật khẩu phổ biến được chia sẻ trong nhóm phát triển. Khi đưa hệ thống lên mạng thật hoặc internet công cộng, bắt buộc phải đổi mật khẩu hoặc vô hiệu hóa các tài khoản này ngay sau lần khởi động đầu tiên.
-2. **Cấu hình HTTPS ngoài Internet**: Bản cấu hình Docker Compose này chỉ phục vụ HTTP thuần túy trên cổng 80. Khi triển khai ra ngoài Internet, bắt buộc phải đặt hệ thống phía sau một Reverse Proxy có HTTPS (như Cloudflare, Nginx ngoài máy chủ vật lý, Traefik, Caddy, hoặc AWS ALB).
-3. **Khóa nội bộ `AI_INTERNAL_KEY`**: Backend Spring Boot đã được tích hợp để tự động gửi header `X-Internal-Key` kèm theo mọi request sang AI microservice. AI service kiểm khóa này: thiếu hoặc sai khóa thì trả `401`. Hai bên phải dùng cùng một giá trị `AI_INTERNAL_KEY` trong `deploy/.env`.
-4. **Không commit file bí mật**: Không commit file `deploy/.env` lên repository Git.
+1. **Tài khoản mẫu không dùng mật khẩu công khai**: Migration `V2__seed_initial_data.sql` tạo sẵn 3 tài khoản mẫu (`admin`, `alex.kim`, `sarah.chen`), mật khẩu của chúng ghi công khai trong `README.md`. Khi backend khởi động (mọi profile trừ `dev`), tài khoản mẫu nào còn mật khẩu công khai sẽ được đổi sang `SEED_ACCOUNT_PASSWORD` và bị đăng xuất khỏi mọi phiên. Thiếu biến này (hoặc ngắn hơn 12 ký tự, không có chữ số) thì backend **không khởi động** và log ghi rõ cách sửa. Tài khoản đã tự đổi mật khẩu thì không bị đụng. `SEED_ACCOUNT_GUARD_ENABLED=false` chỉ dùng khi thử trên máy, không dùng trên production.
+2. **HTTPS**: Nginx chỉ phục vụ HTTP. Khi đưa ra Internet, chạy kèm Caddy theo mục 3.1. Nginx chỉ tin header IP thật từ Caddy (IP cố định `10.203.77.10` trong mạng `edge`), nên nhật ký admin ghi đúng IP người dùng và khách không giả được IP bằng header. Nếu đặt thêm Cloudflare (chế độ proxy) trước Caddy thì IP ghi được là IP của Cloudflare.
+3. **Header bảo mật**: Nginx gửi kèm mọi phản hồi `Content-Security-Policy` (chỉ nạp tài nguyên từ chính tên miền), `X-Frame-Options: DENY` (trang khác không nhúng được WPE), `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy` (cấu hình ở `deploy/nginx-security-headers.conf`). Caddy thêm `Strict-Transport-Security`.
+4. **Khóa nội bộ `AI_INTERNAL_KEY`**: Backend Spring Boot đã được tích hợp để tự động gửi header `X-Internal-Key` kèm theo mọi request sang AI microservice. AI service kiểm khóa này: thiếu hoặc sai khóa thì trả `401`. Hai bên phải dùng cùng một giá trị `AI_INTERNAL_KEY` trong `deploy/.env`.
+5. **Không commit file bí mật**: Không commit file `deploy/.env` lên repository Git.
 
 ---
 

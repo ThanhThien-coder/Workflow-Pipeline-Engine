@@ -92,6 +92,7 @@ class GuestGatewayServiceTest {
         GuestAccessResponse response = guestGatewayService.generateOrRenewGuestToken(projectId, 30);
 
         assertThat(response.enabled()).isTrue();
+        assertThat(response.status()).isEqualTo(GuestAccessResponse.Status.ACTIVE);
         assertThat(response.token()).hasSize(64);
         assertThat(response.shareUrl()).isEqualTo("http://localhost:5173/guest?token=" + response.token());
         assertThat(response.expiresAt()).isAfter(Instant.now());
@@ -116,6 +117,7 @@ class GuestGatewayServiceTest {
         GuestAccessResponse response = guestGatewayService.revokeGuestToken(projectId);
 
         assertThat(response.enabled()).isFalse();
+        assertThat(response.status()).isEqualTo(GuestAccessResponse.Status.REVOKED);
         assertThat(response.token()).isNull();
         assertThat(activeLink.getIsRevoked()).isTrue();
         verify(guestLinkRepository).save(activeLink);
@@ -379,8 +381,76 @@ class GuestGatewayServiceTest {
         assertThat(response.enabled()).isTrue();
         assertThat(response.token()).isEqualTo("active-token-123");
         assertThat(response.shareUrl()).isEqualTo("http://localhost:5173/guest?token=active-token-123");
+        assertThat(response.status()).isEqualTo(GuestAccessResponse.Status.ACTIVE);
         verify(authorizationService).verifyProjectOwner(projectId, ownerId);
         verify(authorizationService, never()).verifyProjectMemberOrOwner(any(), any());
+    }
+
+    @Test
+    @DisplayName("Revoke Guest Token - không có link nào để thu hồi trả NONE")
+    void testRevokeGuestToken_NothingToRevoke() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(new ProjectEntity());
+        when(guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId)).thenReturn(Optional.empty());
+
+        GuestAccessResponse response = guestGatewayService.revokeGuestToken(projectId);
+
+        assertThat(response.status()).isEqualTo(GuestAccessResponse.Status.NONE);
+        assertThat(response.enabled()).isFalse();
+        verify(guestLinkRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Get Guest Access State - link chưa thu hồi nhưng hết hạn trả EXPIRED, không lộ token")
+    void testGetGuestAccessState_Expired() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(new ProjectEntity());
+        Instant expiredAt = Instant.now().minus(2, ChronoUnit.DAYS);
+        GuestLinkEntity expiredLink = GuestLinkEntity.builder()
+            .projectId(projectId).token("expired-token").isRevoked(false).expiresAt(expiredAt).build();
+        when(guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId)).thenReturn(Optional.of(expiredLink));
+
+        GuestAccessResponse response = guestGatewayService.getGuestAccessState(projectId);
+
+        assertThat(response.status()).isEqualTo(GuestAccessResponse.Status.EXPIRED);
+        assertThat(response.enabled()).isFalse();
+        assertThat(response.token()).isNull();
+        assertThat(response.shareUrl()).isNull();
+        assertThat(response.expiresAt()).isEqualTo(expiredAt);
+    }
+
+    @Test
+    @DisplayName("Get Guest Access State - link mới nhất đã thu hồi trả REVOKED")
+    void testGetGuestAccessState_Revoked() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(new ProjectEntity());
+        when(guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId)).thenReturn(Optional.empty());
+        GuestLinkEntity revokedLink = GuestLinkEntity.builder()
+            .projectId(projectId).token("revoked-token").isRevoked(true)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS)).build();
+        when(guestLinkRepository.findFirstByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(Optional.of(revokedLink));
+
+        GuestAccessResponse response = guestGatewayService.getGuestAccessState(projectId);
+
+        assertThat(response.status()).isEqualTo(GuestAccessResponse.Status.REVOKED);
+        assertThat(response.enabled()).isFalse();
+        assertThat(response.token()).isNull();
+        assertThat(response.shareUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("Get Guest Access State - chưa từng tạo link trả NONE")
+    void testGetGuestAccessState_None() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(new ProjectEntity());
+        when(guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId)).thenReturn(Optional.empty());
+        when(guestLinkRepository.findFirstByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(Optional.empty());
+
+        GuestAccessResponse response = guestGatewayService.getGuestAccessState(projectId);
+
+        assertThat(response.status()).isEqualTo(GuestAccessResponse.Status.NONE);
+        assertThat(response.enabled()).isFalse();
+        assertThat(response.token()).isNull();
     }
 
     @Test

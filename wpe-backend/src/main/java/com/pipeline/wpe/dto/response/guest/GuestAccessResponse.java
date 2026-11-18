@@ -15,10 +15,29 @@ public record GuestAccessResponse(
     String shareUrl,
 
     @Schema(description = "Thời điểm hết hạn của liên kết")
-    Instant expiresAt
+    Instant expiresAt,
+
+    @Schema(description = "Trạng thái chi tiết: NONE (chưa tạo), ACTIVE, EXPIRED (hết hạn), REVOKED (đã thu hồi)", example = "ACTIVE")
+    Status status
 ) {
+    public enum Status { NONE, ACTIVE, EXPIRED, REVOKED }
+
+    /** Giữ constructor 4 tham số cũ: suy status từ enabled. */
+    public GuestAccessResponse(boolean enabled, String token, String shareUrl, Instant expiresAt) {
+        this(enabled, token, shareUrl, expiresAt, enabled ? Status.ACTIVE : Status.NONE);
+    }
+
+    /** Chưa từng tạo link (hoặc không có gì để thu hồi). */
     public static GuestAccessResponse disabled() {
-        return new GuestAccessResponse(false, null, null, null);
+        return new GuestAccessResponse(false, null, null, null, Status.NONE);
+    }
+
+    public static GuestAccessResponse revoked() {
+        return new GuestAccessResponse(false, null, null, null, Status.REVOKED);
+    }
+
+    /** Link chưa thu hồi nhưng đã hết hạn: không lộ token/shareUrl. */
+    public static GuestAccessResponse expired(Instant expiresAt) {
+        return new GuestAccessResponse(false, null, null, expiresAt, Status.EXPIRED);
     }
 }
-

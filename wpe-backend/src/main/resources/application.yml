@@ -62,6 +62,9 @@ spring:
 
 # Cấu hình RabbitMQ Topology (Exchanges, Queues, Routing Keys)
 app:
+  seed-accounts:
+    guard-enabled: ${SEED_ACCOUNT_GUARD_ENABLED:true}
+    password: ${SEED_ACCOUNT_PASSWORD:}
   frontend:
     base-url: ${APP_PUBLIC_URL:http://localhost:5173}
   upload:
