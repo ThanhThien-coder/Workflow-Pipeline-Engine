@@ -18,7 +18,7 @@ public class KahnDagService {
         int visitedCount,
         int totalNodes,
         Set<Long> rootNodeIds,
-        /** Mã các node nằm trên chu trình (hoặc nằm giữa 2 chu trình). Không gồm node chỉ đứng sau chu trình. */
+        /** Mã các node nằm trên chu trình (thuộc thành phần liên thông mạnh từ 2 node, hoặc tự nối). Không gồm node chỉ đứng trước, sau hay giữa các chu trình. */
         List<String> cycleNodeCodes,
         /** Thứ tự topo theo id node. Rỗng nếu đồ thị có chu trình. */
         List<Long> sortedOrder,
@@ -100,7 +100,7 @@ public class KahnDagService {
                 blockedIds.add(entry.getKey());
             }
         }
-        Set<Long> cycleIds = peelNodesBehindCycle(blockedIds, adjacencyList);
+        Set<Long> cycleIds = new TreeSet<>(CycleNodeFinder.findNodesOnCycle(blockedIds, adjacencyList));
 
         List<String> blockedNodeCodes = toCodes(blockedIds, nodeCodeMap);
         List<String> cycleNodeCodes = toCodes(cycleIds, nodeCodeMap);
@@ -164,50 +164,6 @@ public class KahnDagService {
         return false;
     }
 
-    /**
-     * "Bóc ngược": từ tập node bị chặn, bỏ dần các node không còn cạnh đi ra tới node khác trong tập.
-     * Node như vậy chỉ đứng sau chu trình chứ không nằm trên chu trình. Phần còn lại là node nằm trên
-     * chu trình, hoặc nằm trên đường nối giữa 2 chu trình (hạn chế đã biết).
-     */
-    private Set<Long> peelNodesBehindCycle(Set<Long> blockedIds, Map<Long, List<Long>> adjacencyList) {
-        // outDegree: số cạnh đi ra tới node còn trong tập. parents: cạnh ngược, để cập nhật khi bỏ một node.
-        Map<Long, Integer> outDegree = new HashMap<>();
-        Map<Long, List<Long>> parents = new HashMap<>();
-        for (Long id : blockedIds) {
-            outDegree.put(id, 0);
-            parents.put(id, new ArrayList<>());
-        }
-        for (Long from : blockedIds) {
-            for (Long to : adjacencyList.get(from)) {
-                if (blockedIds.contains(to)) {
-                    outDegree.put(from, outDegree.get(from) + 1);
-                    parents.get(to).add(from);
-                }
-            }
-        }
-
-        Queue<Long> queue = new ArrayDeque<>();
-        for (Map.Entry<Long, Integer> entry : outDegree.entrySet()) {
-            if (entry.getValue() == 0) {
-                queue.add(entry.getKey());
-            }
-        }
-
-        Set<Long> remaining = new TreeSet<>(blockedIds);
-        while (!queue.isEmpty()) {
-            Long removed = queue.poll();
-            remaining.remove(removed);
-            for (Long parent : parents.get(removed)) {
-                int newDegree = outDegree.get(parent) - 1;
-                outDegree.put(parent, newDegree);
-                if (newDegree == 0) {
-                    queue.add(parent);
-                }
-            }
-        }
-        return remaining;
-    }
-
     private List<String> toCodes(Collection<Long> ids, Map<Long, String> nodeCodeMap) {
         List<String> codes = new ArrayList<>(ids.size());
         for (Long id : ids) {
@@ -263,7 +219,7 @@ public class KahnDagService {
         }
 
         KahnBasicResult phaseResult = validateSimpleDag(phaseIds, macroEdges);
-        visitedCount += (phaseIds.size() - phaseResult.cycleNodes.size());
+        visitedCount += phaseResult.visitedCount;
         if (!phaseResult.isValid) {
             violations.add(new DagViolationItem("PHASE", null, phaseResult.cycleNodes));
         }
@@ -313,7 +269,7 @@ public class KahnDagService {
             }
 
             KahnBasicResult nodeResult = validateSimpleDag(phaseNodeIds, nodeEdges);
-            visitedCount += (phaseNodeIds.size() - nodeResult.cycleNodes.size());
+            visitedCount += nodeResult.visitedCount;
             if (!nodeResult.isValid) {
                 violations.add(new DagViolationItem("NODE", phaseId, nodeResult.cycleNodes));
             }
@@ -364,9 +320,17 @@ public class KahnDagService {
 
         List<String> cycleNodes = new ArrayList<>();
         if (visited != vertices.size()) {
-            for (Map.Entry<String, Integer> entry : inDegree.entrySet()) {
-                if (entry.getValue() > 0) {
-                    cycleNodes.add(entry.getKey());
+            // Chỉ báo node thực sự nằm trên vòng (SCC), giữ thứ tự như trong vertices.
+            List<String> blocked = new ArrayList<>();
+            for (String v : new LinkedHashSet<>(vertices)) {
+                if (inDegree.get(v) > 0) {
+                    blocked.add(v);
+                }
+            }
+            Set<String> onCycle = CycleNodeFinder.findNodesOnCycle(blocked, adj);
+            for (String v : blocked) {
+                if (onCycle.contains(v)) {
+                    cycleNodes.add(v);
                 }
             }
         }

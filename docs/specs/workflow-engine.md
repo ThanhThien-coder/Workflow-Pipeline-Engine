@@ -328,15 +328,13 @@ File: `wpe-backend/src/main/java/com/pipeline/wpe/service/engine/KahnDagService.
 **Khác với mã giả ở mục 4.2:**
 
 1. **Thứ tự ổn định.** Nhiều node cùng in-degree 0 thì node có id nhỏ hơn được lấy trước (dùng hàng đợi ưu tiên). Cùng một đồ thị luôn cho cùng một `sortedOrder`, không phụ thuộc thứ tự dữ liệu đưa vào.
-2. **`cycleNodeCodes` không gồm node đứng sau chu trình.** Sau khi chạy Kahn, tập node còn in-degree > 0 (`blockedNodeCodes`) được "bóc ngược": lặp lại việc bỏ các node không còn cạnh đi ra tới node khác trong tập. Phần còn lại là `cycleNodeCodes`. Ví dụ `A→B→C→A, C→D, D→E`: `blockedNodeCodes = [A, B, C, D, E]`, `cycleNodeCodes = [A, B, C]`.
+2. **`cycleNodeCodes` chỉ gồm node thật sự nằm trên chu trình.** Một node nằm trên chu trình khi và chỉ khi nó thuộc một thành phần liên thông mạnh (SCC) có từ 2 node trở lên, hoặc có cạnh tự nối chính nó. SCC tìm bằng thuật toán Tarjan viết lặp (không đệ quy, không tràn stack với đồ thị lớn, O(V + E)), chạy trên tập node còn in-degree > 0 sau Kahn. Node chỉ đứng trước, đứng sau hay nằm giữa các chu trình thì không bị báo. Ví dụ `A→B→C→A, C→D, D→E`: `blockedNodeCodes = [A, B, C, D, E]`, `cycleNodeCodes = [A, B, C]`; ví dụ `A⇄B, B→MID, MID→D, D⇄E`: `cycleNodeCodes = [A, B, D, E]` (không có `MID`).
 3. **Bỏ qua cạnh có đầu mút lạ.** Cạnh mà node cha hoặc node con không nằm trong danh sách `nodes` thì không được tính. Nếu tính, node con sẽ không bao giờ về in-degree 0 và bị báo chu trình giả.
 4. Cạnh trùng (cùng cha, cùng con, xuất hiện nhiều lần) không làm sai kết quả.
 
-**Hạn chế đã biết:** node nằm trên đường nối giữa 2 chu trình (ví dụ `A⇄B, B→X, X→C, C⇄D`: node `X`) vẫn bị đưa vào `cycleNodeCodes`, dù nó không nằm trên chu trình nào. Muốn tách chính xác cần thuật toán tìm thành phần liên thông mạnh (Tarjan), chưa làm.
-
 **`wouldCreateCycle(nodes, dependencies, parentId, childId)`:** trả `true` nếu thêm cạnh `parentId → childId` vào đồ thị hiện có sẽ tạo chu trình, kể cả khi `parentId` bằng `childId`. Cách làm: thêm cạnh cha → con tạo vòng khi và chỉ khi đã có đường đi từ con tới cha, nên chỉ cần duyệt theo chiều rộng từ node con, gặp node cha thì trả `true`. Độ phức tạp O(V + E). Hàm này dùng để chặn vòng ngay lúc nối cạnh (mục 4.1, điểm 1), kể cả vòng dài như `A→B→C→A`.
 
-**Chưa đổi:** `validateTemplateGraph` (kiểm template 2 tầng) vẫn báo mọi node còn in-degree > 0, chưa áp dụng "bóc ngược".
+**`validateTemplateGraph` (kiểm template 2 tầng):** dùng cùng định nghĩa SCC ở trên cho danh sách node trong mỗi vi phạm (mức phase và mức node), nên chỉ trả node nằm trên chu trình. Số node đã duyệt (`visitedCount`) vẫn tính theo Kahn.
 
 ---
 

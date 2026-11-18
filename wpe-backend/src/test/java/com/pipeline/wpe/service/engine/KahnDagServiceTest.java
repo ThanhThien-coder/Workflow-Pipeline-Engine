@@ -291,15 +291,16 @@ class KahnDagServiceTest {
     }
 
     @Test
-    @DisplayName("B1 - Hạn chế đã biết: node nằm giữa 2 chu trình (1<->2, 2->3, 3->4, 4<->5) vẫn bị đưa vào cycleNodeCodes")
-    void testNodeBetweenTwoCyclesIsStillReported() {
+    @DisplayName("TASK_66 - Node nằm giữa 2 chu trình (1<->2, 2->3, 3->4, 4<->5) KHÔNG bị đưa vào cycleNodeCodes")
+    void testNodeBetweenTwoCyclesIsNotReported() {
         var nodes = List.of(node(1, "A"), node(2, "B"), node(3, "MID"), node(4, "D"), node(5, "E"));
         var edges = List.of(edge(1, 2), edge(2, 1), edge(2, 3), edge(3, 4), edge(4, 5), edge(5, 4));
 
         var result = kahnDagService.validateProjectDag(nodes, edges);
 
         assertFalse(result.isValid());
-        assertEquals(List.of("A", "B", "MID", "D", "E"), result.cycleNodeCodes());
+        assertEquals(List.of("A", "B", "D", "E"), result.cycleNodeCodes());
+        assertEquals(List.of("A", "B", "MID", "D", "E"), result.blockedNodeCodes());
     }
 
     @Test

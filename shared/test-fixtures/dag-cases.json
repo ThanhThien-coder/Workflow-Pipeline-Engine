@@ -84,11 +84,32 @@
     "expectedCycleNodes": ["A", "B", "C", "D", "E"]
   },
   {
-    "name": "node-nam-giua-hai-vong (han che da biet cua B1): A <-> B, B -> MID -> D, D <-> E",
+    "name": "node-nam-giua-hai-vong-khong-bi-bao: A <-> B, B -> MID -> D, D <-> E (MID khong nam tren vong)",
     "nodes": ["A", "B", "MID", "D", "E"],
     "edges": [["A", "B"], ["B", "A"], ["B", "MID"], ["MID", "D"], ["D", "E"], ["E", "D"]],
     "expectedValid": false,
-    "expectedCycleNodes": ["A", "B", "MID", "D", "E"]
+    "expectedCycleNodes": ["A", "B", "D", "E"]
+  },
+  {
+    "name": "hai-vong-noi-nhau-qua-2-node-trung-gian: A <-> B, B -> M1 -> M2 -> C, C <-> D",
+    "nodes": ["A", "B", "M1", "M2", "C", "D"],
+    "edges": [["A", "B"], ["B", "A"], ["B", "M1"], ["M1", "M2"], ["M2", "C"], ["C", "D"], ["D", "C"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B", "C", "D"]
+  },
+  {
+    "name": "vong-co-duoi-hai-phia-va-node-tu-noi: P -> Q -> A <-> B -> X -> Y -> S, S -> S",
+    "nodes": ["P", "Q", "A", "B", "X", "Y", "S"],
+    "edges": [["P", "Q"], ["Q", "A"], ["A", "B"], ["B", "A"], ["B", "X"], ["X", "Y"], ["Y", "S"], ["S", "S"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B", "S"]
+  },
+  {
+    "name": "hai-vong-long-chung-node-B: A -> B -> A, B -> C -> B",
+    "nodes": ["A", "B", "C"],
+    "edges": [["A", "B"], ["B", "A"], ["B", "C"], ["C", "B"]],
+    "expectedValid": false,
+    "expectedCycleNodes": ["A", "B", "C"]
   },
   {
     "name": "canh-trung: A -> B xuat hien 2 lan",
