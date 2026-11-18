@@ -13,6 +13,8 @@ spring:
     out-of-order: true
 
 app:
+  seed-accounts:
+    guard-enabled: false
   frontend:
     base-url: ${APP_PUBLIC_URL:http://localhost:5173}
   security:
