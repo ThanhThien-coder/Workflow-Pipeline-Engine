@@ -34,7 +34,7 @@ export function KickMemberModal({
           <div>
             <h3 className="text-base font-bold text-slate-800">{title}</h3>
             <p className="text-xs text-slate-500">
-              Target member: <strong className="text-slate-700">{member.username}</strong> ({member.email})
+              Target member: <strong className="text-slate-700">{member.fullName?.trim() || member.username}</strong> ({member.email})
             </p>
           </div>
         </div>
@@ -42,14 +42,14 @@ export function KickMemberModal({
         <div className="rounded-xl border border-red-100 bg-red-50/60 p-3.5 text-xs leading-relaxed text-slate-700">
           {member.activeNodeCount > 0 ? (
             <p>
-              <strong className="text-red-700">Warning:</strong> {member.username} is currently assigned to{' '}
+              <strong className="text-red-700">Warning:</strong> {member.fullName?.trim() || member.username} is currently assigned to{' '}
               <strong className="font-bold text-red-700">{member.activeNodeCount} active tasks</strong>.{' '}
               {isDemote ? 'Changing this role to VIEWER' : 'Removing this member'} will unassign all their tasks and
               revert in-progress tasks back to To Do.
             </p>
           ) : (
             <p>
-              Are you sure you want to {isDemote ? 'demote' : 'remove'} <strong>{member.username}</strong>? They will
+              Are you sure you want to {isDemote ? 'demote' : 'remove'} <strong>{member.fullName?.trim() || member.username}</strong>? They will
               have read-only permissions and cannot be assigned tasks.
             </p>
           )}

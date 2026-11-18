@@ -8,6 +8,7 @@ import {
 } from '../../../../lib/graph/phaseLayout';
 import { validateDag } from '../../../../lib/graph/kahn';
 import { Plus, Trash2, ArrowUpRight, ZoomIn, ZoomOut, Maximize2, AlertCircle, X, LayoutGrid } from 'lucide-react';
+import { pluralize } from '../../../../utils/pluralize'
 
 interface PhaseCanvasProps {
   phases: PhaseDto[];
@@ -701,9 +702,9 @@ export const PhaseCanvas: React.FC<PhaseCanvasProps> = ({
 
                 {/* Subtitle / Counts */}
                 <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                  <span>{stats.tracks} tracks</span>
+                  <span>{pluralize(stats.tracks, 'track')}</span>
                   <span>•</span>
-                  <span>{stats.tasks} tasks</span>
+                  <span>{pluralize(stats.tasks, 'task')}</span>
                 </div>
 
                 {/* Bottom footer status */}

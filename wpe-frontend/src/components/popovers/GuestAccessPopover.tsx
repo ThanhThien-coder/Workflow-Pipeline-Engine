@@ -40,6 +40,9 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
     setCopied(true)
   }
 
+  const isRevoked = !state.isActive && Boolean(state.revoked)
+  const noLink = !state.isActive && !isRevoked
+
   return (
     <div ref={wrapperRef} className="relative z-[45] shrink-0">
       <button
@@ -54,14 +57,22 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
             ? 'border-slate-400 bg-slate-50 text-slate-800 ring-2 ring-slate-100'
             : state.isActive
               ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-              : canManage
+              : canManage && noLink
+                ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                : canManage
                 ? 'border-red-200 bg-white text-red-700 hover:border-red-300 hover:bg-red-50'
                 : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
         }`}
       >
         <Link size={16} />
-        {state.isActive ? 'Share Guest Link' : canManage ? 'Guest Link (Revoked)' : 'Guest Link (Owner only)'}
-        {!state.isActive && canManage && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />}
+        {state.isActive
+          ? 'Share Guest Link'
+          : !canManage
+            ? 'Guest Link (Owner only)'
+            : isRevoked
+              ? 'Guest Link (Revoked)'
+              : 'Guest Link'}
+        {isRevoked && canManage && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />}
       </button>
 
       {open && (
@@ -106,7 +117,7 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
                   Permissions: View-only &amp; submit Feedback
                 </li>
                 <li>Expires: {state.expiresLabel}</li>
-                <li className="font-mono text-[11px]">token: {state.token}</li>
+                <li className="break-all font-mono text-[11px]">token: {state.token}</li>
               </ul>
               <button
                 type="button"
@@ -129,13 +140,19 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
             </div>
           ) : (
             <div className="fade-up space-y-4 px-5 py-4">
-              <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
-                🔴 {canManage ? 'Link Revoked' : 'Owner Only'}
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  canManage && noLink ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-700'
+                }`}
+              >
+                {!canManage ? '🔴 Owner Only' : isRevoked ? '🔴 Link Revoked' : 'No Guest Link'}
               </span>
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                {canManage
-                  ? 'External guests can no longer access this project using previous links.'
-                  : state.expiresLabel || 'Only the project owner can manage guest links.'}
+                {!canManage
+                  ? state.expiresLabel || 'Only the project owner can manage guest links.'
+                  : isRevoked
+                    ? 'External guests can no longer access this project using previous links.'
+                    : 'No guest link has been created yet. Generate one to share a read-only view of this project with external guests.'}
               </p>
               <button
                 type="button"
@@ -144,7 +161,7 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
                 onClick={() => void onGenerate()}
                 className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
               >
-                Generate New Token
+                {isRevoked || !canManage ? 'Generate New Token' : 'Create Guest Link'}
               </button>
               {!canManage && (
                 <p data-testid="guest-owner-only-note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

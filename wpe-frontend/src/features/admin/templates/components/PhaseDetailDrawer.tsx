@@ -9,6 +9,7 @@ import { TreeGraphView } from './TreeGraphView';
 import { PhaseKanbanView } from './PhaseKanbanView';
 import { TaskInspector } from './TaskInspector';
 import { X, Network, Kanban } from 'lucide-react';
+import { pluralize } from '../../../../utils/pluralize'
 
 interface PhaseDetailDrawerProps {
   phase: PhaseDto | null;
@@ -111,7 +112,7 @@ export const PhaseDetailDrawer: React.FC<PhaseDetailDrawerProps> = ({
                 className="mt-1.5 w-full text-xl font-extrabold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-600 outline-none transition"
               />
               <div className="mt-1 text-xs font-semibold text-slate-500">
-                {tasks} tasks · {tracks} tracks
+                {pluralize(tasks, 'task')} · {pluralize(tracks, 'track')}
               </div>
             </div>
 

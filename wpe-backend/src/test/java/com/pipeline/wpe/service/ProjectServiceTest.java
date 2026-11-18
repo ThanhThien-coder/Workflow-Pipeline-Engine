@@ -10,6 +10,7 @@ import com.pipeline.wpe.dto.project.ProjectMemberBrief;
 import com.pipeline.wpe.dto.project.ProjectSummaryResponse;
 import com.pipeline.wpe.dto.project.UpdateProjectRequest;
 import com.pipeline.wpe.dto.project.UpdateProjectStatusRequest;
+import com.pipeline.wpe.entity.NodeDependencyEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
@@ -64,6 +65,9 @@ class ProjectServiceTest {
     @Mock
     private TemplateCloneService templateCloneService;
 
+    @Mock
+    private NodeDependencyRepository nodeDependencyRepository;
+
     @InjectMocks
     private ProjectService projectService;
 
@@ -113,6 +117,34 @@ class ProjectServiceTest {
         assertThat(summary.inProgressNodes()).isEqualTo(2);
         assertThat(summary.activeNodes()).isEqualTo(4);
         assertThat(summary.progressPercentage()).isEqualTo(60.0);
+    }
+
+    @Test
+    @DisplayName("getMyProjects: criticalPathLength theo chuoi phu thuoc node, nap theo lo cho moi du an")
+    void shouldComputeCriticalPathLengthPerProjectInBatch() {
+        Instant now = Instant.now();
+        ProjectEntity p1 = ProjectEntity.builder().id(1L).name("A").ownerId(userId)
+            .status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+        ProjectEntity p2 = ProjectEntity.builder().id(2L).name("B").ownerId(userId)
+            .status(ProjectStatus.ACTIVE).createdAt(now).updatedAt(now).build();
+        when(projectRepository.findAllAccessibleProjects(userId)).thenReturn(List.of(p1, p2));
+        when(nodeRepository.countByProjectIdsGroupByStatus(any())).thenReturn(List.<Object[]>of());
+        when(nodeRepository.findByProjectIdIn(any())).thenReturn(List.of(
+            NodeEntity.builder().id(11L).projectId(1L).build(),
+            NodeEntity.builder().id(12L).projectId(1L).build(),
+            NodeEntity.builder().id(13L).projectId(1L).build(),
+            NodeEntity.builder().id(21L).projectId(2L).build()));
+        when(nodeDependencyRepository.findByProjectIdIn(any())).thenReturn(List.of(
+            NodeDependencyEntity.builder().projectId(1L).parentNodeId(11L).childNodeId(12L).build(),
+            NodeDependencyEntity.builder().projectId(1L).parentNodeId(12L).childNodeId(13L).build()));
+
+        List<ProjectSummaryResponse> result = projectService.getMyProjects(userId, "all", "ts");
+
+        assertThat(result).hasSize(2);
+        assertThat(result.stream().filter(r -> r.id() == 1L).findFirst().orElseThrow().criticalPathLength()).isEqualTo(3);
+        assertThat(result.stream().filter(r -> r.id() == 2L).findFirst().orElseThrow().criticalPathLength()).isEqualTo(1);
+        verify(nodeRepository, times(1)).findByProjectIdIn(any());
+        verify(nodeDependencyRepository, times(1)).findByProjectIdIn(any());
     }
 
     @Test

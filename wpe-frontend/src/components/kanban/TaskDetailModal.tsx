@@ -18,7 +18,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ArtifactType, KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { ARTIFACT_TYPE_OPTIONS, artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
-import { fmtDayMonth } from '../../utils/date'
+import { fmtDueDate } from '../../utils/date'
 import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput } from '../../utils/dueDate'
 import { useDismiss } from '../../hooks/useDismiss'
 import { getSavedAvatar } from '../../utils/avatarUtils'
@@ -311,7 +311,7 @@ export function TaskDetailModal({
                       task.isOverdue ? 'text-red-600' : 'text-slate-800'
                     }`}
                   >
-                    {fmtDayMonth(task.dueDate)}
+                    {fmtDueDate(task.dueDate)}
                   </span>
                   {task.isOverdue && (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">

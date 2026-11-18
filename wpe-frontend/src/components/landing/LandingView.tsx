@@ -52,20 +52,20 @@ const LandingContent: FC = () => {
       <header className="sticky top-0 z-40 border-b border-mp-n-200 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">
           {/* Logo */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
               onClick={scrollToTop}
-              className="cursor-pointer flex items-center gap-2 text-left"
+              className="cursor-pointer flex min-w-0 items-center gap-2 text-left"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-mp-purple-150 text-white shadow-mp-glow">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-mp-purple-150 text-white shadow-mp-glow">
                 <Sparkles size={18} />
               </div>
-              <div>
-                <span className="text-base font-bold tracking-tight text-mp-ink">
+              <div className="min-w-0">
+                <span className="block truncate text-base font-bold tracking-tight text-mp-ink">
                   Workflow Pipeline Engine
                 </span>
-                <div className="text-[10px] font-mono font-semibold text-mp-purple-150 tracking-wider uppercase">
+                <div className="truncate text-[10px] font-mono font-semibold text-mp-purple-150 tracking-wider uppercase">
                   V2.4 DAG ORCHESTRATOR
                 </div>
               </div>
@@ -112,7 +112,7 @@ const LandingContent: FC = () => {
           </nav>
 
           {/* Right Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1 whitespace-nowrap sm:gap-3">
             <button
               type="button"
               onClick={() => navigate('/guest')}
@@ -125,7 +125,7 @@ const LandingContent: FC = () => {
             <button
               type="button"
               onClick={() => navigate('/auth?tab=signin')}
-              className="cursor-pointer rounded-full px-3.5 py-2 text-xs font-semibold text-mp-ink hover:bg-mp-n-100 transition-colors"
+              className="cursor-pointer whitespace-nowrap rounded-full px-2.5 py-2 text-xs font-semibold text-mp-ink sm:px-3.5 hover:bg-mp-n-100 transition-colors"
             >
               Sign In
             </button>
@@ -134,7 +134,8 @@ const LandingContent: FC = () => {
               size="sm"
               variant="primary"
               onClick={() => navigate('/auth?tab=signup')}
-              icon={<ArrowRight size={14} />}
+              icon={<ArrowRight size={14} className="hidden sm:block" />}
+              className="whitespace-nowrap !px-3 sm:!px-4"
             >
               Get Started →
             </MagneticButton>

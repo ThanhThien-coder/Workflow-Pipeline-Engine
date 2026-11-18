@@ -56,6 +56,8 @@ class UserProfileServiceTest {
     private AuthService authService;
     @Mock
     private AvatarStorageService avatarStorageService;
+    @Mock
+    private com.pipeline.wpe.service.mail.AccountEmailService accountEmailService;
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
 
@@ -75,7 +77,8 @@ class UserProfileServiceTest {
             refreshTokenRepository,
             authService,
             avatarStorageService,
-            passwordEncoder
+            passwordEncoder,
+            accountEmailService
         );
 
         sampleUser = UserEntity.builder()
@@ -160,6 +163,29 @@ class UserProfileServiceTest {
         assertThat(projRes.stats().tasksTotal()).isEqualTo(1);
         assertThat(projRes.stats().onTimePct()).isEqualTo(100);
         assertThat(res.recentActivity()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("getMyProfile: chu du an khong bi ghi 'Joined ... as Collaborator', van co 'Created project'")
+    void getMyProfile_ownerRowIsNotShownAsCollaborator() {
+        when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
+        ProjectEntity project = ProjectEntity.builder().id(100L).name("E-commerce Flow").ownerId(10L)
+            .status(ProjectStatus.ACTIVE)
+            .createdAt(Instant.parse("2026-01-01T00:00:00Z")).updatedAt(Instant.parse("2026-01-02T00:00:00Z")).build();
+        when(projectRepository.findAllAccessibleProjects(10L)).thenReturn(List.of(project));
+        when(workPhaseRepository.findByProjectIdInAndParentPhaseIdIsNullOrderByOrderIndexAsc(List.of(100L)))
+            .thenReturn(List.of());
+        when(nodeRepository.findByProjectIdIn(List.of(100L))).thenReturn(List.of());
+        ProjectMemberEntity ownerRow = ProjectMemberEntity.builder().id(1L).projectId(100L).userId(10L)
+            .role(ProjectRole.OWNER).joinedAt(Instant.parse("2026-01-01T00:00:00Z")).build();
+        when(projectMemberRepository.findByProjectIdIn(List.of(100L))).thenReturn(List.of(ownerRow));
+        when(artifactRepository.findByProjectIdIn(List.of(100L))).thenReturn(List.of());
+
+        ProfileResponse res = userProfileService.getMyProfile(10L);
+
+        assertThat(res.recentActivity()).extracting(a -> a.text())
+            .contains("Created project E-commerce Flow")
+            .noneMatch(x -> x.startsWith("Joined "));
     }
 
     // ==========================================
@@ -318,6 +344,24 @@ class UserProfileServiceTest {
         assertThat(passwordEncoder.matches("NewPassword456!", sampleUser.getPasswordHash())).isTrue();
         verify(refreshTokenRepository).revokeAllByUserId(10L);
         verify(authService).issueSession(sampleUser);
+    }
+
+    @Test
+    @DisplayName("changePassword: thành công -> lên lịch gửi email xác nhận; thất bại -> không gửi")
+    void changePassword_schedulesConfirmationEmail() {
+        when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(authService.issueSession(any(UserEntity.class))).thenReturn(new AuthResponse("new-jwt", "new-rt", null));
+
+        userProfileService.changePassword(10L, new ChangePasswordRequest("OldPassword123!", "NewPassword456!"));
+
+        verify(accountEmailService).sendPasswordChangedAfterCommit(
+            eq(10L), eq(sampleUser.getEmail()), eq(sampleUser.getFullName()), eq(sampleUser.getUsername()), any(Instant.class));
+
+        clearInvocations(accountEmailService);
+        assertThatThrownBy(() -> userProfileService.changePassword(10L, new ChangePasswordRequest("OldPassword123!", "short")))
+            .isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(accountEmailService);
     }
 
     @Test

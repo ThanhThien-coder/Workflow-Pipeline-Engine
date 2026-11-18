@@ -2,6 +2,7 @@ import { type FC } from 'react'
 import { motion } from 'framer-motion'
 import { FolderGit2 } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { pluralize } from '../../utils/pluralize'
 
 export interface WorkflowArtifactsIslandProps {
   count?: number
@@ -38,7 +39,7 @@ export const WorkflowArtifactsIsland: FC<WorkflowArtifactsIslandProps> = ({
       onMouseDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
       className={`rounded-full px-4 py-2 bg-white/95 backdrop-blur-md border border-mp-n-200/80 shadow-mp-float flex items-center gap-2.5 cursor-pointer hover:shadow-lg hover:border-mp-purple-200 transition-all select-none ${className}`}
-      aria-label={`Open deliverables artifacts (${count} items)`}
+      aria-label={`Open deliverables artifacts (${pluralize(count, 'item')})`}
     >
       <FolderGit2 className="text-mp-purple-700 w-4 h-4 shrink-0" />
       <span className="font-medium text-sm text-mp-ink">Artifacts</span>

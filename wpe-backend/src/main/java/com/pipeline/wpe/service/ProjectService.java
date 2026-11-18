@@ -14,6 +14,7 @@ import com.pipeline.wpe.exception.AccessDeniedException;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
+import com.pipeline.wpe.service.engine.CriticalPathCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,7 @@ public class ProjectService {
     private final ProjectAuthorizationService projectAuthorizationService;
     private final UserRepository userRepository;
     private final TemplateCloneService templateCloneService;
+    private final NodeDependencyRepository nodeDependencyRepository;
 
     private static final Map<ProjectStatus, Set<ProjectStatus>> ALLOWED_TRANSITIONS = Map.of(
         ProjectStatus.DRAFT, Set.of(ProjectStatus.ARCHIVED),
@@ -85,6 +87,7 @@ public class ProjectService {
 
         List<Long> projectIds = filtered.stream().map(ProjectEntity::getId).toList();
         Map<Long, NodeStats> statsMap = countNodesByProjectIds(projectIds);
+        Map<Long, Integer> criticalByProject = computeCriticalPathLengths(projectIds);
 
         // Nạp theo lô: 1 truy vấn thành viên cho mọi dự án + 1 truy vấn user (chủ dự án và thành viên).
         Map<Long, List<ProjectMemberEntity>> activeMembersByProject = projectMemberRepository.findByProjectIdIn(projectIds).stream()
@@ -112,7 +115,8 @@ public class ProjectService {
                 stats.activeNodes(),
                 stats.doneNodes(),
                 stats.inProgressNodes(),
-                buildMemberBriefs(project, activeMembersByProject.getOrDefault(project.getId(), List.of()), usersById)
+                buildMemberBriefs(project, activeMembersByProject.getOrDefault(project.getId(), List.of()), usersById),
+                criticalByProject.getOrDefault(project.getId(), 0)
             );
         }).toList());
 
@@ -296,8 +300,32 @@ public class ProjectService {
             stats.nodeCount(),
             stats.activeNodes(),
             stats.doneNodes(),
-            stats.inProgressNodes()
+            stats.inProgressNodes(),
+            List.of(),
+            computeCriticalPathLengths(List.of(projectId)).getOrDefault(projectId, 0)
         );
+    }
+
+    /** Độ dài đường găng của từng dự án, nạp theo lô: 1 truy vấn node + 1 truy vấn phụ thuộc cho mọi dự án. */
+    private Map<Long, Integer> computeCriticalPathLengths(Collection<Long> projectIds) {
+        if (projectIds == null || projectIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<Long>> nodeIdsByProject = new HashMap<>();
+        for (NodeEntity n : nodeRepository.findByProjectIdIn(projectIds)) {
+            nodeIdsByProject.computeIfAbsent(n.getProjectId(), k -> new ArrayList<>()).add(n.getId());
+        }
+        Map<Long, List<com.pipeline.wpe.entity.NodeDependencyEntity>> depsByProject = new HashMap<>();
+        for (com.pipeline.wpe.entity.NodeDependencyEntity d : nodeDependencyRepository.findByProjectIdIn(projectIds)) {
+            depsByProject.computeIfAbsent(d.getProjectId(), k -> new ArrayList<>()).add(d);
+        }
+        Map<Long, Integer> result = new HashMap<>();
+        for (Long projectId : projectIds) {
+            result.put(projectId, CriticalPathCalculator.compute(
+                nodeIdsByProject.getOrDefault(projectId, List.of()),
+                depsByProject.getOrDefault(projectId, List.of())));
+        }
+        return result;
     }
 
     @Transactional

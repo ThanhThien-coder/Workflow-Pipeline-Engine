@@ -71,7 +71,8 @@ class PublicProfileServiceTest {
     void setUp() {
         service = new UserProfileService(userRepository, projectRepository, projectMemberRepository,
             workPhaseRepository, nodeRepository, artifactRepository, refreshTokenRepository,
-            authService, avatarStorageService, new BCryptPasswordEncoder(4));
+            authService, avatarStorageService, new BCryptPasswordEncoder(4),
+            org.mockito.Mockito.mock(com.pipeline.wpe.service.mail.AccountEmailService.class));
         viewer = user(VIEWER, "Viewer One", SystemRole.USER, "members", false, true);
         target = user(TARGET, "Target Two", SystemRole.USER, "members", false, true);
         lenient().when(userRepository.findById(VIEWER)).thenReturn(Optional.of(viewer));

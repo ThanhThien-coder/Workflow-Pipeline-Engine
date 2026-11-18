@@ -13,6 +13,7 @@ import type {
 import { workflowService } from '../../services/container'
 import { isApiError } from '../../services/http/ApiError'
 import { isMockMode } from '../../services/env'
+import { pluralize } from '../../utils/pluralize'
 
 /**
  * Số thứ tự lần gọi loadSettings mới nhất. Để ở cấp module (không nằm trong slice) vì đăng xuất
@@ -466,7 +467,7 @@ export const createSettingsSlice = (
           await refreshLogs(pid)
           const name = target?.username || 'Member'
           const toastMsg = res.unassignedTaskCount > 0
-            ? `${name} removed. ${res.unassignedTaskCount} task(s) unassigned.`
+            ? `${name} removed. ${pluralize(res.unassignedTaskCount, 'task')} unassigned.`
             : `${name} removed.`
           get().settings.showToast(toastMsg)
           return true

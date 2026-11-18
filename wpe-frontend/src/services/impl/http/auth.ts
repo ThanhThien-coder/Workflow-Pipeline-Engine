@@ -7,6 +7,7 @@ import {
   type UnauthorizedContext,
 } from '../../http/apiClient'
 import { ApiError, isApiError } from '../../http/ApiError'
+import { isMockMode } from '../../env'
 import type {
   AuthCredentialsDto,
   AuthResponseDto,
@@ -192,6 +193,32 @@ export async function logout(): Promise<void> {
   await apiRequest<unknown>('POST', '/auth/logout', {
     body: { refreshToken: getStoredRefreshToken() },
   })
+}
+
+// ───────────────────────── Quên mật khẩu (TASK_60) ─────────────────────────
+
+/** GET /auth/password-reset/status → { enabled }. Demo: luôn bật. */
+export async function getPasswordResetStatus(): Promise<{ enabled: boolean }> {
+  if (isMockMode) return { enabled: true }
+  return apiRequest<{ enabled: boolean }>('GET', '/auth/password-reset/status')
+}
+
+/** POST /auth/forgot-password. Demo: giả lập thành công, không gọi mạng. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (isMockMode) return
+  await apiRequest<unknown>('POST', '/auth/forgot-password', { body: { email: email.trim() } })
+}
+
+/** POST /auth/reset-password/verify. Token sai/hết hạn: ném ApiError INVALID_RESET_TOKEN. Demo: token nào cũng hợp lệ. */
+export async function verifyPasswordResetToken(token: string): Promise<void> {
+  if (isMockMode) return
+  await apiRequest<unknown>('POST', '/auth/reset-password/verify', { body: { token } })
+}
+
+/** POST /auth/reset-password. Lỗi: INVALID_RESET_TOKEN, WEAK_PASSWORD. Demo: giả lập thành công. */
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  if (isMockMode) return
+  await apiRequest<unknown>('POST', '/auth/reset-password', { body: { token, newPassword } })
 }
 
 // ───────────────────────── Tự làm mới token ─────────────────────────

@@ -14,6 +14,8 @@ import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
 import com.pipeline.wpe.service.auth.AuthService;
+import com.pipeline.wpe.service.auth.PasswordPolicy;
+import com.pipeline.wpe.service.mail.AccountEmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -46,6 +48,7 @@ public class UserProfileService {
     private final AuthService authService;
     private final AvatarStorageService avatarStorageService;
     private final PasswordEncoder passwordEncoder;
+    private final AccountEmailService accountEmailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -234,9 +237,7 @@ public class UserProfileService {
         }
 
         String newPassword = request.newPassword();
-        if (newPassword.length() < 8 || !newPassword.matches(".*\\d.*") || newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new BadRequestException("WEAK_PASSWORD", "The new password must be at least 8 characters, include at least one digit, and be no longer than 72 bytes.");
-        }
+        PasswordPolicy.validate(newPassword);
 
         if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
             throw new BadRequestException("SAME_PASSWORD", "The new password must be different from your current password.");
@@ -247,6 +248,8 @@ public class UserProfileService {
         userRepository.save(user);
 
         refreshTokenRepository.revokeAllByUserId(user.getId());
+        accountEmailService.sendPasswordChangedAfterCommit(
+            user.getId(), user.getEmail(), user.getFullName(), user.getUsername(), Instant.now());
         log.info("Đổi mật khẩu thành công cho user #{}. Đã tăng token_version và thu hồi các phiên cũ.", userId);
 
         return authService.issueSession(user);
@@ -706,7 +709,12 @@ public class UserProfileService {
             String projectName = projectNameMap.getOrDefault(entry.getKey(), "a project");
             for (ProjectMemberEntity m : entry.getValue()) {
                 if (Objects.equals(m.getUserId(), userId) && m.getJoinedAt() != null) {
-                    String roleName = m.getRole() == ProjectRole.MANAGER ? "Manager" : "Collaborator";
+                    // Chủ dự án: dòng thành viên OWNER lúc tạo dự án đã được thể hiện bằng "Created project" bên dưới.
+                    if (m.getRole() == ProjectRole.OWNER) {
+                        continue;
+                    }
+                    String roleName = m.getRole() == ProjectRole.MANAGER ? "Manager"
+                        : m.getRole() == ProjectRole.VIEWER ? "Viewer" : "Collaborator";
                     activities.add(new ProfileActivityResponse(
                         "member-" + m.getId(),
                         "Joined " + projectName + " as " + roleName,

@@ -34,6 +34,18 @@ spring:
     # Production phải false. Profile dev bật true (application-dev.yml).
     out-of-order: false
 
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -54,6 +66,12 @@ app:
     base-url: ${APP_PUBLIC_URL:http://localhost:5173}
   upload:
     dir: ${APP_UPLOAD_DIR:uploads}
+  mail:
+    from: ${MAIL_FROM:}
+    from-name: ${MAIL_FROM_NAME:Workflow Pipeline Engine}
+  password-reset:
+    token-ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:30}
+    resend-cooldown-seconds: ${PASSWORD_RESET_RESEND_COOLDOWN_SECONDS:60}
   rabbitmq:
     exchange: wpe.workflow.exchange
     queues:

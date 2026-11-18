@@ -10,6 +10,7 @@ import java.util.Optional;
 @Repository
 public interface NodeDependencyRepository extends JpaRepository<NodeDependencyEntity, Long> {
     List<NodeDependencyEntity> findByProjectId(Long projectId);
+    List<NodeDependencyEntity> findByProjectIdIn(java.util.Collection<Long> projectIds);
     List<NodeDependencyEntity> findByParentNodeId(Long parentNodeId);
     List<NodeDependencyEntity> findByChildNodeId(Long childNodeId);
     boolean existsByParentNodeIdAndChildNodeId(Long parentNodeId, Long childNodeId);

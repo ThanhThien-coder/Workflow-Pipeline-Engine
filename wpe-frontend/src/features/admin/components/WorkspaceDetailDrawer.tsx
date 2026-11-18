@@ -1,6 +1,7 @@
 import { useState, useEffect, type FC } from 'react';
 import type { AdminWorkspaceDetailDto } from '../../../types/admin.types';
 import { X, Archive, Loader2, UserCheck, ShieldCheck, Clock, Share2, Layers } from 'lucide-react';
+import { pluralize } from '../../../utils/pluralize'
 
 export interface WorkspaceDetailDrawerProps {
   projectId: string | null;
@@ -210,7 +211,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Phases / total tasks:</span>
                     <span className="font-bold text-slate-800">
-                      {detail.phaseCount} phases · {detail.nodeCount} tasks
+                      {pluralize(detail.phaseCount, 'phase')} · {pluralize(detail.nodeCount, 'task')}
                     </span>
                   </div>
                   <div>
@@ -254,7 +255,7 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-xs text-rose-600 font-medium">
                     <span>Overdue tasks:</span>
-                    <b>{detail.overdueCount} task</b>
+                    <b>{pluralize(detail.overdueCount, 'task')}</b>
                   </div>
                 </div>
               </section>

@@ -22,6 +22,7 @@ import { SubmitArtifactModal } from '../kanban/SubmitArtifactModal'
 import { usePhaseKanban } from '../../hooks/usePhaseKanban'
 import { useWorkflowService } from '../../services/workflow/WorkflowContext'
 import type { KanbanTask } from '../../types/kanban.types'
+import { pluralize } from '../../utils/pluralize'
 
 export function MindmapDrawer() {
   const selectedPhaseId = useWorkflowStore((state) => state.selectedPhaseId)
@@ -447,7 +448,7 @@ export function MindmapDrawer() {
       {viewMode === 'graph' && canEdit && mergeSelection.size >= 2 && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-amber-200 bg-amber-50 px-4 py-2.5">
           <span className="text-xs font-medium text-amber-700">
-            {mergeSelection.size} tasks selected
+            {pluralize(mergeSelection.size, 'task')} selected
           </span>
           <button
             type="button"

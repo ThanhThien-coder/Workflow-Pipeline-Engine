@@ -16,6 +16,7 @@ import { computeMacroGraphLayout, MACRO_CARD_H, MACRO_CARD_W } from '../../utils
 import { arrangePhases, autoLayoutColumns, channelOffsets, columnX, phaseColumns, routeEdge } from '../../utils/phaseColumnLayout'
 import { WorkflowArtifactsIsland } from '../workspace/WorkflowArtifactsIsland'
 import { WorkflowArtifactsDrawer } from '../workspace/WorkflowArtifactsDrawer'
+import { pluralize } from '../../utils/pluralize'
 
 export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?: string; className?: string }) {
   const phases = useWorkflowStore((state) => state.macroPhases)
@@ -218,7 +219,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           </button>
 
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-            {phases.length} phases
+            {pluralize(phases.length, 'phase')}
           </span>
         </div>
       </div>

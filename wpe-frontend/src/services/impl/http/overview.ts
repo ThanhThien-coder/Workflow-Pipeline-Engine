@@ -26,6 +26,7 @@ import type {
 } from '../../../types/workflow.types'
 import { getSavedAvatar } from '../../../utils/avatarUtils'
 import type { ProjectActivityItem } from './activity'
+import { pluralize } from '../../../utils/pluralize'
 
 export interface OverviewGraphNode extends BackendGraphNodeDto {
   isOverdue?: boolean | null
@@ -319,6 +320,10 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
     source,
     warning: readAiWarning(record),
     metrics: readAiMetrics(record),
+    rootCauseNotes:
+      typeof record.rootCauseNotes === 'string' && record.rootCauseNotes.trim()
+        ? record.rootCauseNotes.trim()
+        : undefined,
   }
 
   const analyzedAt =
@@ -394,7 +399,7 @@ export function mapAiAnalysisToReport(raw: unknown, fallbackTimestamp: string): 
         kind: 'RECOMMENDATION',
         severity: 'ADVICE',
         icon: '🟢',
-        kicker: 'AI Actionable Advice',
+        kicker: source === 'HEURISTIC_FALLBACK' ? 'Recommended action' : 'AI Actionable Advice',
         tag: String(a.priority || 'Advice'),
         title: targetCode && targetCode !== 'GENERAL' ? `${action} · ${targetCode}` : action,
         description: String(a.instruction || ''),
@@ -476,7 +481,7 @@ export function formatPhaseLabel(status: string, phaseCount: number): string {
   }
   const statusLabel = statusMap[status] || status || 'Active'
   if (phaseCount > 0) {
-    return `${phaseCount} phase${phaseCount > 1 ? 's' : ''} · ${statusLabel}`
+    return `${pluralize(phaseCount, 'phase')} · ${statusLabel}`
   }
   return statusLabel
 }

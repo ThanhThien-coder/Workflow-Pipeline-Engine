@@ -30,8 +30,8 @@ export function OverviewHeader({
   const hasAiInsights = aiReport.hasAnalysis !== false && aiReport.insights.length > 0
   return (
     <header className="sticky top-0 z-[45] border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-5">
-        <div className="min-w-0">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 md:flex-row md:items-center md:justify-between md:gap-6">
+        <div className="min-w-0 md:flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-xl font-bold tracking-tight">{project.name}</h1>
             {project.role === 'OWNER' && (
@@ -47,7 +47,7 @@ export function OverviewHeader({
             Last updated {relativeEn(project.lastUpdatedAt)} · Engine running
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 md:shrink-0 md:flex-nowrap">
           {!hasAiInsights && (
             <span
               data-testid="ai-diagnosis-empty"

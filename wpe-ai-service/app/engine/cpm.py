@@ -1,13 +1,24 @@
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Optional
 from app.schemas.request import NodeDto, DependencyDto
 from app.config import settings
 from app.engine.graph_validator import topological_sort
 
+
 class CpmResult:
-    def __init__(self, critical_path: List[str], total_duration_hours: float, node_timings: Dict[int, Dict[str, Any]]):
+    def __init__(
+        self,
+        critical_path: List[str],
+        total_duration_hours: float,
+        node_timings: Dict[int, Dict[str, Any]],
+        has_cycle: bool = False,
+        cycle_nodes: Optional[List[str]] = None,
+    ):
         self.critical_path = critical_path
         self.total_duration_hours = total_duration_hours
         self.node_timings = node_timings
+        self.has_cycle = has_cycle
+        self.cycle_nodes = cycle_nodes or []
+
 
 def calculate_cpm(nodes: List[NodeDto], dependencies: List[DependencyDto]) -> CpmResult:
     """
@@ -16,22 +27,26 @@ def calculate_cpm(nodes: List[NodeDto], dependencies: List[DependencyDto]) -> Cp
     - Backward pass: LF (Late Finish), LS (Late Start)
     - Slack: LS - ES (độ trôi dự phòng)
     - Critical Path: Các node có Slack == 0
+    - Nếu phát hiện chu trình: KHÔNG tính CPM, trả critical_path = [] kèm danh sách cycle_nodes.
     """
     if not nodes:
         return CpmResult(critical_path=[], total_duration_hours=0.0, node_timings={})
 
+    node_map: Dict[int, NodeDto] = {node.id: node for node in nodes}
+
     # 1. Xác thực DAG và lấy thứ tự Topo
-    is_acyclic, sorted_ids, cycle_nodes = topological_sort(nodes, dependencies)
+    is_acyclic, sorted_ids, cycle_node_ids = topological_sort(nodes, dependencies)
     if not is_acyclic:
-        # Nếu đồ thị có chu trình, fallback lấy toàn bộ code theo thứ tự hiện tại
+        cycle_codes = sorted(node_map[nid].code for nid in cycle_node_ids if nid in node_map)
         return CpmResult(
-            critical_path=[node.code for node in nodes],
+            critical_path=[],
             total_duration_hours=0.0,
-            node_timings={}
+            node_timings={},
+            has_cycle=True,
+            cycle_nodes=cycle_codes,
         )
 
     # 2. Xây dựng cấu trúc tra cứu
-    node_map: Dict[int, NodeDto] = {node.id: node for node in nodes}
     parents_map: Dict[int, List[int]] = {node.id: [] for node in nodes}
     children_map: Dict[int, List[int]] = {node.id: [] for node in nodes}
 
@@ -47,7 +62,11 @@ def calculate_cpm(nodes: List[NodeDto], dependencies: List[DependencyDto]) -> Cp
 
     for node_id in sorted_ids:
         node = node_map[node_id]
-        duration = float(node.estimatedHours) if (node.estimatedHours and node.estimatedHours > 0) else float(settings.DEFAULT_NODE_HOURS)
+        duration = (
+            float(node.estimatedHours)
+            if (node.estimatedHours and node.estimatedHours > 0)
+            else float(settings.DEFAULT_NODE_HOURS)
+        )
 
         parents = parents_map[node_id]
         if not parents:
@@ -75,7 +94,11 @@ def calculate_cpm(nodes: List[NodeDto], dependencies: List[DependencyDto]) -> Cp
 
     for node_id in reversed(sorted_ids):
         node = node_map[node_id]
-        duration = float(node.estimatedHours) if (node.estimatedHours and node.estimatedHours > 0) else float(settings.DEFAULT_NODE_HOURS)
+        duration = (
+            float(node.estimatedHours)
+            if (node.estimatedHours and node.estimatedHours > 0)
+            else float(settings.DEFAULT_NODE_HOURS)
+        )
 
         children = children_map[node_id]
         if not children:
@@ -93,7 +116,11 @@ def calculate_cpm(nodes: List[NodeDto], dependencies: List[DependencyDto]) -> Cp
 
     for node_id in sorted_ids:
         node = node_map[node_id]
-        duration = float(node.estimatedHours) if (node.estimatedHours and node.estimatedHours > 0) else float(settings.DEFAULT_NODE_HOURS)
+        duration = (
+            float(node.estimatedHours)
+            if (node.estimatedHours and node.estimatedHours > 0)
+            else float(settings.DEFAULT_NODE_HOURS)
+        )
         slack = round(ls[node_id] - es[node_id], 2)
 
         node_timings[node_id] = {
@@ -104,7 +131,7 @@ def calculate_cpm(nodes: List[NodeDto], dependencies: List[DependencyDto]) -> Cp
             "EF": ef[node_id],
             "LS": ls[node_id],
             "LF": lf[node_id],
-            "slack": slack
+            "slack": slack,
         }
 
         # Node có slack xấp xỉ 0 nằm trên đường găng
@@ -114,5 +141,7 @@ def calculate_cpm(nodes: List[NodeDto], dependencies: List[DependencyDto]) -> Cp
     return CpmResult(
         critical_path=critical_path_codes,
         total_duration_hours=total_project_duration,
-        node_timings=node_timings
+        node_timings=node_timings,
+        has_cycle=False,
+        cycle_nodes=[],
     )

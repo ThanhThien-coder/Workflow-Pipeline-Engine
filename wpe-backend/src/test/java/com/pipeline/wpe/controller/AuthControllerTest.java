@@ -34,6 +34,9 @@ class AuthControllerTest {
     @MockBean
     private AuthService authService;
 
+    @MockBean
+    private com.pipeline.wpe.service.auth.PasswordResetService passwordResetService;
+
     private final AuthResponse sample = new AuthResponse(
         "eyJ.jwt.sig", "rt_abc",
         new AuthResponse.UserSummary("2", "alex.kim", "alex.kim@pipeline.engine", "Alex Kim", "USER", null)

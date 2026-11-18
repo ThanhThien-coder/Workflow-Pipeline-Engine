@@ -122,7 +122,8 @@ export const createOverviewSlice = (
         }))
       }
       try {
-        const guestAccess = await service.toggleGuestAccess(targetProjectId, false)
+        const revokedAccess = await service.toggleGuestAccess(targetProjectId, false)
+        const guestAccess = { ...revokedAccess, revoked: true }
         set((state) => ({
           overview: {
             ...state.overview,

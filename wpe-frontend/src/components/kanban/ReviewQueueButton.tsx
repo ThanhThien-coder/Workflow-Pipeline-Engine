@@ -2,6 +2,7 @@ import { ClipboardCheck, Loader2 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useDismiss } from '../../hooks/useDismiss'
 import type { KanbanTask, UserSummary } from '../../types/kanban.types'
+import { pluralize } from '../../utils/pluralize'
 
 /** Số trên huy hiệu: tối đa "9+". */
 export function formatBadgeCount(count: number): string {
@@ -43,7 +44,7 @@ export function ReviewQueueButton({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={count ? `Pending review: ${count} tasks` : 'Pending review'}
+        aria-label={count ? `Pending review: ${pluralize(count, 'task')}` : 'Pending review'}
         onClick={() => {
           const next = !open
           setOpen(next)

@@ -74,6 +74,8 @@ export interface AuditLogItem {
 export interface ProjectMemberDetail {
   userId: string;
   username: string;
+  /** Full name when the backend provides one; display falls back to username */
+  fullName?: string | null;
   email: string;
   role: ProjectRole;
   joinedAt: ISODateTime;

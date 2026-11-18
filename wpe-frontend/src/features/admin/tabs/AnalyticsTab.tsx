@@ -1,6 +1,7 @@
 import type { FC } from 'react';
 import type { AdminStatsDto, AdminTrendPointDto } from '../../../types/admin.types';
 import { Users, PlayCircle, AlertCircle, Copy, Info } from 'lucide-react';
+import { pluralize } from '../../../utils/pluralize'
 
 interface AnalyticsTabProps {
   stats: AdminStatsDto | null;
@@ -128,7 +129,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
             {stats.tasks.overdue.toLocaleString()}
           </div>
           <div className="mt-2 text-xs text-slate-500">
-            {stats.tasks.total} tasks total
+            {pluralize(stats.tasks.total, 'task')} total
           </div>
         </div>
 
@@ -231,7 +232,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
                   />
                   {/* Task xong */}
                   <div
-                    title={`${item.date}: ${item.tasksDone} task xong`}
+                    title={`${item.date}: ${pluralize(item.tasksDone, 'task')} done`}
                     style={{ height: `${Math.max(item.tasksDone > 0 ? 8 : 0, taskHeight)}%` }}
                     className="w-1.5 sm:w-2 rounded-t bg-emerald-500 transition-all group-hover:brightness-110"
                   />
@@ -260,7 +261,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
             Project status distribution
           </h2>
           <p className="text-xs text-slate-400 mb-4">
-            {stats.projects.total} projects in the system
+            {pluralize(stats.projects.total, 'project')} in the system
           </p>
 
           <div className="space-y-3">

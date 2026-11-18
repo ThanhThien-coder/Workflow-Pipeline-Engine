@@ -21,8 +21,21 @@ public record ProjectSummaryResponse(
     int nodeCount,
     int activeNodes,
     int doneNodes,
-    List<ProjectMemberBrief> members
+    List<ProjectMemberBrief> members,
+    /** Số node trên chuỗi phụ thuộc dài nhất (định nghĩa chung: CriticalPathCalculator). */
+    int criticalPathLength
 ) {
+    /** Constructor cũ (chưa có độ dài đường găng, mặc định 0). */
+    public ProjectSummaryResponse(
+        Long id, String name, String description, String status, Long ownerId, String ownerName,
+        int totalNodes, int completedNodes, int inProgressNodes, double progressPercentage,
+        Instant createdAt, Instant updatedAt, int nodeCount, int activeNodes, int doneNodes,
+        List<ProjectMemberBrief> members
+    ) {
+        this(id, name, description, status, ownerId, ownerName, totalNodes, completedNodes, inProgressNodes,
+            progressPercentage, createdAt, updatedAt, nodeCount, activeNodes, doneNodes, members, 0);
+    }
+
     /** Constructor cũ (chưa có danh sách thành viên). */
     public ProjectSummaryResponse(
         Long id, String name, String description, String status, Long ownerId, String ownerName,
@@ -30,7 +43,7 @@ public record ProjectSummaryResponse(
         Instant createdAt, Instant updatedAt, int nodeCount, int activeNodes, int doneNodes
     ) {
         this(id, name, description, status, ownerId, ownerName, totalNodes, completedNodes, inProgressNodes,
-            progressPercentage, createdAt, updatedAt, nodeCount, activeNodes, doneNodes, List.of());
+            progressPercentage, createdAt, updatedAt, nodeCount, activeNodes, doneNodes, List.of(), 0);
     }
 
     public static ProjectSummaryResponse fromEntity(
@@ -100,6 +113,19 @@ public record ProjectSummaryResponse(
         int inProgressNodes,
         List<ProjectMemberBrief> members
     ) {
+        return withNodeStats(project, ownerName, nodeCount, activeNodes, doneNodes, inProgressNodes, members, 0);
+    }
+
+    public static ProjectSummaryResponse withNodeStats(
+        ProjectEntity project,
+        String ownerName,
+        int nodeCount,
+        int activeNodes,
+        int doneNodes,
+        int inProgressNodes,
+        List<ProjectMemberBrief> members,
+        int criticalPathLength
+    ) {
         if (project == null) {
             return null;
         }
@@ -124,7 +150,8 @@ public record ProjectSummaryResponse(
             nodeCount,
             activeNodes,
             doneNodes,
-            members != null ? members : List.of()
+            members != null ? members : List.of(),
+            criticalPathLength
         );
     }
 }

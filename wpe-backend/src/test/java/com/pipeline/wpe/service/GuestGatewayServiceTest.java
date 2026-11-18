@@ -12,6 +12,8 @@ import com.pipeline.wpe.entity.UserEntity;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.repository.ArtifactRepository;
 import com.pipeline.wpe.repository.GuestLinkRepository;
+import com.pipeline.wpe.repository.NodeDependencyRepository;
+import com.pipeline.wpe.entity.NodeDependencyEntity;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
@@ -59,6 +61,9 @@ class GuestGatewayServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private NodeDependencyRepository nodeDependencyRepository;
 
     @InjectMocks
     private GuestGatewayService guestGatewayService;
@@ -187,6 +192,54 @@ class GuestGatewayServiceTest {
         assertThat(overview.completedNodes()).isEqualTo(1);
         assertThat(overview.completionPct()).isEqualTo(50.0);
         assertThat(overview.publicArtifacts()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Overview: criticalNodes dung dinh nghia chung (chuoi phu thuoc node dai nhat)")
+    void testGetGuestOverview_criticalNodesUsesSharedDefinition() {
+        String token = "example-guest-token-critical";
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token).isRevoked(false)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS)).build();
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("Test Pipeline")
+            .ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        List<NodeEntity> nodes = List.of(
+            NodeEntity.builder().id(1L).projectId(projectId).status(NodeStatus.DONE).code("WPE-1").title("A").build(),
+            NodeEntity.builder().id(2L).projectId(projectId).status(NodeStatus.TODO).code("WPE-2").title("B").build(),
+            NodeEntity.builder().id(3L).projectId(projectId).status(NodeStatus.LOCKED).code("WPE-3").title("C").build(),
+            NodeEntity.builder().id(4L).projectId(projectId).status(NodeStatus.LOCKED).code("WPE-4").title("D").build(),
+            NodeEntity.builder().id(5L).projectId(projectId).status(NodeStatus.LOCKED).code("WPE-5").title("E").build());
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(nodes);
+        when(nodeDependencyRepository.findByProjectId(projectId)).thenReturn(List.of(
+            NodeDependencyEntity.builder().projectId(projectId).parentNodeId(1L).childNodeId(2L).build(),
+            NodeDependencyEntity.builder().projectId(projectId).parentNodeId(2L).childNodeId(3L).build()));
+        when(artifactRepository.findByProjectIdAndIsPublicForGuestTrue(projectId)).thenReturn(List.of());
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId)).thenReturn(List.of());
+
+        GuestOverviewResponse overview = guestGatewayService.getGuestOverview(token);
+
+        assertThat(overview.criticalNodes()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("Overview: nhan phase la dung ten phase, khong ghep so thu tu (truoc day hien '0. Phase One')")
+    void testGetGuestOverview_phaseLabelIsPlainName() {
+        String token = "example-guest-token-phase";
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token).isRevoked(false)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS)).build();
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("Test Pipeline")
+            .ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+        when(artifactRepository.findByProjectIdAndIsPublicForGuestTrue(projectId)).thenReturn(List.of());
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId)).thenReturn(List.of(
+            com.pipeline.wpe.entity.WorkPhaseEntity.builder().projectId(projectId).name("Phase One").orderIndex(0).build()));
+
+        GuestOverviewResponse overview = guestGatewayService.getGuestOverview(token);
+
+        assertThat(overview.phaseLabel()).isEqualTo("Phase One");
     }
 
     @Test

@@ -962,7 +962,8 @@ export class HttpWorkflowService implements IWorkflowService {
       // Giữ id phase thật; tên phase do nơi dùng gắn theo danh sách phase của dự án (My Tasks, Kanban phase)
       phaseId: item.phaseId != null ? String(item.phaseId) : '',
       phaseLabel: '',
-      dueDate: item.dueDate || new Date().toISOString(),
+      // No due date set stays empty (the UI shows "No due date"); never default to today
+      dueDate: item.dueDate || '',
       isOverdue: item.isOverdue || false,
       joinPolicySummary: item.joinPolicy === 'ALL_COMPLETED' ? 'AND-Join: All prerequisites completed' : 'OR-Join: 1 prerequisite completed',
       artifacts: (item.artifacts || []).map(a => ({

@@ -6,6 +6,7 @@ import type {
   GuestStatusKey,
   SubmitGuestFeedbackCommand,
 } from '../../../types/guest.types'
+import { pluralize } from '../../../utils/pluralize'
 
 /**
  * D5 — Lời gọi API cổng khách (Guest Gateway) và hàng đợi góp ý (Feedback Queue) (Cụm 7, 8).
@@ -88,7 +89,7 @@ function formatExpiresLabel(expiresAt?: string | null): string {
   const diffDays = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   const datePart = exp.toISOString().split('T')[0]
   if (diffDays <= 0) return `${datePart} (Expired)`
-  return `${datePart} (${diffDays} ${diffDays === 1 ? 'day' : 'days'} left)`
+  return `${datePart} (${pluralize(diffDays, 'day')} left)`
 }
 
 export function mapGuestAccessResponse(data: BackendGuestAccessResponse): GuestAccessState {
@@ -151,7 +152,8 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
 
   return {
     projectName: data.projectName || '',
-    phaseLabel: data.phaseLabel || 'Whole workflow',
+    // Backend prefixes the phase name with its 0-based order index ("0. Phase One"); the Workflow page shows names only.
+    phaseLabel: data.phaseLabel?.trim() || 'Whole workflow',
     lastUpdated: data.lastUpdated ? new Date(data.lastUpdated).toISOString() : new Date().toISOString(),
     totalNodes,
     criticalNodes: data.criticalNodes ?? 0,
