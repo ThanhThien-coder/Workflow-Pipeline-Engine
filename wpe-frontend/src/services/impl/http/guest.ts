@@ -1,5 +1,5 @@
 import { apiRequest } from '../../http/apiClient'
-import type { FeedbackItem, FeedbackStatus, GuestAccessState, ReviewerRole } from '../../../types/overview.types'
+import type { FeedbackItem, FeedbackStatus, GuestAccessState, GuestLinkStatus, ReviewerRole } from '../../../types/overview.types'
 import type {
   GuestFeedbackDto,
   GuestOverviewDto,
@@ -15,6 +15,8 @@ import { pluralize } from '../../../utils/pluralize'
 export interface BackendGuestAccessResponse {
   enabled?: boolean
   active?: boolean
+  /** NONE | ACTIVE | EXPIRED | REVOKED (absent in older backends) */
+  status?: string | null
   token?: string | null
   shareUrl?: string | null
   expiresAt?: string | null
@@ -93,14 +95,31 @@ function formatExpiresLabel(expiresAt?: string | null): string {
 }
 
 export function mapGuestAccessResponse(data: BackendGuestAccessResponse): GuestAccessState {
-  const isActive = Boolean(data.enabled ?? data.active ?? false)
-  const token = data.token ?? ''
+  const legacyActive = Boolean(data.enabled ?? data.active ?? false)
+  const raw = typeof data.status === 'string' ? data.status.trim().toLowerCase() : ''
+  const status: GuestLinkStatus =
+    raw === 'active' || raw === 'expired' || raw === 'revoked' || raw === 'none'
+      ? raw
+      : legacyActive
+        ? 'active'
+        : 'none'
+  const isActive = status === 'active'
+  const token = isActive ? (data.token ?? '') : ''
   const expiresAt = data.expiresAt ? new Date(data.expiresAt).toISOString() : ''
+  const expiresLabel = isActive
+    ? formatExpiresLabel(data.expiresAt)
+    : status === 'expired'
+      ? 'Expired'
+      : status === 'revoked'
+        ? 'Revoked'
+        : ''
   return {
     isActive,
     token,
     expiresAt,
-    expiresLabel: isActive ? formatExpiresLabel(data.expiresAt) : 'Revoked',
+    expiresLabel,
+    status,
+    ...(status === 'revoked' ? { revoked: true } : {}),
   }
 }
 

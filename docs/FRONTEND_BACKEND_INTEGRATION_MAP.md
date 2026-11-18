@@ -981,13 +981,15 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 3. **Request DTO**:
    - Sinh token: `POST /api/projects/{id}/guest-token`, Body: `{ "expiryDays": 30 }`.
    - Thu hồi: `DELETE /api/projects/{id}/guest-token`.
+   - Đọc trạng thái (chỉ OWNER): `GET /api/projects/{id}/guest-token`.
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `GUEST_LINK`.
    - Kiểm tra caller là `OWNER`.
    - Khi sinh: Sinh chuỗi hex 64 ký tự ngẫu nhiên bằng `SecureRandom`. Chèn/cập nhật `GUEST_LINK` (`token`, `is_revoked = FALSE`, `expires_at = NOW() + 30 days`).
    - Khi thu hồi: Cập nhật `GUEST_LINK.is_revoked = TRUE`.
 5. **Response DTO & UI Mutation**:
-   - **Status Code**: `200 OK`. Body: `GuestAccessState` (`{ "enabled": true, "token": "...", "shareUrl": "...", "expiresAt": "..." }`).
+   - **Status Code**: `200 OK`. Body: `GuestAccessState` (`{ "enabled": true, "token": "...", "shareUrl": "...", "expiresAt": "...", "status": "ACTIVE" }`).
+   - **Trường `status`** (`NONE | ACTIVE | EXPIRED | REVOKED`; các trường cũ giữ nguyên): `ACTIVE` = có link chưa thu hồi và còn hạn (`enabled=true`, có `token`, `shareUrl`, `expiresAt`); `EXPIRED` = link chưa thu hồi nhưng hết hạn (`enabled=false`, KHÔNG trả `token`/`shareUrl`, vẫn có `expiresAt`); `REVOKED` = không còn link hiệu lực và link mới nhất của dự án đã thu hồi (`enabled=false`, không token); `NONE` = chưa từng tạo link. `POST` luôn trả `ACTIVE`; `DELETE` trả `REVOKED` nếu vừa thu hồi được link, `NONE` nếu không có gì để thu hồi. FE thiếu `status` thì suy từ `enabled`.
    - **UI Mutation**: Hiển thị liên kết chia sẻ và nút Copy Link trên thanh công cụ Overview.
 
 ---

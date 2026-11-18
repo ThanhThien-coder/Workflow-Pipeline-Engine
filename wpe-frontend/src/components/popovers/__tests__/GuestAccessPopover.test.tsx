@@ -44,4 +44,37 @@ describe('GuestAccessPopover: 3 states', () => {
     expect(screen.getByText(/Link Revoked/)).toBeDefined()
     expect(screen.getByText('Generate New Token')).toBeDefined()
   })
+
+  it('status from backend after reload: revoked shows the revoked box and red dot', () => {
+    const { container } = mount({ ...base, isActive: false, token: '', status: 'revoked', revoked: true, expiresLabel: 'Revoked' })
+    const button = screen.getByRole('button')
+    expect(button.textContent).toContain('Guest Link (Revoked)')
+    expect(container.querySelector('.bg-red-500')).not.toBeNull()
+    fireEvent.click(button)
+    expect(screen.getByText(/Link Revoked/)).toBeDefined()
+  })
+
+  it('status expired: shows "Link Expired" and a button to generate a new link', () => {
+    const { container } = mount({ ...base, isActive: false, token: '', status: 'expired', expiresLabel: 'Expired' })
+    const button = screen.getByRole('button')
+    expect(button.textContent).toContain('Guest Link (Expired)')
+    expect(container.querySelector('.bg-red-500')).toBeNull()
+    fireEvent.click(button)
+    expect(screen.getByText(/Link Expired/)).toBeDefined()
+    expect(screen.queryByText(/Link Revoked/)).toBeNull()
+    expect(screen.getByText('Generate New Token')).toBeDefined()
+  })
+
+  it('status none: shows "No Guest Link"', () => {
+    mount({ ...base, isActive: false, token: '', status: 'none' })
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByText('No Guest Link')).toBeDefined()
+    expect(screen.getByText('Create Guest Link')).toBeDefined()
+  })
+
+  it('status active: shows the active box', () => {
+    mount({ ...base, isActive: true, token: 'b'.repeat(64), status: 'active', expiresLabel: '2026-12-01 (3 days left)' })
+    fireEvent.click(screen.getByRole('button', { name: /Share Guest Link/ }))
+    expect(screen.getByText(/Access Active/)).toBeDefined()
+  })
 })

@@ -5,6 +5,7 @@ import {
   fetchGuestOverview,
   getGuestAccess,
   listFeedbacks,
+  mapGuestAccessResponse,
   resolveFeedback,
   revokeGuestToken,
   submitGuestFeedback,
@@ -414,5 +415,41 @@ describe('D5: guest & feedback HTTP API (impl/http/guest.ts)', () => {
     expect(METHODS_STILL_MOCKED).not.toContain('toggleGuestAccess')
     expect(METHODS_STILL_MOCKED).not.toContain('generateGuestToken')
     expect(METHODS_STILL_MOCKED).not.toContain('getOverviewData')
+  })
+})
+
+describe('mapGuestAccessResponse: status', () => {
+  const future = new Date(Date.now() + 5 * 86400000).toISOString()
+  it('ACTIVE keeps token and label', () => {
+    const r = mapGuestAccessResponse({ enabled: true, status: 'ACTIVE', token: 't1', expiresAt: future })
+    expect(r.status).toBe('active')
+    expect(r.isActive).toBe(true)
+    expect(r.token).toBe('t1')
+  })
+  it('EXPIRED: not active, no token, Expired label', () => {
+    const r = mapGuestAccessResponse({ enabled: false, status: 'EXPIRED', token: null, expiresAt: future })
+    expect(r.status).toBe('expired')
+    expect(r.isActive).toBe(false)
+    expect(r.token).toBe('')
+    expect(r.expiresLabel).toBe('Expired')
+    expect(r.revoked).toBeUndefined()
+  })
+  it('REVOKED: not active and marked revoked', () => {
+    const r = mapGuestAccessResponse({ enabled: false, status: 'REVOKED' })
+    expect(r.status).toBe('revoked')
+    expect(r.isActive).toBe(false)
+    expect(r.revoked).toBe(true)
+    expect(r.expiresLabel).toBe('Revoked')
+  })
+  it('NONE: not active, not revoked', () => {
+    const r = mapGuestAccessResponse({ enabled: false, status: 'NONE' })
+    expect(r.status).toBe('none')
+    expect(r.isActive).toBe(false)
+    expect(r.revoked).toBeUndefined()
+  })
+  it('missing status falls back to enabled', () => {
+    expect(mapGuestAccessResponse({ enabled: true, token: 't', expiresAt: future }).status).toBe('active')
+    expect(mapGuestAccessResponse({ enabled: false }).status).toBe('none')
+    expect(mapGuestAccessResponse({ active: true, token: 't', expiresAt: future }).isActive).toBe(true)
   })
 })
