@@ -912,7 +912,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      | `TASK_OVERDUE` | `KanbanTaskResponse` | Bộ quét trễ hạn (15 phút) đánh dấu task trễ hạn |
      | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason }` | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
 
-     FE hiện mới nghe `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `NOTIFICATION_RECEIVED`; `TASK_SUBMITTED`, `TASK_REJECTED`, `TASK_OVERDUE` và `PING` chưa có listener (FE nối ở C6, chuông ở C3).
+     FE (`HttpWorkflowService.connectRealtime`) nghe đủ `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `TASK_OVERDUE`, `NOTIFICATION_RECEIVED`, `TASK_SUBMITTED`, `TASK_REJECTED`, `PROJECT_TASKS_CHANGED`. `PING` chỉ là nhịp giữ kết nối, FE không cần xử lý.
    - Lời mời (C2): `InvitationCreatedEvent` / `InvitationAcceptedEvent` đi routing key `wpe.invitation.created` / `wpe.invitation.accepted` vào queue riêng `wpe.invitation.queue`. `InvitationEventConsumer` đẩy `NOTIFICATION_RECEIVED` cho người được mời **đúng 1 lần** bằng bản ghi `ProjectInvitationService` đã lưu, không lưu thêm.
 5. **Response Stream & UI Mutation**:
    - **Status Code**: `200 OK` (Content-Type: `text/event-stream`).
