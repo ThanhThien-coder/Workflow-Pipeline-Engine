@@ -24,13 +24,15 @@ public record GraphNodeResponse(
     // G21: ngày tạo task, hạn chót không được sớm hơn ngày này
     Instant createdAt,
     // TASK_51: thời điểm hoàn thành task (khi sang DONE)
-    Instant completedAt
+    Instant completedAt,
+    // TASK_68: task đã quá hạn (khớp KanbanTaskResponse.isOverdue)
+    boolean isOverdue
 ) {
     public GraphNodeResponse(
         String id, String phaseId, String code, String title, String description, String status, String joinPolicy,
         String assignedUserId, Instant dueDate, Integer estimatedHours, Long version, Map<String, Object> uiMetadata
     ) {
-        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, null, null, null, null);
+        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, null, null, null, null, false);
     }
 
     public GraphNodeResponse(
@@ -38,7 +40,7 @@ public record GraphNodeResponse(
         String assignedUserId, Instant dueDate, Integer estimatedHours, Long version, Map<String, Object> uiMetadata,
         String forceUnlockedBy, Instant forceUnlockedAt, Instant createdAt
     ) {
-        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, forceUnlockedBy, forceUnlockedAt, createdAt, null);
+        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, forceUnlockedBy, forceUnlockedAt, createdAt, null, false);
     }
 
     public static GraphNodeResponse from(NodeEntity n, Map<String, Object> uiMetadata) {
@@ -58,7 +60,8 @@ public record GraphNodeResponse(
             n.getForceUnlockedBy() != null ? String.valueOf(n.getForceUnlockedBy()) : null,
             n.getForceUnlockedAt(),
             n.getCreatedAt(),
-            n.getCompletedAt()
+            n.getCompletedAt(),
+            Boolean.TRUE.equals(n.getIsOverdue())
         );
     }
 }

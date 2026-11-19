@@ -85,6 +85,8 @@ services:
       # SEED_ACCOUNT_PASSWORD lúc khởi động; thiếu biến này thì backend không chạy (xem docs/DEPLOY.md mục 7)
       SEED_ACCOUNT_PASSWORD: ${SEED_ACCOUNT_PASSWORD:-}
       SEED_ACCOUNT_GUARD_ENABLED: ${SEED_ACCOUNT_GUARD_ENABLED:-true}
+      # Cong cu demo (ep trang thai, qua han gia...). Chi bat khi demo, mac dinh tat
+      DEMO_TOOLS_ENABLED: ${DEMO_TOOLS_ENABLED:-false}
     volumes:
       - uploads:/app/uploads
     depends_on:

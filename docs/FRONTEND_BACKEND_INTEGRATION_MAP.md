@@ -588,6 +588,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      }
      ```
    - **UI Mutation**: Dựng đồ thị canvas MacroWorkflow và chuẩn bị cây MindmapTree.
+   - **Field mới (TASK_68)**: mỗi phần tử `nodes[]` có thêm `isOverdue` (boolean, cùng ý nghĩa với `isOverdue` của Kanban; `true` khi task chưa `DONE` đã quá hạn). Các field cũ giữ nguyên.
 
 ---
 
@@ -607,7 +608,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
    - Bảng tác động: `WORK_PHASE`, `PHASE_DEPENDENCY`, `NODE`.
    - Quyền: chỉ owner của dự án. Dự án `ARCHIVED` là chỉ đọc: cả 5 thao tác ghi trả `409 PROJECT_ARCHIVED`.
    - Khi tạo: chèn vào `WORK_PHASE` (kèm `ui_metadata`, mặc định `{}`); có `parentPhaseId` thì chèn thêm một cạnh vào `PHASE_DEPENDENCY`. `orderIndex` không gửi thì lấy `MAX(order_index) + 1`.
-   - Khi xóa: chuyển các Node thuộc Phase về dạng standalone (`phase_id = NULL`), không xóa Node. Các cạnh `PHASE_DEPENDENCY` của Phase tự xóa theo `ON DELETE CASCADE`.
+   - Khi xóa (TASK_68): Phase có task `IN_PROGRESS`, `REVIEW` hoặc `DONE` thì trả `409 PHASE_HAS_ACTIVE_TASKS` (message kèm tối đa 5 mã task rồi "and N more") và không xóa gì. Ngược lại (mọi task `LOCKED`/`TODO` hoặc Phase rỗng): xóa mọi cạnh `NODE_DEPENDENCY` có cha hoặc con thuộc Phase, xóa các task của Phase, rồi tính lại trạng thái các task con nằm ngoài Phase vừa mất cha (ví dụ mất cha duy nhất thì `LOCKED` -> `TODO`). Artifact giữ nguyên (`node_id` về `NULL`). Các cạnh `PHASE_DEPENDENCY` của Phase tự xóa theo `ON DELETE CASCADE`.
    - Khi nối: thêm một cạnh vào `PHASE_DEPENDENCY` và giữ các Phase cha đã có. Cạnh đã tồn tại thì bỏ qua (idempotent). Nếu Phase con đã đi tới được Phase cha (nối sẽ khép vòng) thì trả `422 CYCLE_DETECTED`.
    - Khi gỡ: xóa cạnh trong `PHASE_DEPENDENCY`; nếu cạnh còn nằm ở cột cũ `WORK_PHASE.parent_phase_id` thì đặt cột đó về `NULL`.
 5. **Response DTO & UI Mutation**:
@@ -1436,6 +1437,27 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `AuthResponse` (`accessToken`, `refreshToken`, `user: { id, username, email, fullName, systemRole, ... }`).
    - **UI Mutation**: Frontend lưu Access Token vào bộ nhớ, cập nhật `systemRole` vào Auth state; kiểm tra `homePathFor(user.systemRole)` và tự động chuyển hướng Admin vào `/admin`, kích hoạt nạp dữ liệu thống kê Overview; người dùng thường chuyển vào `/workspaces`.
+
+## Cụm 11: Bổ sung TASK_68 (báo đổi vai trò, công cụ demo)
+
+### 11.1 Thông báo khi đổi vai trò / bị xóa khỏi dự án
+- `PATCH /api/v1/projects/{projectId}/members/{userId}` (chỉ khi vai trò thực sự đổi) gửi thông báo cho người bị đổi: `type = ROLE_CHANGED`, `title = "Your project role changed"`, `message = "You are now <ROLE> in project \"<tên>\"."`, `targetUrl = /project/{projectId}/workflow`. Chuyển chủ dự án thì gửi cả chủ mới (OWNER) và chủ cũ (COLLABORATOR).
+- `DELETE /api/v1/projects/{projectId}/members/{userId}` gửi cho người bị xóa: `type = MEMBER_REMOVED`, `title = "Removed from project"`, `message = "You were removed from project \"<tên>\"."`, `targetUrl = /workspaces?removedFrom={projectId}`.
+- Đi qua `NOTIFICATION` + SSE `NOTIFICATION_RECEIVED`. Gửi lỗi chỉ ghi log, không làm hỏng thao tác chính.
+
+### 11.2 Công cụ demo (`/api/v1/demo/*`)
+Mặc định TẮT (`app.demo-tools.enabled` = biến `DEMO_TOOLS_ENABLED`, mặc định `false`).
+- `GET /api/v1/demo/status` -> `200 { "enabled": true|false }`. Mọi người đã đăng nhập gọi được.
+- Mọi endpoint còn lại: tắt -> `404` ("Demo tools are disabled."); bật -> chỉ chủ dự án hoặc `systemRole = ADMIN`, người khác `403 ACCESS_DENIED`. Node/phase không thuộc dự án -> `400`. Mỗi lần dùng ghi `log.warn` và nhật ký quản trị với action `DEMO_TOOL_USED`.
+- Tất cả là `POST /api/v1/demo/projects/{projectId}/...`:
+  - `nodes/{nodeId}/make-overdue` -> `200 GraphNodeResponse` (đặt hạn = hiện tại - 1 giờ rồi quét quá hạn ngay; `isOverdue = true` nếu node chưa `DONE`).
+  - `overdue-scan` -> `200 { "overdueCount": n }`.
+  - `nodes/{nodeId}/force-status` body `{ "status": "LOCKED|TODO|IN_PROGRESS|REVIEW|DONE" }` -> `200 GraphNodeResponse`. Bỏ qua máy trạng thái; sang `DONE` thì `completedAt = now` và mở khóa task sau ngay; trạng thái khác thì `completedAt = null`, không đụng task con.
+  - `phases/{phaseId}/complete-all` -> `200 { "completedCount": n }` (cha trước con, mở khóa sau mỗi task).
+  - `ai-cooldown/reset` -> `204` (xóa `PROJECT.ai_requested_at`).
+  - `guest-link/expire` -> `204` (link khách đang hoạt động hết hạn ngay; không có link vẫn `204`).
+  - `invitations/expire` -> `200 { "expiredCount": n }` (lời mời `PENDING` hết hạn ngay rồi chuyển `EXPIRED`).
+  - `notifications/test` -> `204` (gửi thông báo `SYSTEM` thử cho chính người gọi).
 
 ---
 

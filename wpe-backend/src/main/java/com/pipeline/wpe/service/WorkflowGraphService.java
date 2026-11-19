@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -196,12 +197,50 @@ public class WorkflowGraphService {
             throw new IllegalArgumentException("The phase does not belong to this project.");
         }
 
-        // Chuyển toàn bộ node thuộc phase này sang standalone (phase_id = null)
+        // Phase còn task đang làm / chờ duyệt / đã xong thì không cho xóa (xóa sẽ mất công việc thật)
         List<NodeEntity> nodesInPhase = nodeRepository.findByPhaseId(phaseId);
-        for (NodeEntity node : nodesInPhase) {
-            node.setPhaseId(null);
+        List<NodeEntity> activeNodes = nodesInPhase.stream()
+            .filter(n -> n.getStatus() == NodeStatus.IN_PROGRESS
+                || n.getStatus() == NodeStatus.REVIEW
+                || n.getStatus() == NodeStatus.DONE)
+            .toList();
+        if (!activeNodes.isEmpty()) {
+            String codes = activeNodes.stream().limit(5).map(NodeEntity::getCode).collect(Collectors.joining(", "));
+            int more = activeNodes.size() - 5;
+            throw new ConflictException("PHASE_HAS_ACTIVE_TASKS",
+                "Phase can't be deleted because it has tasks that are in progress, in review or done: "
+                    + codes + (more > 0 ? " and " + more + " more" : "") + ".");
         }
-        nodeRepository.saveAll(nodesInPhase);
+
+        // Mọi task trong phase đều LOCKED/TODO: xóa cạnh phụ thuộc liên quan, rồi xóa task
+        Set<Long> deletedIds = nodesInPhase.stream().map(NodeEntity::getId).collect(Collectors.toSet());
+        Map<String, NodeDependencyEntity> edgesToDelete = new LinkedHashMap<>();
+        Set<Long> externalChildIds = new LinkedHashSet<>();
+        for (NodeEntity node : nodesInPhase) {
+            for (NodeDependencyEntity e : nodeDependencyRepository.findByParentNodeId(node.getId())) {
+                edgesToDelete.put(e.getParentNodeId() + ":" + e.getChildNodeId(), e);
+                if (!deletedIds.contains(e.getChildNodeId())) {
+                    externalChildIds.add(e.getChildNodeId());
+                }
+            }
+            for (NodeDependencyEntity e : nodeDependencyRepository.findByChildNodeId(node.getId())) {
+                edgesToDelete.put(e.getParentNodeId() + ":" + e.getChildNodeId(), e);
+            }
+        }
+        nodeDependencyRepository.deleteAll(edgesToDelete.values());
+        nodeRepository.deleteAll(nodesInPhase);
+
+        // Task con nằm ngoài phase vừa mất cha: tính lại trạng thái theo các cha còn lại
+        for (Long childId : externalChildIds) {
+            nodeRepository.findById(childId).ifPresent(child -> {
+                List<Long> remainingParentIds = nodeDependencyRepository.findByChildNodeId(childId).stream()
+                    .map(NodeDependencyEntity::getParentNodeId)
+                    .filter(id -> !deletedIds.contains(id))
+                    .toList();
+                List<NodeEntity> remaining = remainingParentIds.isEmpty() ? List.of() : nodeRepository.findAllById(remainingParentIds);
+                recomputeNodeStatus(child, remaining);
+            });
+        }
 
         // Gỡ liên kết parent_phase_id cho các phase con
         List<WorkPhaseEntity> childPhases = workPhaseRepository.findByParentPhaseIdOrderByOrderIndexAsc(phaseId);

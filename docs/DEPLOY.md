@@ -175,3 +175,11 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
   docker compose -f docker-compose.prod.yml -f deploy/docker-compose.mailtest.yml --env-file deploy/.env up -d
   ```
   Không dùng `deploy/docker-compose.mailtest.yml` trên production thật.
+
+---
+
+## 10. Công cụ demo (`DEMO_TOOLS_ENABLED`)
+
+- **Tắt mặc định**: `DEMO_TOOLS_ENABLED=false` trong `deploy/.env` (xem `deploy/prod.env.example`). Khi tắt, mọi endpoint `/api/v1/demo/*` (trừ `GET /api/v1/demo/status`) trả 404.
+- **Chỉ bật khi demo/test đồ án**: đổi thành `true` rồi chạy lại `docker compose ... up -d`; demo xong thì tắt lại. Các công cụ này cố ý bỏ qua luật nghiệp vụ (ép trạng thái task, giả lập quá hạn, hết hạn link/lời mời) nên không để bật trên hệ thống dùng thật.
+- Khi bật, chỉ chủ dự án hoặc tài khoản `ADMIN` dùng được; mỗi lần dùng được ghi log cảnh báo và nhật ký quản trị (`DEMO_TOOL_USED`).

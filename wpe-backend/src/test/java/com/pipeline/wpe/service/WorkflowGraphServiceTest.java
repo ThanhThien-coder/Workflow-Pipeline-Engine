@@ -265,10 +265,10 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
-    @DisplayName("4.2 deletePhase: Xóa Phase an toàn, chuyển các node con sang standalone (phase_id = null)")
+    @DisplayName("4.2 deletePhase: Xóa Phase chỉ có task TODO thì xóa luôn task trong phase (TASK_68, trước đây chuyển sang standalone)")
     void testDeletePhaseSafe() {
         WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("Phase 10").build();
-        NodeEntity childNode = NodeEntity.builder().id(50L).projectId(1L).phaseId(10L).build();
+        NodeEntity childNode = NodeEntity.builder().id(50L).projectId(1L).phaseId(10L).status(NodeStatus.TODO).build();
 
         when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
         when(nodeRepository.findByPhaseId(10L)).thenReturn(List.of(childNode));
@@ -276,9 +276,61 @@ class WorkflowGraphServiceTest {
 
         workflowGraphService.deletePhase(1L, 10L, 2L);
 
-        assertNull(childNode.getPhaseId());
-        verify(nodeRepository).saveAll(List.of(childNode));
+        verify(nodeRepository).deleteAll(List.of(childNode));
         verify(workPhaseRepository).delete(phase);
+    }
+
+    @Test
+    @DisplayName("TASK_68 deletePhase: phase toàn LOCKED/TODO -> xóa task + cạnh, task con ngoài phase mất cha duy nhất chuyển LOCKED -> TODO")
+    void testDeletePhaseDeletesNodesEdgesAndUnlocksExternalChild() {
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("Phase 10").build();
+        NodeEntity a = NodeEntity.builder().id(100L).projectId(1L).phaseId(10L).code("A").status(NodeStatus.TODO).build();
+        NodeEntity b = NodeEntity.builder().id(101L).projectId(1L).phaseId(10L).code("B").status(NodeStatus.LOCKED).build();
+        NodeEntity c = NodeEntity.builder().id(200L).projectId(1L).phaseId(11L).code("C")
+            .status(NodeStatus.LOCKED).joinPolicy(JoinPolicy.ALL_COMPLETED).build();
+        NodeDependencyEntity ab = NodeDependencyEntity.builder().id(1L).projectId(1L).parentNodeId(100L).childNodeId(101L).build();
+        NodeDependencyEntity ac = NodeDependencyEntity.builder().id(2L).projectId(1L).parentNodeId(100L).childNodeId(200L).build();
+
+        when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
+        when(nodeRepository.findByPhaseId(10L)).thenReturn(List.of(a, b));
+        when(nodeDependencyRepository.findByParentNodeId(100L)).thenReturn(List.of(ab, ac));
+        when(nodeDependencyRepository.findByParentNodeId(101L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByChildNodeId(100L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByChildNodeId(101L)).thenReturn(List.of(ab));
+        when(nodeDependencyRepository.findByChildNodeId(200L)).thenReturn(List.of(ac));
+        when(nodeRepository.findById(200L)).thenReturn(Optional.of(c));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(workPhaseRepository.findByParentPhaseIdOrderByOrderIndexAsc(10L)).thenReturn(List.of());
+
+        workflowGraphService.deletePhase(1L, 10L, 2L);
+
+        verify(nodeDependencyRepository).deleteAll(argThat((Iterable<NodeDependencyEntity> it) -> {
+            int n = 0;
+            for (NodeDependencyEntity ignored : it) n++;
+            return n == 2;
+        }));
+        verify(nodeRepository).deleteAll(List.of(a, b));
+        verify(workPhaseRepository).delete(phase);
+        assertEquals(NodeStatus.TODO, c.getStatus());
+        verify(projectRealtimeNotifier).notifyTasksChanged(1L, 10L, null, "PHASE_DELETED");
+    }
+
+    @Test
+    @DisplayName("TASK_68 deletePhase: phase có task IN_PROGRESS -> 409 PHASE_HAS_ACTIVE_TASKS, không xóa gì")
+    void testDeletePhaseWithActiveTasksThrowsConflict() {
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("Phase 10").build();
+        NodeEntity a = NodeEntity.builder().id(100L).projectId(1L).phaseId(10L).code("A").status(NodeStatus.TODO).build();
+        NodeEntity b = NodeEntity.builder().id(101L).projectId(1L).phaseId(10L).code("B").status(NodeStatus.IN_PROGRESS).build();
+
+        when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
+        when(nodeRepository.findByPhaseId(10L)).thenReturn(List.of(a, b));
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> workflowGraphService.deletePhase(1L, 10L, 2L));
+        assertEquals("PHASE_HAS_ACTIVE_TASKS", ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("B"));
+        verify(nodeRepository, never()).deleteAll(any());
+        verify(nodeDependencyRepository, never()).deleteAll(any());
+        verify(workPhaseRepository, never()).delete(any());
     }
 
     @Test

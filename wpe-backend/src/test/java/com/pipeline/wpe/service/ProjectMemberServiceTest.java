@@ -50,6 +50,10 @@ class ProjectMemberServiceTest {
     @Mock
     private NodeRepository nodeRepository;
 
+    // TASK_68: đổi vai trò / xóa thành viên gửi thông báo; mock để không bị NPE nuốt trong try/catch
+    @Mock
+    private com.pipeline.wpe.service.event.WorkflowEventPublisher eventPublisher;
+
     @InjectMocks
     private ProjectMemberService projectMemberService;
 
