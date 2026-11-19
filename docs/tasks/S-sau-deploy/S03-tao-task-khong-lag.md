@@ -2,7 +2,7 @@
 
 Người làm: Người 1 (gói Realtime và tốc độ)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: S01, S02
 Mở khóa: không
 Nhánh git: s03-tao-task-nhanh
@@ -91,3 +91,5 @@ Làm lại y hệt sau khi sửa để so. Số liệu phải là số **đo th�
 - Làm theo thứ tự, test sau mỗi bước. Làm xong: ghi chép, trạng thái `chờ kiểm`, hỏi 3 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+Xem báo cáo đầy đủ ở `.kb/tasks/TASK_77.report.md`. Đã làm: findByNodeIdIn (1 query artifact), chèn thẻ lạc quan khi tạo task, lạc quan + hoàn lại khi sửa/xóa/nối/gỡ, chữ ký cây ở usePhaseKanban (gộp 300ms). tsc sạch, vitest 950 xanh, mvn 1097 test 1 lỗi ở ProjectMemberServiceTest (file của TASK_81). Chưa đo Bước 0/6 và chưa kiểm tay (Opus làm).

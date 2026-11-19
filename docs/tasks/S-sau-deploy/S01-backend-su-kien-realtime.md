@@ -2,7 +2,7 @@
 
 Người làm: Người 1 (gói Realtime và tốc độ)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không
 Mở khóa: S02, S03
 Nhánh git: s01-su-kien-realtime
@@ -107,3 +107,5 @@ SSE (`SseEmitter`), gửi sau commit bằng `TransactionSynchronization.afterCom
 - Chỉ sửa file trong "Được ghi". Làm xong: điền "Ghi chép của người làm", đổi trạng thái thành `chờ kiểm`, hỏi người làm 3 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+Xem báo cáo đầy đủ ở `.kb/tasks/TASK_75.report.md`. Tóm tắt: Bước 0 (1) gửi sau commit vì client có thể tải trước khi commit và transaction có thể rollback; (2) người nhận = chủ + thành viên chưa bị xóa, người vừa bị xóa không nhận. `./mvnw -q test`: 1050 test, 0 lỗi. Kiểm tay trên stack thử: chưa kiểm tay (Opus làm).

@@ -88,14 +88,14 @@ Các file ở đây dùng mã 2 chữ số (S01…S11) nên `docs/tasks/tien-do.
 
 | Task | Trạng thái | PR |
 | :-- | :-- | :-- |
-| S01 | chưa làm | |
-| S02 | chưa làm | |
-| S03 | chưa làm | |
-| S04 | chưa làm | |
-| S05 | chưa làm | |
-| S06 | chưa làm | |
-| S07 | chưa làm | |
-| S08 | chưa làm | |
-| S09 | chưa làm | |
-| S10 | chưa làm | |
-| S11 | chờ Thiện chốt | |
+| S01 | xong | nhánh `fix/dot-s` |
+| S02 | xong | nhánh `fix/dot-s` |
+| S03 | xong | nhánh `fix/dot-s` |
+| S04 | xong | nhánh `fix/dot-s` |
+| S05 | xong | nhánh `fix/dot-s` |
+| S06 | xong | nhánh `fix/dot-s` |
+| S07 | xong | nhánh `fix/dot-s` |
+| S08 | xong | nhánh `fix/dot-s` |
+| S09 | xong | nhánh `fix/dot-s` |
+| S10 | xong | nhánh `fix/dot-s` |
+| S11 | để sau (Thiện chốt 19/11) | |

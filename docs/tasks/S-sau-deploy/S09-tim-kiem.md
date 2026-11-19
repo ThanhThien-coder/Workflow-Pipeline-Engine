@@ -2,7 +2,7 @@
 
 Người làm: Người 3 (gói Giao diện)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không
 Mở khóa: không
 Nhánh git: s09-tim-kiem
@@ -85,3 +85,8 @@ Tất cả tìm trên dữ liệu đã có sẵn trên trình duyệt (store), *
 - Làm xong: ghi chép, `chờ kiểm`, hỏi 2 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+- Làm bởi Claude (Sonnet), nhánh `fix/dot-s`. Chi tiết, kết quả test, câu trả lời Bước 0 và 2 câu hỏi bảo vệ: `.kb/tasks/TASK_83.report.md`.
+- File mới: `FE/utils/searchProject.ts`, `FE/components/search/ProjectSearchBox.tsx`, các test `searchProject.test.ts`, `ProjectSearchBox.test.tsx`, `MindmapTree.highlight.test.tsx`, `PhaseKanbanBoard.filter.test.tsx`, `AddGhostModal.search.test.tsx`, `WorkflowArtifacts.search.test.tsx`.
+- File sửa: `uiSlice.ts`, `MindmapTree.tsx`, `PhaseKanbanBoard.tsx`, `AddGhostModal.tsx`, `WorkflowArtifactsDrawer.tsx`, `ProjectWorkspaceView.tsx` (chỉ vùng ô tìm).
+- Chưa kiểm tay trên stack thử / trình duyệt (Opus làm).

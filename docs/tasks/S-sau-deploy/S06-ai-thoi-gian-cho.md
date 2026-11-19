@@ -2,7 +2,7 @@
 
 Người làm: Người 2 (gói Nghiệp vụ backend) — phần Python báo Abdul (người phụ trách `wpe-ai-service`) trước khi sửa
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không (Bước 0 cần Thiện chốt số)
 Mở khóa: không
 Nhánh git: s06-ai-thoi-gian-cho
@@ -85,3 +85,5 @@ Thiện muốn "xóa giới hạn". **Không nên bỏ hẳn** (vô hạn): mỗ
 - Làm xong: ghi chép, `chờ kiểm`, hỏi 3 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+- Xem .kb/tasks/TASK_80.report.md. Chưa test AI thật (Thiện chốt bỏ). Chưa kiểm tay.

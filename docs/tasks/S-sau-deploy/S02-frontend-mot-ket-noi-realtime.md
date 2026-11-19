@@ -2,7 +2,7 @@
 
 Người làm: Người 1 (gói Realtime và tốc độ)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: S01
 Mở khóa: S03
 Nhánh git: s02-realtime-frontend
@@ -104,3 +104,5 @@ Nhánh git: s02-realtime-frontend
 - Làm xong: điền ghi chép, đổi trạng thái `chờ kiểm`, hỏi 3 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+Xong phần code (Sonnet làm, chưa kiểm tay): xem `.kb/tasks/TASK_76.report.md`. tsc sạch, vitest 905/905 xanh.

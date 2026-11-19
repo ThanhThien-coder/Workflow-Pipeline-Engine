@@ -2,7 +2,7 @@
 
 Người làm: Người 2 (gói Nghiệp vụ backend)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không
 Mở khóa: không
 Nhánh git: s05-don-task-mo-coi
@@ -84,3 +84,20 @@ TASK_68 đã sửa cách xóa phase: chặn nếu còn task đang làm, còn l�
 - Không chạy SQL trên server thật. Làm xong: ghi chép, `chờ kiểm`, hỏi 3 câu bảo vệ.
 
 ## Ghi chép của người làm
+Bước 0 (do Claude/Sonnet làm, không có người hỏi, 19/11):
+- Mục 1 (đếm node mồ côi trên DB thật): KHÔNG làm được, bỏ qua. Số node mồ côi thật chưa biết; bước dọn tự xử lý lúc khởi động.
+- Mục 2, kết luận: KHÔNG có luồng nào cố ý tạo task không phase.
+  - FE `services/impl/http/graph.ts` khai báo `phaseId: number | null`, nhưng chỗ gọi `createNode` duy nhất là `addRootTask` và `addChildTask` (HttpWorkflowService.ts) đều luôn gửi phaseId.
+  - `V2__seed_initial_data.sql`: 4 node mẫu đều có phase_id (1,2,2,3).
+  - `DemoToolsService`: chỉ đọc theo phase, không tạo node.
+  - `NodeEntity.builder()` chỉ có 2 nơi tạo: `WorkflowGraphService.createNode` và `TemplateCloneService`.
+  - `TemplateCloneService`: node template thiếu `phaseId` hoặc phaseId không khớp phase nào thì `newPhaseId = null` (đây là chỗ tái phát thật). Đã sửa: gán vào phase đầu tiên vừa tạo.
+  - Test cũ tạo node phaseId null chỉ là dữ liệu dựng (`standalone` ở dòng ~137) hoặc test từ chối quyền/archived; riêng test trùng code đã sửa để truyền phaseId.
+  - Kết luận: đã chặn `createNode` khi `phaseId == null` -> 400 `PHASE_REQUIRED` "A task must belong to a phase."; initialStatus luôn LOCKED.
+Đã làm: OrphanNodeCleanupService + OrphanNodeCleanupRunner (xóa hết node phase_id NULL kể cả đang làm/xong, cùng dây, tính lại task con bằng recomputeNodeStatus nay là public); khóa app.maintenance.cleanup-orphan-nodes; đoạn mục 11 trong docs/DEPLOY.md; test mới.
+Test: ./mvnw -q test xanh, 1057 test, 0 lỗi (mốc đầu đợt 1037; gồm test của các task song song).
+Chưa kiểm tay trên stack thử (Opus làm).
+Câu hỏi bảo vệ (theo quyết định Thiện: xóa luôn, không có phase "Recovered tasks"):
+1. Câu này lỗi thời: Thiện chốt xóa luôn vì dữ liệu hiện chỉ là dữ liệu test. Nếu là dữ liệu thật thì mới nên giữ lại, vì xóa task đã làm là mất công sức người làm.
+2. Idempotent = chạy nhiều lần cho cùng kết quả như chạy một lần. Bước dọn chạy mỗi lần khởi động, nên lần 2 trở đi phải không làm gì (không còn node mồ côi), nếu không sẽ tác động lặp lại mỗi lần restart.
+3. Task con có thể đang LOCKED vì chờ cha đã bị xóa; mất cha nên phải tính lại (hết cha thì coi như thỏa và mở sang TODO), nếu không nó bị khóa mãi.

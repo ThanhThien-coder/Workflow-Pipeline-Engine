@@ -34,7 +34,7 @@
 - **Drift Score**: giữ ngưỡng `< 20%` xanh, `20–40%` vàng, `≥ 40%` đỏ khi được tính.
 
 ### 0.3 Cooldown, lỗi và dữ liệu giả
-- **Cooldown 180 giây** cho mỗi dự án, tính theo `project.ai_requested_at` (thời điểm bấm). Giữ chỗ bằng 1 câu UPDATE nguyên tử nên 2 lần bấm đồng thời chỉ 1 lần gọi AI (thay cho "Cooldown & State Dedup 24 giờ" ở mục 3.1.b).
+- **Cooldown 60 giây** (mặc định, chỉnh bằng `AI_COOLDOWN_SECONDS`, đặt 0 để tắt) cho mỗi dự án, tính theo `project.ai_requested_at` (thời điểm bấm). Giữ chỗ bằng 1 câu UPDATE nguyên tử nên 2 lần bấm đồng thời chỉ 1 lần gọi AI (thay cho "Cooldown & State Dedup 24 giờ" ở mục 3.1.b).
 - Dịch vụ AI lỗi (tắt, quá giờ, lỗi 5xx, trả sai khuôn) → **503 `AI_SERVICE_UNAVAILABLE`**: **không tạo dữ liệu giả**, không ghi đè bản phân tích cũ, không tính cooldown.
 - Python còn chạy nhưng Gemini lỗi → Python dùng luật dự phòng trên dữ liệu thật (`source = HEURISTIC_FALLBACK`), không phải dữ liệu giả.
 - `AI_MODE=http` là mặc định; `AI_MODE=mock` (dữ liệu mẫu trong Java) chỉ dùng để demo.
@@ -203,7 +203,7 @@ Hệ thống kết hợp 2 cơ chế giám sát: **Vĩ mô (Độ lệch quỹ �
      * Dự án đã chạy tối thiểu **3–5 ngày** kể từ lúc Node đầu tiên chuyển sang trạng thái `IN_PROGRESS`.
      * **VÀ** có ít nhất **1 Node vi phạm ngưỡng ngâm lâu (`Stalled Node`) hoặc bị Reject $\ge 2$ lần**.
 
-  > ⚠️ Đã thay: cooldown 180 giây theo `project.ai_requested_at`, không có State Dedup 24 giờ. Xem mục 0.3.
+  > ⚠️ Đã thay: cooldown 60 giây (chỉnh được) theo `project.ai_requested_at`, không có State Dedup 24 giờ. Xem mục 0.3.
 
   2. *Cooldown & State Dedup (Chống gọi lặp lại mỗi đêm):*  
      Trước khi gọi Gemini API, Backend kiểm tra bảng `PROJECT_AI_ANALYSIS`:

@@ -2,7 +2,7 @@
 
 Người làm: Người 3 (gói Giao diện)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không (làm sau S09 để khỏi đụng `ProjectWorkspaceView`)
 Mở khóa: không
 Nhánh git: s10-don-giao-dien
@@ -81,3 +81,5 @@ Mở stack thử (README mục 4), tạo 2 phase. Phase B có 3 task, trong đó
 - Làm xong: ghi chép, `chờ kiểm`, hỏi 2 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+Xem báo cáo đầy đủ ở `.kb/tasks/TASK_84.report.md`. Tóm tắt: đã làm 5 mục, tsc sạch, vitest 877/877 xanh; chưa kiểm tay (Opus làm).

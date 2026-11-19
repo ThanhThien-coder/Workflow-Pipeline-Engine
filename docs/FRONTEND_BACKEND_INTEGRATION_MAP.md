@@ -866,6 +866,21 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 
 ---
 
+### 5.5b Mở lại task đã Done (S04): `GET /api/nodes/{taskId}/reopen-impact`, `POST /api/nodes/{taskId}/reopen`
+1. **Mục tiêu Nghiệp vụ**: Task đã duyệt `DONE` mà phát hiện làm sai thì Owner hoặc Manager mở lại: `DONE` -> `IN_PROGRESS`, giữ nguyên người phụ trách, bắt buộc nhập lý do.
+2. **Luồng Mã Nguồn**: `TaskDetailModal` (nút **Reopen task**, chỉ Owner/Manager, task `DONE`) -> `ReopenTaskModal` (gọi `getReopenImpact`, bắt buộc lý do) -> `usePhaseKanban.reopenTask` / `kanbanSlice.reopenTask` -> `workflowService.reopenTask`.
+3. **Request**:
+   - `GET /api/nodes/{taskId}/reopen-impact` (Owner/Manager; 401, 403 `ACCESS_DENIED`). Response: `{ "taskCode": "WPE-004", "children": [ { "id": "12", "code": "WPE-007", "title": "...", "status": "TODO", "willRelock": true } ] }`. `children` là các task con trực tiếp; `willRelock = true` khi con đang `TODO`, chưa được mở khóa sớm (`force_unlocked_at` null) và sau khi cha không còn `DONE` thì điều kiện hội tụ không còn thỏa.
+   - `POST /api/nodes/{taskId}/reopen`, Body `{ "reason": "...", "version": 7 }`. Lỗi: 403 `ACCESS_DENIED` (không phải Owner/Manager), 409 `PROJECT_ARCHIVED`, 409 `TASK_NOT_DONE`, 400 (`reason` rỗng), 409 `OPTIMISTIC_LOCK_CONFLICT` (sai version).
+4. **Xử lý Backend**: bảng `NODE`, `NOTIFICATION` (migration V22 thêm `node.reopened_at`).
+   - Task: `status = IN_PROGRESS`, `completed_at = NULL`, `reopened_at = now`, `reject_reason = reason`.
+   - Task con `TODO` có `willRelock` quay về `LOCKED`; con `ANY_COMPLETED` còn cha khác `DONE` thì giữ; con mở khóa sớm thì giữ; con đã `IN_PROGRESS`/`REVIEW`/`DONE` giữ nguyên (chỉ cảnh báo trên giao diện, không chặn).
+   - Thông báo cho người phụ trách (title "Task reopened"); SSE `TASK_STATUS_CHANGED` cho người phụ trách và người duyệt; `notifyTasksChanged(..., "REOPENED", actorUserId)`.
+   - Artifact cũ giữ nguyên (không xóa, không đổi `is_in_repository`); giao diện hiện nhãn "Before reopen" cho artifact có `uploadedAt < reopenedAt`.
+5. **Response**: `200 OK`, `KanbanTaskResponse` mới (có `reopenedAt`). Task `IN_PROGRESS` có `reopenedAt` hiện băng "Reopened: <lý do>". Tốc độ (velocity) và % hoàn thành tự đúng vì tính từ `status`/`completed_at`.
+
+---
+
 ### 5.6 Engine tự mở khóa downstream nodes (AND/OR Join) qua RabbitMQ Worker
 1. **Mục tiêu Nghiệp vụ**: Khi task cha hoàn thành (`DONE`), Execution Engine tự động kiểm tra đồ thị `NODE_DEPENDENCY`, xét duyệt điều kiện hội tụ (AND-join / OR-join). Nếu thỏa mãn, tự động chuyển con từ `LOCKED` sang `TODO` và đẩy thông báo.
 2. **Luồng Mã Nguồn**:
@@ -911,9 +926,23 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      | `TASK_REJECTED` | `KanbanTaskResponse` | Owner từ chối bài (gửi người phụ trách) |
      | `NOTIFICATION_RECEIVED` | `NotificationResponse` `{ id (chuỗi), title, message, linkUrl, isRead, createdAt }` | Có thông báo mới, kể cả lời mời |
      | `TASK_OVERDUE` | `KanbanTaskResponse` | Bộ quét trễ hạn (15 phút) đánh dấu task trễ hạn |
-     | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason }` | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
+     | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason, actorUserId }` (`actorUserId` là chuỗi, null nếu không có người thao tác) | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
+     | `PROJECT_CHANGED` | `{ projectId, resource, reason, actorUserId, phaseId, taskId }` (mọi giá trị là chuỗi, `actorUserId`/`phaseId`/`taskId` có thể null) | Chủ dự án và mọi thành viên đang hoạt động, khi có thay đổi KHÔNG phải task. Chỉ báo "phần nào đổi", client tự tải lại. Xem bảng resource/reason bên dưới |
 
      FE (`HttpWorkflowService.connectRealtime`) nghe đủ `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `TASK_OVERDUE`, `NOTIFICATION_RECEIVED`, `TASK_SUBMITTED`, `TASK_REJECTED`, `PROJECT_TASKS_CHANGED`. `PING` chỉ là nhịp giữ kết nối, FE không cần xử lý.
+
+     **`PROJECT_CHANGED` (S01)**: gửi qua `ProjectRealtimeNotifier.notifyProjectChanged(projectId, resource, reason, actorUserId, phaseId, taskId)`; cùng người nhận và cùng cách gửi với `PROJECT_TASKS_CHANGED` (người nhận lấy ngay lúc gọi, gửi sau khi transaction commit, rollback thì không gửi, lỗi gửi chỉ ghi log). `PROJECT_TASKS_CHANGED` có thêm overload `notifyTasksChanged(projectId, phaseId, taskId, reason, actorUserId)`; overload 4 tham số cũ gọi nó với `actorUserId = null`. Frontend dùng `actorUserId` để bỏ qua sự kiện do chính mình gây ra (làm ở S02); FE phải nghe thêm `PROJECT_CHANGED` (S02).
+
+     | resource | reason | Nơi phát | Người thao tác |
+     | :--- | :--- | :--- | :--- |
+     | `GRAPH` | `PHASE_CREATED` / `PHASE_UPDATED` (đổi tên, kéo vị trí; phát mỗi lần gọi) / `PHASE_LINKED` / `PHASE_UNLINKED` | `WorkflowGraphService.createPhase` / `updatePhase` / `connectPhases` / `disconnectPhases` | Chủ dự án |
+     | `MEMBERS` | `ROLE_CHANGED` / `MEMBER_REMOVED` / `MEMBER_JOINED` | `ProjectMemberService.updateRole` / `removeMember`, `ProjectInvitationService.acceptInvitation` | Chủ dự án / người nhận lời mời |
+     | `PROJECT` | `PROJECT_UPDATED` / `STATUS_CHANGED` / `PROJECT_DELETED` | `ProjectService.updateProject` / `updateProjectStatus` / `deleteProject` (xóa: phát trước khi xóa để còn danh sách người nhận) | Chủ dự án (hoặc admin với đổi trạng thái) |
+     | `ARTIFACTS` | `ARTIFACT_ADDED` / `ARTIFACT_REMOVED` / `ARTIFACT_UPDATED` | `ArtifactService.createArtifact` / `deleteArtifact` / `toggleRepositoryVisibility`; `StateMachineService.submitTaskArtifact` (ARTIFACT_ADDED, ngoài `PROJECT_TASKS_CHANGED` SUBMITTED) | Người thao tác |
+     | `FEEDBACK` | `FEEDBACK_CREATED` / `FEEDBACK_RESOLVED` | `FeedbackQueueService.submitGuestFeedback` (actor null) / `resolveFeedback` | null (khách) / người xử lý |
+     | `AI` | `AI_ANALYZED` | `AiDiagnosticService.triggerAiDiagnostics`, sau khi lưu kết quả | Người bấm phân tích |
+
+     `PROJECT_TASKS_CHANGED` hiện kèm `actorUserId` ở: tạo/sửa/xóa task, nối/gỡ dây, xóa phase, xuất bản, đổi trạng thái, nộp bài, mở khóa sớm, phân công. Mở khóa tự động (`unlockDownstreamTasks`, không có người thao tác) và công cụ demo giữ `actorUserId = null`.
    - Lời mời (C2): `InvitationCreatedEvent` / `InvitationAcceptedEvent` đi routing key `wpe.invitation.created` / `wpe.invitation.accepted` vào queue riêng `wpe.invitation.queue`. `InvitationEventConsumer` đẩy `NOTIFICATION_RECEIVED` cho người được mời **đúng 1 lần** bằng bản ghi `ProjectInvitationService` đã lưu, không lưu thêm.
 5. **Response Stream & UI Mutation**:
    - **Status Code**: `200 OK` (Content-Type: `text/event-stream`).
@@ -1009,6 +1038,13 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `GuestOverviewDto`.
    - **UI Mutation**: Render giao diện khách ngoài chỉ đọc (Read-only view), ẩn toàn bộ các nút chỉnh sửa cấu trúc.
+   - **S08 (field thêm cuối, field cũ giữ nguyên)**: `phases: [{ name, status, progressPct, totalTasks, doneTasks }]` (theo `orderIndex`; `status` = `COMPLETED|IN_PROGRESS|LOCKED|TODO`) và `memberCount` (chủ dự án + thành viên đang hoạt động, không đếm trùng). Không có email hay tên người.
+
+### 7.3 Khách xem tóm tắt AI đã lưu (`GET /api/v1/guest/{token}/ai-summary`)
+1. **Mục tiêu**: Bật khối "AI Summary" trên trang khách. Chỉ đọc kết quả `latest_ai_analysis` đã lưu, không gọi AI mới.
+2. **Luồng**: `GuestView.tsx` -> `guestService.getAiSummary(token)` -> `fetchGuestAiSummary` (`impl/http/guest.ts`).
+3. **Response**: `200` `{ content, highlights[], risks[], generatedAt }` (`highlights` từ `actionableAdvice.instruction`; `risks` từ `bottlenecks` (bỏ mức LOW) và `taskTraps`, dạng "MÃ-TASK: lý do").
+4. **Lỗi**: link hỏng/hết hạn/thu hồi -> `403 REVOKED_GUEST` (như `/overview`); chưa có phân tích -> `404 AI_SUMMARY_NOT_FOUND` (FE ẩn khối, hiện "No AI analysis yet"). Khối "Evaluation" không có API, bỏ khỏi giao diện thật (`features.evaluation = false`).
 
 ---
 

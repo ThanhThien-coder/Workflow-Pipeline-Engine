@@ -59,7 +59,7 @@
 | **`TODO`** | Đã sẵn sàng thực hiện. | Tự động xuất hiện tại cột TODO trên bảng My Tasks của người phụ trách theo mô hình Direct Push. | Thành viên bấm "Bắt đầu làm" hoặc kéo sang `IN_PROGRESS`. |
 | **`IN_PROGRESS`** | Đang được thực hiện trực tiếp. | Hiển thị tại cột In Progress; nếu quá `due_date` sẽ hiển thị badge cảnh báo Đỏ (`is_overdue = TRUE`). | Thành viên nộp kết quả (`REVIEW`) hoặc hủy nhận (`TODO`). |
 | **`REVIEW`** | Đã nộp bài, đang chờ nghiệm thu. | Hiển thị tại cột In Review; chờ phê duyệt từ Chủ dự án hoặc Quản lý. | Chủ dự án (`OWNER`) hoặc thành viên `MANAGER` còn hoạt động duyệt (`DONE`) hoặc từ chối (`IN_PROGRESS`) (Manager: PR #33). |
-| **`DONE`** | Đã nghiệm thu hoàn thành. | Đóng băng (`draggable = false`); hiển thị badge xanh lá cây; kích hoạt Engine mở khóa downstream nodes. | **Trạng thái kết thúc (Terminal State)**, không cho phép kéo lùi. |
+| **`DONE`** | Đã nghiệm thu hoàn thành. | Đóng băng (`draggable = false`); hiển thị badge xanh lá cây; kích hoạt Engine mở khóa downstream nodes. | Không cho phép kéo lùi; chỉ Owner/Manager mở lại được qua thao tác **Reopen** (S04, bắt buộc lý do). |
 
 ---
 
@@ -80,7 +80,8 @@
 > ⚠️ **Lệch FE/BE (chưa sửa):** `wpe-frontend/src/domain/taskTransitions.ts` (`evaluateTransition`, đoạn mẫu ở dưới) vẫn chỉ cho `OWNER` duyệt/từ chối. Backend cho Manager duyệt nhưng giao diện chặn với thông báo "Chỉ Owner mới có quyền duyệt". Cần sửa FE (ngoài phạm vi C1, báo nhóm).
 | `TODO` | `REVIEW` | ❌ | ❌ | Chặn: Phải bắt đầu làm việc trước khi nộp bài. |
 | `TODO` / `IN_PROGRESS` | `DONE` | ❌ | ❌ | Chặn: Bắt buộc phải qua bước `REVIEW` trước khi hoàn thành. |
-| `DONE` | Bất kỳ | ❌ | ❌ | Chặn: Trạng thái đóng băng, không cho phép kéo ngược lại. |
+| `DONE` | Bất kỳ | ❌ | ❌ | Chặn qua `PATCH /status`: không cho kéo ngược. Cách duy nhất để rời `DONE` là thao tác **Reopen** bên dưới. |
+| `DONE` | `IN_PROGRESS` (Reopen) | ❌ | ✅ *(Owner hoặc Manager)* | `POST /api/nodes/{id}/reopen` (S04): bắt buộc `reason`; xóa `completed_at`, ghi `reopened_at`; task con `TODO` không còn đủ điều kiện hội tụ quay về `LOCKED` (con đã bắt đầu giữ nguyên); artifact cũ giữ nguyên. |
 
 ### 2.2 Hàm Đánh giá Chuyển đổi Trạng thái (`evaluateTransition`)
 

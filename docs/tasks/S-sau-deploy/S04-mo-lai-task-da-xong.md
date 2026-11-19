@@ -2,7 +2,7 @@
 
 Người làm: Người 2 (gói Nghiệp vụ backend)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không (Bước 0 cần Thiện chốt 1 câu)
 Mở khóa: không
 Nhánh git: s04-mo-lai-task
@@ -101,3 +101,9 @@ Rồi người làm tự đọc `BE/service/engine/StateMachineService.java` (h�
 - Làm theo thứ tự, test sau mỗi bước. Làm xong: ghi chép, `chờ kiểm`, hỏi 3 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+Làm xong 19/11 (TASK_78, Claude Sonnet). Chi tiết: `.kb/tasks/TASK_78.report.md`.
+- BE: V22, `reopenedAt` ở entity/KanbanTaskResponse/GraphNodeResponse, `StateMachineService.reopenImpact/reopen`, 2 endpoint ở `NodeController`. Test BE 1080 xanh.
+- FE: `ReopenTaskModal`, `TaskDetailModal` (nút Reopen, nhãn Before reopen, băng Reopened), hook/slice/service. `tsc -b` sạch, vitest 940 xanh.
+- Bước 0: Thiện chốt (b). Con TODO bị khóa lại theo cùng luật hội tụ với `unlockDownstreamTasks`/`recomputeNodeStatus`.
+- Chưa kiểm tay. Chưa nối nút Reopen vào `PhaseDetailView.tsx` (ngoài danh sách được ghi), xem báo cáo.

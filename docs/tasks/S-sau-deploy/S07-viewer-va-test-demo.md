@@ -2,7 +2,7 @@
 
 Người làm: Người 2 (gói Nghiệp vụ backend)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không (Bước 0 cần Thiện chốt 1 câu)
 Mở khóa: không
 Nhánh git: s07-viewer-chi-xem
@@ -77,3 +77,5 @@ Viewer có được làm task được giao không?
 - Làm xong: ghi chép, `chờ kiểm`, hỏi 2 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+Làm xong theo lựa chọn (a). Chi tiết ở .kb/tasks/TASK_81.report.md. Test: BE 1097 xanh, FE tsc sạch, vitest 950 xanh. Chưa kiểm tay.

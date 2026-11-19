@@ -2,7 +2,7 @@
 
 Người làm: Người 3 (gói Giao diện)
 Người review: Thiện
-Trạng thái: chưa làm
+Trạng thái: xong
 Cần có trước: không
 Mở khóa: không
 Nhánh git: s08-trang-khach
@@ -86,3 +86,5 @@ Trang khách (`/guest?token=...`, file `FE/views/GuestView.tsx`) hiện rất í
 - Làm xong: ghi chép, `chờ kiểm`, hỏi 2 câu bảo vệ.
 
 ## Ghi chép của người làm
+
+Xem báo cáo: `.kb/tasks/TASK_82.report.md` (BE 1050 test xanh, FE 884 test xanh, tsc sạch; chưa kiểm tay).
