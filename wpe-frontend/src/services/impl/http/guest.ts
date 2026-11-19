@@ -1,6 +1,8 @@
 import { apiRequest } from '../../http/apiClient'
 import type { FeedbackItem, FeedbackStatus, GuestAccessState, GuestLinkStatus, ReviewerRole } from '../../../types/overview.types'
 import type {
+  GuestAiSummaryDto,
+  GuestPhaseStatus,
   GuestFeedbackDto,
   GuestOverviewDto,
   GuestStatusKey,
@@ -74,6 +76,23 @@ export interface BackendGuestOverviewResponse {
   velocity?: BackendGuestVelocityPoint[]
   statusBreakdown?: BackendGuestStatusSlice[]
   recentActivity?: BackendGuestActivity[]
+  phases?: BackendGuestPhase[]
+  memberCount?: number
+}
+
+export interface BackendGuestPhase {
+  name?: string
+  status?: string
+  progressPct?: number
+  totalTasks?: number
+  doneTasks?: number
+}
+
+export interface BackendGuestAiSummaryResponse {
+  content?: string
+  highlights?: string[]
+  risks?: string[]
+  generatedAt?: string | null
 }
 
 export interface CreateGuestFeedbackCommandDto {
@@ -194,6 +213,26 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
       ago: a.ago || 'recently',
       avatarUrl: a.avatarUrl || null,
     })),
+    phases: (data.phases || []).map((p) => {
+      const status = p.status === 'COMPLETED' || p.status === 'IN_PROGRESS' || p.status === 'LOCKED' ? p.status : 'TODO'
+      return {
+        name: p.name || '',
+        status: status as GuestPhaseStatus,
+        progressPct: Math.max(0, Math.min(100, p.progressPct ?? 0)),
+        totalTasks: p.totalTasks ?? 0,
+        doneTasks: p.doneTasks ?? 0,
+      }
+    }),
+    ...(typeof data.memberCount === 'number' ? { memberCount: data.memberCount } : {}),
+  }
+}
+
+export function mapGuestAiSummaryResponse(data: BackendGuestAiSummaryResponse): GuestAiSummaryDto {
+  return {
+    content: data.content || '',
+    highlights: data.highlights || [],
+    risks: data.risks || [],
+    generatedAt: data.generatedAt ? new Date(data.generatedAt).toISOString() : new Date().toISOString(),
   }
 }
 
@@ -253,6 +292,12 @@ export async function resolveFeedback(
 export async function fetchGuestOverview(token: string): Promise<GuestOverviewDto> {
   const data = await apiRequest<BackendGuestOverviewResponse>('GET', `/guest/${token}/overview`)
   return mapGuestOverviewResponse(data)
+}
+
+/** GET /guest/{token}/ai-summary — kết quả AI đã lưu (404 AI_SUMMARY_NOT_FOUND nếu chưa có phân tích) */
+export async function fetchGuestAiSummary(token: string): Promise<GuestAiSummaryDto> {
+  const data = await apiRequest<BackendGuestAiSummaryResponse>('GET', `/guest/${token}/ai-summary`)
+  return mapGuestAiSummaryResponse(data)
 }
 
 /** POST /guest/{token}/feedback — khách gửi nhận xét 1 chiều qua token */

@@ -76,24 +76,21 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
       />
     )
 
-    const rootEl = container.querySelector('[data-node-id="root"]') as HTMLElement
+    // TASK_73 (#16): root ảo không được vẽ
+    expect(container.querySelector('[data-node-id="root"]')).toBeNull()
     const trackEl = container.querySelector('[data-node-id="trk-1"]') as HTMLElement
     const taskEl = container.querySelector('[data-node-id="task-1"]') as HTMLElement
 
-    expect(rootEl).toBeDefined()
     expect(trackEl).toBeDefined()
     expect(taskEl).toBeDefined()
 
-    // Absolute positioning assertions (Level-based X: Level 0 = 40, Level 1 = 320, Level 2 = 600)
-    expect(rootEl.style.position).toBe('absolute')
-    expect(rootEl.style.left).toBe('40px')
-    expect(rootEl.style.width).toBe(`${W.root}px`)
-
+    // Absolute positioning assertions (Level-based X, root ẩn: Level 0 = 40, Level 1 = 320)
     expect(trackEl.style.position).toBe('absolute')
-    expect(trackEl.style.left).toBe('320px')
+    expect(trackEl.style.left).toBe('40px')
+    expect(trackEl.style.width).toBe(`${W.track}px`)
 
     expect(taskEl.style.position).toBe('absolute')
-    expect(taskEl.style.left).toBe('600px')
+    expect(taskEl.style.left).toBe('320px')
 
     const initialLeft = taskEl.style.left
     const initialTop = taskEl.style.top
@@ -123,7 +120,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
     const layoutAfter1 = calculateDeterministicLayout(currentNodes)
     expect(layoutAfter1['task-1'].x).toBe(task1InitialPos.x)
     expect(layoutAfter1['task-1'].y).toBe(task1InitialPos.y) // Đứng im tuyệt đối không nhích 1px
-    expect(layoutAfter1[task2.id].x).toBe(600)
+    expect(layoutAfter1[task2.id].x).toBe(320)
     expect(layoutAfter1[task2.id].y).toBe(task1InitialPos.y + TASK_H + 16)
 
     // 2. Tạo node mới thứ 2
@@ -136,7 +133,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
     expect(layoutAfter2['task-1'].x).toBe(task1InitialPos.x)
     expect(layoutAfter2['task-1'].y).toBe(task1InitialPos.y) // Vẫn đứng im tuyệt đối
     expect(layoutAfter2[task2.id].y).toBe(layoutAfter1[task2.id].y) // Node 2 đứng im
-    expect(layoutAfter2[task3.id].x).toBe(600)
+    expect(layoutAfter2[task3.id].x).toBe(320)
     expect(layoutAfter2[task3.id].y).toBe(layoutAfter2[task2.id].y + TASK_H + 16)
 
     // 3. Tạo node mới thứ 3
@@ -148,7 +145,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
     const layoutAfter3 = calculateDeterministicLayout(currentNodes)
     expect(layoutAfter3['task-1'].x).toBe(task1InitialPos.x)
     expect(layoutAfter3['task-1'].y).toBe(task1InitialPos.y) // Node cũ đứng im 100%
-    expect(layoutAfter3[task4.id].x).toBe(600)
+    expect(layoutAfter3[task4.id].x).toBe(320)
     expect(layoutAfter3[task4.id].y).toBe(layoutAfter3[task3.id].y + TASK_H + 16)
   })
 
@@ -174,7 +171,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
     // Dây nối sáng lên: có đường dẫn highlight với màu #2563eb (upstream)
     const litPaths = container.querySelectorAll('svg path[stroke="#2563eb"]')
     expect(litPaths.length).toBe(1)
-    expect(litPaths[0].getAttribute('d')).toMatch(/M\s*520/) // Xuất phát từ mép phải của track (x: 320 + w: 200 = 520)
+    expect(litPaths[0].getAttribute('d')).toMatch(/M\s*240/) // Xuất phát từ mép phải của track (x: 40 + w: 200 = 240)
     expect(litPaths[0].getAttribute('stroke-width')).toBe('2.5')
 
     // Rê chuột ra ngoài
@@ -229,8 +226,8 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
 
     const newTaskEl = container.querySelector(`[data-node-id="${newTaskEntry!.id}"]`) as HTMLElement
     expect(newTaskEl).toBeDefined()
-    expect(newTaskEl.style.left).toBe('600px') // Cột 2: Level 2 (X = 600)
-    expect(trackEl.style.left).toBe('320px')   // Track ở Cột 1 (X = 320)
+    expect(newTaskEl.style.left).toBe('320px') // Level 1 (X = 320)
+    expect(trackEl.style.left).toBe('40px')    // Track ở cột đầu (X = 40), root ẩn
 
     // 2. Bấm nút "+" trên Task Card (Child Subtask sang phải)
     const taskPlusBtn = newTaskEl.querySelector('button[title*="Add child task"]') as HTMLButtonElement
@@ -258,7 +255,7 @@ describe('MindmapTree Graph Engine & Infinite Oscillation Fix', () => {
 
     const subtaskEl = container.querySelector(`[data-node-id="${subtaskEntry!.id}"]`) as HTMLElement
     expect(subtaskEl).toBeDefined()
-    expect(subtaskEl.style.left).toBe('880px') // Mọc sang phải tại Cột 3 (X = 880)
+    expect(subtaskEl.style.left).toBe('600px') // Mọc sang phải tại Level 2 (X = 600)
   })
 
   it('Reset Phase Tree: Nút reset khôi phục dữ liệu sạch sẽ, không crash giao diện', () => {

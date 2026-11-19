@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useWorkflowStore } from '../store/useWorkflowStore'
+import { selectMemberWorkLocked, selectProjectStatus } from '../store/projectInfo'
+import { ProjectNotActiveBanner } from '../components/common/ProjectNotActiveBanner'
 import { KanbanToolbar } from '../components/kanban/KanbanToolbar'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { SubmitArtifactModal } from '../components/kanban/SubmitArtifactModal'
@@ -43,6 +45,9 @@ export function MyTasksView({
   const closeModal = useWorkflowStore((state) => state.kanban.closeSubmitModal)
   const submitArtifact = useWorkflowStore((state) => state.kanban.submitArtifact)
   const submitTaskArtifact = useWorkflowStore((state) => state.kanban.submitTaskArtifact)
+  const reopenTask = useWorkflowStore((state) => state.kanban.reopenTask)
+  const workLocked = useWorkflowStore(selectMemberWorkLocked)
+  const projectStatus = useWorkflowStore(selectProjectStatus)
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
@@ -168,6 +173,8 @@ export function MyTasksView({
         </div>
       </div>
 
+      {workLocked && <ProjectNotActiveBanner projectStatus={projectStatus} className="mx-6 mt-3" />}
+
       {/* Toolbar */}
       <KanbanToolbar
         query={query}
@@ -182,7 +189,7 @@ export function MyTasksView({
         tasks={visible}
         actor={actor}
         pendingIds={pending}
-        onMove={(id, to) => void moveTask(id, to)}
+        onMove={(id, to, rejectReason) => void moveTask(id, to, rejectReason)}
         filtering={Boolean(query || phase !== 'ALL')}
         onOpenDetails={(task) => setSelectedTaskId(task.id)}
       />
@@ -197,6 +204,8 @@ export function MyTasksView({
           onClose={() => setSelectedTaskId(null)}
           onMove={(to, rejectReason) => void moveTask(selectedTask.id, to, rejectReason)}
           onSubmitArtifact={(dto) => submitTaskArtifact(selectedTask.id, dto)}
+          onReopen={(reason) => reopenTask(selectedTask.id, reason)}
+          getReopenImpact={() => workflowService.getReopenImpact?.(selectedTask.id) ?? Promise.resolve({ taskCode: selectedTask.code, children: [] })}
         />
       )}
 

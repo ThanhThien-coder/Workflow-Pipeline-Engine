@@ -43,8 +43,8 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
       GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL-gemini-3.1-flash-lite}
-      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-12000}
-      GEMINI_TOTAL_TIMEOUT_MS: ${GEMINI_TOTAL_TIMEOUT_MS:-25000}
+      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-90000}
+      GEMINI_TOTAL_TIMEOUT_MS: ${GEMINI_TOTAL_TIMEOUT_MS:-170000}
       AI_INTERNAL_KEY: ${AI_INTERNAL_KEY:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health', timeout=3)"]
@@ -63,6 +63,11 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:?Thiếu POSTGRES_PASSWORD}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
+      AI_CONNECT_TIMEOUT_SECONDS: ${AI_CONNECT_TIMEOUT_SECONDS:-5}
+      AI_READ_TIMEOUT_SECONDS: ${AI_READ_TIMEOUT_SECONDS:-180}
+      AI_COOLDOWN_SECONDS: ${AI_COOLDOWN_SECONDS:-60}
+      # S05: lúc khởi động backend tự xóa task mồ côi (phase_id NULL); đặt false để tắt
+      CLEANUP_ORPHAN_NODES: ${CLEANUP_ORPHAN_NODES:-true}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-wpe_rabbit}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Thiếu RABBITMQ_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?Thiếu JWT_SECRET}
@@ -85,6 +90,8 @@ services:
       # SEED_ACCOUNT_PASSWORD lúc khởi động; thiếu biến này thì backend không chạy (xem docs/DEPLOY.md mục 7)
       SEED_ACCOUNT_PASSWORD: ${SEED_ACCOUNT_PASSWORD:-}
       SEED_ACCOUNT_GUARD_ENABLED: ${SEED_ACCOUNT_GUARD_ENABLED:-true}
+      # Cong cu demo (ep trang thai, qua han gia...). Chi bat khi demo, mac dinh tat
+      DEMO_TOOLS_ENABLED: ${DEMO_TOOLS_ENABLED:-false}
     volumes:
       - uploads:/app/uploads
     depends_on:

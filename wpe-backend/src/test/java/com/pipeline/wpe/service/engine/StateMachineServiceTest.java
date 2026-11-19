@@ -92,6 +92,7 @@ class StateMachineServiceTest {
             .id(projectId)
             .ownerId(ownerId)
             .name("Core Banking Pipeline")
+            .status(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE)
             .build();
 
         mockNode = NodeEntity.builder()
@@ -110,6 +111,65 @@ class StateMachineServiceTest {
             "10", "1", "WPE-010", "Test Task", "Desc", "TODO",
             "3", "ALL_COMPLETED", null, Instant.now(), false, 0L, Map.of()
         );
+    }
+
+    @Test
+    @DisplayName("S07: Viewer được giao task vẫn không đổi được trạng thái -> 403 ACCESS_DENIED, không lưu")
+    void testViewerCannotUpdateStatus() {
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, collaboratorId))
+            .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(collaboratorId).role(ProjectRole.VIEWER).build()));
+
+        assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), collaboratorId))
+            .isInstanceOf(ForbiddenException.class)
+            .hasMessageContaining("Viewers can't change task status");
+        verify(nodeRepository, never()).saveAndFlush(any(NodeEntity.class));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = com.pipeline.wpe.common.enums.ProjectStatus.class, names = {"DRAFT", "PLANNING", "PAUSED", "COMPLETED"})
+    @DisplayName("Dự án chưa chạy (không ACTIVE): Cộng tác viên không đổi trạng thái task -> 409 PROJECT_NOT_ACTIVE, không lưu")
+    void testCollaboratorBlockedWhenProjectNotActive(com.pipeline.wpe.common.enums.ProjectStatus status) {
+        mockProject.setStatus(status);
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+
+        assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), collaboratorId))
+            .isInstanceOfSatisfying(com.pipeline.wpe.exception.ConflictException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo("PROJECT_NOT_ACTIVE"));
+        verify(nodeRepository, never()).saveAndFlush(any(NodeEntity.class));
+    }
+
+    @Test
+    @DisplayName("Dự án DRAFT: Quản lý vẫn làm task bình thường (cùng quyền với chủ dự án)")
+    void testManagerWorksWhenProjectDraft() {
+        mockProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.DRAFT);
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, collaboratorId))
+            .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(collaboratorId).role(ProjectRole.MANAGER).build()));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
+
+        stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), collaboratorId);
+
+        assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("Dự án PAUSED: chủ dự án vẫn làm task bình thường")
+    void testOwnerWorksWhenProjectPaused() {
+        mockProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.PAUSED);
+        mockNode.setAssignedUserId(ownerId);
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
+
+        stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), ownerId);
+
+        assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
     }
 
     @Test
@@ -162,7 +222,7 @@ class StateMachineServiceTest {
         assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.DONE);
         assertThat(mockNode.getCompletedAt()).isNotNull();
         verify(eventPublisher).publishTaskCompleted(any(TaskCompletedEvent.class));
-        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), taskId, "STATUS_CHANGED");
+        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), taskId, "STATUS_CHANGED", ownerId);
     }
 
     @Test
@@ -508,7 +568,7 @@ class StateMachineServiceTest {
             "11", "5", "WPE-011", "Khóa", null, "LOCKED", null, "ALL_COMPLETED", null, null, false, 0L, Map.of());
         when(nodeMapper.toKanbanTaskResponse(mockNode)).thenReturn(mockResponse);
         when(nodeMapper.toKanbanTaskResponse(locked)).thenReturn(lockedResponse);
-        when(artifactRepository.findByNodeId(anyLong())).thenReturn(List.of());
+        when(artifactRepository.findByNodeIdIn(any())).thenReturn(List.of());
 
         List<KanbanTaskResponse> tasks = stateMachineService.getPhaseTasks(projectId, 5L);
 
@@ -528,7 +588,7 @@ class StateMachineServiceTest {
         when(nodeMapper.toKanbanTaskResponse(mockNode)).thenReturn(mockResponse);
         when(nodeMapper.toKanbanTaskResponse(locked)).thenReturn(new KanbanTaskResponse(
             "11", "5", "WPE-011", "Khóa", null, "LOCKED", String.valueOf(collaboratorId), "ALL_COMPLETED", null, null, false, 0L, Map.of()));
-        when(artifactRepository.findByNodeId(anyLong())).thenReturn(List.of());
+        when(artifactRepository.findByNodeIdIn(any())).thenReturn(List.of());
 
         List<KanbanTaskResponse> tasks = stateMachineService.getMyTasks(projectId, collaboratorId);
 
@@ -547,9 +607,33 @@ class StateMachineServiceTest {
             "20", "5", "WPE-020", "A", null, "REVIEW", null, "ALL_COMPLETED", null, null, false, 0L, Map.of()));
         when(nodeMapper.toKanbanTaskResponse(r2)).thenReturn(new KanbanTaskResponse(
             "30", "5", "WPE-030", "B", null, "REVIEW", null, "ALL_COMPLETED", null, null, false, 0L, Map.of()));
-        when(artifactRepository.findByNodeId(anyLong())).thenReturn(List.of());
+        when(artifactRepository.findByNodeIdIn(any())).thenReturn(List.of());
 
         assertThat(stateMachineService.getReviewTasks(projectId))
             .extracting(KanbanTaskResponse::id).containsExactly("20", "30");
+    }
+
+    @Test
+    @DisplayName("S03 getPhaseTasks: artifact lấy 1 lần (findByNodeIdIn), nhóm đúng theo task, không gọi findByNodeId")
+    void testGetPhaseTasks_artifactsFetchedOnce() {
+        NodeEntity second = NodeEntity.builder().id(11L).projectId(projectId).phaseId(5L).code("WPE-011")
+            .title("Hai").status(NodeStatus.TODO).version(0L).uiMetadata(Map.of()).build();
+        when(nodeRepository.findByPhaseId(5L)).thenReturn(List.of(second, mockNode));
+        when(nodeMapper.toKanbanTaskResponse(mockNode)).thenReturn(mockResponse);
+        when(nodeMapper.toKanbanTaskResponse(second)).thenReturn(new KanbanTaskResponse(
+            "11", "5", "WPE-011", "Hai", null, "TODO", null, "ALL_COMPLETED", null, null, false, 0L, Map.of()));
+        ArtifactEntity a1 = ArtifactEntity.builder().id(1L).nodeId(10L).name("A1")
+            .type(com.pipeline.wpe.common.enums.ArtifactType.PR).url("u1").createdAt(Instant.now()).build();
+        ArtifactEntity a2 = ArtifactEntity.builder().id(2L).nodeId(10L).name("A2")
+            .type(com.pipeline.wpe.common.enums.ArtifactType.PR).url("u2").createdAt(Instant.now()).build();
+        when(artifactRepository.findByNodeIdIn(any())).thenReturn(List.of(a1, a2));
+
+        List<KanbanTaskResponse> tasks = stateMachineService.getPhaseTasks(projectId, 5L);
+
+        assertThat(tasks).extracting(KanbanTaskResponse::id).containsExactly("10", "11");
+        assertThat(tasks.get(0).artifacts()).hasSize(2);
+        assertThat(tasks.get(1).artifacts()).isEmpty();
+        verify(artifactRepository, times(1)).findByNodeIdIn(any());
+        verify(artifactRepository, never()).findByNodeId(anyLong());
     }
 }

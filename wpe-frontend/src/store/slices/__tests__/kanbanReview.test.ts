@@ -26,7 +26,7 @@ describe('kanban — hàng chờ duyệt (G18)', () => {
 
     const { reviewTasks, reviewStatus } = useWorkflowStore.getState().kanban
     expect(reviewStatus).toBe('ready')
-    expect(reviewTasks.map((t) => [t.id, t.phaseLabel])).toEqual([['3', 'PHASE 2 · Cụm công việc 2']])
+    expect(reviewTasks.map((t) => [t.id, t.phaseLabel])).toEqual([['3', 'Cụm công việc 2']])
   })
 
   it('reviewTask DONE: gọi API, task rời hàng chờ duyệt', async () => {

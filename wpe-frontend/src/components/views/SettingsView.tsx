@@ -5,6 +5,7 @@ import { isMockMode } from '../../services/env'
 import { SettingsHeader } from '../settings/SettingsHeader'
 import { GeneralSettingsSection } from '../settings/GeneralSettingsSection'
 import { WorkspaceMembersSection } from '../settings/WorkspaceMembersSection'
+import { RolesPermissionsSection } from '../settings/RolesPermissionsSection'
 import { ProjectResourcesSection } from '../settings/ProjectResourcesSection'
 import { SystemAuditLogSection } from '../settings/SystemAuditLogSection'
 import { DangerZoneSection } from '../settings/DangerZoneSection'
@@ -126,6 +127,8 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
           onPromptKick={setMemberPendingKick}
           onRevokeInvitation={revokeInvitation}
         />
+
+        <RolesPermissionsSection myRole={effectiveRole} />
 
         <SystemAuditLogSection
           logs={auditLogs}

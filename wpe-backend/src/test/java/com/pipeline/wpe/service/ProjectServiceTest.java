@@ -39,6 +39,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,6 +69,8 @@ class ProjectServiceTest {
 
     @Mock
     private NodeDependencyRepository nodeDependencyRepository;
+
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @InjectMocks
     private ProjectService projectService;
@@ -282,6 +286,7 @@ class ProjectServiceTest {
         assertThat(response.totalNodes()).isEqualTo(5);
         assertThat(response.completedNodes()).isEqualTo(2);
         assertThat(response.progressPercentage()).isEqualTo(40.0);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(projectId), eq("PROJECT"), eq("STATUS_CHANGED"), eq(userId), isNull(), isNull());
     }
 
     @Test
@@ -382,7 +387,8 @@ class ProjectServiceTest {
         "PLANNING, ARCHIVED",
         "COMPLETED, ARCHIVED",
         "ARCHIVED, DRAFT",
-        "ACTIVE, COMPLETED"
+        "ACTIVE, COMPLETED",
+        "COMPLETED, ACTIVE"
     })
     @DisplayName("updateProjectStatus: Cho phép chuyển trạng thái hợp lệ")
     void shouldAllowValidStatusTransitions(ProjectStatus from, ProjectStatus to) {
@@ -529,7 +535,7 @@ class ProjectServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "COMPLETED, ACTIVE",
+        "COMPLETED, PAUSED",
         "ARCHIVED, PAUSED",
         "ACTIVE, ACTIVE"
     })
@@ -636,6 +642,11 @@ class ProjectServiceTest {
         verify(workPhaseRepository).deleteByProjectId(projectId);
         verify(projectMemberRepository).deleteByProjectId(projectId);
         verify(projectRepository).delete(project);
+        // Phát sự kiện TRƯỚC khi xóa để còn danh sách người nhận
+        org.mockito.InOrder order = inOrder(projectRealtimeNotifier, nodeRepository);
+        order.verify(projectRealtimeNotifier).notifyProjectChanged(
+            eq(projectId), eq("PROJECT"), eq("PROJECT_DELETED"), eq(userId), isNull(), isNull());
+        order.verify(nodeRepository).deleteByProjectId(projectId);
     }
 
     @Test
@@ -693,6 +704,7 @@ class ProjectServiceTest {
         assertThat(res.name()).isEqualTo("New Name");
         assertThat(res.description()).isEqualTo("New Desc");
         verify(projectRepository).save(project);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(projectId), eq("PROJECT"), eq("PROJECT_UPDATED"), eq(userId), isNull(), isNull());
     }
 
     @Test

@@ -18,6 +18,11 @@ export function graphErrorMessage(error: unknown): string {
         return 'Lost connection to the server. Your changes have not been saved.'
       case 'CYCLE_DETECTED':
         return 'Can\'t connect these tasks: this would create a dependency cycle.'
+      case 'PHASE_HAS_ACTIVE_TASKS':
+        // Backend chặn xóa phase còn task đã bắt đầu / chờ duyệt / đã xong; câu của backend có danh sách mã task
+        return error.message || 'This phase has tasks that already started or are done, so it can\'t be deleted.'
+      case 'NODE_IN_USE':
+        return error.message || 'This task has already started, so its prerequisites can\'t be changed.'
       default:
         return error.message || 'Couldn\'t save your graph changes.'
     }

@@ -163,7 +163,7 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
     hydrate: () => {
       const session = loadAuthSession()
       if (session) {
-        set((state) => ({
+        set((state: any) => ({
           auth: {
             ...state.auth,
             token: session.token,
@@ -172,6 +172,8 @@ export const createAuthSlice = (set: AuthSetter, get: () => AuthSlice): AuthSlic
             status: 'idle',
             error: null,
           },
+          // Sau F5: Kanban phải biết ai đang đăng nhập (giống applySession)
+          ...(state.kanban ? { kanban: { ...state.kanban, currentUserId: String(session.user.id) } } : {}),
         }))
       }
     },

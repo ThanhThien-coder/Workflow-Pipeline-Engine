@@ -38,6 +38,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +65,8 @@ class ProjectInvitationServiceTest {
 
     @Mock
     private WorkflowEventPublisher workflowEventPublisher;
+
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @InjectMocks
     private ProjectInvitationService projectInvitationService;
@@ -171,6 +175,8 @@ class ProjectInvitationServiceTest {
 
         assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
         assertThat(invitation.getRespondedAt()).isNotNull();
+        verify(projectRealtimeNotifier).notifyProjectChanged(
+                eq(projectId), eq("MEMBERS"), eq("MEMBER_JOINED"), eq(inviteeId), isNull(), isNull());
 
         // Kiểm tra MemberEntity được lưu vào ProjectMember
         ArgumentCaptor<ProjectMemberEntity> memberCaptor = ArgumentCaptor.forClass(ProjectMemberEntity.class);

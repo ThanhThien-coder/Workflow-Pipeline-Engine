@@ -11,6 +11,8 @@ import java.util.List;
 public interface ArtifactRepository extends JpaRepository<ArtifactEntity, Long> {
     List<ArtifactEntity> findByProjectId(Long projectId);
     List<ArtifactEntity> findByNodeId(Long nodeId);
+    /** S03: lấy artifact của cả danh sách task bằng 1 query (tránh N+1). */
+    List<ArtifactEntity> findByNodeIdIn(Collection<Long> nodeIds);
     List<ArtifactEntity> findByProjectIdAndIsPublicForGuestTrue(Long projectId);
     List<ArtifactEntity> findByProjectIdAndIsInRepositoryTrue(Long projectId);
     List<ArtifactEntity> findByProjectIdAndIsInRepositoryTrueOrderByCreatedAtDesc(Long projectId);

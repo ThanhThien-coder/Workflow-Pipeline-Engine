@@ -149,21 +149,21 @@ describe('B5: component canvas khóa theo vai trò', () => {
     },
   }
 
-  it('VIEWER: trong cây node, nút + Add Root Task và Add Ghost Node bị vô hiệu hóa, node không có nút xóa', () => {
+  it('VIEWER: trong cây node, nút + Add task và Add Ghost Node bị vô hiệu hóa, node không có nút xóa', () => {
     setRole('VIEWER')
     render(<MindmapTree nodes={TREE} selectedId={null} onSelect={() => {}} onUpdateNodes={() => {}} phaseId="10" readOnly />)
 
-    expect((screen.getByRole('button', { name: /add root task/i }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: /add task/i }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: /add ghost node/i }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: /add root task/i })).getAttribute("title")).toBe(READ_ONLY_TITLE)
+    expect((screen.getByRole('button', { name: /add task/i })).getAttribute("title")).toBe(READ_ONLY_TITLE)
     expect(screen.queryAllByTitle('Delete')).toHaveLength(0)
   })
 
-  it('OWNER: trong cây node, nút + Add Root Task và Add Ghost Node bấm được', () => {
+  it('OWNER: trong cây node, nút + Add task và Add Ghost Node bấm được', () => {
     setRole('OWNER')
     render(<MindmapTree nodes={TREE} selectedId={null} onSelect={() => {}} onUpdateNodes={() => {}} phaseId="10" />)
 
-    expect((screen.getByRole('button', { name: /add root task/i }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: /add task/i }) as HTMLButtonElement).disabled).toBe(false)
     expect((screen.getByRole('button', { name: /add ghost node/i }) as HTMLButtonElement).disabled).toBe(false)
     expect(screen.getAllByTitle('Delete').length).toBeGreaterThan(0)
   })

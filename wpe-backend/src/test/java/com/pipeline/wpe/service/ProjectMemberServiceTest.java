@@ -50,6 +50,12 @@ class ProjectMemberServiceTest {
     @Mock
     private NodeRepository nodeRepository;
 
+    // TASK_68: đổi vai trò / xóa thành viên gửi thông báo; mock để không bị NPE nuốt trong try/catch
+    @Mock
+    private com.pipeline.wpe.service.event.WorkflowEventPublisher eventPublisher;
+
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
+
     @InjectMocks
     private ProjectMemberService projectMemberService;
 
@@ -186,6 +192,8 @@ class ProjectMemberServiceTest {
 
         ProjectMemberResponse res = projectMemberService.updateRole(projectId, newOwnerId, ProjectRole.OWNER, currentOwnerId);
 
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(projectId), eq("MEMBERS"), eq("ROLE_CHANGED"), eq(currentOwnerId), isNull(), isNull());
+
         assertThat(project.getOwnerId()).isEqualTo(newOwnerId);
         verify(projectRepository).save(project);
 
@@ -246,6 +254,58 @@ class ProjectMemberServiceTest {
     }
 
     @Test
+    @DisplayName("S07 updateRole sang VIEWER: gỡ người làm khỏi task chưa DONE, task DONE giữ nguyên")
+    void updateRole_toViewer_unassignsNonDoneNodes() {
+        Long projectId = 1L;
+        Long ownerId = 1L;
+        Long targetUserId = 2L;
+        ProjectEntity project = ProjectEntity.builder().id(projectId).ownerId(ownerId).build();
+        ProjectMemberEntity targetMember = ProjectMemberEntity.builder()
+                .id(102L).projectId(projectId).userId(targetUserId).role(ProjectRole.COLLABORATOR).build();
+        NodeEntity node1 = NodeEntity.builder().id(201L).projectId(projectId).assignedUserId(targetUserId).status(NodeStatus.TODO).build();
+        NodeEntity node2 = NodeEntity.builder().id(202L).projectId(projectId).assignedUserId(targetUserId).status(NodeStatus.IN_PROGRESS).build();
+        NodeEntity nodeDone = NodeEntity.builder().id(203L).projectId(projectId).assignedUserId(targetUserId).status(NodeStatus.DONE).build();
+
+        when(projectAuthorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(project);
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, targetUserId))
+                .thenReturn(Optional.of(targetMember));
+        when(projectMemberRepository.save(any(ProjectMemberEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeRepository.findByProjectIdAndAssignedUserIdAndStatusNot(projectId, targetUserId, NodeStatus.DONE))
+                .thenReturn(new ArrayList<>(List.of(node1, node2)));
+
+        projectMemberService.updateRole(projectId, targetUserId, ProjectRole.VIEWER, ownerId);
+
+        assertThat(targetMember.getRole()).isEqualTo(ProjectRole.VIEWER);
+        assertThat(node1.getAssignedUserId()).isNull();
+        assertThat(node2.getAssignedUserId()).isNull();
+        assertThat(nodeDone.getAssignedUserId()).isEqualTo(targetUserId);
+        verify(nodeRepository).saveAll(List.of(node1, node2));
+        // Thẻ task đổi người làm: báo PROJECT_TASKS_CHANGED để người khác tải lại đồ thị
+        verify(projectRealtimeNotifier).notifyTasksChanged(eq(projectId), isNull(), isNull(), eq("UNASSIGNED"), eq(ownerId));
+    }
+
+    @Test
+    @DisplayName("S07 updateRole sang COLLABORATOR: không đụng tới task của người đó")
+    void updateRole_toCollaborator_doesNotUnassign() {
+        Long projectId = 1L;
+        Long ownerId = 1L;
+        Long targetUserId = 2L;
+        ProjectEntity project = ProjectEntity.builder().id(projectId).ownerId(ownerId).build();
+        ProjectMemberEntity targetMember = ProjectMemberEntity.builder()
+                .id(102L).projectId(projectId).userId(targetUserId).role(ProjectRole.MANAGER).build();
+
+        when(projectAuthorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(project);
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, targetUserId))
+                .thenReturn(Optional.of(targetMember));
+        when(projectMemberRepository.save(any(ProjectMemberEntity.class))).thenAnswer(i -> i.getArgument(0));
+
+        projectMemberService.updateRole(projectId, targetUserId, ProjectRole.COLLABORATOR, ownerId);
+
+        verify(nodeRepository, never()).saveAll(any());
+        verify(projectRealtimeNotifier, never()).notifyTasksChanged(any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("removeMember: 2 node chưa DONE + 1 node DONE của người đó -> unassignedTaskCount = 2, 2 node set null, node DONE giữ nguyên, removedAt khác null")
     void removeMember_unassignsNonDoneNodesAndSoftDeletes() {
         Long projectId = 1L;
@@ -279,6 +339,8 @@ class ProjectMemberServiceTest {
 
         assertThat(res.userId()).isEqualTo(targetUserId);
         assertThat(res.unassignedTaskCount()).isEqualTo(2);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(projectId), eq("MEMBERS"), eq("MEMBER_REMOVED"), eq(ownerId), isNull(), isNull());
+        verify(projectRealtimeNotifier).notifyTasksChanged(eq(projectId), isNull(), isNull(), eq("UNASSIGNED"), eq(ownerId));
 
         assertThat(targetMember.getRemovedAt()).isNotNull();
         verify(projectMemberRepository).save(targetMember);
@@ -308,7 +370,6 @@ class ProjectMemberServiceTest {
                 .hasMessageContaining("CANNOT_REMOVE_OWNER");
 
         verify(projectMemberRepository, never()).findByProjectIdAndUserIdAndRemovedAtIsNull(any(), any());
-        verify(nodeRepository, never()).findByProjectIdAndAssignedUserIdAndStatusNot(any(), any(), any());
     }
 
     @Test

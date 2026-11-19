@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { workflowService } from '../services/container'
-import type { ArtifactType, KanbanTask, TaskStatus, UserSummary } from '../types/kanban.types'
-import type { MacroPhase } from '../types/workflow.types'
+import type { ArtifactType, KanbanTask, ReopenImpact, TaskStatus, UserSummary } from '../types/kanban.types'
+import type { BranchGraphNode, MacroPhase } from '../types/workflow.types'
 import { evaluateTransition } from '../domain/taskTransitions'
 import { useWorkflowStore } from '../store/useWorkflowStore'
+import { selectProjectStatus } from '../store/projectInfo'
+import { ApiError } from '../services/http/ApiError'
+import { phaseDisplayName } from '../utils/phaseName'
 
 const SUCCESS_MESSAGES: Partial<Record<string, (code: string) => string>> = {
   'TODO>IN_PROGRESS': (code) => `Started task ${code}.`,
   'IN_PROGRESS>TODO': (code) => `Moved task ${code} back to To Do.`,
   'REVIEW>DONE': (code) => `Approved task ${code}: Marked as Done.`,
   'REVIEW>IN_PROGRESS': (code) => `Changes requested for ${code}: Moved back to In Progress.`,
+}
+
+export const STALE_TASK_MESSAGE = 'This task was changed by someone else. The board has been refreshed, please try again.'
+
+/** Chỉ lỗi lệch version (backend: 409 OPTIMISTIC_LOCK_CONFLICT); 409 khác như PROJECT_ARCHIVED giữ câu báo của backend. */
+function isStaleVersion(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.code === 'OPTIMISTIC_LOCK_CONFLICT'
 }
 
 function errorText(err: unknown, fallback: string): string {
@@ -31,7 +41,10 @@ function syncMyTasks(taskId: string, update: (task: KanbanTask) => KanbanTask): 
  * Tải lại khi đổi phase hoặc khi cây của phase đổi (sửa task, nối dây, đổi trạng thái đều đọc lại cây).
  */
 export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: string | null) {
-  const currentUserId = useWorkflowStore((state) => state.kanban.currentUserId)
+  // Người thao tác = người đang đăng nhập (sau F5 vẫn đúng); kanban.currentUserId chỉ là dự phòng cho chế độ mock
+  const authUserId = useWorkflowStore((state) => state.auth.currentUser?.id)
+  const kanbanUserId = useWorkflowStore((state) => state.kanban.currentUserId)
+  const currentUserId = authUserId != null && String(authUserId) !== '' ? String(authUserId) : kanbanUserId
   const members = useWorkflowStore((state) => state.project.members)
   const storeToast = useWorkflowStore((state) => state.kanban.showToast)
   const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
@@ -46,7 +59,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
   const requestRef = useRef(0)
 
   const phaseId = phase?.id ?? null
-  const phaseLabel = phase ? `${phase.name} · ${phase.sub}` : ''
+  const phaseLabel = phase ? phaseDisplayName(phase) : ''
 
   const showToast = useCallback(
     (message: string) => {
@@ -77,9 +90,33 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     }
   }, [projectId, phaseId, phaseLabel, showToast])
 
+  // S03: chỉ tải lại khi "chữ ký" task của phase đổi (đổi tọa độ, kéo thẻ... không đổi chữ ký). Gộp trong 300ms.
+  const treeSignature = useMemo(() => {
+    if (!phaseTree) return ''
+    return Object.values(phaseTree)
+      .filter((n) => n.kind === 'branch')
+      .map((n) => {
+        const b = n as BranchGraphNode
+        // Có cả mô tả: chỉ sửa mô tả cũng tải lại Kanban (chi tiết task đọc mô tả từ Kanban)
+        return [b.id, b.status, b.title, b.description ?? '', b.assignee ?? '', b.due ?? '', b.joinPolicy ?? '', b.isOverdue ? 1 : 0, b.forceUnlocked ? 1 : 0].join(':')
+      })
+      .sort()
+      .join('|')
+  }, [phaseTree])
+
+  // Đổi phase / dự án: tải ngay
   useEffect(() => {
     void loadPhaseTasks()
-  }, [loadPhaseTasks, phaseTree])
+  }, [loadPhaseTasks])
+
+  const lastSeenRef = useRef<{ phaseId: string | null; signature: string }>({ phaseId, signature: treeSignature })
+  useEffect(() => {
+    const last = lastSeenRef.current
+    lastSeenRef.current = { phaseId, signature: treeSignature }
+    if (last.phaseId !== phaseId || last.signature === treeSignature) return
+    const timer = window.setTimeout(() => void loadPhaseTasks(), 300)
+    return () => window.clearTimeout(timer)
+  }, [phaseId, treeSignature, loadPhaseTasks])
 
   /** Đổi trạng thái / nộp / giao xong: đọc lại cây (task con có thể vừa được mở khóa), Kanban tự tải lại theo cây. */
   const refreshAfterWrite = useCallback(async () => {
@@ -87,56 +124,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     else await loadPhaseTasks()
   }, [phaseId, resetPhaseTree, loadPhaseTasks])
 
-  // Lắng nghe realtime SSE: cập nhật Kanban và đồ thị macro khi có sự kiện task thay đổi
-  useEffect(() => {
-    if (!projectId || !phaseId) return
-
-    const connectFn = (
-      workflowService as {
-        connectRealtime?: (userId: string, onEvent: (eventName: string, data: any) => void) => () => void
-      }
-    ).connectRealtime
-    if (typeof connectFn !== 'function') return
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-    const scheduleRefresh = () => {
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer)
-      }
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null
-        void (async () => {
-          await refreshAfterWrite()
-          const store = useWorkflowStore.getState()
-          if (typeof store.loadPhases === 'function') {
-            void store.loadPhases(projectId)
-          }
-        })()
-      }, 300)
-    }
-
-    const unsubscribe = connectFn.call(workflowService, currentUserId ?? '', (eventName: string, data: any) => {
-      if (eventName === 'PROJECT_TASKS_CHANGED') {
-        if (data && data.projectId != null && String(data.projectId) !== String(projectId)) {
-          return
-        }
-        scheduleRefresh()
-      } else if (eventName.startsWith('TASK_')) {
-        scheduleRefresh()
-      }
-    })
-
-    return () => {
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer)
-        debounceTimer = null
-      }
-      if (typeof unsubscribe === 'function') {
-        unsubscribe()
-      }
-    }
-  }, [projectId, phaseId, currentUserId, refreshAfterWrite])
+  // Realtime: useProjectRealtime (gắn ở ProjectWorkspaceView) tải lại đồ thị khi có sự kiện; Kanban tự tải lại theo cây (phaseTree) nên không còn nghe SSE ở đây.
 
   // Người đang thao tác là người đăng nhập, không mượn quyền người khác
   const actor = useMemo<UserSummary | null>(
@@ -153,7 +141,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         return
       }
 
-      const decision = evaluateTransition(task, to, actor)
+      const decision = evaluateTransition(task, to, actor, selectProjectStatus(useWorkflowStore.getState()))
       if (decision.kind === 'deny') {
         if (decision.message) showToast(decision.message)
         return
@@ -161,6 +149,11 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
       if (decision.kind === 'needs-artifact') {
         setSubmittingTaskId(taskId)
         setIsSubmitModalOpen(true)
+        return
+      }
+      // Trả task từ Review về In Progress: backend bắt buộc có lý do (board hỏi lý do trước khi gọi vào đây)
+      if (task.status === 'REVIEW' && to === 'IN_PROGRESS' && !rejectReason?.trim()) {
+        showToast('Please enter a reason for the requested changes.')
         return
       }
 
@@ -176,12 +169,17 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         await refreshAfterWrite()
       } catch (err) {
         setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)))
-        showToast(errorText(err, 'Unable to update status. Please try again.'))
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to update status. Please try again.'))
+        }
       } finally {
         setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
       }
     },
-    [tasks, pendingTaskIds, actor, phaseLabel, showToast, refreshAfterWrite]
+    [tasks, pendingTaskIds, actor, phaseLabel, showToast, refreshAfterWrite, loadPhaseTasks]
   )
 
   const submitArtifact = useCallback(
@@ -200,13 +198,18 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         await refreshAfterWrite()
         return true
       } catch (err) {
-        showToast(errorText(err, 'Unable to submit deliverable. Please try again.'))
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to submit deliverable. Please try again.'))
+        }
         return false
       } finally {
         setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
       }
     },
-    [tasks, phaseLabel, showToast, refreshAfterWrite]
+    [tasks, phaseLabel, showToast, refreshAfterWrite, loadPhaseTasks]
   )
 
   const updateAssignment = useCallback(
@@ -226,11 +229,52 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         await refreshAfterWrite()
         return true
       } catch (err) {
-        showToast(errorText(err, 'Unable to update assignment. Please try again.'))
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to update assignment. Please try again.'))
+        }
         return false
       }
     },
-    [tasks, showToast, refreshAfterWrite]
+    [tasks, showToast, refreshAfterWrite, loadPhaseTasks]
+  )
+
+  /** S04: mở lại task Done (Owner / Manager, bắt buộc lý do). Xong thì đọc lại cây để task con bị khóa lại hiện đúng. */
+  const reopenTask = useCallback(
+    async (taskId: string, reason: string): Promise<boolean> => {
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task || !workflowService.reopenTask) return false
+      setPendingTaskIds((prev) => [...prev, taskId])
+      try {
+        const saved = await workflowService.reopenTask(taskId, reason)
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...saved, phaseLabel } : t)))
+        syncMyTasks(taskId, () => saved)
+        showToast(`Reopened task ${task.code}: moved back to In Progress.`)
+        await refreshAfterWrite()
+        return true
+      } catch (err) {
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to reopen the task. Please try again.'))
+        }
+        return false
+      } finally {
+        setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
+      }
+    },
+    [tasks, phaseLabel, showToast, refreshAfterWrite, loadPhaseTasks]
+  )
+
+  const getReopenImpact = useCallback(
+    async (taskId: string): Promise<ReopenImpact> => {
+      if (!workflowService.getReopenImpact) return { taskCode: '', children: [] }
+      return workflowService.getReopenImpact(taskId)
+    },
+    []
   )
 
   const submittingTask = useMemo(
@@ -263,5 +307,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     closeSubmitModal,
     refreshTasks: loadPhaseTasks,
     updateAssignment,
+    reopenTask,
+    getReopenImpact,
   }
 }

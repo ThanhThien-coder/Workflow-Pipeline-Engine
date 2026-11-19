@@ -59,6 +59,8 @@ class NotificationServiceTest {
     @Mock
     private WorkflowEventPublisher workflowEventPublisher;
 
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
+
     @InjectMocks
     private NotificationService notificationService;
 
@@ -76,7 +78,8 @@ class NotificationServiceTest {
                 projectMemberRepository,
                 projectAuthorizationService,
                 notificationRepository,
-                workflowEventPublisher
+                workflowEventPublisher,
+                projectRealtimeNotifier
         );
 
         Long projectId = 1L;

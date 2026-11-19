@@ -20,6 +20,7 @@ public final class AdminAuditAction {
     public static final String USER_DELETED = "USER_DELETED";
     public static final String PROJECT_OWNER_TRANSFERRED = "PROJECT_OWNER_TRANSFERRED";
     public static final String WORKSPACE_ARCHIVED = "WORKSPACE_ARCHIVED";
+    public static final String DEMO_TOOL_USED = "DEMO_TOOL_USED";
 
     public static final String TEMPLATE_CREATED = "TEMPLATE_CREATED";
     public static final String TEMPLATE_UPDATED = "TEMPLATE_UPDATED";

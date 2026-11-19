@@ -12,6 +12,7 @@ import com.pipeline.wpe.repository.ProjectFeedbackRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.ProjectAuthorizationService;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,8 +37,9 @@ public class AiDiagnosticService {
     private final CurrentUserProvider currentUserProvider;
     private final AiServiceClient aiServiceClient;
     private final ObjectMapper objectMapper;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
-    @Value("${app.ai.cooldown-seconds:180}")
+    @Value("${app.ai.cooldown-seconds:60}")
     private long cooldownSeconds;
 
     /**
@@ -60,8 +62,8 @@ public class AiDiagnosticService {
     }
 
     /**
-     * 9.2 Bấm nút "AI Diagnosis" kích hoạt phân tích mới (có Cooldown 3-5 phút).
-     * Giữ chỗ nguyên tử trên project.ai_requested_at (chống bấm trùng, cooldown 180 giây).
+     * 9.2 Bấm nút "AI Diagnosis" kích hoạt phân tích mới (có cooldown, mặc định 60 giây, đổi bằng AI_COOLDOWN_SECONDS).
+     * Giữ chỗ nguyên tử trên project.ai_requested_at (chống bấm trùng, cooldown app.ai.cooldown-seconds).
      * Gọi AI ngoài transaction. AI lỗi thì trả lại chỗ và ném tiếp (503), không lưu.
      * Thành công thì chỉ ghi cột latest_ai_analysis.
      */
@@ -93,6 +95,7 @@ public class AiDiagnosticService {
             // 4. Chỉ ghi cột latest_ai_analysis (không ghi đè cột khác, không đổi updated_at)
             projectRepository.updateLatestAiAnalysis(projectId, toJson(newAnalysis));
             log.info("Successfully updated AI diagnosis in PROJECT.latest_ai_analysis for project ID: {}", projectId);
+            projectRealtimeNotifier.notifyProjectChanged(projectId, "AI", "AI_ANALYZED", currentUserId, null, null);
             return newAnalysis;
         } catch (RuntimeException ex) {
             // AI lỗi (gồm AiServiceUnavailableException) hoặc lưu lỗi: trả lại chỗ, không tính cooldown

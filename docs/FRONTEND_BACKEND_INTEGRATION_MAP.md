@@ -588,6 +588,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      }
      ```
    - **UI Mutation**: Dựng đồ thị canvas MacroWorkflow và chuẩn bị cây MindmapTree.
+   - **Field mới (TASK_68)**: mỗi phần tử `nodes[]` có thêm `isOverdue` (boolean, cùng ý nghĩa với `isOverdue` của Kanban; `true` khi task chưa `DONE` đã quá hạn). Các field cũ giữ nguyên.
 
 ---
 
@@ -607,7 +608,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
    - Bảng tác động: `WORK_PHASE`, `PHASE_DEPENDENCY`, `NODE`.
    - Quyền: chỉ owner của dự án. Dự án `ARCHIVED` là chỉ đọc: cả 5 thao tác ghi trả `409 PROJECT_ARCHIVED`.
    - Khi tạo: chèn vào `WORK_PHASE` (kèm `ui_metadata`, mặc định `{}`); có `parentPhaseId` thì chèn thêm một cạnh vào `PHASE_DEPENDENCY`. `orderIndex` không gửi thì lấy `MAX(order_index) + 1`.
-   - Khi xóa: chuyển các Node thuộc Phase về dạng standalone (`phase_id = NULL`), không xóa Node. Các cạnh `PHASE_DEPENDENCY` của Phase tự xóa theo `ON DELETE CASCADE`.
+   - Khi xóa (TASK_68): Phase có task `IN_PROGRESS`, `REVIEW` hoặc `DONE` thì trả `409 PHASE_HAS_ACTIVE_TASKS` (message kèm tối đa 5 mã task rồi "and N more") và không xóa gì. Ngược lại (mọi task `LOCKED`/`TODO` hoặc Phase rỗng): xóa mọi cạnh `NODE_DEPENDENCY` có cha hoặc con thuộc Phase, xóa các task của Phase, rồi tính lại trạng thái các task con nằm ngoài Phase vừa mất cha (ví dụ mất cha duy nhất thì `LOCKED` -> `TODO`). Artifact giữ nguyên (`node_id` về `NULL`). Các cạnh `PHASE_DEPENDENCY` của Phase tự xóa theo `ON DELETE CASCADE`.
    - Khi nối: thêm một cạnh vào `PHASE_DEPENDENCY` và giữ các Phase cha đã có. Cạnh đã tồn tại thì bỏ qua (idempotent). Nếu Phase con đã đi tới được Phase cha (nối sẽ khép vòng) thì trả `422 CYCLE_DETECTED`.
    - Khi gỡ: xóa cạnh trong `PHASE_DEPENDENCY`; nếu cạnh còn nằm ở cột cũ `WORK_PHASE.parent_phase_id` thì đặt cột đó về `NULL`.
 5. **Response DTO & UI Mutation**:
@@ -756,6 +757,8 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 
 ---
 
+> **Trạng thái dự án (19/11/2026):** Collaborator gọi `PATCH /api/nodes/{taskId}/status` hoặc `POST /api/nodes/{taskId}/submit` khi dự án không `ACTIVE` (`DRAFT`, `PLANNING`, `PAUSED`, `COMPLETED`) -> **409 `PROJECT_NOT_ACTIVE`**. Owner và Manager không bị chặn. `PATCH /api/v1/projects/{id}/status` cho thêm `COMPLETED -> ACTIVE` (mở lại dự án). Nút đổi trạng thái dự án nằm ở màn Workflow (`ProjectStatusControl`).
+
 ### 5.2 Bắt đầu task (`TODO` -> `IN_PROGRESS`) & Hủy làm (`IN_PROGRESS` -> `TODO`)
 1. **Mục tiêu Nghiệp vụ**: Người thực hiện bấm bắt đầu làm task hoặc hủy nhận làm task đưa về trạng thái chờ.
 2. **Luồng Mã Nguồn**:
@@ -865,6 +868,21 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 
 ---
 
+### 5.5b Mở lại task đã Done (S04): `GET /api/nodes/{taskId}/reopen-impact`, `POST /api/nodes/{taskId}/reopen`
+1. **Mục tiêu Nghiệp vụ**: Task đã duyệt `DONE` mà phát hiện làm sai thì Owner hoặc Manager mở lại: `DONE` -> `IN_PROGRESS`, giữ nguyên người phụ trách, bắt buộc nhập lý do.
+2. **Luồng Mã Nguồn**: `TaskDetailModal` (nút **Reopen task**, chỉ Owner/Manager, task `DONE`) -> `ReopenTaskModal` (gọi `getReopenImpact`, bắt buộc lý do) -> `usePhaseKanban.reopenTask` / `kanbanSlice.reopenTask` -> `workflowService.reopenTask`.
+3. **Request**:
+   - `GET /api/nodes/{taskId}/reopen-impact` (Owner/Manager; 401, 403 `ACCESS_DENIED`). Response: `{ "taskCode": "WPE-004", "children": [ { "id": "12", "code": "WPE-007", "title": "...", "status": "TODO", "willRelock": true } ] }`. `children` là các task con trực tiếp; `willRelock = true` khi con đang `TODO`, chưa được mở khóa sớm (`force_unlocked_at` null) và sau khi cha không còn `DONE` thì điều kiện hội tụ không còn thỏa.
+   - `POST /api/nodes/{taskId}/reopen`, Body `{ "reason": "...", "version": 7 }`. Lỗi: 403 `ACCESS_DENIED` (không phải Owner/Manager), 409 `PROJECT_ARCHIVED`, 409 `TASK_NOT_DONE`, 400 (`reason` rỗng), 409 `OPTIMISTIC_LOCK_CONFLICT` (sai version).
+4. **Xử lý Backend**: bảng `NODE`, `NOTIFICATION` (migration V22 thêm `node.reopened_at`).
+   - Task: `status = IN_PROGRESS`, `completed_at = NULL`, `reopened_at = now`, `reject_reason = reason`.
+   - Task con `TODO` có `willRelock` quay về `LOCKED`; con `ANY_COMPLETED` còn cha khác `DONE` thì giữ; con mở khóa sớm thì giữ; con đã `IN_PROGRESS`/`REVIEW`/`DONE` giữ nguyên (chỉ cảnh báo trên giao diện, không chặn).
+   - Thông báo cho người phụ trách (title "Task reopened"); SSE `TASK_STATUS_CHANGED` cho người phụ trách và người duyệt; `notifyTasksChanged(..., "REOPENED", actorUserId)`.
+   - Artifact cũ giữ nguyên (không xóa, không đổi `is_in_repository`); giao diện hiện nhãn "Before reopen" cho artifact có `uploadedAt < reopenedAt`.
+5. **Response**: `200 OK`, `KanbanTaskResponse` mới (có `reopenedAt`). Task `IN_PROGRESS` có `reopenedAt` hiện băng "Reopened: <lý do>". Tốc độ (velocity) và % hoàn thành tự đúng vì tính từ `status`/`completed_at`.
+
+---
+
 ### 5.6 Engine tự mở khóa downstream nodes (AND/OR Join) qua RabbitMQ Worker
 1. **Mục tiêu Nghiệp vụ**: Khi task cha hoàn thành (`DONE`), Execution Engine tự động kiểm tra đồ thị `NODE_DEPENDENCY`, xét duyệt điều kiện hội tụ (AND-join / OR-join). Nếu thỏa mãn, tự động chuyển con từ `LOCKED` sang `TODO` và đẩy thông báo.
 2. **Luồng Mã Nguồn**:
@@ -910,9 +928,23 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      | `TASK_REJECTED` | `KanbanTaskResponse` | Owner từ chối bài (gửi người phụ trách) |
      | `NOTIFICATION_RECEIVED` | `NotificationResponse` `{ id (chuỗi), title, message, linkUrl, isRead, createdAt }` | Có thông báo mới, kể cả lời mời |
      | `TASK_OVERDUE` | `KanbanTaskResponse` | Bộ quét trễ hạn (15 phút) đánh dấu task trễ hạn |
-     | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason }` | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
+     | `PROJECT_TASKS_CHANGED` | `{ projectId, phaseId, taskId, reason, actorUserId }` (`actorUserId` là chuỗi, null nếu không có người thao tác) | Mọi thành viên dự án khi có thay đổi task (đổi trạng thái, nộp, trả, mở khóa, phân công, sửa/xóa/thêm node, sửa quan hệ, xuất bản) |
+     | `PROJECT_CHANGED` | `{ projectId, resource, reason, actorUserId, phaseId, taskId }` (mọi giá trị là chuỗi, `actorUserId`/`phaseId`/`taskId` có thể null) | Chủ dự án và mọi thành viên đang hoạt động, khi có thay đổi KHÔNG phải task. Chỉ báo "phần nào đổi", client tự tải lại. Xem bảng resource/reason bên dưới |
 
      FE (`HttpWorkflowService.connectRealtime`) nghe đủ `INIT`, `TASK_UNLOCKED`, `TASK_STATUS_CHANGED`, `TASK_OVERDUE`, `NOTIFICATION_RECEIVED`, `TASK_SUBMITTED`, `TASK_REJECTED`, `PROJECT_TASKS_CHANGED`. `PING` chỉ là nhịp giữ kết nối, FE không cần xử lý.
+
+     **`PROJECT_CHANGED` (S01)**: gửi qua `ProjectRealtimeNotifier.notifyProjectChanged(projectId, resource, reason, actorUserId, phaseId, taskId)`; cùng người nhận và cùng cách gửi với `PROJECT_TASKS_CHANGED` (người nhận lấy ngay lúc gọi, gửi sau khi transaction commit, rollback thì không gửi, lỗi gửi chỉ ghi log). `PROJECT_TASKS_CHANGED` có thêm overload `notifyTasksChanged(projectId, phaseId, taskId, reason, actorUserId)`; overload 4 tham số cũ gọi nó với `actorUserId = null`. Frontend dùng `actorUserId` để bỏ qua sự kiện do chính mình gây ra (làm ở S02); FE phải nghe thêm `PROJECT_CHANGED` (S02).
+
+     | resource | reason | Nơi phát | Người thao tác |
+     | :--- | :--- | :--- | :--- |
+     | `GRAPH` | `PHASE_CREATED` / `PHASE_UPDATED` (đổi tên, kéo vị trí; phát mỗi lần gọi) / `PHASE_LINKED` / `PHASE_UNLINKED` | `WorkflowGraphService.createPhase` / `updatePhase` / `connectPhases` / `disconnectPhases` | Chủ dự án |
+     | `MEMBERS` | `ROLE_CHANGED` / `MEMBER_REMOVED` / `MEMBER_JOINED` | `ProjectMemberService.updateRole` / `removeMember`, `ProjectInvitationService.acceptInvitation` | Chủ dự án / người nhận lời mời |
+     | `PROJECT` | `PROJECT_UPDATED` / `STATUS_CHANGED` / `PROJECT_DELETED` | `ProjectService.updateProject` / `updateProjectStatus` / `deleteProject` (xóa: phát trước khi xóa để còn danh sách người nhận) | Chủ dự án (hoặc admin với đổi trạng thái) |
+     | `ARTIFACTS` | `ARTIFACT_ADDED` / `ARTIFACT_REMOVED` / `ARTIFACT_UPDATED` | `ArtifactService.createArtifact` / `deleteArtifact` / `toggleRepositoryVisibility`; `StateMachineService.submitTaskArtifact` (ARTIFACT_ADDED, ngoài `PROJECT_TASKS_CHANGED` SUBMITTED) | Người thao tác |
+     | `FEEDBACK` | `FEEDBACK_CREATED` / `FEEDBACK_RESOLVED` | `FeedbackQueueService.submitGuestFeedback` (actor null) / `resolveFeedback` | null (khách) / người xử lý |
+     | `AI` | `AI_ANALYZED` | `AiDiagnosticService.triggerAiDiagnostics`, sau khi lưu kết quả | Người bấm phân tích |
+
+     `PROJECT_TASKS_CHANGED` hiện kèm `actorUserId` ở: tạo/sửa/xóa task, nối/gỡ dây, xóa phase, xuất bản, đổi trạng thái, nộp bài, mở khóa sớm, phân công. Mở khóa tự động (`unlockDownstreamTasks`, không có người thao tác) và công cụ demo giữ `actorUserId = null`.
    - Lời mời (C2): `InvitationCreatedEvent` / `InvitationAcceptedEvent` đi routing key `wpe.invitation.created` / `wpe.invitation.accepted` vào queue riêng `wpe.invitation.queue`. `InvitationEventConsumer` đẩy `NOTIFICATION_RECEIVED` cho người được mời **đúng 1 lần** bằng bản ghi `ProjectInvitationService` đã lưu, không lưu thêm.
 5. **Response Stream & UI Mutation**:
    - **Status Code**: `200 OK` (Content-Type: `text/event-stream`).
@@ -1008,6 +1040,13 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `GuestOverviewDto`.
    - **UI Mutation**: Render giao diện khách ngoài chỉ đọc (Read-only view), ẩn toàn bộ các nút chỉnh sửa cấu trúc.
+   - **S08 (field thêm cuối, field cũ giữ nguyên)**: `phases: [{ name, status, progressPct, totalTasks, doneTasks }]` (theo `orderIndex`; `status` = `COMPLETED|IN_PROGRESS|LOCKED|TODO`) và `memberCount` (chủ dự án + thành viên đang hoạt động, không đếm trùng). Không có email hay tên người.
+
+### 7.3 Khách xem tóm tắt AI đã lưu (`GET /api/v1/guest/{token}/ai-summary`)
+1. **Mục tiêu**: Bật khối "AI Summary" trên trang khách. Chỉ đọc kết quả `latest_ai_analysis` đã lưu, không gọi AI mới.
+2. **Luồng**: `GuestView.tsx` -> `guestService.getAiSummary(token)` -> `fetchGuestAiSummary` (`impl/http/guest.ts`).
+3. **Response**: `200` `{ content, highlights[], risks[], generatedAt }` (`highlights` từ `actionableAdvice.instruction`; `risks` từ `bottlenecks` (bỏ mức LOW) và `taskTraps`, dạng "MÃ-TASK: lý do").
+4. **Lỗi**: link hỏng/hết hạn/thu hồi -> `403 REVOKED_GUEST` (như `/overview`); chưa có phân tích -> `404 AI_SUMMARY_NOT_FOUND` (FE ẩn khối, hiện "No AI analysis yet"). Khối "Evaluation" không có API, bỏ khỏi giao diện thật (`features.evaluation = false`).
 
 ---
 
@@ -1436,6 +1475,27 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `AuthResponse` (`accessToken`, `refreshToken`, `user: { id, username, email, fullName, systemRole, ... }`).
    - **UI Mutation**: Frontend lưu Access Token vào bộ nhớ, cập nhật `systemRole` vào Auth state; kiểm tra `homePathFor(user.systemRole)` và tự động chuyển hướng Admin vào `/admin`, kích hoạt nạp dữ liệu thống kê Overview; người dùng thường chuyển vào `/workspaces`.
+
+## Cụm 11: Bổ sung TASK_68 (báo đổi vai trò, công cụ demo)
+
+### 11.1 Thông báo khi đổi vai trò / bị xóa khỏi dự án
+- `PATCH /api/v1/projects/{projectId}/members/{userId}` (chỉ khi vai trò thực sự đổi) gửi thông báo cho người bị đổi: `type = ROLE_CHANGED`, `title = "Your project role changed"`, `message = "You are now <ROLE> in project \"<tên>\"."`, `targetUrl = /project/{projectId}/workflow`. Chuyển chủ dự án thì gửi cả chủ mới (OWNER) và chủ cũ (COLLABORATOR).
+- `DELETE /api/v1/projects/{projectId}/members/{userId}` gửi cho người bị xóa: `type = MEMBER_REMOVED`, `title = "Removed from project"`, `message = "You were removed from project \"<tên>\"."`, `targetUrl = /workspaces?removedFrom={projectId}`.
+- Đi qua `NOTIFICATION` + SSE `NOTIFICATION_RECEIVED`. Gửi lỗi chỉ ghi log, không làm hỏng thao tác chính.
+
+### 11.2 Công cụ demo (`/api/v1/demo/*`)
+Mặc định TẮT (`app.demo-tools.enabled` = biến `DEMO_TOOLS_ENABLED`, mặc định `false`).
+- `GET /api/v1/demo/status` -> `200 { "enabled": true|false }`. Mọi người đã đăng nhập gọi được.
+- Mọi endpoint còn lại: tắt -> `404` ("Demo tools are disabled."); bật -> chỉ chủ dự án hoặc `systemRole = ADMIN`, người khác `403 ACCESS_DENIED`. Node/phase không thuộc dự án -> `400`. Mỗi lần dùng ghi `log.warn` và nhật ký quản trị với action `DEMO_TOOL_USED`.
+- Tất cả là `POST /api/v1/demo/projects/{projectId}/...`:
+  - `nodes/{nodeId}/make-overdue` -> `200 GraphNodeResponse` (đặt hạn = hiện tại - 1 giờ rồi quét quá hạn ngay; `isOverdue = true` nếu node chưa `DONE`).
+  - `overdue-scan` -> `200 { "overdueCount": n }`.
+  - `nodes/{nodeId}/force-status` body `{ "status": "LOCKED|TODO|IN_PROGRESS|REVIEW|DONE" }` -> `200 GraphNodeResponse`. Bỏ qua máy trạng thái; sang `DONE` thì `completedAt = now` và mở khóa task sau ngay; trạng thái khác thì `completedAt = null`, không đụng task con.
+  - `phases/{phaseId}/complete-all` -> `200 { "completedCount": n }` (cha trước con, mở khóa sau mỗi task).
+  - `ai-cooldown/reset` -> `204` (xóa `PROJECT.ai_requested_at`).
+  - `guest-link/expire` -> `204` (link khách đang hoạt động hết hạn ngay; không có link vẫn `204`).
+  - `invitations/expire` -> `200 { "expiredCount": n }` (lời mời `PENDING` hết hạn ngay rồi chuyển `EXPIRED`).
+  - `notifications/test` -> `204` (gửi thông báo `SYSTEM` thử cho chính người gọi).
 
 ---
 

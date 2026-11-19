@@ -1,5 +1,6 @@
 import { ShieldAlert } from 'lucide-react'
 import type { ProjectRole } from '../../types/settings.types'
+import { ROLE_SUMMARIES, ROLE_TITLES } from './rolePermissions'
 
 interface SettingsHeaderProps {
   myRole: ProjectRole
@@ -18,6 +19,11 @@ export function SettingsHeader({ myRole }: SettingsHeaderProps) {
           </p>
         </div>
       </header>
+
+      <p className="text-xs text-slate-600" data-testid="settings-my-role">
+        <span className="font-semibold text-slate-800">Your role: {ROLE_TITLES[myRole]?.toUpperCase() ?? myRole}</span>
+        {ROLE_SUMMARIES[myRole] ? <span> {'—'} {ROLE_SUMMARIES[myRole]}</span> : null}
+      </p>
 
       {!isOwner && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800 shadow-sm animate-fade-in">

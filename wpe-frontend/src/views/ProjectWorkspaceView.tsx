@@ -1,6 +1,5 @@
 import { useEffect, type FC } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search } from 'lucide-react'
 import { WorkflowView } from '../components/views/WorkflowView'
 import { MyTasksView } from './MyTasksView'
 import SettingsView from './SettingsView'
@@ -12,15 +11,21 @@ import { useWorkflowStore, type NavigationTab } from '../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../store/slices/devSlice'
 import { isMockMode } from '../services/env'
 import { useRouter } from '../router/useRouter'
+import { DemoToolsPanel } from '../components/dev/DemoToolsPanel'
+import { useProjectRealtime } from '../hooks/useProjectRealtime'
+import { ProjectSearchBox } from '../components/search/ProjectSearchBox'
 
 interface ProjectWorkspaceViewProps {
   projectId: string
   subTab?: NavigationTab
+  /** Có thì tab Workflow mở thẳng màn chi tiết phase này (đường dẫn .../workflow/phase/:phaseId). */
+  phaseId?: string
 }
 
 export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
   projectId,
   subTab,
+  phaseId,
 }) => {
   const { navigate } = useRouter()
   const activeTab = useWorkflowStore((state) => state.activeTab)
@@ -60,6 +65,9 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
 
   const currentTab = subTab || activeTab
 
+  // Một bộ nghe realtime cấp dự án cho mọi tab: tự tải lại đúng phần vừa đổi
+  useProjectRealtime(projectId, currentTab)
+
   const handleLogout = async () => {
     await logout()
     showToast('Logged out successfully.')
@@ -88,19 +96,9 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Workspace Top Header with Floating Tab Slider */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/90 px-5 backdrop-blur-md z-10">
-          {/* Left: Search box with fluid responsive width */}
+          {/* Left: ô tìm task và phase của dự án (Ctrl/⌘+K để focus) */}
           <div className="flex items-center gap-2">
-            <label className="hidden sm:flex items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-400 focus-within:border-indigo-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100/60 w-48 lg:w-64 focus-within:w-80 transition-all duration-200">
-              <Search size={15} className="shrink-0 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search projects, tasks..."
-                className="w-full bg-transparent text-xs text-slate-800 placeholder:text-slate-400 outline-none"
-              />
-              <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 font-mono shrink-0">
-                ⌘K
-              </kbd>
-            </label>
+            <ProjectSearchBox projectId={projectId} />
           </div>
 
 
@@ -113,6 +111,8 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
             >
               All Pipelines
             </button>
+            {/* #24: công cụ demo, tự ẩn khi backend tắt DEMO_TOOLS_ENABLED hoặc người xem không phải chủ dự án / admin */}
+            <DemoToolsPanel projectId={projectId} variant="header" />
             <NotificationBell />
             <GlobalProfileMenu
               displayName={displayName}
@@ -139,7 +139,7 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
               className="h-full w-full overflow-hidden"
               style={{ willChange: 'transform, opacity' }}
             >
-              {currentTab === 'workflow' && <WorkflowView projectId={projectId} />}
+              {currentTab === 'workflow' && <WorkflowView projectId={projectId} phaseId={phaseId ?? null} />}
               {currentTab === 'overview' && <OverviewScreen projectId={projectId} />}
               {currentTab === 'my-tasks' && <MyTasksView projectId={projectId} projectName={projectName} />}
               {currentTab === 'settings' && <SettingsView projectId={projectId} />}

@@ -55,6 +55,8 @@ class AiDiagnosticServiceTest {
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
+
     @InjectMocks
     private AiDiagnosticService aiDiagnosticService;
 
@@ -114,6 +116,8 @@ class AiDiagnosticServiceTest {
         verify(projectRepository).updateLatestAiAnalysis(eq(projectId), argThat(json -> json.contains("analyzedAt")));
         verify(projectRepository, never()).save(any());
         verify(projectRepository, never()).releaseAiDiagnosisClaim(any(), any(), any());
+        verify(projectRealtimeNotifier).notifyProjectChanged(
+            eq(projectId), eq("AI"), eq("AI_ANALYZED"), eq(userId), isNull(), isNull());
     }
 
     @Test

@@ -74,14 +74,12 @@ export const WorkspaceView: FC = () => {
     name: string
     desc: string
     templateId?: string
-    visibility?: string
   }) => {
     try {
       const created = await createProjectAction({
         name: data.name,
         desc: data.desc,
         templateId: data.templateId,
-        visibility: data.visibility || 'PRIVATE',
       })
       if (data.templateId) {
         showToast('Workflow cloned successfully!')

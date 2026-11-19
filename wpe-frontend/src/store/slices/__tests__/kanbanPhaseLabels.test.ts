@@ -21,7 +21,7 @@ const PHASE: MacroPhase = {
 describe('kanban.loadTasks — tên phase thật', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('gắn "TÊN · phụ đề" của phase cho task; phase không tìm thấy thì giữ nhãn cũ', async () => {
+  it('gắn tên hiển thị (phaseDisplayName) của phase cho task; phase không tìm thấy thì giữ nhãn cũ', async () => {
     vi.spyOn(workflowService, 'getMyTasks').mockResolvedValue([task('1', '56'), { ...task('2', '99'), phaseLabel: 'Nhãn cũ' }])
     const getMacroPhases = vi.spyOn(workflowService, 'getMacroPhases').mockResolvedValue([PHASE])
     useWorkflowStore.setState((state) => ({ kanban: { ...state.kanban, currentUserId: '9' } }))
@@ -30,7 +30,7 @@ describe('kanban.loadTasks — tên phase thật', () => {
 
     expect(getMacroPhases).toHaveBeenCalledWith('19')
     expect(useWorkflowStore.getState().kanban.tasks.map((t) => [t.phaseId, t.phaseLabel])).toEqual([
-      ['56', 'PHASE 4 · Cụm công việc 4'],
+      ['56', 'Cụm công việc 4'],
       ['99', 'Nhãn cũ'],
     ])
   })

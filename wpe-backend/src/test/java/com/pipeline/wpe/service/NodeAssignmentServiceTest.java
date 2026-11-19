@@ -94,7 +94,26 @@ class NodeAssignmentServiceTest {
         assertThat(response.assignedUserId()).isEqualTo(String.valueOf(newAssigneeId));
         assertThat(mockNode.getAssignedUserId()).isEqualTo(newAssigneeId);
         verify(nodeRepository).saveAndFlush(mockNode);
-        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), nodeId, "ASSIGNMENT_CHANGED");
+        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), nodeId, "ASSIGNMENT_CHANGED", managerId);
+    }
+
+    @Test
+    @DisplayName("S07 updateAssignment: giao task cho Viewer -> 400 ASSIGNEE_IS_VIEWER, không lưu")
+    void testUpdateAssignment_toViewer_rejected() {
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(mockNode));
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, managerId)).thenReturn(mockProject);
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(projectId, newAssigneeId)).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, newAssigneeId)).thenReturn(Optional.of(
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(projectId).userId(newAssigneeId)
+                .role(com.pipeline.wpe.common.enums.ProjectRole.VIEWER).build()));
+
+        assertThatThrownBy(() -> nodeAssignmentService.updateAssignment(nodeId, new UpdateNodeAssignmentRequest(newAssigneeId, null, 1L), managerId))
+            .isInstanceOfSatisfying(com.pipeline.wpe.exception.BadRequestException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo("ASSIGNEE_IS_VIEWER");
+                assertThat(e.getMessage()).isEqualTo("Viewers can't be assigned tasks.");
+            });
+        assertThat(mockNode.getAssignedUserId()).isNull();
+        verify(nodeRepository, never()).saveAndFlush(any(NodeEntity.class));
     }
 
     @Test

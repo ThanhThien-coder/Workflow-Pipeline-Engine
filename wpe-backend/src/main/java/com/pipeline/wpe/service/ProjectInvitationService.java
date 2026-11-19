@@ -21,6 +21,7 @@ import com.pipeline.wpe.repository.ProjectInvitationRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.repository.UserRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class ProjectInvitationService {
     private final ProjectAuthorizationService projectAuthorizationService;
     private final NotificationRepository notificationRepository;
     private final WorkflowEventPublisher workflowEventPublisher;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @Value("${app.invitation.expiry-days:7}")
     private long expiryDays = 7;
@@ -231,6 +233,7 @@ public class ProjectInvitationService {
                     .removedAt(null)
                     .build();
             projectMemberRepository.save(member);
+            projectRealtimeNotifier.notifyProjectChanged(invitation.getProjectId(), "MEMBERS", "MEMBER_JOINED", currentUserId, null, null);
         }
         log.info("User id={} accepted invitation id={} and joined project={}", currentUserId, invitationId, invitation.getProjectId());
 

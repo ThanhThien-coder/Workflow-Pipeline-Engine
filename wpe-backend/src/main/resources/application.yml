@@ -65,6 +65,10 @@ app:
   seed-accounts:
     guard-enabled: ${SEED_ACCOUNT_GUARD_ENABLED:true}
     password: ${SEED_ACCOUNT_PASSWORD:}
+  demo-tools:
+    enabled: ${DEMO_TOOLS_ENABLED:false}
+  maintenance:
+    cleanup-orphan-nodes: ${CLEANUP_ORPHAN_NODES:true}
   frontend:
     base-url: ${APP_PUBLIC_URL:http://localhost:5173}
   upload:
@@ -93,13 +97,14 @@ app:
     # Danh sách origin, cách nhau dấu phẩy.
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
   ai:
-    cooldown-seconds: 180
+    # Thời gian chờ giữa 2 lần bấm phân tích (giây). Lúc demo đặt AI_COOLDOWN_SECONDS=0
+    cooldown-seconds: ${AI_COOLDOWN_SECONDS:60}
     service-url: ${AI_SERVICE_URL:http://localhost:8081}
     # http = gọi microservice AI Python (mặc định); mock = dữ liệu mẫu trong Java, chỉ dùng để demo
     mode: ${AI_MODE:http}
     diagnose-path: ${AI_DIAGNOSE_PATH:/api/ai/diagnose}
-    connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:3}
-    read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:30}
+    connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:5}
+    read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:180}
     # Khóa nội bộ gửi kèm header X-Internal-Key khi gọi dịch vụ AI. Để trống thì không gửi.
     internal-key: ${AI_INTERNAL_KEY:}
   invitation:

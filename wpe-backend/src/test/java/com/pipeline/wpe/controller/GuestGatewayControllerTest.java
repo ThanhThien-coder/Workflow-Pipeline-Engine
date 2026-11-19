@@ -77,14 +77,18 @@ class GuestGatewayControllerTest {
     void testGetGuestOverview_Success() throws Exception {
         GuestOverviewResponse response = new GuestOverviewResponse(
             "Test Project", "Phase 1", Instant.now(), 10, 2, 5, 50.0, 0, 1, 10,
-            List.of(), List.of(), List.of(), List.of()
+            List.of(), List.of(), List.of(), List.of(),
+            List.of(new GuestOverviewResponse.GuestPhaseDto("Phase 1", "IN_PROGRESS", 50, 10, 5)), 3
         );
         when(guestGatewayService.getGuestOverview("valid-token")).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/guest/valid-token/overview"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectName").value("Test Project"))
-            .andExpect(jsonPath("$.completionPct").value(50.0));
+            .andExpect(jsonPath("$.completionPct").value(50.0))
+            .andExpect(jsonPath("$.memberCount").value(3))
+            .andExpect(jsonPath("$.phases[0].name").value("Phase 1"))
+            .andExpect(jsonPath("$.phases[0].progressPct").value(50));
     }
 
     @Test
@@ -160,5 +164,40 @@ class GuestGatewayControllerTest {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.error").value("ACCESS_DENIED"));
     }
-}
 
+    @Test
+    @DisplayName("GET /api/v1/guest/{token}/ai-summary - Co phan tich tra ve 200 dung khuon")
+    void testGetGuestAiSummary_Success() throws Exception {
+        when(guestGatewayService.getGuestAiSummary("valid-token")).thenReturn(java.util.Optional.of(
+            new com.pipeline.wpe.dto.response.guest.GuestAiSummaryResponse(
+                "Summary", List.of("h1"), List.of("WPE-1: slow"), "2026-11-19T01:00:00Z")));
+
+        mockMvc.perform(get("/api/v1/guest/valid-token/ai-summary"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content").value("Summary"))
+            .andExpect(jsonPath("$.highlights[0]").value("h1"))
+            .andExpect(jsonPath("$.risks[0]").value("WPE-1: slow"))
+            .andExpect(jsonPath("$.generatedAt").value("2026-11-19T01:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/guest/{token}/ai-summary - Chua co phan tich tra ve 404 AI_SUMMARY_NOT_FOUND")
+    void testGetGuestAiSummary_NotFound() throws Exception {
+        when(guestGatewayService.getGuestAiSummary("valid-token")).thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(get("/api/v1/guest/valid-token/ai-summary"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("AI_SUMMARY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/guest/{token}/ai-summary - Link thu hoi tra ve 403 REVOKED_GUEST nhu overview")
+    void testGetGuestAiSummary_Revoked() throws Exception {
+        when(guestGatewayService.getGuestAiSummary("revoked-token"))
+            .thenThrow(new ForbiddenException("REVOKED_GUEST", "revoked"));
+
+        mockMvc.perform(get("/api/v1/guest/revoked-token/ai-summary"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("REVOKED_GUEST"));
+    }
+}

@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { useState } from 'react'
 import type { CreatePhaseDto } from '../../services/contracts/IWorkflowService'
 import type { MacroPhase } from '../../types/workflow.types'
+import { phaseDisplayName } from '../../utils/phaseName'
 
 export function CreatePhaseModal({
   phases,
@@ -13,15 +14,14 @@ export function CreatePhaseModal({
   onClose: () => void
 }) {
   const [name, setName] = useState('')
-  const [sub, setSub] = useState('')
   const [parentPhaseId, setParentPhaseId] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!name.trim() || !sub.trim()) {
-      setError('Please enter phase name and subtitle.')
+    if (!name.trim()) {
+      setError('Please enter a phase name.')
       return
     }
     setSaving(true)
@@ -29,7 +29,7 @@ export function CreatePhaseModal({
     try {
       await onSubmit({
         name: name.trim(),
-        sub: sub.trim(),
+        sub: '',
         parentPhaseId: parentPhaseId || undefined,
       })
       onClose()
@@ -67,26 +67,15 @@ export function CreatePhaseModal({
         </div>
 
         <label className="mb-3 block text-xs font-semibold text-slate-600">
-          Phase Name
+          Phase name
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="e.g. PHASE 4"
+            placeholder="e.g. Operations & Monitoring"
             className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
             autoFocus
           />
         </label>
-
-        <label className="mb-3 block text-xs font-semibold text-slate-600">
-          Subtitle
-          <input
-            value={sub}
-            onChange={(event) => setSub(event.target.value)}
-            placeholder="e.g. Operations & Monitoring"
-            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-          />
-        </label>
-
         <label className="block text-xs font-semibold text-slate-600">
           Prerequisite Phase
           <select
@@ -97,7 +86,7 @@ export function CreatePhaseModal({
             <option value="">None (Root phase)</option>
             {phases.map((phase) => (
               <option key={phase.id} value={phase.id}>
-                {phase.name} · {phase.sub}
+                {phaseDisplayName(phase)}
               </option>
             ))}
           </select>

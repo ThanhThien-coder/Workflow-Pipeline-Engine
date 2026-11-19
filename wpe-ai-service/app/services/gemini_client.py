@@ -218,7 +218,7 @@ class GeminiClient:
         """
         Gọi lần lượt các model trong settings.gemini_models cho tới khi nhận được JSON object.
         - Model đứng trước model cuối: tối đa GEMINI_TIMEOUT_MS; model cuối: dùng hết thời gian còn lại.
-        - Cả chuỗi không vượt GEMINI_TOTAL_TIMEOUT_MS (thấp hơn read-timeout 30 giây của backend).
+        - Cả chuỗi không vượt GEMINI_TOTAL_TIMEOUT_MS (phải thấp hơn read-timeout của backend: AI_READ_TIMEOUT_SECONDS, mặc định 180 giây).
         - Lỗi key (401/403) thì dừng luôn; lỗi khác (503, 504, 429, 404, quá giờ, JSON hỏng) thì thử model kế tiếp.
         Trả về (kết quả JSON, tokenUsage, có_gặp_429).
         """

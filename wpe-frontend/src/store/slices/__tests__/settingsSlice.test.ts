@@ -325,4 +325,20 @@ describe('Project Settings & Governance Module', () => {
     expect(store.getState().settings.isDeleteModalOpen).toBe(true)
     expect(store.getState().workspace.projects.find((p) => String(p.id) === '1')).toBeDefined()
   })
+
+  it('changeRole cập nhật luôn project.members và kanban.members (TASK_69)', async () => {
+    await store.getState().settings.loadSettings('1')
+    const sarah = store.getState().settings.members.find((m) => m.username === 'Sarah Chen')!
+    const summary = { id: sarah.userId, name: 'Sarah Chen', roleTitle: 'Frontend Dev', initials: 'SC', avatarClass: '', projectRole: 'COLLABORATOR' as const, assignedTaskCount: 0 }
+    store.setState((s) => ({
+      currentProjectId: '1',
+      project: { ...s.project, members: [summary] },
+      kanban: { ...s.kanban, members: [summary] },
+    }))
+
+    await store.getState().settings.changeRole(sarah.userId, 'VIEWER')
+
+    expect(store.getState().project.members[0]).toMatchObject({ projectRole: 'VIEWER', roleTitle: 'VIEWER' })
+    expect(store.getState().kanban.members[0]).toMatchObject({ projectRole: 'VIEWER', roleTitle: 'VIEWER' })
+  })
 })

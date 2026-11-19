@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Plus, LayoutGrid } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { Plus, LayoutGrid, AlertTriangle } from 'lucide-react'
 import { GRAPH_READ_ONLY_MESSAGE, selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
 import type { MacroPhase } from '../../types/workflow.types'
 import { KahnCycleModal } from '../settings/KahnCycleModal'
@@ -16,13 +16,20 @@ import { computeMacroGraphLayout, MACRO_CARD_H, MACRO_CARD_W } from '../../utils
 import { arrangePhases, autoLayoutColumns, channelOffsets, columnX, phaseColumns, routeEdge } from '../../utils/phaseColumnLayout'
 import { WorkflowArtifactsIsland } from '../workspace/WorkflowArtifactsIsland'
 import { WorkflowArtifactsDrawer } from '../workspace/WorkflowArtifactsDrawer'
+import { ProjectStatusControl } from './ProjectStatusControl'
 import { pluralize } from '../../utils/pluralize'
+import { phaseDisplayName } from '../../utils/phaseName'
+
+/** Lớp nội dung canvas có margin 20: fit phải bù khoảng lệch này. */
+const CONTENT_MARGIN = 20
 
 export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?: string; className?: string }) {
   const phases = useWorkflowStore((state) => state.macroPhases)
   const workflowEdges = useWorkflowStore((state) => state.workflowEdges)
   const selectedPhaseId = useWorkflowStore((state) => state.selectedPhaseId)
   const loadPhases = useWorkflowStore((state) => state.loadPhases)
+  const graphStatus = useWorkflowStore((state) => state.graphStatus)
+  const graphError = useWorkflowStore((state) => state.graphError)
   const loadArtifacts = useWorkflowStore((state) => state.artifacts.loadArtifacts)
   const createPhase = useWorkflowStore((state) => state.createPhase)
   const spawnChildPhase = useWorkflowStore((state) => state.spawnChildPhase)
@@ -107,6 +114,52 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       height: Math.max(700, ...positions.map((position) => position.y + MACRO_CARD_H + 200)),
     }
   }, [currentPositions])
+
+  // Khung bao mọi thẻ đang hiện (tọa độ lớp nội dung, chưa scale)
+  const contentBounds = useMemo(() => {
+    const positions = Object.values(currentPositions)
+    if (positions.length === 0) return null
+    return {
+      minX: Math.min(...positions.map((pos) => pos.x)),
+      minY: Math.min(...positions.map((pos) => pos.y)),
+      maxX: Math.max(...positions.map((pos) => pos.x + MACRO_CARD_W)),
+      maxY: Math.max(...positions.map((pos) => pos.y + MACRO_CARD_H)),
+    }
+  }, [currentPositions])
+  const boundsRef = useRef(contentBounds)
+  boundsRef.current = contentBounds
+
+  const { fitToBounds } = panZoom
+  const handleFit = useCallback(() => {
+    fitToBounds(boundsRef.current, { padding: 48, maxScale: 1, contentOffset: { x: CONTENT_MARGIN, y: CONTENT_MARGIN } })
+  }, [fitToBounds])
+
+  // Tự fit MỘT lần mỗi lần vào dự án, sau khi tải xong và có ít nhất 1 phase (không fit lại khi dữ liệu đổi).
+  // Chỉ tính sau khi đã thấy trạng thái loading của dự án này, để không fit nhầm dữ liệu cũ của dự án trước.
+  const autoFit = useRef({ projectId, sawLoading: false, done: false })
+  if (autoFit.current.projectId !== projectId) autoFit.current = { projectId, sawLoading: false, done: false }
+  const hasPhases = phases.length > 0
+  useEffect(() => {
+    const state = autoFit.current
+    if (graphStatus === 'loading') state.sawLoading = true
+    if (state.done || !state.sawLoading || graphStatus !== 'ready' || !hasPhases) return
+    let frame = 0
+    let tries = 0
+    const attempt = () => {
+      const ok = fitToBounds(boundsRef.current, {
+        padding: 48,
+        maxScale: 1,
+        contentOffset: { x: CONTENT_MARGIN, y: CONTENT_MARGIN },
+      })
+      if (ok) {
+        state.done = true
+      } else if (++tries < 120) {
+        frame = requestAnimationFrame(attempt) // khung nhìn chưa có kích thước, thử lại ở frame sau
+      }
+    }
+    attempt()
+    return () => cancelAnimationFrame(frame)
+  }, [graphStatus, hasPhases, projectId, fitToBounds])
 
   useEffect(() => {
     void loadPhases(projectId)
@@ -196,6 +249,12 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Trạng thái dự án + nút Start / Pause / Resume / Complete / Reopen (chỉ chủ dự án) */}
+          <div data-pan-zoom-ignore>
+            <ProjectStatusControl projectId={projectId} />
+          </div>
+          <span className="h-5 w-px bg-slate-200" aria-hidden />
+
           {/* Add Phase Button */}
           <button
             type="button"
@@ -218,6 +277,12 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
             <LayoutGrid size={13} className="text-slate-500" /> Auto Layout
           </button>
 
+          {/* Artifacts: nút trong header, bảng artifact mở ngay dưới nút */}
+          <div data-pan-zoom-ignore className="relative">
+            <WorkflowArtifactsIsland />
+            <WorkflowArtifactsDrawer projectId={projectId} />
+          </div>
+
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
             {pluralize(phases.length, 'phase')}
           </span>
@@ -228,6 +293,11 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       <div
         ref={panZoom.viewportRef}
         className="workflow-surface relative min-h-0 flex-1 overflow-hidden"
+        onScroll={(event) => {
+          // Khung nhìn chỉ di chuyển bằng pan/zoom; trình duyệt tự cuộn (kéo chọn chữ, focus) làm Fit lệch và nút zoom trôi đi
+          event.currentTarget.scrollTop = 0
+          event.currentTarget.scrollLeft = 0
+        }}
         onMouseDown={panZoom.onMouseDown}
         onMouseMove={panZoom.onMouseMove}
         onMouseUp={panZoom.onMouseUp}
@@ -276,6 +346,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
               }}
               readOnly={!canEdit}
               readOnlyTitle={GRAPH_READ_ONLY_MESSAGE}
+              onRenameError={handleError}
               onHoverChange={(hovered) =>
                 setHoveredPhaseId((current) => (hovered ? phase.id : current === phase.id ? null : current))
               }
@@ -308,18 +379,55 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           </div>
         )}
 
-        {/* Artifacts Hub Island & Drawer */}
-        <div
-          data-pan-zoom-ignore
-          className="absolute top-4 right-6 z-40 flex items-center"
-          onMouseDown={(event) => event.stopPropagation()}
-          onWheel={(event) => event.stopPropagation()}
-        >
-          <div className="relative inline-block">
-            <WorkflowArtifactsIsland />
-            <WorkflowArtifactsDrawer projectId={projectId} />
+        {/* Trạng thái tải: khung chờ / lỗi + Retry / dự án chưa có phase */}
+        {graphStatus === 'loading' && !hasPhases && (
+          <div
+            data-pan-zoom-ignore
+            role="status"
+            aria-label="Loading phases"
+            className="absolute inset-0 z-10 flex items-start gap-12 overflow-hidden p-10"
+          >
+            {[0, 1, 2].map((col) => (
+              <div key={col} className="flex flex-col gap-10" style={{ marginTop: col * 40 }}>
+                {Array.from({ length: col === 1 ? 2 : 1 }).map((_, row) => (
+                  <div
+                    key={row}
+                    data-skeleton-card
+                    className="animate-pulse rounded-2xl border border-slate-200 bg-slate-100"
+                    style={{ width: MACRO_CARD_W, height: MACRO_CARD_H }}
+                  />
+                ))}
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+
+        {graphStatus === 'error' && (
+          <div
+            data-pan-zoom-ignore
+            role="alert"
+            className="absolute left-1/2 top-4 z-20 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700 shadow-md"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <AlertTriangle size={16} className="shrink-0" />
+            <span className="min-w-0 break-words">{graphError || 'Failed to load the graph'}</span>
+            <button
+              type="button"
+              onClick={() => void loadPhases(projectId)}
+              className="shrink-0 rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-700"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {graphStatus === 'ready' && !hasPhases && (
+          <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+            <p className="rounded-xl bg-white/80 px-4 py-2 text-sm text-slate-500">
+              No phases yet — click Add Phase
+            </p>
+          </div>
+        )}
 
         {/* Zoom Controls */}
         <div
@@ -334,6 +442,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
             onZoomIn={panZoom.zoomIn}
             onZoomOut={panZoom.zoomOut}
             onReset={panZoom.reset}
+            onFit={handleFit}
           />
         </div>
       </div>
@@ -354,7 +463,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       <ConfirmDialog
         isOpen={phaseToDelete !== null}
         title="Delete phase?"
-        message={`Phase "${phaseToDelete?.sub || phaseToDelete?.name || ''}" and all tasks inside it will be permanently deleted.`}
+        message={`Phase "${phaseDisplayName(phaseToDelete)}" and the tasks inside it that haven't started will be deleted, and its dependency links will be removed. Artifacts stay in the project library. A phase with started or completed tasks can't be deleted.`}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         isDanger={true}

@@ -32,6 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +50,8 @@ class ArtifactServiceTest {
     @Mock private ProjectAuthorizationService projectAuthorizationService;
     @Mock private ProjectMemberRepository projectMemberRepository;
     @Mock private UserRepository userRepository;
+
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @InjectMocks
     private ArtifactService artifactService;
@@ -93,6 +97,7 @@ class ArtifactServiceTest {
 
             assertThat(response.uploadedBy()).isEqualTo(userId);
             verify(artifactRepository).save(any(ArtifactEntity.class));
+            verify(projectRealtimeNotifier).notifyProjectChanged(eq(PROJECT_ID), eq("ARTIFACTS"), eq("ARTIFACT_ADDED"), eq(userId), isNull(), any());
         }
 
         @Test
@@ -151,6 +156,7 @@ class ArtifactServiceTest {
             artifactService.deleteArtifact(PROJECT_ID, 7L, COLLABORATOR);
 
             verify(artifactRepository).delete(artifact);
+            verify(projectRealtimeNotifier).notifyProjectChanged(eq(PROJECT_ID), eq("ARTIFACTS"), eq("ARTIFACT_REMOVED"), eq(COLLABORATOR), isNull(), any());
         }
 
         @Test
@@ -210,6 +216,7 @@ class ArtifactServiceTest {
             assertThatCode(() -> artifactService.toggleRepositoryVisibility(PROJECT_ID, 7L, true, COLLABORATOR))
                 .doesNotThrowAnyException();
             assertThat(artifact.getIsInRepository()).isTrue();
+            verify(projectRealtimeNotifier).notifyProjectChanged(eq(PROJECT_ID), eq("ARTIFACTS"), eq("ARTIFACT_UPDATED"), eq(COLLABORATOR), isNull(), any());
         }
     }
 

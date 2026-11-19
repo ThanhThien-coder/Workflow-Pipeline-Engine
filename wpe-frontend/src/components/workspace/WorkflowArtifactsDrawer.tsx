@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import type { ProjectArtifact } from '../../types/artifact.types'
+import { normalizeText } from '../../utils/searchProject'
 
 // Brand Icons
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
@@ -157,6 +158,18 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
     if (isOpen) void loadArtifacts(projectId)
   }, [projectId, isOpen, loadArtifacts])
 
+  // Esc đóng popover
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') handleClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // handleClose đổi mỗi lần render nhưng chỉ gọi hàm đóng hiện hành
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, propOnClose, storeCloseDrawer])
+
   const isLoading = status === 'loading' || status === 'idle'
 
   // Quick Add Form State
@@ -165,6 +178,16 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  // Ô tìm: theo tên, link, loại (không phân biệt hoa thường và dấu)
+  const [searchQuery, setSearchQuery] = useState('')
+  const normalizedSearch = normalizeText(searchQuery)
+  const visibleArtifacts = normalizedSearch
+    ? artifacts.filter((artifact) =>
+        [artifact.name || artifact.title, artifact.url, artifact.type].some((field) =>
+          normalizeText(field).includes(normalizedSearch),
+        ),
+      )
+    : artifacts
 
   const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -255,7 +278,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
             exit={{ opacity: 0, scale: 0.95, y: -8 }}
             style={{ transformOrigin: 'top right' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className={`fixed top-20 bottom-20 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] flex flex-col rounded-3xl bg-white/95 backdrop-blur-xl border border-mp-n-200 shadow-2xl overflow-hidden select-text ${className}`}
+            className={`absolute right-0 top-full z-50 mt-2 w-[380px] max-w-[calc(100vw-32px)] max-h-[70vh] flex flex-col rounded-3xl bg-white/95 backdrop-blur-xl border border-mp-n-200 shadow-2xl overflow-hidden select-text ${className}`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -342,6 +365,20 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
               </form>
             </section>
 
+            {/* Ô tìm deliverables (chỉ hiện khi đã có link) */}
+            {artifacts.length > 0 && (
+              <div className="flex-shrink-0 px-3.5 pt-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name, link or type..."
+                  aria-label="Search deliverables"
+                  className="w-full bg-white border border-mp-n-200 rounded-xl px-3 py-1.5 text-xs text-mp-ink placeholder:text-mp-n-400 focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 transition-all"
+                />
+              </div>
+            )}
+
             {/* Tầng 3: Danh sách Deliverables (BẮT BUỘC CO GIÃN VÀ CUỘN ĐỘC LẬP) */}
             <div
               className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-2.5 overscroll-contain [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-mp-n-300"
@@ -391,8 +428,12 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                     Paste your first Figma, PR, or document link above so your team can access it.
                   </p>
                 </div>
+              ) : visibleArtifacts.length === 0 ? (
+                <div className="grid place-items-center p-6 text-center text-xs text-mp-n-500">
+                  No deliverables match your search.
+                </div>
               ) : (
-                artifacts.map((artifact) => {
+                visibleArtifacts.map((artifact) => {
                   const meta = getDomainMeta(artifact.url)
                   const IconComponent = meta.icon
                   const isCopied = copiedId === artifact.id

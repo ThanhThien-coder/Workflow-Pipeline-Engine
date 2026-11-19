@@ -8,7 +8,7 @@ import { pluralize } from '../../utils/pluralize'
 interface CreatePipelineModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreate: (data: { name: string; desc: string; templateId?: string; visibility?: string }) => Promise<void>
+  onCreate: (data: { name: string; desc: string; templateId?: string }) => Promise<void>
   initialTemplateId?: string
 }
 
@@ -21,7 +21,6 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
   const [templateId, setTemplateId] = useState(initialTemplateId)
-  const [visibility, setVisibility] = useState('PRIVATE')
   const [templates, setTemplates] = useState<TemplateSummaryDto[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
   const [err, setErr] = useState('')
@@ -70,7 +69,6 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
       setName('')
       setDesc('')
       setTemplateId(initialTemplateId || '')
-      setVisibility('PRIVATE')
       setErr('')
     }
   }, [isOpen, onClose, initialTemplateId, submitting, name, desc])
@@ -90,7 +88,6 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
         name: name.trim(),
         desc: desc.trim(),
         templateId: templateId || undefined,
-        visibility,
       })
     } catch (error: any) {
       setErr(error?.message || 'Couldn\'t create the project.')
@@ -206,40 +203,6 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
             placeholder="Describe the goal of this workflow"
             className="mt-1.5 w-full text-sm rounded-xl border border-slate-200/90 bg-white focus:border-indigo-500 px-3.5 py-2.5 outline-none resize-none transition-colors disabled:opacity-60"
           />
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-slate-800">
-            Visibility
-          </label>
-          <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={() => setVisibility('PRIVATE')}
-              className={`rounded-xl border p-2.5 text-left font-medium transition-all ${
-                visibility === 'PRIVATE'
-                  ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 font-bold'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <span className="block font-bold">Private</span>
-              <span className="text-[10px] text-slate-500 font-normal">Only you and invited members</span>
-            </button>
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={() => setVisibility('PUBLIC')}
-              className={`rounded-xl border p-2.5 text-left font-medium transition-all ${
-                visibility === 'PUBLIC'
-                  ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 font-bold'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <span className="block font-bold">Public</span>
-              <span className="text-[10px] text-slate-500 font-normal">Everyone in the workspace can see it</span>
-            </button>
-          </div>
         </div>
 
         <p className="text-[11px] text-slate-500">

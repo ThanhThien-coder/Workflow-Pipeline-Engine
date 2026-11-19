@@ -229,6 +229,9 @@ class SecurityRulesTest {
         mockMvc.perform(get("/api/v1/guest/x/overview"))
             .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
 
+        mockMvc.perform(get("/api/v1/guest/x/ai-summary"))
+            .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
+
         mockMvc.perform(get("/v3/api-docs"))
             .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
     }

@@ -223,8 +223,9 @@ export function AiDiagnosisPopover({
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-slate-100 bg-slate-50/70 px-6 py-3.5">
               <p className="max-w-xl text-[11px] text-slate-400">
-                Automated diagnosis evaluated against DAG topology and state machine transitions across all project
-                nodes.
+                {scanning
+                  ? 'Analysis in progress, this can take up to ~3 minutes on a slow network.'
+                  : 'Automated diagnosis evaluated against DAG topology and state machine transitions across all project nodes.'}
               </p>
               <button
                 type="button"

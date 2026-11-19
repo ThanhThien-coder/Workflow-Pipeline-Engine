@@ -6,9 +6,11 @@ export interface AddNodeToolbarProps {
   onAddGhost: (pos?: { x: number; y: number; anchorId?: string }) => void
   /** B5: người không phải owner. Hai nút bị vô hiệu hóa, title giải thích lý do. */
   disabledReason?: string
+  /** Dòng gợi ý ngắn cạnh hai nút (ví dụ cách nối task). */
+  hint?: string
 }
 
-export function AddNodeToolbar({ onAddTrack, onAddGhost, disabledReason }: AddNodeToolbarProps) {
+export function AddNodeToolbar({ onAddTrack, onAddGhost, disabledReason, hint }: AddNodeToolbarProps) {
   const disabled = Boolean(disabledReason)
   const disabledCls = 'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-lg'
   return (
@@ -18,18 +20,18 @@ export function AddNodeToolbar({ onAddTrack, onAddGhost, disabledReason }: AddNo
       onClick={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
     >
-      {/* Button 1: + Add Root Task */}
+      {/* Button 1: + Add task */}
       <button
         type="button"
         disabled={disabled}
         onClick={onAddTrack}
-        title={disabledReason ?? 'Add Root Task'}
+        title={disabledReason ?? 'Add task'}
         className={`flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-lg transition-all hover:border-blue-400 hover:text-blue-600 hover:shadow-mp-glow cursor-pointer ${disabledCls}`}
       >
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white shadow-xs">
           <PlusCircle size={13} className="text-white" />
         </span>
-        <span>+ Add Root Task</span>
+        <span>+ Add task</span>
       </button>
 
       {/* Button 2: Add Ghost Node */}
@@ -48,6 +50,8 @@ export function AddNodeToolbar({ onAddTrack, onAddGhost, disabledReason }: AddNo
         </span>
         <span>Add Ghost Node</span>
       </button>
+
+      {hint && <span className="hidden select-none text-[11px] text-slate-400 md:inline">{hint}</span>}
     </div>
   )
 }

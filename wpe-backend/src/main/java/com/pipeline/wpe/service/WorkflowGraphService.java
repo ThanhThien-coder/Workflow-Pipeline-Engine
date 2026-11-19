@@ -9,6 +9,7 @@ import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.PhaseDependencyEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.WorkPhaseEntity;
+import com.pipeline.wpe.exception.BadRequestException;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.CycleDetectedException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
@@ -37,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -139,6 +141,7 @@ public class WorkflowGraphService {
                 .build());
             parentIds = Set.of(request.parentPhaseId());
         }
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_CREATED", currentUserId, saved.getId(), null);
         return mapToPhaseResponse(saved, Collections.emptyList(), parentIds);
     }
 
@@ -179,6 +182,7 @@ public class WorkflowGraphService {
         WorkPhaseEntity saved = workPhaseRepository.save(entity);
         Set<Long> parentIds = loadPhaseParents(projectId, workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId))
             .getOrDefault(phaseId, Set.of());
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_UPDATED", currentUserId, phaseId, null);
         return mapToPhaseResponse(saved, nodeRepository.findByPhaseId(phaseId), parentIds);
     }
 
@@ -196,12 +200,50 @@ public class WorkflowGraphService {
             throw new IllegalArgumentException("The phase does not belong to this project.");
         }
 
-        // Chuyển toàn bộ node thuộc phase này sang standalone (phase_id = null)
+        // Phase còn task đang làm / chờ duyệt / đã xong thì không cho xóa (xóa sẽ mất công việc thật)
         List<NodeEntity> nodesInPhase = nodeRepository.findByPhaseId(phaseId);
-        for (NodeEntity node : nodesInPhase) {
-            node.setPhaseId(null);
+        List<NodeEntity> activeNodes = nodesInPhase.stream()
+            .filter(n -> n.getStatus() == NodeStatus.IN_PROGRESS
+                || n.getStatus() == NodeStatus.REVIEW
+                || n.getStatus() == NodeStatus.DONE)
+            .toList();
+        if (!activeNodes.isEmpty()) {
+            String codes = activeNodes.stream().limit(5).map(NodeEntity::getCode).collect(Collectors.joining(", "));
+            int more = activeNodes.size() - 5;
+            throw new ConflictException("PHASE_HAS_ACTIVE_TASKS",
+                "Phase can't be deleted because it has tasks that are in progress, in review or done: "
+                    + codes + (more > 0 ? " and " + more + " more" : "") + ".");
         }
-        nodeRepository.saveAll(nodesInPhase);
+
+        // Mọi task trong phase đều LOCKED/TODO: xóa cạnh phụ thuộc liên quan, rồi xóa task
+        Set<Long> deletedIds = nodesInPhase.stream().map(NodeEntity::getId).collect(Collectors.toSet());
+        Map<String, NodeDependencyEntity> edgesToDelete = new LinkedHashMap<>();
+        Set<Long> externalChildIds = new LinkedHashSet<>();
+        for (NodeEntity node : nodesInPhase) {
+            for (NodeDependencyEntity e : nodeDependencyRepository.findByParentNodeId(node.getId())) {
+                edgesToDelete.put(e.getParentNodeId() + ":" + e.getChildNodeId(), e);
+                if (!deletedIds.contains(e.getChildNodeId())) {
+                    externalChildIds.add(e.getChildNodeId());
+                }
+            }
+            for (NodeDependencyEntity e : nodeDependencyRepository.findByChildNodeId(node.getId())) {
+                edgesToDelete.put(e.getParentNodeId() + ":" + e.getChildNodeId(), e);
+            }
+        }
+        nodeDependencyRepository.deleteAll(edgesToDelete.values());
+        nodeRepository.deleteAll(nodesInPhase);
+
+        // Task con nằm ngoài phase vừa mất cha: tính lại trạng thái theo các cha còn lại
+        for (Long childId : externalChildIds) {
+            nodeRepository.findById(childId).ifPresent(child -> {
+                List<Long> remainingParentIds = nodeDependencyRepository.findByChildNodeId(childId).stream()
+                    .map(NodeDependencyEntity::getParentNodeId)
+                    .filter(id -> !deletedIds.contains(id))
+                    .toList();
+                List<NodeEntity> remaining = remainingParentIds.isEmpty() ? List.of() : nodeRepository.findAllById(remainingParentIds);
+                recomputeNodeStatus(child, remaining);
+            });
+        }
 
         // Gỡ liên kết parent_phase_id cho các phase con
         List<WorkPhaseEntity> childPhases = workPhaseRepository.findByParentPhaseIdOrderByOrderIndexAsc(phaseId);
@@ -212,7 +254,7 @@ public class WorkflowGraphService {
 
         // Các cạnh trong bảng phase_dependency tự xóa theo ON DELETE CASCADE (V6)
         workPhaseRepository.delete(entity);
-        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, null, "PHASE_DELETED");
+        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, null, "PHASE_DELETED", currentUserId);
     }
 
     /**
@@ -237,6 +279,7 @@ public class WorkflowGraphService {
 
         // Thêm cạnh vào bảng nối (giữ nguyên các Phase cha đã có), chặn chu trình
         addPhaseEdge(projectId, source, target);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_LINKED", currentUserId, targetPhaseId, null);
     }
 
     /**
@@ -260,6 +303,7 @@ public class WorkflowGraphService {
             target.setParentPhaseId(null);
             workPhaseRepository.save(target);
         }
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_UNLINKED", currentUserId, targetPhaseId, null);
     }
 
     /**
@@ -268,14 +312,17 @@ public class WorkflowGraphService {
     @Transactional
     public GraphNodeResponse createNode(Long projectId, CreateNodeRequest request, Long currentUserId) {
         // Chỉ owner được thiết kế đồ thị (UC10). Thành viên và Viewer chỉ được đọc.
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(project);
 
-        if (request.phaseId() != null) {
-            WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + request.phaseId()));
-            if (!phase.getProjectId().equals(projectId)) {
-                throw new IllegalArgumentException("The phase does not belong to this project.");
-            }
+        // Mọi task phải thuộc một phase: task không phase không hiện trên đồ thị nhưng vẫn bị đếm ở Overview (S05)
+        if (request.phaseId() == null) {
+            throw new BadRequestException("PHASE_REQUIRED", "A task must belong to a phase.");
+        }
+        WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
+            .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + request.phaseId()));
+        if (!phase.getProjectId().equals(projectId)) {
+            throw new IllegalArgumentException("The phase does not belong to this project.");
         }
 
         // Task mới tạo hôm nay: hạn chót sớm nhất là hôm nay
@@ -297,8 +344,14 @@ public class WorkflowGraphService {
             }
         }
 
-        // Trạng thái ban đầu: Standalone là TODO, nằm trong Phase là LOCKED
-        NodeStatus initialStatus = (request.phaseId() == null) ? NodeStatus.TODO : NodeStatus.LOCKED;
+        // Trạng thái ban đầu: dự án chưa publish (DRAFT/PLANNING) thì LOCKED, publish sẽ mở các task gốc.
+        // Dự án đã publish: task mới chưa có task trước nên TODO ngay (cùng luật publish mở task gốc);
+        // nối cha chưa xong vào sau đó thì recomputeNodeStatus tự khóa lại.
+        com.pipeline.wpe.common.enums.ProjectStatus projectStatus = project.getStatus();
+        boolean published = projectStatus != null
+            && projectStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT
+            && projectStatus != com.pipeline.wpe.common.enums.ProjectStatus.PLANNING;
+        NodeStatus initialStatus = published ? NodeStatus.TODO : NodeStatus.LOCKED;
         JoinPolicy joinPolicy = request.joinPolicy() != null ? request.joinPolicy() : JoinPolicy.ALL_COMPLETED;
         Map<String, Object> metadata = request.uiMetadata() != null ? request.uiMetadata() :
             Map.of("position", Map.of("x", 200, "y", 150), "width", 220, "height", 90);
@@ -319,7 +372,7 @@ public class WorkflowGraphService {
             .build();
 
         NodeEntity saved = nodeRepository.save(node);
-        projectRealtimeNotifier.notifyTasksChanged(saved.getProjectId(), saved.getPhaseId(), saved.getId(), "NODE_CREATED");
+        projectRealtimeNotifier.notifyTasksChanged(saved.getProjectId(), saved.getPhaseId(), saved.getId(), "NODE_CREATED", currentUserId);
         return mapToGraphNodeResponse(saved);
     }
 
@@ -396,7 +449,8 @@ public class WorkflowGraphService {
             projectId,
             child.getPhaseId(),
             childId,
-            unlocked ? "UNLOCKED" : "DEPENDENCY_CHANGED"
+            unlocked ? "UNLOCKED" : "DEPENDENCY_CHANGED",
+            currentUserId
         );
 
         return new DependencyResponse(String.valueOf(parentId), String.valueOf(childId));
@@ -429,7 +483,8 @@ public class WorkflowGraphService {
             projectId,
             null,
             childNodeId,
-            childUnlocked[0] ? "UNLOCKED" : "DEPENDENCY_CHANGED"
+            childUnlocked[0] ? "UNLOCKED" : "DEPENDENCY_CHANGED",
+            currentUserId
         );
     }
 
@@ -466,6 +521,13 @@ public class WorkflowGraphService {
             if (!isMember) {
                 throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: The assignee must be a member of the project.");
             }
+            boolean isViewer = !request.assignedUserId().equals(project.getOwnerId())
+                && projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, request.assignedUserId())
+                    .map(m -> m.getRole() == com.pipeline.wpe.common.enums.ProjectRole.VIEWER)
+                    .orElse(false);
+            if (isViewer) {
+                throw new BadRequestException("ASSIGNEE_IS_VIEWER", "Viewers can't be assigned tasks.");
+            }
             node.setAssignedUserId(request.assignedUserId());
         }
 
@@ -500,7 +562,8 @@ public class WorkflowGraphService {
             saved.getProjectId(),
             saved.getPhaseId(),
             saved.getId(),
-            unlocked ? "UNLOCKED" : "NODE_UPDATED"
+            unlocked ? "UNLOCKED" : "NODE_UPDATED",
+            currentUserId
         );
         return mapToGraphNodeResponse(saved);
     }
@@ -533,7 +596,7 @@ public class WorkflowGraphService {
                 .ifPresent(child -> recomputeNodeStatus(child, loadParentsExcluding(childId, nodeId)));
         }
 
-        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, nodeId, "NODE_DELETED");
+        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, nodeId, "NODE_DELETED", currentUserId);
     }
 
     /**
@@ -643,7 +706,7 @@ public class WorkflowGraphService {
         }
 
         log.info("Project #{} published successfully. Unlocked {} root tasks.", projectId, unlockedCount);
-        projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "PUBLISHED");
+        projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "PUBLISHED", currentUserId);
         return new PublishPipelineResponse(true, "ACTIVE", publishedAt, unlockedCount);
     }
 
@@ -664,7 +727,7 @@ public class WorkflowGraphService {
      * ALL_COMPLETED cần mọi cha DONE, ANY_COMPLETED cần ít nhất một cha DONE. Không còn cha thì coi như thỏa.
      * Chỉ đụng tới node LOCKED hoặc TODO; node đã bắt đầu làm thì giữ nguyên.
      */
-    private boolean recomputeNodeStatus(NodeEntity child, List<NodeEntity> parents) {
+    public boolean recomputeNodeStatus(NodeEntity child, List<NodeEntity> parents) {
         boolean satisfied = parents.isEmpty()
             || (child.getJoinPolicy() == JoinPolicy.ANY_COMPLETED
                 ? parents.stream().anyMatch(p -> p.getStatus() == NodeStatus.DONE)

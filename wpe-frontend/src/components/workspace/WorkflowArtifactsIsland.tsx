@@ -38,12 +38,12 @@ export const WorkflowArtifactsIsland: FC<WorkflowArtifactsIslandProps> = ({
       onClick={handleClick}
       onMouseDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
-      className={`rounded-full px-4 py-2 bg-white/95 backdrop-blur-md border border-mp-n-200/80 shadow-mp-float flex items-center gap-2.5 cursor-pointer hover:shadow-lg hover:border-mp-purple-200 transition-all select-none ${className}`}
+      className={`flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 cursor-pointer select-none transition-colors hover:border-slate-300 hover:bg-slate-50 ${className}`}
       aria-label={`Open deliverables artifacts (${pluralize(count, 'item')})`}
     >
-      <FolderGit2 className="text-mp-purple-700 w-4 h-4 shrink-0" />
-      <span className="font-medium text-sm text-mp-ink">Artifacts</span>
-      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-mp-purple-50 text-mp-purple-700 border border-mp-purple-200/60">
+      <FolderGit2 className="text-mp-purple-700 w-3.5 h-3.5 shrink-0" />
+      <span>Artifacts</span>
+      <span className="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-mp-purple-50 text-mp-purple-700 border border-mp-purple-200/60">
         {count}
       </span>
     </motion.button>

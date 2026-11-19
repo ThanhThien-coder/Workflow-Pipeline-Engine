@@ -19,8 +19,8 @@ export function AddRootTaskModal({
   onClose,
   phaseId,
   onCreated,
-  heading = 'Add Root Task',
-  description = 'Create a top-level track or milestone under the Phase Root.',
+  heading = 'Add task',
+  description = 'Create a new task in this phase.',
   placeholder = 'e.g. Track: Core Database & Migration',
 }: AddRootTaskModalProps) {
   const [title, setTitle] = useState('')
@@ -62,7 +62,7 @@ export function AddRootTaskModal({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, transition: { duration: 0.15 } }}
             onClick={onClose}
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
           />
@@ -71,7 +71,8 @@ export function AddRootTaskModal({
           <motion.div
             initial={{ opacity: 0, scale: 0.94, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            // S03: đóng nhanh (tween 0.15s) — spring khi đóng giữ lớp phủ chặn bấm thêm vài trăm ms sau khi tạo task
+            exit={{ opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', stiffness: 380, damping: 28 }}
             className="relative w-full max-w-md max-h-[88vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 z-10"
             role="dialog"

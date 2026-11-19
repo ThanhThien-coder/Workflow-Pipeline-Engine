@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GitBranch, X, Link2, AlertCircle } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { phaseDisplayName } from '../../utils/phaseName'
 import { useWorkflowService } from '../../services/workflow/WorkflowContext'
 import type { BranchGraphNode } from '../../types/workflow.types'
+import { normalizeText } from '../../utils/searchProject'
 
 export interface AddGhostModalProps {
   isOpen: boolean
@@ -24,14 +26,16 @@ export function AddGhostModal({
   anchorTaskId,
   onAttach,
 }: AddGhostModalProps) {
-  const store = useWorkflowStore()
+  const macroPhases = useWorkflowStore((state) => state.macroPhases)
+  const trees = useWorkflowStore((state) => state.trees)
   const workflowService = useWorkflowService()
 
   // 1. Available Source Phases (excluding current phase)
-  const availablePhases = store.macroPhases.filter((p) => p.id !== currentPhaseId)
+  const availablePhases = macroPhases.filter((p) => p.id !== currentPhaseId)
   const [sourcePhaseId, setSourcePhaseId] = useState<string>('')
   const [sourceTaskId, setSourceTaskId] = useState<string>('')
   const [targetTaskId, setTargetTaskId] = useState<string>('')
+  const [sourceQuery, setSourceQuery] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,16 +47,25 @@ export function AddGhostModal({
   }, [availablePhases, sourcePhaseId])
 
   // Current Phase Tasks (Target Tasks)
-  const currentTree = store.trees[currentPhaseId] || {}
+  const currentTree = trees[currentPhaseId] || {}
   const targetTasks = Object.values(currentTree).filter(
     (n): n is BranchGraphNode => n.kind === 'branch' && !n.isTrack
   )
 
   // Source Phase Tasks
-  const sourceTree = store.trees[sourcePhaseId] || {}
-  const sourceTasks = Object.values(sourceTree).filter(
+  const sourceTree = trees[sourcePhaseId] || {}
+  const allSourceTasks = Object.values(sourceTree).filter(
     (n): n is BranchGraphNode => n.kind === 'branch' && !n.isTrack
   )
+  // Ô tìm task nguồn: lọc theo mã, tên (không phân biệt dấu)
+  const normalizedSourceQuery = normalizeText(sourceQuery)
+  const sourceTasks = normalizedSourceQuery
+    ? allSourceTasks.filter(
+        (t) =>
+          normalizeText(t.code).includes(normalizedSourceQuery) ||
+          normalizeText(t.title).includes(normalizedSourceQuery),
+      )
+    : allSourceTasks
 
   // Update sourceTaskId when sourcePhaseId changes
   useEffect(() => {
@@ -61,7 +74,7 @@ export function AddGhostModal({
     } else {
       setSourceTaskId('')
     }
-  }, [sourcePhaseId, sourceTasks.length])
+  }, [sourcePhaseId, sourceTasks.length, normalizedSourceQuery])
 
   // Initialize or set targetTaskId
   useEffect(() => {
@@ -179,7 +192,7 @@ export function AddGhostModal({
                       value={phase.id}
                       className="bg-white text-slate-900 py-1.5"
                     >
-                      {phase.name} — {phase.sub || 'Phase'}
+                      {phaseDisplayName(phase) || 'Phase'}
                     </option>
                   ))}
                   {availablePhases.length === 0 && (
@@ -201,6 +214,14 @@ export function AddGhostModal({
                 >
                   Source Milestone / Task
                 </label>
+                <input
+                  type="text"
+                  value={sourceQuery}
+                  onChange={(e) => setSourceQuery(e.target.value)}
+                  placeholder="Search by code or title..."
+                  aria-label="Search source tasks"
+                  className="mb-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
                 <select
                   id="sourceTaskId"
                   value={sourceTaskId}
@@ -222,7 +243,7 @@ export function AddGhostModal({
                       value=""
                       className="bg-white text-slate-500"
                     >
-                      No tasks found in selected phase
+                      {allSourceTasks.length > 0 ? 'No tasks match your search' : 'No tasks found in selected phase'}
                     </option>
                   )}
                 </select>

@@ -36,6 +36,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -93,6 +94,20 @@ class SubmitTaskArtifactTest {
     }
 
     @Test
+    @DisplayName("S07: Viewer được giao task vẫn không nộp bài được -> 403, không lưu artifact")
+    void viewerCannotSubmit() {
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(1L, ASSIGNEE)).thenReturn(Optional.of(
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(1L).userId(ASSIGNEE)
+                .role(com.pipeline.wpe.common.enums.ProjectRole.VIEWER).build()));
+
+        assertThatThrownBy(() -> stateMachineService.submitTaskArtifact(
+                TASK_ID, withArtifact("https://github.com/org/repo/pull/42", true), ASSIGNEE))
+            .isInstanceOf(com.pipeline.wpe.exception.ForbiddenException.class)
+            .hasMessageContaining("Viewers can't change task status");
+        verify(artifactRepository, never()).save(any(ArtifactEntity.class));
+    }
+
+    @Test
     @DisplayName("Gửi isPublicForGuest = false: minh chứng không công khai cho khách")
     void respectsPrivateChoice() {
         stateMachineService.submitTaskArtifact(TASK_ID, withArtifact("https://github.com/org/repo/pull/42", false), ASSIGNEE);
@@ -106,6 +121,9 @@ class SubmitTaskArtifactTest {
         stateMachineService.submitTaskArtifact(TASK_ID, withArtifact("https://github.com/org/repo/pull/42", null), ASSIGNEE);
 
         assertThat(savedArtifact().getIsPublicForGuest()).isTrue();
+        verify(projectRealtimeNotifier).notifyProjectChanged(
+            eq(1L), eq("ARTIFACTS"), eq("ARTIFACT_ADDED"), eq(ASSIGNEE), any(), eq(TASK_ID));
+        verify(projectRealtimeNotifier).notifyTasksChanged(any(), any(), any(), eq("SUBMITTED"), eq(ASSIGNEE));
     }
 
     @Test

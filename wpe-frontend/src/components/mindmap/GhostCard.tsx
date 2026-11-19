@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Check, Clock, Trash2, GitBranch } from 'lucide-react'
 import type { GhostGraphNode } from '../../types/workflow.types'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { phaseDisplayName } from '../../utils/phaseName'
 
 export interface GhostCardProps {
   node: GhostGraphNode
@@ -20,6 +21,7 @@ export function GhostCard({
   onHover,
   isHovered,
   readOnly = false,
+  onSpawnDown,
 }: GhostCardProps) {
   const store = useWorkflowStore.getState()
   const sourceTask = store?.trees?.[node.refPhase]?.[node.refId]
@@ -37,10 +39,10 @@ export function GhostCard({
 
   const phaseLabel =
     node.sourcePhaseTitle ||
-    sourcePhase?.name ||
-    node.refPhase
+    phaseDisplayName(sourcePhase) ||
+    'Other phase'
 
-  const sourcePhaseId = (node.refPhase || '').toUpperCase()
+  const headerLabel = `From ${phaseLabel}`
 
   return (
     <motion.div
@@ -64,10 +66,10 @@ export function GhostCard({
         <div className="flex items-center gap-1.5 min-w-0 pr-1">
           <GitBranch size={12} className="text-white shrink-0" />
           <span
-            className="text-[10px] font-mono font-bold tracking-wider uppercase truncate"
-            title={`[GHOST - ${sourcePhaseId}]`}
+            className="text-[10px] font-bold tracking-wide truncate"
+            title={headerLabel}
           >
-            [GHOST - {sourcePhaseId}]
+            {headerLabel}
           </span>
         </div>
 
@@ -86,6 +88,19 @@ export function GhostCard({
         </button>}
       </div>
 
+      {/* Cổng nối: ghost là cha, kéo sang task khác để task đó cũng phụ thuộc vào ghost này */}
+      {!readOnly && onSpawnDown && (
+        <button
+          type="button"
+          data-connect-port="1"
+          aria-label="Link to another task"
+          onMouseDown={(event) => onSpawnDown(event, node.id)}
+          onClick={(event) => event.stopPropagation()}
+          title="Drag to another task to make it depend on this one"
+          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-3 h-3 rounded-full bg-indigo-500 border-2 border-white shadow ring-1 ring-indigo-300 hover:scale-125 z-10 cursor-crosshair"
+        />
+      )}
+
       {/* Card Body */}
       <div className="p-2.5 px-3 flex flex-col justify-between flex-1 min-h-0 bg-white">
         {/* Source Task Title & Phase Origin */}
@@ -94,10 +109,12 @@ export function GhostCard({
             {displayTitle}
           </h4>
           <div className="text-[11px] font-medium text-indigo-600 mt-1 flex items-center gap-1 min-w-0">
-            <span className="text-slate-400 shrink-0">↳ Prerequisite from:</span>
-            <span className="font-bold underline decoration-indigo-300 truncate" title={phaseLabel}>
-              {phaseLabel}
+            {/* Tên phase đã ở đầu thẻ ("From <phase>"): dòng này ghi mã task nguồn, không lặp tên phase */}
+            <span className="text-slate-400 shrink-0">↳</span>
+            <span className="font-bold truncate" title={`${node.sourceTaskCode ? `${node.sourceTaskCode} · ` : ''}${phaseLabel}`}>
+              {node.sourceTaskCode ? `Task ${node.sourceTaskCode}` : 'Prerequisite task'}
             </span>
+            <span className="text-slate-400 shrink-0">· must finish first</span>
           </div>
         </div>
 

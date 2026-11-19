@@ -269,7 +269,7 @@ export function NodePropertiesModal({
                 <option value="" className="bg-white text-slate-900 py-1">
                   Unassigned
                 </option>
-                {memberList.map((member) => (
+                {memberList.filter((member) => member.projectRole !== 'VIEWER' || member.id === node.assignee).map((member) => (
                   <option key={member.id} value={member.id} className="bg-white text-slate-900 py-1">
                     {member.name}
                   </option>

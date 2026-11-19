@@ -152,7 +152,17 @@ function isAbortError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { name?: string }).name === 'AbortError'
 }
 
+/**
+ * Thời điểm tab này gửi request ghi (không phải GET) gần nhất. Realtime dùng để biết sự kiện
+ * "do chính mình gây ra" có phải từ tab này không (cùng tài khoản mở tab khác thì tab kia vẫn phải tự cập nhật).
+ */
+let lastLocalWriteAt = 0
+export function getLastLocalWriteAt(): number {
+  return lastLocalWriteAt
+}
+
 async function send(method: HttpMethod, path: string, options: ApiRequestOptions): Promise<{ res: Response; sentToken: string | null }> {
+  if (method !== 'GET') lastLocalWriteAt = Date.now()
   const token = getStoredToken()
   const init: RequestInit = {
     method,

@@ -3,7 +3,11 @@ package com.pipeline.wpe.service;
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
+import com.pipeline.wpe.dto.response.guest.GuestAiSummaryResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
+import com.pipeline.wpe.entity.ProjectMemberEntity;
+import com.pipeline.wpe.entity.WorkPhaseEntity;
+import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
@@ -46,6 +50,7 @@ public class GuestGatewayService {
     private final CurrentUserProvider currentUserProvider;
     private final UserRepository userRepository;
     private final NodeDependencyRepository nodeDependencyRepository;
+    private final ProjectMemberRepository projectMemberRepository;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -165,7 +170,8 @@ public class GuestGatewayService {
         );
 
         // Active phase label
-        String phaseLabel = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(project.getId()).stream()
+        List<WorkPhaseEntity> allPhases = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(project.getId());
+        String phaseLabel = allPhases.stream()
             .findFirst()
             .map(p -> p.getName())
             .orElse("Whole workflow");
@@ -199,8 +205,137 @@ public class GuestGatewayService {
             velocity,
             statusBreakdown,
             recentActivities,
-            artifactDtos
+            artifactDtos,
+            buildPhases(allPhases, nodes),
+            countMembers(project)
         );
+    }
+
+    /**
+     * Cùng kiểm link như overview. Đọc kết quả AI đã lưu trong project.latest_ai_analysis,
+     * KHÔNG gọi AI mới. Chưa có phân tích thì trả Optional rỗng (controller trả 404 AI_SUMMARY_NOT_FOUND).
+     * Không dùng AiDiagnosticService.getLatestAnalysis vì hàm đó đòi người dùng đăng nhập.
+     */
+    @Transactional(readOnly = true)
+    public Optional<GuestAiSummaryResponse> getGuestAiSummary(String token) {
+        GuestLinkEntity guestLink = validateAndGetActiveGuestLink(token);
+        ProjectEntity project = authorizationService.getProjectOrThrow(guestLink.getProjectId());
+        Map<String, Object> analysis = project.getLatestAiAnalysis();
+        if (analysis == null || analysis.isEmpty()) {
+            return Optional.empty();
+        }
+
+        List<NodeEntity> nodes = nodeRepository.findByProjectId(project.getId());
+        Instant weekAgo = Instant.now().minus(Duration.ofDays(7));
+        long doneLast7Days = nodes.stream()
+            .filter(n -> n.getStatus() == NodeStatus.DONE)
+            .filter(n -> {
+                Instant at = n.getCompletedAt() != null ? n.getCompletedAt() : n.getUpdatedAt();
+                return at != null && at.isAfter(weekAgo);
+            })
+            .count();
+        long remaining = nodes.stream().filter(n -> n.getStatus() != NodeStatus.DONE).count();
+
+        String health = null;
+        if (analysis.get("metrics") instanceof Map<?, ?> m && m.get("status") != null) {
+            health = String.valueOf(m.get("status")).replace('_', ' ').toLowerCase(Locale.ENGLISH);
+        }
+        StringBuilder content = new StringBuilder();
+        if (health != null) {
+            content.append("Project health: ").append(health).append(". ");
+        }
+        content.append(doneLast7Days).append(doneLast7Days == 1 ? " task was" : " tasks were")
+            .append(" completed in the last 7 days; ")
+            .append(remaining).append(remaining == 1 ? " task remains." : " tasks remain.");
+
+        List<String> highlights = new ArrayList<>();
+        for (Map<String, Object> item : asMapList(analysis.get("actionableAdvice"))) {
+            String text = str(item.get("instruction"));
+            if (text != null) highlights.add(text);
+        }
+        List<String> risks = new ArrayList<>();
+        for (Map<String, Object> item : asMapList(analysis.get("bottlenecks"))) {
+            if ("LOW".equalsIgnoreCase(str(item.get("severity")))) continue; // LOW = "đang ổn", không phải rủi ro
+            addRisk(risks, str(item.get("nodeCode")), str(item.get("reason")));
+        }
+        for (Map<String, Object> item : asMapList(analysis.get("taskTraps"))) {
+            addRisk(risks, str(item.get("nodeCode")), str(item.get("suggestion")));
+        }
+
+        return Optional.of(new GuestAiSummaryResponse(
+            content.toString(),
+            highlights.stream().limit(5).toList(),
+            risks.stream().limit(5).toList(),
+            str(analysis.get("analyzedAt"))
+        ));
+    }
+
+    private static void addRisk(List<String> risks, String code, String reason) {
+        if (reason == null) return;
+        risks.add(code != null ? code + ": " + reason : reason);
+    }
+
+    private static String str(Object o) {
+        if (o == null) return null;
+        String s = String.valueOf(o).trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> asMapList(Object o) {
+        if (!(o instanceof List<?> list)) return List.of();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object e : list) {
+            if (e instanceof Map<?, ?> m) out.add((Map<String, Object>) m);
+        }
+        return out;
+    }
+
+    /** Chủ dự án + thành viên đang hoạt động, đếm theo userId để không đếm trùng chủ dự án. */
+    private int countMembers(ProjectEntity project) {
+        Set<Long> userIds = new HashSet<>();
+        if (project.getOwnerId() != null) userIds.add(project.getOwnerId());
+        for (ProjectMemberEntity m : projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId())) {
+            if (m.getUserId() != null) userIds.add(m.getUserId());
+        }
+        return userIds.size();
+    }
+
+    /**
+     * Mỗi phase một dòng, theo thứ tự orderIndex (danh sách vào đã sắp sẵn), với task của chính phase đó.
+     * Không gộp phase con vào phase cha: parent_phase_id chỉ là quan hệ sắp xếp trên canvas, khách cần thấy từng phase.
+     * Trạng thái suy ra như FE phaseProgress.
+     */
+    private List<GuestOverviewResponse.GuestPhaseDto> buildPhases(List<WorkPhaseEntity> allPhases, List<NodeEntity> nodes) {
+        Map<Long, List<NodeEntity>> tasksByPhase = new HashMap<>();
+        for (NodeEntity n : nodes) {
+            if (n.getPhaseId() != null) tasksByPhase.computeIfAbsent(n.getPhaseId(), k -> new ArrayList<>()).add(n);
+        }
+        List<GuestOverviewResponse.GuestPhaseDto> result = new ArrayList<>();
+        for (WorkPhaseEntity p : allPhases) {
+            if (p.getId() == null) continue;
+            List<NodeEntity> tasks = tasksByPhase.getOrDefault(p.getId(), List.of());
+            int total = tasks.size();
+            int done = (int) tasks.stream().filter(t -> t.getStatus() == NodeStatus.DONE).count();
+            int pct = total > 0 ? (int) Math.round((double) done / total * 100.0) : 0;
+            String status;
+            if (total == 0) status = "TODO";
+            else if (done == total) status = "COMPLETED";
+            else if (tasks.stream().allMatch(t -> t.getStatus() == NodeStatus.LOCKED)) status = "LOCKED";
+            else if (tasks.stream().anyMatch(t -> t.getStatus() == NodeStatus.IN_PROGRESS
+                || t.getStatus() == NodeStatus.REVIEW || t.getStatus() == NodeStatus.DONE)) status = "IN_PROGRESS";
+            else status = "TODO";
+            result.add(new GuestOverviewResponse.GuestPhaseDto(guestPhaseName(p), status, pct, total, done));
+        }
+        return result;
+    }
+
+    /** Giống phaseDisplayName của FE: tên dạng "PHASE 3" mà có phụ đề thì dùng phụ đề. */
+    private static String guestPhaseName(WorkPhaseEntity p) {
+        String name = p.getName() != null ? p.getName().trim() : "";
+        String sub = p.getSubTitle() != null ? p.getSubTitle().trim() : "";
+        if (!sub.isEmpty() && (name.isEmpty() || name.matches("(?i)^phase\\s*\\d+$"))) return sub;
+        return !name.isEmpty() ? name : sub;
     }
 
     private static final java.time.ZoneId VIETNAM_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");

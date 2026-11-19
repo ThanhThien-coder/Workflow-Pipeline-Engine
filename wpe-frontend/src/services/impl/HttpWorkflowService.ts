@@ -1,8 +1,9 @@
 import { MockWorkflowService } from '../MockWorkflowService'
 import type { CreatePhaseDto, IWorkflowService, TaskNodePatch } from '../contracts/IWorkflowService'
-import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
+import { apiRequest, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
 import * as authApi from './http/auth'
+import { realtimeHub } from '../realtime/realtimeHub'
 import * as graphApi from './http/graph'
 import * as workspaceApi from './http/workspace'
 import * as membersApi from './http/members'
@@ -12,12 +13,13 @@ import * as assignmentApi from './http/assignment'
 import * as activityApi from './http/activity'
 import * as overviewApi from './http/overview'
 import * as aiApi from './http/ai'
-import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
+import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree, toBranch } from '../../mappers/graphMapper'
 import { dateInputToEndOfDayIso } from '../../utils/dueDate'
 import type {
   ArtifactItem,
   ArtifactType,
   KanbanTask,
+  ReopenImpact,
   SubmitArtifactDto,
   TaskStatus,
   UserSummary,
@@ -44,7 +46,7 @@ import type {
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
 import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
-import type { BackendGraphNodeDto, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
+import type { BackendGraphNodeDto, BranchGraphNode, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
 // Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
 import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
 
@@ -69,6 +71,7 @@ interface BackendTaskResponse {
   rejectReason?: string
   forceUnlockedAt?: string | null
   createdAt?: string | null
+  reopenedAt?: string | null
   dueDate?: string
   isOverdue: boolean
   version: number
@@ -167,6 +170,26 @@ export class HttpWorkflowService implements IWorkflowService {
     return this.mapBackendTaskToKanban(updated)
   }
 
+  /** POST /nodes/{taskId}/reopen: mở lại task Done (Owner / Manager), body {reason, version} */
+  async reopenTask(taskId: string, reason: string): Promise<KanbanTask> {
+    const currentVersion = this.taskVersionCache.get(taskId) ?? 0
+    const updated = await apiRequest<BackendTaskResponse>('POST', `/nodes/${taskId}/reopen`, {
+      body: { reason, version: currentVersion },
+    })
+    this.taskVersionCache.set(String(updated.id), updated.version)
+    return this.mapBackendTaskToKanban(updated)
+  }
+
+  /** GET /nodes/{taskId}/reopen-impact: các task con trực tiếp và con nào sẽ bị khóa lại */
+  async getReopenImpact(taskId: string): Promise<ReopenImpact> {
+    const data = await apiRequest<{ taskCode: string; children?: Array<{ id: string; code: string; title: string; status: string; willRelock: boolean }> }>(
+      'GET', `/nodes/${taskId}/reopen-impact`)
+    return {
+      taskCode: data.taskCode,
+      children: (data.children ?? []).map((c) => ({ id: String(c.id), code: c.code, title: c.title, status: c.status as TaskStatus, willRelock: Boolean(c.willRelock) })),
+    }
+  }
+
   /** POST /nodes/{taskId}/submit */
   async submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }> {
     const currentVersion = this.taskVersionCache.get(dto.taskId) ?? 0
@@ -245,123 +268,20 @@ export class HttpWorkflowService implements IWorkflowService {
 
   // ───────────────────────── Realtime (C) ─────────────────────────
 
-  /** GET /realtime/subscribe?access_token= (SSE). EventSource không gửi được header nên token đi qua query, backend chỉ nhận token qua query ở đúng endpoint này. */
+  /**
+   * Nghe realtime qua hub dùng chung (cả tab chỉ 1 EventSource tới GET /realtime/subscribe?access_token=).
+   * EventSource không gửi được header nên token đi qua query, backend chỉ nhận token qua query ở đúng endpoint này.
+   * Sự kiện TASK_* được đổi sang KanbanTask; INIT không chuyển tiếp (chỉ để hub đặt lại thời gian chờ).
+   */
   connectRealtime(_userId: string, onEvent: (eventName: string, data: any) => void): () => void {
-    let closed = false
-    let currentEventSource: EventSource | null = null
-    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null
-    let retryDelay = 3000
-
-    const open = async () => {
-      if (closed) return
-
-      const token = await authApi.ensureFreshAccessToken()
-      if (closed) return
-      if (!token) {
-        // Token null -> KHÔNG mở EventSource và KHÔNG hẹn giờ kết nối lại (phiên đã hết, phần đăng xuất do installAuthRefresh lo)
+    return realtimeHub.subscribe((eventName, data) => {
+      if (eventName === 'INIT') return
+      if (eventName.startsWith('TASK_')) {
+        onEvent(eventName, this.mapBackendTaskToKanban(data as BackendTaskResponse))
         return
       }
-
-      const sseUrl = `${API_BASE_URL}/realtime/subscribe?access_token=${encodeURIComponent(token)}`
-      const eventSource = new EventSource(sseUrl)
-      currentEventSource = eventSource
-
-      eventSource.addEventListener('INIT', (e) => {
-        retryDelay = 3000
-        console.log('[SSE] Connected to the real-time stream:', e.data)
-      })
-
-      eventSource.addEventListener('TASK_UNLOCKED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_UNLOCKED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_UNLOCKED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_STATUS_CHANGED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_STATUS_CHANGED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_STATUS_CHANGED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_OVERDUE', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_OVERDUE', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_OVERDUE:', err)
-        }
-      })
-
-      eventSource.addEventListener('NOTIFICATION_RECEIVED', (e) => {
-        try {
-          const notif = JSON.parse(e.data)
-          onEvent('NOTIFICATION_RECEIVED', notif)
-        } catch (err) {
-          console.error('[SSE] Failed to parse data NOTIFICATION_RECEIVED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_SUBMITTED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_SUBMITTED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_SUBMITTED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_REJECTED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_REJECTED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_REJECTED:', err)
-        }
-      })
-
-      eventSource.addEventListener('PROJECT_TASKS_CHANGED', (e) => {
-        try {
-          const payload = JSON.parse(e.data)
-          onEvent('PROJECT_TASKS_CHANGED', payload)
-        } catch (err) {
-          console.error('[SSE] Failed to parse data PROJECT_TASKS_CHANGED:', err)
-        }
-      })
-
-      eventSource.addEventListener('error', () => {
-        if (closed) return
-        eventSource.close()
-        if (retryTimeoutId !== null) return
-        const delay = retryDelay
-        retryDelay = Math.min(retryDelay * 2, 30000)
-        retryTimeoutId = setTimeout(() => {
-          retryTimeoutId = null
-          if (!closed) {
-            void open()
-          }
-        }, delay)
-      })
-    }
-
-    void open()
-
-    return () => {
-      closed = true
-      if (retryTimeoutId !== null) {
-        clearTimeout(retryTimeoutId)
-        retryTimeoutId = null
-      }
-      if (currentEventSource) {
-        currentEventSource.close()
-        currentEventSource = null
-      }
-    }
+      onEvent(eventName, data)
+    })
   }
 
   // ───────────────────────── Workspace (D) ─────────────────────────
@@ -382,7 +302,6 @@ export class HttpWorkflowService implements IWorkflowService {
         name: cmd.name,
         description: cmd.desc ?? cmd.description ?? '',
         templateId: cmd.templateId ? toTemplateIdPayload(cmd.templateId) : null,
-        visibility: cmd.visibility || 'PRIVATE',
       },
     })
     return {
@@ -421,7 +340,6 @@ export class HttpWorkflowService implements IWorkflowService {
         templateId: toTemplateIdPayload(req.templateId),
         projectName: req.projectName.trim(),
         description: req.description?.trim() || '',
-        visibility: req.visibility || 'PRIVATE',
       },
     })
     return {
@@ -739,6 +657,37 @@ export class HttpWorkflowService implements IWorkflowService {
     return tree
   }
 
+  /** Một lần GET /projects/{id}/graph cho phase, cạnh và cây của mọi phase. */
+  async getProjectGraph(projectId: string): Promise<{ phases: MacroPhase[]; edges: [string, string][]; trees: Record<string, PhaseTreeData> }> {
+    const graph = await this.loadGraph(projectId)
+    const phases = toMacroPhases(graph)
+    const trees: Record<string, PhaseTreeData> = {}
+    for (const phase of phases) {
+      const tree = toPhaseTree(graph, phase.id)
+      if (tree) trees[phase.id] = tree
+    }
+    return { phases, edges: toPhaseEdges(graph), trees }
+  }
+
+  /** PUT /projects/{id}/phases/{phaseId} chỉ với name (không gửi uiMetadata để backend giữ vị trí). */
+  async renamePhase(phaseId: string, name: string, projectId?: string): Promise<void> {
+    const id = String(phaseId)
+    const pid = projectId || this.phaseIndex.get(id)?.projectId || '1'
+    const item = await graphApi.updatePhase(pid, id, { name })
+    // Lần lưu vị trí sau gửi name từ phaseIndex: phải cập nhật, không thì kéo thẻ sẽ trả lại tên cũ
+    this.phaseIndex.set(id, { projectId: pid, name: item?.name ?? name })
+  }
+
+  /** DELETE /projects/{id}/dependencies?parentNodeId=&childNodeId= */
+  async deleteDependency(phaseId: string, parentTaskId: string, childTaskId: string): Promise<void> {
+    const pid = this.projectIdOfPhase(phaseId)
+    await graphApi.deleteDependency(
+      pid,
+      graphApi.toBackendId(parentTaskId, 'Source task'),
+      graphApi.toBackendId(childTaskId, 'Target task'),
+    )
+  }
+
   /** POST /projects/{id}/phases */
   async createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase> {
     const pid = projectId || dto.projectId || '1'
@@ -798,7 +747,7 @@ export class HttpWorkflowService implements IWorkflowService {
   }
 
   /** POST /projects/{id}/nodes — thêm 1 node vào phase (backend tạo ở trạng thái LOCKED). */
-  async addRootTask(phaseId: string, payload: { title: string }): Promise<PhaseNode> {
+  async addRootTask(phaseId: string, payload: { title: string }): Promise<PhaseNode & { node?: BranchGraphNode }> {
     const pid = this.projectIdOfPhase(phaseId)
     const created = await graphApi.createNode(pid, {
       phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
@@ -810,6 +759,7 @@ export class HttpWorkflowService implements IWorkflowService {
       title: created.title,
       status: ((created.status as TaskStatus) || 'LOCKED'),
       parentId: rootIdOf(String(phaseId)),
+      node: toBranch(created, String(phaseId)),
     }
   }
 
@@ -817,7 +767,7 @@ export class HttpWorkflowService implements IWorkflowService {
    * POST /projects/{id}/nodes rồi POST /dependencies từ từng task cha (subtask = 1 cha, task hội tụ = nhiều cha).
    * Nối lỗi (vd. 422 chu trình) thì xóa node vừa tạo để không để lại task mồ côi, rồi ném lỗi gốc.
    */
-  async addChildTask(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode> {
+  async addChildTask(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode & { node?: BranchGraphNode }> {
     const pid = this.projectIdOfPhase(phaseId)
     const parentIds = parentTaskIds.map((id) => graphApi.toBackendId(id, 'Task cha'))
     const created = await graphApi.createNode(pid, {
@@ -840,6 +790,7 @@ export class HttpWorkflowService implements IWorkflowService {
       title: created.title,
       status: ((created.status as TaskStatus) || 'LOCKED'),
       parentId: parentTaskIds[0],
+      node: { ...toBranch(created, String(phaseId)), parentIds: parentTaskIds.map(String) },
     }
   }
 
@@ -978,6 +929,7 @@ export class HttpWorkflowService implements IWorkflowService {
       rejectReason: item.rejectReason,
       forceUnlocked: Boolean(item.forceUnlockedAt),
       ...(item.createdAt ? { createdAt: item.createdAt } : {}),
+      ...(item.reopenedAt ? { reopenedAt: item.reopenedAt } : {}),
     }
   }
 }

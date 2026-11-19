@@ -192,6 +192,7 @@ class WorkflowGraphServiceTest {
 
         assertEquals(1L, p4.getParentPhaseId());
         verify(phaseDependencyRepository).save(argThat(d -> d.getParentPhaseId().equals(5L) && d.getChildPhaseId().equals(4L)));
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_LINKED"), eq(2L), eq(4L), isNull());
     }
 
     @Test
@@ -262,13 +263,14 @@ class WorkflowGraphServiceTest {
         assertEquals("4", response.id());
         assertEquals("Phase 4", response.name());
         verify(authorizationService).verifyProjectOwner(1L, 2L);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_CREATED"), eq(2L), eq(4L), isNull());
     }
 
     @Test
-    @DisplayName("4.2 deletePhase: Xóa Phase an toàn, chuyển các node con sang standalone (phase_id = null)")
+    @DisplayName("4.2 deletePhase: Xóa Phase chỉ có task TODO thì xóa luôn task trong phase (TASK_68, trước đây chuyển sang standalone)")
     void testDeletePhaseSafe() {
         WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("Phase 10").build();
-        NodeEntity childNode = NodeEntity.builder().id(50L).projectId(1L).phaseId(10L).build();
+        NodeEntity childNode = NodeEntity.builder().id(50L).projectId(1L).phaseId(10L).status(NodeStatus.TODO).build();
 
         when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
         when(nodeRepository.findByPhaseId(10L)).thenReturn(List.of(childNode));
@@ -276,19 +278,117 @@ class WorkflowGraphServiceTest {
 
         workflowGraphService.deletePhase(1L, 10L, 2L);
 
-        assertNull(childNode.getPhaseId());
-        verify(nodeRepository).saveAll(List.of(childNode));
+        verify(nodeRepository).deleteAll(List.of(childNode));
         verify(workPhaseRepository).delete(phase);
+    }
+
+    @Test
+    @DisplayName("TASK_68 deletePhase: phase toàn LOCKED/TODO -> xóa task + cạnh, task con ngoài phase mất cha duy nhất chuyển LOCKED -> TODO")
+    void testDeletePhaseDeletesNodesEdgesAndUnlocksExternalChild() {
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("Phase 10").build();
+        NodeEntity a = NodeEntity.builder().id(100L).projectId(1L).phaseId(10L).code("A").status(NodeStatus.TODO).build();
+        NodeEntity b = NodeEntity.builder().id(101L).projectId(1L).phaseId(10L).code("B").status(NodeStatus.LOCKED).build();
+        NodeEntity c = NodeEntity.builder().id(200L).projectId(1L).phaseId(11L).code("C")
+            .status(NodeStatus.LOCKED).joinPolicy(JoinPolicy.ALL_COMPLETED).build();
+        NodeDependencyEntity ab = NodeDependencyEntity.builder().id(1L).projectId(1L).parentNodeId(100L).childNodeId(101L).build();
+        NodeDependencyEntity ac = NodeDependencyEntity.builder().id(2L).projectId(1L).parentNodeId(100L).childNodeId(200L).build();
+
+        when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
+        when(nodeRepository.findByPhaseId(10L)).thenReturn(List.of(a, b));
+        when(nodeDependencyRepository.findByParentNodeId(100L)).thenReturn(List.of(ab, ac));
+        when(nodeDependencyRepository.findByParentNodeId(101L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByChildNodeId(100L)).thenReturn(List.of());
+        when(nodeDependencyRepository.findByChildNodeId(101L)).thenReturn(List.of(ab));
+        when(nodeDependencyRepository.findByChildNodeId(200L)).thenReturn(List.of(ac));
+        when(nodeRepository.findById(200L)).thenReturn(Optional.of(c));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(workPhaseRepository.findByParentPhaseIdOrderByOrderIndexAsc(10L)).thenReturn(List.of());
+
+        workflowGraphService.deletePhase(1L, 10L, 2L);
+
+        verify(nodeDependencyRepository).deleteAll(argThat((Iterable<NodeDependencyEntity> it) -> {
+            int n = 0;
+            for (NodeDependencyEntity ignored : it) n++;
+            return n == 2;
+        }));
+        verify(nodeRepository).deleteAll(List.of(a, b));
+        verify(workPhaseRepository).delete(phase);
+        assertEquals(NodeStatus.TODO, c.getStatus());
+        verify(projectRealtimeNotifier).notifyTasksChanged(1L, 10L, null, "PHASE_DELETED", 2L);
+    }
+
+    @Test
+    @DisplayName("TASK_68 deletePhase: phase có task IN_PROGRESS -> 409 PHASE_HAS_ACTIVE_TASKS, không xóa gì")
+    void testDeletePhaseWithActiveTasksThrowsConflict() {
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("Phase 10").build();
+        NodeEntity a = NodeEntity.builder().id(100L).projectId(1L).phaseId(10L).code("A").status(NodeStatus.TODO).build();
+        NodeEntity b = NodeEntity.builder().id(101L).projectId(1L).phaseId(10L).code("B").status(NodeStatus.IN_PROGRESS).build();
+
+        when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
+        when(nodeRepository.findByPhaseId(10L)).thenReturn(List.of(a, b));
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> workflowGraphService.deletePhase(1L, 10L, 2L));
+        assertEquals("PHASE_HAS_ACTIVE_TASKS", ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("B"));
+        verify(nodeRepository, never()).deleteAll(any());
+        verify(nodeDependencyRepository, never()).deleteAll(any());
+        verify(workPhaseRepository, never()).delete(any());
     }
 
     @Test
     @DisplayName("4.3 createNode: Trùng mã code ném ConflictException (HTTP 409)")
     void testCreateNodeDuplicateCode() {
-        CreateNodeRequest req = new CreateNodeRequest(null, "WPE-001", "Task Title", "Desc", JoinPolicy.ALL_COMPLETED, null, null, 8, null);
+        CreateNodeRequest req = new CreateNodeRequest(10L, "WPE-001", "Task Title", "Desc", JoinPolicy.ALL_COMPLETED, null, null, 8, null);
+        when(workPhaseRepository.findById(10L))
+            .thenReturn(Optional.of(WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build()));
         when(nodeRepository.findByProjectIdAndCode(1L, "WPE-001"))
             .thenReturn(Optional.of(NodeEntity.builder().id(99L).code("WPE-001").build()));
 
         assertThrows(ConflictException.class, () -> workflowGraphService.createNode(1L, req, 2L));
+    }
+
+    @Test
+    @DisplayName("createNode: dự án đã publish (ACTIVE) -> task mới TODO ngay (không kẹt LOCKED vì publish chỉ mở task gốc một lần)")
+    void testCreateNodeInPublishedProjectStartsTodo() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE);
+        CreateNodeRequest req = new CreateNodeRequest(10L, null, "New task", null, null, null, null, null, null);
+        when(workPhaseRepository.findById(10L))
+            .thenReturn(Optional.of(WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build()));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> {
+            NodeEntity n = i.getArgument(0);
+            n.setId(500L);
+            return n;
+        });
+
+        assertEquals("TODO", String.valueOf(workflowGraphService.createNode(1L, req, 2L).status()));
+    }
+
+    @Test
+    @DisplayName("createNode: dự án chưa publish (DRAFT) -> task mới LOCKED, chờ publish mở")
+    void testCreateNodeInDraftProjectStartsLocked() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.DRAFT);
+        CreateNodeRequest req = new CreateNodeRequest(10L, null, "New task", null, null, null, null, null, null);
+        when(workPhaseRepository.findById(10L))
+            .thenReturn(Optional.of(WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build()));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> {
+            NodeEntity n = i.getArgument(0);
+            n.setId(501L);
+            return n;
+        });
+
+        assertEquals("LOCKED", String.valueOf(workflowGraphService.createNode(1L, req, 2L).status()));
+    }
+
+    @Test
+    @DisplayName("S05 createNode: thiếu phaseId ném BadRequestException PHASE_REQUIRED (HTTP 400), không lưu node")
+    void testCreateNodeWithoutPhaseRejected() {
+        CreateNodeRequest req = new CreateNodeRequest(null, null, "Task Title", null, null, null, null, null, null);
+
+        com.pipeline.wpe.exception.BadRequestException ex = assertThrows(
+            com.pipeline.wpe.exception.BadRequestException.class,
+            () -> workflowGraphService.createNode(1L, req, 2L));
+        assertEquals("PHASE_REQUIRED", ex.getErrorCode());
+        verify(nodeRepository, never()).save(any());
     }
 
     @Test
@@ -598,6 +698,7 @@ class WorkflowGraphServiceTest {
 
         assertEquals(pos, phase.getUiMetadata());
         assertEquals(pos, response.uiMetadata());
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_UPDATED"), eq(2L), eq(10L), isNull());
     }
 
     @Test
@@ -678,6 +779,7 @@ class WorkflowGraphServiceTest {
         verify(phaseDependencyRepository).deleteByParentPhaseIdAndChildPhaseId(1L, 4L);
         assertNull(p4.getParentPhaseId());
         verify(workPhaseRepository).save(p4);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_UNLINKED"), eq(2L), eq(4L), isNull());
     }
 
     // ===================== B3: 4 lỗ hổng của API node và phụ thuộc =====================
@@ -912,6 +1014,24 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
+    @DisplayName("S07 updateNode: giao task cho Viewer -> 400 ASSIGNEE_IS_VIEWER, không lưu")
+    void testUpdateNodeAssignToViewerRejected() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setVersion(3L);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(1L, 3L)).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(1L, 3L)).thenReturn(Optional.of(
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(1L).userId(3L)
+                .role(com.pipeline.wpe.common.enums.ProjectRole.VIEWER).build()));
+
+        var ex = assertThrows(com.pipeline.wpe.exception.BadRequestException.class,
+            () -> workflowGraphService.updateNode(100L, new UpdateNodeRequest("X", null, null, null, 3L, null, null, 3L), 2L));
+        assertEquals("ASSIGNEE_IS_VIEWER", ex.getErrorCode());
+        assertNull(n.getAssignedUserId());
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     @DisplayName("B3 updateNode: sai version ném OptimisticLockingFailureException (HTTP 409), không lưu")
     void testUpdateNodeWrongVersion() {
         NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
@@ -1011,7 +1131,7 @@ class WorkflowGraphServiceTest {
 
         verify(nodeDependencyRepository).deleteAll(outgoing);
         verify(nodeRepository).delete(n);
-        verify(projectRealtimeNotifier).notifyTasksChanged(1L, null, 100L, "NODE_DELETED");
+        verify(projectRealtimeNotifier).notifyTasksChanged(1L, null, 100L, "NODE_DELETED", 2L);
         assertEquals(NodeStatus.TODO, child.getStatus());
     }
 

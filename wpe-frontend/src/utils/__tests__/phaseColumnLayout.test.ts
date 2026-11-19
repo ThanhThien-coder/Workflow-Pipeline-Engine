@@ -55,6 +55,20 @@ describe('arrangePhases', () => {
     expect(pos.c.y).toBe(100 + MACRO_CARD_H + MACRO_GAP_Y)
   })
 
+  it('TASK_72: phase con có y mong muốn cao hơn cha thì bị đưa về ngang cha (kể cả sau khi kéo lên cao)', () => {
+    const phases = [p('a'), p('b', ['a']), p('c', ['b'])]
+    const pos = arrangePhases(phases, { a: 300, b: 40, c: 20 })
+    expect(pos.a.y).toBe(300)
+    expect(pos.b.y).toBe(300)
+    expect(pos.c.y).toBe(300)
+  })
+
+  it('TASK_72: nhiều cha thì lấy cha cao nhất; duyệt cột từ trái sang phải dù phase xuất hiện lộn xộn', () => {
+    const phases = [p('c', ['a', 'b']), p('b'), p('a')]
+    const pos = arrangePhases(phases, { a: 100, b: 400, c: 0 })
+    expect(pos.c.y).toBe(100)
+    expect(pos.c.y).toBeGreaterThanOrEqual(Math.min(pos.a.y, pos.b.y))
+  })
   it('nối dây làm phase sâu hơn thì tự sang cột bên phải', () => {
     const before = arrangePhases([p('a'), p('b'), p('c')], { a: 60, b: 300, c: 540 })
     expect(before.c.x).toBe(columnX(0))
@@ -72,18 +86,19 @@ describe('autoLayoutColumns', () => {
     expect(pos.x.x).toBe(columnX(1))
   })
 
-  it('G19: cột ít thẻ được căn giữa theo chiều dọc so với cột cao nhất (không dồn lên đầu)', () => {
+  it('TASK_72: không căn giữa cột nữa; phase con từ ngang phase cha cao nhất trở xuống, dây không cắt thẻ', () => {
     // Sơ đồ như ảnh: A → P2, P3, P4; P2, P3 → P5; P5 → P6; P2 → P6 (vượt cột)
     const phases = [p('a'), p('p2', ['a']), p('p3', ['a']), p('p4', ['a']), p('p5', ['p2', 'p3']), p('p6', ['p5', 'p2'])]
     const pos = autoLayoutColumns(phases, {})
     const cols = phaseColumns(phases)
 
-    const middleRow = pos.p3.y
-    expect(pos.p2.y).toBeLessThan(middleRow)
-    expect(pos.p4.y).toBeGreaterThan(middleRow)
-    expect(pos.a.y).toBe(middleRow)
-    expect(pos.p5.y).toBe(middleRow)
-    expect(pos.p6.y).toBe(middleRow)
+    // Cột 1 xếp sát nhau từ trên xuống; A và các cột sau không bị đẩy xuống giữa
+    expect(pos.a.y).toBe(60)
+    expect(pos.p2.y).toBeLessThan(pos.p3.y)
+    expect(pos.p3.y).toBeLessThan(pos.p4.y)
+    // Con không cao hơn cha cao nhất của nó
+    expect(pos.p5.y).toBeGreaterThanOrEqual(Math.min(pos.p2.y, pos.p3.y))
+    expect(pos.p6.y).toBeGreaterThanOrEqual(Math.min(pos.p5.y, pos.p2.y))
 
     // Dây vẫn không cắt qua thẻ nào
     const edges: [string, string][] = [['a', 'p2'], ['a', 'p3'], ['a', 'p4'], ['p2', 'p5'], ['p3', 'p5'], ['p5', 'p6'], ['p2', 'p6']]
@@ -96,6 +111,12 @@ describe('autoLayoutColumns', () => {
     }
   })
 
+  it('TASK_72: con không bao giờ có y nhỏ hơn y của cha cao nhất, kể cả khi y hiện tại nhỏ hơn', () => {
+    const phases = [p('a'), p('b'), p('c', ['a', 'b'])]
+    // b nằm thấp hơn a; y hiện tại của c (0) cao hơn cả hai
+    const pos = autoLayoutColumns(phases, { a: 60, b: 500, c: 0 })
+    expect(pos.c.y).toBeGreaterThanOrEqual(Math.min(pos.a.y, pos.b.y))
+  })
   it('G19: hai cột bằng nhau thì không lệch', () => {
     const pos = autoLayoutColumns([p('a'), p('b'), p('x', ['a']), p('y', ['b'])], {})
     expect(pos.a.y).toBe(pos.x.y)

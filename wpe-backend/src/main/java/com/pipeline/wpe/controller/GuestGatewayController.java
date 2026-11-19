@@ -5,6 +5,8 @@ import com.pipeline.wpe.dto.request.guest.GenerateGuestTokenRequest;
 import com.pipeline.wpe.dto.response.feedback.GuestFeedbackResponse;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
+import com.pipeline.wpe.exception.ErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import com.pipeline.wpe.service.FeedbackQueueService;
 import com.pipeline.wpe.service.GuestGatewayService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,6 +59,19 @@ public class GuestGatewayController {
     public ResponseEntity<GuestOverviewResponse> getGuestOverview(@PathVariable("token") String token) {
         GuestOverviewResponse response = guestGatewayService.getGuestOverview(token);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping({"/api/v1/guest/{token}/ai-summary", "/api/guest/{token}/ai-summary"})
+    @Operation(summary = "7.3 Khách xem tóm tắt AI đã lưu (không gọi AI mới)",
+               description = "Trả {content, highlights, risks, generatedAt} dựng từ kết quả phân tích AI gần nhất. Chưa có phân tích: 404 AI_SUMMARY_NOT_FOUND. Link hỏng/hết hạn/thu hồi: 403 REVOKED_GUEST như /overview.")
+    public ResponseEntity<?> getGuestAiSummary(@PathVariable("token") String token, HttpServletRequest request) {
+        return guestGatewayService.getGuestAiSummary(token)
+            .<ResponseEntity<?>>map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(
+                HttpStatus.NOT_FOUND.value(),
+                "AI_SUMMARY_NOT_FOUND",
+                "No AI analysis is available for this project yet.",
+                request.getRequestURI())));
     }
 
     @PostMapping({"/api/v1/guest/{token}/feedback", "/api/guest/{token}/feedback"})

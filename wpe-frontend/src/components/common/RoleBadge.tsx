@@ -1,5 +1,6 @@
 import type { FC } from 'react'
 import type { ProjectRole } from '../../types/settings.types'
+import { ROLE_DESCRIPTIONS } from '../settings/rolePermissions'
 
 const ROLE_STYLES: Record<ProjectRole, string> = {
   OWNER: 'bg-violet-50 text-violet-700 border-violet-200',
@@ -40,6 +41,7 @@ export const RoleBadge: FC<RoleBadgeProps> = ({
 
   return (
     <span
+      title={ROLE_DESCRIPTIONS[role]}
       className={`inline-flex items-center text-[10px] font-semibold border rounded-full px-2 py-0.5 select-none ${style} ${className}`}
     >
       {label}

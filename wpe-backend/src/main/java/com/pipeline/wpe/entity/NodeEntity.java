@@ -98,4 +98,8 @@ public class NodeEntity {
 
     @Column(name = "force_unlocked_at")
     private Instant forceUnlockedAt;
+
+    /** S04 (V22): lúc task Done được mở lại (Reopen); null nếu chưa từng mở lại. */
+    @Column(name = "reopened_at")
+    private Instant reopenedAt;
 }

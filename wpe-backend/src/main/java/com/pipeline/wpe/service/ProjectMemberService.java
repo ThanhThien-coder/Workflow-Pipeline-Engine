@@ -2,6 +2,7 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.response.project.ProjectMemberHistoryResponse;
 import com.pipeline.wpe.dto.response.project.ProjectMemberResponse;
 import com.pipeline.wpe.dto.response.project.RemoveMemberResponse;
@@ -14,6 +15,8 @@ import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.repository.UserRepository;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
+import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,6 +39,8 @@ public class ProjectMemberService {
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
     private final NodeRepository nodeRepository;
+    private final WorkflowEventPublisher eventPublisher;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
     /**
      * Lấy danh sách thành viên dự án, OWNER đứng đầu, rồi theo joinedAt.
@@ -160,13 +165,35 @@ public class ProjectMemberService {
 
             projectMemberRepository.save(targetMember);
             projectMemberRepository.save(oldOwnerMember);
+
+            notifyRoleChanged(projectId, project, targetUserId, ProjectRole.OWNER);
+            notifyRoleChanged(projectId, project, oldOwnerId, ProjectRole.COLLABORATOR);
+            projectRealtimeNotifier.notifyProjectChanged(projectId, "MEMBERS", "ROLE_CHANGED", currentUserId, null, null);
         } else {
             // newRole là COLLABORATOR hoặc VIEWER
             if (targetUserId.equals(project.getOwnerId())) {
                 throw new IllegalArgumentException("OWNER_ROLE_LOCKED: The owner's role can't be changed. Transfer ownership first.");
             }
+            ProjectRole previousRole = targetMember.getRole();
             targetMember.setRole(newRole);
             targetMember = projectMemberRepository.save(targetMember);
+            if (newRole == ProjectRole.VIEWER) {
+                List<NodeEntity> nodesToUnassign = nodeRepository
+                        .findByProjectIdAndAssignedUserIdAndStatusNot(projectId, targetUserId, NodeStatus.DONE);
+                for (NodeEntity node : nodesToUnassign) {
+                    node.setAssignedUserId(null);
+                }
+                nodeRepository.saveAll(nodesToUnassign);
+                if (!nodesToUnassign.isEmpty()) {
+                    // Thẻ task đổi người làm: báo để mọi người tải lại đồ thị (MEMBERS không tải lại đồ thị)
+                    projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "UNASSIGNED", currentUserId);
+                }
+                log.info("Changed userId={} to VIEWER in project={}, unassigned {} tasks", targetUserId, projectId, nodesToUnassign.size());
+            }
+            if (previousRole != newRole) {
+                notifyRoleChanged(projectId, project, targetUserId, newRole);
+                projectRealtimeNotifier.notifyProjectChanged(projectId, "MEMBERS", "ROLE_CHANGED", currentUserId, null, null);
+            }
         }
 
         return toMemberResponse(targetMember, projectId);
@@ -197,9 +224,45 @@ public class ProjectMemberService {
             node.setAssignedUserId(null);
         }
         nodeRepository.saveAll(nodesToUnassign);
+        if (!nodesToUnassign.isEmpty()) {
+            projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "UNASSIGNED", currentUserId);
+        }
+
+        notifyMemberRemoved(projectId, project, targetUserId);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "MEMBERS", "MEMBER_REMOVED", currentUserId, null, null);
 
         log.info("Removed member userId={} from project={}, unassigned {} tasks", targetUserId, projectId, nodesToUnassign.size());
         return new RemoveMemberResponse(targetUserId, nodesToUnassign.size());
+    }
+
+    private void notifyRoleChanged(Long projectId, ProjectEntity project, Long recipientUserId, ProjectRole role) {
+        try {
+            eventPublisher.publishNotification(new NotificationEvent(
+                    recipientUserId,
+                    projectId,
+                    "Your project role changed",
+                    "You are now " + role.name() + " in project \"" + project.getName() + "\".",
+                    "ROLE_CHANGED",
+                    "/project/" + projectId + "/workflow",
+                    Instant.now()));
+        } catch (RuntimeException e) {
+            log.warn("Không gửi được thông báo đổi vai trò cho user {} ở project {}: {}", recipientUserId, projectId, e.getMessage());
+        }
+    }
+
+    private void notifyMemberRemoved(Long projectId, ProjectEntity project, Long recipientUserId) {
+        try {
+            eventPublisher.publishNotification(new NotificationEvent(
+                    recipientUserId,
+                    projectId,
+                    "Removed from project",
+                    "You were removed from project \"" + project.getName() + "\".",
+                    "MEMBER_REMOVED",
+                    "/workspaces?removedFrom=" + projectId,
+                    Instant.now()));
+        } catch (RuntimeException e) {
+            log.warn("Không gửi được thông báo bị xóa khỏi dự án cho user {} ở project {}: {}", recipientUserId, projectId, e.getMessage());
+        }
     }
 
     private ProjectMemberResponse toMemberResponse(ProjectMemberEntity member, Long projectId) {

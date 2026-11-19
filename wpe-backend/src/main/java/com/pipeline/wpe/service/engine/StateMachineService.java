@@ -8,10 +8,12 @@ import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.artifact.ArtifactUrlValidator;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.event.TaskCompletedEvent;
+import com.pipeline.wpe.dto.request.node.ReopenTaskRequest;
 import com.pipeline.wpe.dto.request.node.SubmitTaskArtifactRequest;
 import com.pipeline.wpe.dto.request.node.UpdateNodeStatusRequest;
 import com.pipeline.wpe.dto.response.node.KanbanTaskResponse;
 import com.pipeline.wpe.dto.response.node.NodeArtifactResponse;
+import com.pipeline.wpe.dto.response.node.ReopenImpactResponse;
 import com.pipeline.wpe.dto.response.node.SubmitTaskArtifactResponse;
 import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.NodeDependencyEntity;
@@ -65,7 +67,7 @@ public class StateMachineService {
     public List<KanbanTaskResponse> getMyTasks(Long projectId, Long userId) {
         List<NodeEntity> nodes = nodeRepository.findByProjectIdAndAssignedUserIdOrderByDueDateAsc(projectId, userId);
 
-        return nodes.stream().map(this::toKanbanTaskWithArtifacts).toList();
+        return toKanbanTasksWithArtifacts(nodes);
     }
 
     /**
@@ -74,11 +76,11 @@ public class StateMachineService {
      */
     @Transactional(readOnly = true)
     public List<KanbanTaskResponse> getPhaseTasks(Long projectId, Long phaseId) {
-        return nodeRepository.findByPhaseId(phaseId).stream()
+        List<NodeEntity> nodes = nodeRepository.findByPhaseId(phaseId).stream()
             .filter(node -> projectId.equals(node.getProjectId()))
             .sorted(Comparator.comparing(NodeEntity::getId))
-            .map(this::toKanbanTaskWithArtifacts)
             .toList();
+        return toKanbanTasksWithArtifacts(nodes);
     }
 
     /**
@@ -87,10 +89,10 @@ public class StateMachineService {
      */
     @Transactional(readOnly = true)
     public List<KanbanTaskResponse> getReviewTasks(Long projectId) {
-        return nodeRepository.findByProjectIdAndStatus(projectId, NodeStatus.REVIEW).stream()
+        List<NodeEntity> nodes = nodeRepository.findByProjectIdAndStatus(projectId, NodeStatus.REVIEW).stream()
             .sorted(Comparator.comparing(NodeEntity::getId))
-            .map(this::toKanbanTaskWithArtifacts)
             .toList();
+        return toKanbanTasksWithArtifacts(nodes);
     }
 
     /** Người duyệt được của dự án: chủ dự án + các quản lý còn trong dự án (không trùng). */
@@ -105,9 +107,25 @@ public class StateMachineService {
         return ids;
     }
 
+    /** S03: lấy artifact của cả danh sách task 1 lần (findByNodeIdIn), nhóm theo nodeId, giữ thứ tự task. */
+    private List<KanbanTaskResponse> toKanbanTasksWithArtifacts(List<NodeEntity> nodes) {
+        if (nodes.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = nodes.stream().map(NodeEntity::getId).toList();
+        java.util.Map<Long, List<ArtifactEntity>> byNode = artifactRepository.findByNodeIdIn(ids).stream()
+            .collect(java.util.stream.Collectors.groupingBy(ArtifactEntity::getNodeId));
+        return nodes.stream()
+            .map(node -> toKanbanTask(node, byNode.getOrDefault(node.getId(), List.of())))
+            .toList();
+    }
+
     private KanbanTaskResponse toKanbanTaskWithArtifacts(NodeEntity node) {
+        return toKanbanTask(node, artifactRepository.findByNodeId(node.getId()));
+    }
+
+    private KanbanTaskResponse toKanbanTask(NodeEntity node, List<ArtifactEntity> artifacts) {
         KanbanTaskResponse base = nodeMapper.toKanbanTaskResponse(node);
-        List<ArtifactEntity> artifacts = artifactRepository.findByNodeId(node.getId());
         List<NodeArtifactResponse> artifactResponses = artifacts.stream()
             .map(a -> new NodeArtifactResponse(
                 String.valueOf(a.getId()),
@@ -157,6 +175,8 @@ public class StateMachineService {
         ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
+        ensureNotViewer(project, currentUserId);
+        ensureProjectRunningForMember(project, currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
         boolean canReview = isOwner || projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), currentUserId)
             .map(m -> m.getRole() == ProjectRole.MANAGER)
@@ -252,7 +272,8 @@ public class StateMachineService {
             saved.getProjectId(),
             saved.getPhaseId(),
             saved.getId(),
-            isRejected ? "REJECTED" : "STATUS_CHANGED"
+            isRejected ? "REJECTED" : "STATUS_CHANGED",
+            currentUserId
         );
 
         // Bắn tín hiệu real-time cập nhật trạng thái tới tất cả các bên (sau commit)
@@ -269,6 +290,167 @@ public class StateMachineService {
         });
 
         return response;
+    }
+
+    /**
+     * S04: xem trước ảnh hưởng của việc mở lại task Done lên các task con trực tiếp. Chỉ Owner hoặc Manager.
+     */
+    @Transactional(readOnly = true)
+    public ReopenImpactResponse reopenImpact(Long taskId, Long currentUserId) {
+        NodeEntity node = nodeRepository.findById(taskId)
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+        ProjectEntity project = projectRepository.findById(node.getProjectId())
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + node.getProjectId()));
+        if (!canReviewProject(project, currentUserId)) {
+            throw new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can reopen a task.");
+        }
+        List<ReopenImpactResponse.Child> children = directChildren(node).stream()
+            .map(child -> new ReopenImpactResponse.Child(
+                String.valueOf(child.getId()), child.getCode(), child.getTitle(),
+                child.getStatus().name(), willRelock(child, node.getId())))
+            .toList();
+        return new ReopenImpactResponse(node.getCode(), children);
+    }
+
+    /**
+     * S04: mở lại task đã DONE (Owner hoặc Manager, bắt buộc lý do): DONE -> IN_PROGRESS, giữ nguyên người làm cũ.
+     * Task con đang TODO mà không còn đủ điều kiện mở khóa thì khóa lại (LOCKED); task con đã bắt đầu giữ nguyên.
+     * Artifact cũ giữ nguyên (không xóa, không đổi isInRepository).
+     */
+    @Transactional
+    public KanbanTaskResponse reopen(Long taskId, ReopenTaskRequest request, Long currentUserId) {
+        NodeEntity node = nodeRepository.findById(taskId)
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+        ProjectEntity project = projectRepository.findById(node.getProjectId())
+            .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + node.getProjectId()));
+
+        if (!canReviewProject(project, currentUserId)) {
+            throw new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can reopen a task.");
+        }
+        ensureNotArchived(project);
+        if (node.getStatus() != NodeStatus.DONE) {
+            throw new ConflictException("TASK_NOT_DONE", "Only a Done task can be reopened.");
+        }
+        if (request.version() != null && !Objects.equals(node.getVersion(), request.version())) {
+            throw new OptimisticLockingFailureException(
+                "This task was changed by another member (server version: " + node.getVersion() +
+                ", your version: " + request.version() + "). Please refresh the page.");
+        }
+        String reason = request.reason() == null ? "" : request.reason().trim();
+        if (reason.isEmpty()) {
+            throw new IllegalArgumentException("A reason is required to reopen a task.");
+        }
+
+        // Khóa lại task con TODO không còn đủ điều kiện (luật chỉ phụ thuộc các cha khác nên tính được trước khi đổi cha)
+        List<NodeEntity> relocked = new java.util.ArrayList<>();
+        for (NodeEntity child : directChildren(node)) {
+            if (willRelock(child, node.getId())) {
+                child.setStatus(NodeStatus.LOCKED);
+                relocked.add(nodeRepository.save(child));
+            }
+        }
+
+        node.setStatus(NodeStatus.IN_PROGRESS);
+        node.setCompletedAt(null);
+        node.setReopenedAt(Instant.now());
+        node.setRejectReason(reason);
+        NodeEntity saved = nodeRepository.saveAndFlush(node);
+        KanbanTaskResponse response = toKanbanTaskWithArtifacts(saved);
+
+        // Có con bị khóa lại thì làm mới cả dự án (phaseId/taskId null), không thì chỉ task này
+        projectRealtimeNotifier.notifyTasksChanged(
+            saved.getProjectId(),
+            relocked.isEmpty() ? saved.getPhaseId() : null,
+            relocked.isEmpty() ? saved.getId() : null,
+            "REOPENED",
+            currentUserId
+        );
+
+        Long assigneeId = saved.getAssignedUserId();
+        if (assigneeId != null) {
+            eventPublisher.publishNotification(new NotificationEvent(
+                assigneeId,
+                saved.getProjectId(),
+                "Task reopened",
+                "Task " + saved.getCode() + " was reopened: " + reason,
+                "REOPENED",
+                "/project/" + saved.getProjectId() + "/my-tasks",
+                Instant.now()
+            ));
+        }
+        List<Long> reviewers = reviewerIds(project);
+        afterCommit(() -> {
+            if (assigneeId != null) {
+                sseEmitterService.sendToUser(assigneeId, "TASK_STATUS_CHANGED", response);
+            }
+            reviewers.stream()
+                .filter(id -> !id.equals(currentUserId) && !id.equals(assigneeId))
+                .forEach(id -> sseEmitterService.sendToUser(id, "TASK_STATUS_CHANGED", response));
+        });
+
+        log.info("Reopen: task {} ({}) được user {} mở lại, khóa lại {} task con", saved.getId(), saved.getCode(),
+            currentUserId, relocked.size());
+        return response;
+    }
+
+    /** Viewer chỉ xem: không được đổi trạng thái hay nộp bài (chủ dự án không bao giờ là Viewer). */
+    private void ensureNotViewer(ProjectEntity project, Long userId) {
+        if (project.getOwnerId().equals(userId)) {
+            return;
+        }
+        boolean viewer = projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), userId)
+            .map(m -> m.getRole() == ProjectRole.VIEWER)
+            .orElse(false);
+        if (viewer) {
+            throw new ForbiddenException("ACCESS_DENIED", "Viewers can't change task status.");
+        }
+    }
+
+    /**
+     * Chủ dự án và Quản lý làm task ở mọi trạng thái dự án (trừ ARCHIVED, đã chặn trước đó).
+     * Cộng tác viên chỉ làm task khi dự án đang chạy (ACTIVE); DRAFT/PLANNING/PAUSED/COMPLETED thì chỉ xem.
+     */
+    private void ensureProjectRunningForMember(ProjectEntity project, Long userId) {
+        if (project.getStatus() == ProjectStatus.ACTIVE || canReviewProject(project, userId)) {
+            return;
+        }
+        throw new ConflictException("PROJECT_NOT_ACTIVE",
+            "The project isn't running (" + project.getStatus() + "). Only the owner or a manager can work on tasks until it is active.");
+    }
+
+    private boolean canReviewProject(ProjectEntity project, Long userId) {
+        return project.getOwnerId().equals(userId)
+            || projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), userId)
+                .map(m -> m.getRole() == ProjectRole.MANAGER)
+                .orElse(false);
+    }
+
+    private List<NodeEntity> directChildren(NodeEntity parent) {
+        return dependencyRepository.findByParentNodeId(parent.getId()).stream()
+            .map(dep -> nodeRepository.findById(dep.getChildNodeId()).orElse(null))
+            .filter(Objects::nonNull)
+            .sorted(Comparator.comparing(NodeEntity::getId))
+            .toList();
+    }
+
+    /**
+     * Cùng luật hội tụ với unlockDownstreamTasks / WorkflowGraphService.recomputeNodeStatus: khi cha này không còn DONE,
+     * ALL_COMPLETED luôn không thỏa; ANY_COMPLETED chỉ thỏa nếu còn cha khác DONE. Con chỉ bị khóa lại khi đang TODO
+     * và chưa được chủ dự án mở khóa sớm.
+     */
+    private boolean willRelock(NodeEntity child, Long reopenedParentId) {
+        if (child.getStatus() != NodeStatus.TODO || child.getForceUnlockedAt() != null) {
+            return false;
+        }
+        if (child.getJoinPolicy() == JoinPolicy.ANY_COMPLETED) {
+            boolean otherDone = dependencyRepository.findByChildNodeId(child.getId()).stream()
+                .map(NodeDependencyEntity::getParentNodeId)
+                .filter(id -> !id.equals(reopenedParentId))
+                .map(id -> nodeRepository.findById(id).orElse(null))
+                .anyMatch(p -> p != null && p.getStatus() == NodeStatus.DONE);
+            return !otherDone;
+        }
+        return true;
     }
 
     /**
@@ -292,6 +474,8 @@ public class StateMachineService {
         ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
+        ensureNotViewer(project, currentUserId);
+        ensureProjectRunningForMember(project, currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
         if (!isOwner && !isAssignee) {
             throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to submit this task.");
@@ -393,8 +577,11 @@ public class StateMachineService {
             savedNode.getProjectId(),
             savedNode.getPhaseId(),
             savedNode.getId(),
-            "SUBMITTED"
+            "SUBMITTED",
+            currentUserId
         );
+        projectRealtimeNotifier.notifyProjectChanged(
+            savedNode.getProjectId(), "ARTIFACTS", "ARTIFACT_ADDED", currentUserId, savedNode.getPhaseId(), savedNode.getId());
 
         // Bắn SSE real-time cho Owner (sau commit)
         // G18: cả quản lý cũng duyệt được nên cũng nhận tín hiệu (cập nhật số "Chờ duyệt")
@@ -435,7 +622,8 @@ public class StateMachineService {
             saved.getProjectId(),
             saved.getPhaseId(),
             saved.getId(),
-            "FORCE_UNLOCKED"
+            "FORCE_UNLOCKED",
+            currentUserId
         );
 
         log.info("Force unlock: task ID {} ({}) trong dự án {} được user {} mở khóa sớm LOCKED -> TODO",

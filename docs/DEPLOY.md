@@ -159,7 +159,7 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
   ```bash
   docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d
   ```
-- **Khi model quá tải**: service gọi lần lượt `GEMINI_MODEL` rồi `GEMINI_FALLBACK_MODEL`; mỗi model đứng trước model cuối chờ tối đa `GEMINI_TIMEOUT_MS` (12 giây), cả chuỗi tối đa `GEMINI_TOTAL_TIMEOUT_MS` (25 giây, dưới mức 30 giây backend chờ). Hết model mới dùng phân tích dự phòng. Kết quả ghi model đã trả lời ở `tokenUsage.model`.
+- **Khi model quá tải**: service gọi lần lượt `GEMINI_MODEL` rồi `GEMINI_FALLBACK_MODEL`; mỗi model đứng trước model cuối chờ tối đa `GEMINI_TIMEOUT_MS` (90 giây), cả chuỗi tối đa `GEMINI_TOTAL_TIMEOUT_MS` (170 giây, dưới mức 180 giây backend chờ, chỉnh bằng `AI_READ_TIMEOUT_SECONDS`; thời gian chờ giữa 2 lần bấm chỉnh bằng `AI_COOLDOWN_SECONDS`, mặc định 60 giây). Hết model mới dùng phân tích dự phòng. Kết quả ghi model đã trả lời ở `tokenUsage.model`.
 - **Bảo mật key**: mỗi môi trường dùng một key riêng, chỉ đặt trong `deploy/.env` của máy chủ. Key đã lộ (dán vào chat, commit nhầm) thì thu hồi ở Google AI Studio và tạo key mới.
 - **Gói miễn phí**: không tốn tiền nhưng Google được dùng dữ liệu gửi lên để cải thiện sản phẩm. Dùng dữ liệu thật của người dùng thì cân nhắc gói trả phí.
 
@@ -175,3 +175,17 @@ Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabb
   docker compose -f docker-compose.prod.yml -f deploy/docker-compose.mailtest.yml --env-file deploy/.env up -d
   ```
   Không dùng `deploy/docker-compose.mailtest.yml` trên production thật.
+
+---
+
+## 10. Công cụ demo (`DEMO_TOOLS_ENABLED`)
+
+- **Tắt mặc định**: `DEMO_TOOLS_ENABLED=false` trong `deploy/.env` (xem `deploy/prod.env.example`). Khi tắt, mọi endpoint `/api/v1/demo/*` (trừ `GET /api/v1/demo/status`) trả 404.
+- **Chỉ bật khi demo/test đồ án**: đổi thành `true` rồi chạy lại `docker compose ... up -d`; demo xong thì tắt lại. Các công cụ này cố ý bỏ qua luật nghiệp vụ (ép trạng thái task, giả lập quá hạn, hết hạn link/lời mời) nên không để bật trên hệ thống dùng thật.
+- Khi bật, chỉ chủ dự án hoặc tài khoản `ADMIN` dùng được; mỗi lần dùng được ghi log cảnh báo và nhật ký quản trị (`DEMO_TOOL_USED`).
+
+## 11. Dọn task mồ côi lúc khởi động (`CLEANUP_ORPHAN_NODES`)
+
+- Lần deploy kế tiếp, backend tự chạy một bước dọn lúc khởi động: xóa mọi task có `phase_id` rỗng (task mồ côi do xóa phase trước TASK_68, làm Overview đếm dư) cùng dây phụ thuộc, rồi tính lại trạng thái các task con ở phase khác. Xóa cả task đã làm (IN_PROGRESS/REVIEW/DONE) vì dữ liệu hiện chỉ là dữ liệu test.
+- Chạy lại không làm gì thêm (không còn node mồ côi). Log có dòng `Dọn task mồ côi: dự án N đã xóa M node`. Lỗi chỉ ghi log ERROR, backend vẫn khởi động.
+- Tắt bước dọn: đặt `CLEANUP_ORPHAN_NODES=false` cho container backend (khóa `app.maintenance.cleanup-orphan-nodes`). `docker-compose.prod.yml` đã truyền biến này vào backend (mặc định `true`), nên chỉ cần thêm `CLEANUP_ORPHAN_NODES=false` vào `deploy/.env`.
