@@ -123,6 +123,18 @@ export const createKanbanSlice = (set: (update: (state: KanbanSlice) => KanbanSl
         const saved = await workflowService.reopenTask(taskId, reason)
         set((state) => ({ ...state, kanban: { ...state.kanban, tasks: state.kanban.tasks.map((item) => item.id === taskId ? { ...saved, phaseLabel: item.phaseLabel } : item) } }))
         k().showToast(`Reopened ${task.code}: moved back to In Progress.`)
+        // Task con của chính mình có thể vừa bị khóa lại: tải lại danh sách ngầm (không xóa list, không nháy).
+        // Sự kiện realtime của chính tab này bị bỏ qua nên phải tự làm ở đây.
+        const projectId = (get() as unknown as { currentProjectId?: string | null }).currentProjectId ?? get().artifacts?.projectId
+        if (projectId) {
+          try {
+            const fresh = await workflowService.getMyTasks(String(projectId), k().currentUserId)
+            set((state) => {
+              const labels = new Map(state.kanban.tasks.map((item) => [item.id, item.phaseLabel]))
+              return { ...state, kanban: { ...state.kanban, tasks: fresh.map((item) => ({ ...item, phaseLabel: labels.get(item.id) ?? item.phaseLabel })) } }
+            })
+          } catch { /* giữ danh sách hiện có; lần tải sau sẽ đúng */ }
+        }
         return true
       } catch (error) {
         if (error instanceof ApiError && error.status === 409 && error.code === 'OPTIMISTIC_LOCK_CONFLICT') {
