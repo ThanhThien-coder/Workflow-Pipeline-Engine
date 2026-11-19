@@ -149,9 +149,13 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     if (!node || !tree) return false
     const rootId = rootIdOf(phaseId)
     const realParents = parentIds.filter((id) => tree[id]?.kind === 'branch')
+    // POST trả trạng thái lúc chưa nối cha; nối xong backend khóa lại nếu còn cha chưa Done (task mới: ALL_COMPLETED).
+    // Hiện đúng trạng thái ngay, không chờ lần đọc lại cây.
+    const parentsDone = realParents.every((id) => (tree[id] as BranchGraphNode).status === 'DONE')
+    const status = realParents.length > 0 && !parentsDone ? 'LOCKED' : node.status
     bumpTreeSeq(phaseId)
     get().updateTree(phaseId, (nodes) =>
-      nodes[node.id] ? nodes : { ...nodes, [node.id]: { ...node, parentIds: realParents.length > 0 ? realParents : [rootId] } }
+      nodes[node.id] ? nodes : { ...nodes, [node.id]: { ...node, status, parentIds: realParents.length > 0 ? realParents : [rootId] } }
     )
     return true
   }

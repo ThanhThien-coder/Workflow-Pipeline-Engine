@@ -104,6 +104,25 @@ describe('store: cập nhật lạc quan (S03)', () => {
     expect(store.getState().trees['20']['9'].parentIds).toEqual(['2', '3'])
   })
 
+  it('addChildTask: dự án đã publish (POST trả TODO) mà cha chưa Done -> thẻ con hiện Locked ngay', async () => {
+    const { store, service } = setup()
+    service.addChildTask.mockResolvedValue({ id: '9', title: 'C', status: 'TODO', node: branch('9', { status: 'TODO' }) })
+
+    await store.getState().addChildTask('20', ['2'], 'C')
+
+    expect((store.getState().trees['20']['9'] as BranchGraphNode).status).toBe('LOCKED')
+  })
+
+  it('addChildTask: mọi cha đã Done -> giữ trạng thái POST trả (TODO)', async () => {
+    const { store, service } = setup()
+    store.setState((s) => ({ trees: { '20': { ...s.trees['20'], '2': branch('2', { status: 'DONE' }) } } }))
+    service.addChildTask.mockResolvedValue({ id: '9', title: 'C', status: 'TODO', node: branch('9', { status: 'TODO' }) })
+
+    await store.getState().addChildTask('20', ['2'], 'C')
+
+    expect((store.getState().trees['20']['9'] as BranchGraphNode).status).toBe('TODO')
+  })
+
   it('tạo 5 task liên tiếp: lần đọc cũ (thiếu thẻ) về muộn bị bỏ, đủ 5 thẻ', async () => {
     const { store, service } = setup()
     const gates: Array<ReturnType<typeof deferred<GraphNodeMap>>> = []
