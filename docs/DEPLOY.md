@@ -38,7 +38,7 @@ Trình duyệt người dùng
 
 ## 2. Yêu cầu môi trường
 
-- Máy chủ Linux / Windows / macOS đã cài đặt **Docker Desktop** hoặc **Docker Engine** tích hợp sẵn Docker Compose v2 (`docker compose`).
+- Máy chủ Linux / Windows / macOS đã cài đặt **Docker Desktop** hoặc **Docker Engine** tích hợp sẵn Docker Compose v2 trở lên (`docker compose`). Với Compose v5 trở lên, xem thêm phần "Nếu bước build báo lỗi" ở Bước 3.
 - Tối thiểu 4GB RAM khả dụng để biên dịch và chạy đồng thời các container (Spring Boot, Node/Vite build, PostgreSQL, RabbitMQ, Python FastAPI).
 
 ---
@@ -69,6 +69,18 @@ Chạy lệnh build và bật các service chạy ngầm:
 ```bash
 docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d --build
 ```
+
+#### Nếu bước build báo lỗi đòi `--allow=fs.read=...` (Docker Compose v5 trở lên)
+Từ Compose v5, `up --build` luôn build qua `buildx bake`, và bake dừng lại vì Dockerfile nằm trong thư mục `deploy/`, ngoài thư mục build của từng service (thông báo lỗi có đoạn `--allow=fs.read=` kèm đường dẫn Dockerfile trong `deploy`). Biến `COMPOSE_BAKE=false` không còn tác dụng. Cách làm: build từng image bằng `docker build` (chạy ở thư mục gốc repo), rồi bật hệ thống mà không build lại:
+```bash
+docker build -f deploy/backend.Dockerfile -t wpe-prod-backend wpe-backend
+docker build -f deploy/ai-service.Dockerfile -t wpe-prod-ai-service wpe-ai-service
+docker build -f deploy/frontend.Dockerfile --build-context deploy=./deploy --build-context shared=./shared -t wpe-prod-frontend wpe-frontend
+docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d --no-build
+```
+- Tên image phải đúng `wpe-prod-<tên service>` vì `docker-compose.prod.yml` đặt tên project là `wpe-prod`; sai tên thì compose không tìm thấy image.
+- Bật HTTPS (mục 3.1) thì lệnh cuối thêm `-f deploy/docker-compose.https.yml`. Caddy dùng image có sẵn nên không cần build.
+- Mọi chỗ khác trong tài liệu ghi `up -d --build` thì làm theo 4 lệnh này.
 
 ### Bước 4: Truy cập ứng dụng
 Mở trình duyệt và truy cập:
@@ -109,11 +121,46 @@ curl http://localhost/api/v1/health
 
 ## 5. Cập nhật mã nguồn (Update Code)
 
-Khi có code mới từ Git:
-```bash
-git pull
-docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d --build
+Khi có code mới từ Git, làm theo thứ tự:
+1. **Sao lưu cơ sở dữ liệu trước** (lệnh ở mục 6). Bản mới có thể có migration Flyway hoặc bước dọn dữ liệu lúc khởi động (mục 11); hỏng thì chỉ khôi phục được từ bản sao lưu.
+2. **So biến môi trường**: mở `deploy/prod.env.example`, biến nào có ở đó mà chưa có trong `deploy/.env` thì xem chú thích và thêm vào nếu cần giá trị khác mặc định. Biến không khai báo sẽ dùng giá trị mặc định ghi trong `docker-compose.prod.yml`.
+3. **Lấy code và chạy lại**:
+   ```bash
+   git pull
+   docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d --build
+   ```
+   Lệnh build lỗi đòi `--allow=fs.read` thì làm theo phần "Nếu bước build báo lỗi" ở Bước 3.
+4. **Kiểm tra** theo mục 4, rồi đăng nhập thử và mở một dự án.
+
+Máy chủ Windows có thể làm cả 4 bước bằng script `deploy/deploy.ps1`: sao lưu DB (ra thư mục `wpe-backups` nằm cạnh repo, định dạng `pg_dump -Fc`), `git pull`, build 3 image, `up -d --no-build`, rồi chờ backend `healthy`. Bước nào lỗi thì dừng ngay. Thêm `-Https` nếu đang chạy kèm Caddy, `-SkipPull` để build lại code đang có.
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1
 ```
+
+### 5.1 Deploy từ laptop qua SSH (máy chủ không có màn hình, bàn phím)
+**Cài một lần trên máy chủ Windows** (lần cuối cần cắm màn hình và bàn phím):
+1. Settings → System → Optional features → View features → thêm **OpenSSH Server**. Mở PowerShell quyền Administrator:
+   ```powershell
+   Start-Service sshd
+   Set-Service -Name sshd -StartupType Automatic
+   ```
+   Bộ cài tự mở cổng 22 trên tường lửa Windows (luật `OpenSSH-Server-In-TCP`).
+2. Giữ IP cố định cho máy chủ: trong trang quản lý router, gán IP theo địa chỉ MAC (DHCP reservation). Xem IP bằng `ipconfig`.
+3. Power & battery: Sleep = **Never**.
+4. **Tự đăng nhập Windows** và bật "Start Docker Desktop when you sign in". Docker Desktop chỉ chạy khi có người đăng nhập; máy khởi động lại mà đứng ở màn hình đăng nhập thì web không lên và script báo "Docker chua chay".
+5. (Nên có) Cài RustDesk, AnyDesk hoặc Chrome Remote Desktop để xem màn hình máy chủ từ xa khi cần. Windows bản Home không nhận kết nối Remote Desktop (RDP).
+
+**Mỗi lần deploy, từ laptop** (cùng mạng với máy chủ):
+```bash
+ssh <user-windows>@<ip-may-chu> "cd /d <duong-dan-repo> && powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1"
+```
+Ví dụ: `ssh thien@192.168.1.50 "cd /d C:\wpe\Workflow_Pipeline && powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1"`. Nhập mật khẩu tài khoản Windows của máy chủ khi được hỏi (tài khoản Microsoft thì dùng mật khẩu tài khoản Microsoft, không phải mã PIN).
+
+Lưu ý khi chạy qua SSH:
+- **Đăng nhập bằng mật khẩu**, chưa cần dùng khóa SSH. Đăng nhập bằng khóa thì phiên SSH không có quyền đọc kho mật khẩu của Windows, nên `git pull` (repo riêng tư) hoặc `docker pull` có thể báo lỗi kiểu `A specified logon session does not exist`.
+- Phải SSH bằng **đúng tài khoản Windows đang chạy Docker Desktop**, nếu không lệnh `docker` không thấy Docker.
+- Muốn deploy khi không ở nhà: cài **Tailscale** trên cả hai máy rồi SSH tới IP Tailscale của máy chủ, không cần mở cổng trên router.
+- Khôi phục bản sao lưu khi cần: `docker compose ... cp <file.dump> postgres:/tmp/r.dump` rồi `docker compose ... exec postgres sh -c 'pg_restore -U $POSTGRES_USER -d $POSTGRES_DB --clean --if-exists /tmp/r.dump'` (dừng backend trước).
 Dữ liệu của cơ sở dữ liệu PostgreSQL (`pgdata`) và RabbitMQ (`rabbitmq_data`) được lưu trữ tại Docker named volumes nên không bị mất khi cập nhật image hoặc chạy lại container.
 
 ---
