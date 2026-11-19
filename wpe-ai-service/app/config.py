@@ -31,9 +31,9 @@ class Settings:
     # quá giờ, JSON hỏng). Để trống = chỉ dùng model chính. Hết model mới chuyển sang luật dự phòng.
     GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.1-flash-lite").strip()
     # Thời gian tối đa cho mỗi model đứng trước model cuối (ms). Model cuối được dùng hết thời gian còn lại.
-    GEMINI_TIMEOUT_MS: int = int(os.getenv("GEMINI_TIMEOUT_MS", "12000"))
-    # Tổng thời gian cho cả chuỗi model (ms), phải thấp hơn read-timeout 30 giây của backend Java
-    GEMINI_TOTAL_TIMEOUT_MS: int = int(os.getenv("GEMINI_TOTAL_TIMEOUT_MS", "25000"))
+    GEMINI_TIMEOUT_MS: int = int(os.getenv("GEMINI_TIMEOUT_MS", "90000"))
+    # Tổng thời gian cho cả chuỗi model (ms), phải thấp hơn read-timeout 180 giây của backend Java
+    GEMINI_TOTAL_TIMEOUT_MS: int = int(os.getenv("GEMINI_TOTAL_TIMEOUT_MS", "170000"))
     # Dòng Gemini 2.5: giới hạn số token thinking để tránh cắt JSON output
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "256"))
     # Dòng Gemini 3 trở đi: mức thinking (MINIMAL | LOW | MEDIUM | HIGH). Khi model quá tải,

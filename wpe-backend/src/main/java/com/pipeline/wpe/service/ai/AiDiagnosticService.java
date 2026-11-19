@@ -39,7 +39,7 @@ public class AiDiagnosticService {
     private final ObjectMapper objectMapper;
     private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
-    @Value("${app.ai.cooldown-seconds:180}")
+    @Value("${app.ai.cooldown-seconds:60}")
     private long cooldownSeconds;
 
     /**
@@ -62,8 +62,8 @@ public class AiDiagnosticService {
     }
 
     /**
-     * 9.2 Bấm nút "AI Diagnosis" kích hoạt phân tích mới (có Cooldown 3-5 phút).
-     * Giữ chỗ nguyên tử trên project.ai_requested_at (chống bấm trùng, cooldown 180 giây).
+     * 9.2 Bấm nút "AI Diagnosis" kích hoạt phân tích mới (có cooldown, mặc định 60 giây, đổi bằng AI_COOLDOWN_SECONDS).
+     * Giữ chỗ nguyên tử trên project.ai_requested_at (chống bấm trùng, cooldown app.ai.cooldown-seconds).
      * Gọi AI ngoài transaction. AI lỗi thì trả lại chỗ và ném tiếp (503), không lưu.
      * Thành công thì chỉ ghi cột latest_ai_analysis.
      */

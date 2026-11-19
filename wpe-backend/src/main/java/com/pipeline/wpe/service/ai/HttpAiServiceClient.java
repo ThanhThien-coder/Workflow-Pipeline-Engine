@@ -60,8 +60,8 @@ public class HttpAiServiceClient implements AiServiceClient {
                                NodeDependencyRepository nodeDependencyRepository,
                                @Value("${app.ai.service-url}") String serviceUrl,
                                @Value("${app.ai.diagnose-path:/api/ai/diagnose}") String diagnosePath,
-                               @Value("${app.ai.connect-timeout-seconds:3}") int connectTimeoutSeconds,
-                               @Value("${app.ai.read-timeout-seconds:30}") int readTimeoutSeconds,
+                               @Value("${app.ai.connect-timeout-seconds:5}") int connectTimeoutSeconds,
+                               @Value("${app.ai.read-timeout-seconds:180}") int readTimeoutSeconds,
                                @Value("${app.ai.internal-key:}") String internalKey) {
         this.nodeDependencyRepository = nodeDependencyRepository;
         this.diagnosePath = diagnosePath;
