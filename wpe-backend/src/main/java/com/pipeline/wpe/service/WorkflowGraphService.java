@@ -9,6 +9,7 @@ import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.PhaseDependencyEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.WorkPhaseEntity;
+import com.pipeline.wpe.exception.BadRequestException;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.CycleDetectedException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
@@ -313,12 +314,14 @@ public class WorkflowGraphService {
         // Chỉ owner được thiết kế đồ thị (UC10). Thành viên và Viewer chỉ được đọc.
         ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
-        if (request.phaseId() != null) {
-            WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + request.phaseId()));
-            if (!phase.getProjectId().equals(projectId)) {
-                throw new IllegalArgumentException("The phase does not belong to this project.");
-            }
+        // Mọi task phải thuộc một phase: task không phase không hiện trên đồ thị nhưng vẫn bị đếm ở Overview (S05)
+        if (request.phaseId() == null) {
+            throw new BadRequestException("PHASE_REQUIRED", "A task must belong to a phase.");
+        }
+        WorkPhaseEntity phase = workPhaseRepository.findById(request.phaseId())
+            .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + request.phaseId()));
+        if (!phase.getProjectId().equals(projectId)) {
+            throw new IllegalArgumentException("The phase does not belong to this project.");
         }
 
         // Task mới tạo hôm nay: hạn chót sớm nhất là hôm nay
@@ -340,8 +343,8 @@ public class WorkflowGraphService {
             }
         }
 
-        // Trạng thái ban đầu: Standalone là TODO, nằm trong Phase là LOCKED
-        NodeStatus initialStatus = (request.phaseId() == null) ? NodeStatus.TODO : NodeStatus.LOCKED;
+        // Trạng thái ban đầu: task nằm trong Phase là LOCKED (task không phase đã bị chặn ở trên)
+        NodeStatus initialStatus = NodeStatus.LOCKED;
         JoinPolicy joinPolicy = request.joinPolicy() != null ? request.joinPolicy() : JoinPolicy.ALL_COMPLETED;
         Map<String, Object> metadata = request.uiMetadata() != null ? request.uiMetadata() :
             Map.of("position", Map.of("x", 200, "y", 150), "width", 220, "height", 90);
@@ -710,7 +713,7 @@ public class WorkflowGraphService {
      * ALL_COMPLETED cần mọi cha DONE, ANY_COMPLETED cần ít nhất một cha DONE. Không còn cha thì coi như thỏa.
      * Chỉ đụng tới node LOCKED hoặc TODO; node đã bắt đầu làm thì giữ nguyên.
      */
-    private boolean recomputeNodeStatus(NodeEntity child, List<NodeEntity> parents) {
+    public boolean recomputeNodeStatus(NodeEntity child, List<NodeEntity> parents) {
         boolean satisfied = parents.isEmpty()
             || (child.getJoinPolicy() == JoinPolicy.ANY_COMPLETED
                 ? parents.stream().anyMatch(p -> p.getStatus() == NodeStatus.DONE)

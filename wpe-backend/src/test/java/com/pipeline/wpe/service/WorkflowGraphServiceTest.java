@@ -338,11 +338,25 @@ class WorkflowGraphServiceTest {
     @Test
     @DisplayName("4.3 createNode: Trùng mã code ném ConflictException (HTTP 409)")
     void testCreateNodeDuplicateCode() {
-        CreateNodeRequest req = new CreateNodeRequest(null, "WPE-001", "Task Title", "Desc", JoinPolicy.ALL_COMPLETED, null, null, 8, null);
+        CreateNodeRequest req = new CreateNodeRequest(10L, "WPE-001", "Task Title", "Desc", JoinPolicy.ALL_COMPLETED, null, null, 8, null);
+        when(workPhaseRepository.findById(10L))
+            .thenReturn(Optional.of(WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build()));
         when(nodeRepository.findByProjectIdAndCode(1L, "WPE-001"))
             .thenReturn(Optional.of(NodeEntity.builder().id(99L).code("WPE-001").build()));
 
         assertThrows(ConflictException.class, () -> workflowGraphService.createNode(1L, req, 2L));
+    }
+
+    @Test
+    @DisplayName("S05 createNode: thiếu phaseId ném BadRequestException PHASE_REQUIRED (HTTP 400), không lưu node")
+    void testCreateNodeWithoutPhaseRejected() {
+        CreateNodeRequest req = new CreateNodeRequest(null, null, "Task Title", null, null, null, null, null, null);
+
+        com.pipeline.wpe.exception.BadRequestException ex = assertThrows(
+            com.pipeline.wpe.exception.BadRequestException.class,
+            () -> workflowGraphService.createNode(1L, req, 2L));
+        assertEquals("PHASE_REQUIRED", ex.getErrorCode());
+        verify(nodeRepository, never()).save(any());
     }
 
     @Test

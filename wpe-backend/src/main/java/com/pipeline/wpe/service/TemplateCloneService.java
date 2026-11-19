@@ -193,6 +193,7 @@ public class TemplateCloneService {
 
         // 1. Nhân bản các WorkPhase từ Template graphData
         List<Map<String, Object>> phasesData = (List<Map<String, Object>>) graphData.get("phases");
+        Long firstPhaseId = null; // phase đầu tiên: nơi nhận node template thiếu phaseId (S05)
         if (phasesData != null) {
             int order = 0;
             for (Map<String, Object> p : phasesData) {
@@ -220,6 +221,9 @@ public class TemplateCloneService {
                     .build();
                 WorkPhaseEntity savedPhase = workPhaseRepository.save(newPhase);
                 phaseKeyMap.put(phaseKey, savedPhase.getId());
+                if (firstPhaseId == null) {
+                    firstPhaseId = savedPhase.getId();
+                }
                 try {
                     phaseIdMap.put(Long.parseLong(phaseKey), savedPhase.getId());
                 } catch (NumberFormatException ignored) {}
@@ -319,6 +323,10 @@ public class TemplateCloneService {
                 String rawId = n.get("id") != null ? n.get("id").toString() : String.valueOf(nodeSeq);
                 String oldPhaseKey = n.get("phaseId") != null ? n.get("phaseId").toString() : null;
                 Long newPhaseId = oldPhaseKey != null ? phaseKeyMap.get(oldPhaseKey) : null;
+                if (newPhaseId == null) {
+                    // Không để node mồ côi (phase_id NULL): gán vào phase đầu tiên của dự án mới
+                    newPhaseId = firstPhaseId;
+                }
                 boolean hasIncoming = nodeIdsWithIncoming.contains(rawId);
 
                 NodeStatus initialStatus = hasIncoming ? NodeStatus.LOCKED : NodeStatus.TODO;

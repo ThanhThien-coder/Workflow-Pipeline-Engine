@@ -67,6 +67,8 @@ app:
     password: ${SEED_ACCOUNT_PASSWORD:}
   demo-tools:
     enabled: ${DEMO_TOOLS_ENABLED:false}
+  maintenance:
+    cleanup-orphan-nodes: ${CLEANUP_ORPHAN_NODES:true}
   frontend:
     base-url: ${APP_PUBLIC_URL:http://localhost:5173}
   upload:
