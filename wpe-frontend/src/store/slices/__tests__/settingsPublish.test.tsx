@@ -97,22 +97,23 @@ function projectWith(status: string): ProjectSettingsDto {
   }
 }
 
-describe('B6: nút Publish theo trạng thái dự án (khớp backend B4: DRAFT hoặc PLANNING)', () => {
+describe('Settings: nút bắt đầu dự án chuyển sang màn Workflow (DRAFT hoặc PLANNING thì có nút dẫn sang)', () => {
   const noop = async () => true
 
-  it.each(['DRAFT', 'PLANNING'] as const)('dự án %s: owner thấy nút Publish Pipeline', (status) => {
+  it.each(['DRAFT', 'PLANNING'] as const)('dự án %s: owner thấy nút "Start project in Workflow", không còn nút Publish ở Settings', (status) => {
     render(<GeneralSettingsSection settings={projectWith(status)} myRole="OWNER" onSave={noop} onPublish={noop} />)
-    expect(screen.queryByRole('button', { name: /publish pipeline/i })).not.toBeNull()
-  })
-
-  it.each(['ACTIVE', 'ARCHIVED'] as const)('dự án %s: không có nút Publish Pipeline', (status) => {
-    render(<GeneralSettingsSection settings={projectWith(status)} myRole="OWNER" onSave={noop} onPublish={noop} />)
+    expect(screen.queryByRole('button', { name: /start project in workflow/i })).not.toBeNull()
     expect(screen.queryByRole('button', { name: /publish pipeline/i })).toBeNull()
   })
 
-  it('không phải owner: không có nút Publish Pipeline', () => {
+  it.each(['ACTIVE', 'ARCHIVED'] as const)('dự án %s: không có nút bắt đầu dự án', (status) => {
+    render(<GeneralSettingsSection settings={projectWith(status)} myRole="OWNER" onSave={noop} onPublish={noop} />)
+    expect(screen.queryByRole('button', { name: /start project in workflow/i })).toBeNull()
+  })
+
+  it('không phải owner: không có nút bắt đầu dự án', () => {
     render(<GeneralSettingsSection settings={projectWith('DRAFT')} myRole="COLLABORATOR" onSave={noop} onPublish={noop} />)
-    expect(screen.queryByRole('button', { name: /publish pipeline/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /start project in workflow/i })).toBeNull()
   })
 })
 

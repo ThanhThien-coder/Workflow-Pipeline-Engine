@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Archive, RotateCcw } from 'lucide-react'
 import type { ProjectRole, ProjectSettingsDto, UpdateProjectCommand } from '../../types/settings.types'
 import { container } from '../../services/container'
+import { navigate } from '../../router/useRouter'
 
 interface GeneralSettingsSectionProps {
   settings: ProjectSettingsDto | null
   myRole: ProjectRole
   onSave: (cmd: UpdateProjectCommand) => Promise<boolean>
-  onPublish: () => Promise<boolean>
+  /** Không còn dùng: bắt đầu / đổi trạng thái dự án nằm ở màn Workflow (ProjectStatusControl). Giữ để không đổi chỗ gọi. */
+  onPublish?: () => Promise<boolean>
   onRestore?: () => Promise<void>
   projectId?: string
 }
@@ -23,7 +25,6 @@ export function GeneralSettingsSection({
   settings,
   myRole,
   onSave,
-  onPublish,
   onRestore,
   projectId,
 }: GeneralSettingsSectionProps) {
@@ -36,7 +37,6 @@ export function GeneralSettingsSection({
   const canPublish = statusText === 'DRAFT' || statusText === 'PLANNING'
   const [form, setForm] = useState({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
-  const [publishing, setPublishing] = useState(false)
   const [restoring, setRestoring] = useState(false)
 
   const [showTemplateModal, setShowTemplateModal] = useState(false)
@@ -66,16 +66,6 @@ export function GeneralSettingsSection({
       await onSave({ name: form.name.trim(), description: form.description.trim() })
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handlePublish = async () => {
-    if (!isOwner || !canPublish || publishing) return
-    setPublishing(true)
-    try {
-      await onPublish()
-    } finally {
-      setPublishing(false)
     }
   }
 
@@ -182,11 +172,11 @@ export function GeneralSettingsSection({
             {isOwner && canPublish && (
               <button
                 type="button"
-                onClick={handlePublish}
-                disabled={publishing}
-                className="whitespace-nowrap rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-40"
+                onClick={() => navigate(`/project/${currentProjectId}/workflow`)}
+                className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                title="Start, pause or complete the project from the Workflow screen"
               >
-                {publishing ? 'Publishing...' : 'Publish Pipeline'}
+                Start project in Workflow →
               </button>
             )}
 

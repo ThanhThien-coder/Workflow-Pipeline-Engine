@@ -16,6 +16,7 @@ import { computeMacroGraphLayout, MACRO_CARD_H, MACRO_CARD_W } from '../../utils
 import { arrangePhases, autoLayoutColumns, channelOffsets, columnX, phaseColumns, routeEdge } from '../../utils/phaseColumnLayout'
 import { WorkflowArtifactsIsland } from '../workspace/WorkflowArtifactsIsland'
 import { WorkflowArtifactsDrawer } from '../workspace/WorkflowArtifactsDrawer'
+import { ProjectStatusControl } from './ProjectStatusControl'
 import { pluralize } from '../../utils/pluralize'
 import { phaseDisplayName } from '../../utils/phaseName'
 
@@ -248,6 +249,12 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Trạng thái dự án + nút Start / Pause / Resume / Complete / Reopen (chỉ chủ dự án) */}
+          <div data-pan-zoom-ignore>
+            <ProjectStatusControl projectId={projectId} />
+          </div>
+          <span className="h-5 w-px bg-slate-200" aria-hidden />
+
           {/* Add Phase Button */}
           <button
             type="button"
