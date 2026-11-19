@@ -4,6 +4,7 @@ import type { ArtifactType, KanbanTask, ReopenImpact, TaskStatus, UserSummary } 
 import type { BranchGraphNode, MacroPhase } from '../types/workflow.types'
 import { evaluateTransition } from '../domain/taskTransitions'
 import { useWorkflowStore } from '../store/useWorkflowStore'
+import { selectProjectStatus } from '../store/projectInfo'
 import { ApiError } from '../services/http/ApiError'
 import { phaseDisplayName } from '../utils/phaseName'
 
@@ -140,7 +141,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         return
       }
 
-      const decision = evaluateTransition(task, to, actor)
+      const decision = evaluateTransition(task, to, actor, selectProjectStatus(useWorkflowStore.getState()))
       if (decision.kind === 'deny') {
         if (decision.message) showToast(decision.message)
         return

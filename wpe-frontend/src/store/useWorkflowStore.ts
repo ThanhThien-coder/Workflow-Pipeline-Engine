@@ -7,6 +7,7 @@ import { ApiError } from '../services/http/ApiError'
 import { computePhaseProgress, syncTrackProgress, withPhaseProgress } from '../domain/phaseProgress'
 import { deleteNodeCascade } from '../utils/spanningTreeLayout'
 import { rootIdOf } from '../mappers/graphMapper'
+import { currentProjectInfo } from './projectInfo'
 import { computeNewPhasePosition } from '../utils/macroLayout'
 import { getStoredProjectGraph, saveStoredProjectGraph } from '../services/mock/mockProjectGraphStore'
 import { TREES } from '../services/MockWorkflowService'
@@ -78,15 +79,6 @@ export interface WorkflowState
   /** T6: chủ dự án mở khóa sớm task đang khóa, rồi đọc lại cây. */
   forceUnlockNode: (phaseId: string, nodeId: string) => Promise<void>
   setActiveTab: (tab: NavigationTab) => void
-}
-
-/** Thông tin dự án đang mở có vai trò của tôi: bản ở Settings nếu đã tải, không thì bản tải lúc vào dự án. */
-function currentProjectInfo(state: Pick<WorkflowState, 'settings' | 'project' | 'currentProjectId'>): ProjectSettingsDto | null {
-  const matches = (info: ProjectSettingsDto | null): info is ProjectSettingsDto =>
-    info != null && (!state.currentProjectId || String(info.id) === String(state.currentProjectId))
-  if (matches(state.settings.settings)) return state.settings.settings
-  if (matches(state.project.info)) return state.project.info
-  return null
 }
 
 /**

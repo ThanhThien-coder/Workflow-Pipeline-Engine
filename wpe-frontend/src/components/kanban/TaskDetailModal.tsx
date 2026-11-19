@@ -24,6 +24,10 @@ import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput }
 import { useDismiss } from '../../hooks/useDismiss'
 import { getSavedAvatar } from '../../utils/avatarUtils'
 import { navigate } from '../../router/useRouter'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectProjectStatus } from '../../store/projectInfo'
+import { isMemberWorkLocked } from '../../domain/projectWork'
+import { ProjectNotActiveBanner } from '../common/ProjectNotActiveBanner'
 
 const statusConfigs: Record<
   TaskStatus,
@@ -124,6 +128,9 @@ export function TaskDetailModal({
   }, [showRejectModal])
 
   const canReview = actor.projectRole === 'OWNER' || actor.projectRole === 'MANAGER'
+  // Dự án chưa chạy (không ACTIVE): Cộng tác viên chỉ xem task (backend trả 409 PROJECT_NOT_ACTIVE)
+  const projectStatus = useWorkflowStore(selectProjectStatus)
+  const workLocked = isMemberWorkLocked(projectStatus, actor.projectRole)
   const assignee = members.find((member) => member.id === task.assignedUserId) || actor
   const assigneeAvatar = assignee.avatarUrl || getSavedAvatar(assignee.name || assignee.id)
   const statusCfg = statusConfigs[task.status]
@@ -238,6 +245,8 @@ export function TaskDetailModal({
         {/* ── Modal Body ── */}
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
           {/* Rejection Alert Banner (when changes requested) */}
+          {workLocked && <ProjectNotActiveBanner projectStatus={projectStatus} />}
+
           {task.status === 'IN_PROGRESS' && task.rejectReason && (
             <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 shadow-sm">
               <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
@@ -432,7 +441,7 @@ export function TaskDetailModal({
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Deliverables & Evidence ({task.artifacts.length})
               </h3>
-              {task.status !== 'DONE' && !showAttachForm && (
+              {task.status !== 'DONE' && !showAttachForm && !workLocked && (
                 <button
                   type="button"
                   onClick={() => setShowAttachForm(true)}
@@ -584,7 +593,7 @@ export function TaskDetailModal({
 
           <div className="flex items-center gap-2">
             {/* TODO Actions */}
-            {task.status === 'TODO' && (
+            {task.status === 'TODO' && !workLocked && (
               <button
                 type="button"
                 disabled={pending}
@@ -597,7 +606,7 @@ export function TaskDetailModal({
             )}
 
             {/* IN_PROGRESS Actions */}
-            {task.status === 'IN_PROGRESS' && (
+            {task.status === 'IN_PROGRESS' && !workLocked && (
               <>
                 <button
                   type="button"

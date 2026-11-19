@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useWorkflowStore } from '../store/useWorkflowStore'
+import { selectMemberWorkLocked, selectProjectStatus } from '../store/projectInfo'
+import { ProjectNotActiveBanner } from '../components/common/ProjectNotActiveBanner'
 import { KanbanToolbar } from '../components/kanban/KanbanToolbar'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { SubmitArtifactModal } from '../components/kanban/SubmitArtifactModal'
@@ -44,6 +46,8 @@ export function MyTasksView({
   const submitArtifact = useWorkflowStore((state) => state.kanban.submitArtifact)
   const submitTaskArtifact = useWorkflowStore((state) => state.kanban.submitTaskArtifact)
   const reopenTask = useWorkflowStore((state) => state.kanban.reopenTask)
+  const workLocked = useWorkflowStore(selectMemberWorkLocked)
+  const projectStatus = useWorkflowStore(selectProjectStatus)
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
@@ -168,6 +172,8 @@ export function MyTasksView({
         )}
         </div>
       </div>
+
+      {workLocked && <ProjectNotActiveBanner projectStatus={projectStatus} className="mx-6 mt-3" />}
 
       {/* Toolbar */}
       <KanbanToolbar

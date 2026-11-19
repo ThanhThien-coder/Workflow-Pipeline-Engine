@@ -69,6 +69,8 @@ export const ROLE_PERMISSIONS: RolePermissionRow[] = [
   row('Change assignee and due date', true, true, false, false),
   row('Resolve guest feedback', true, true, false, false),
   row('Start, return or submit a task', 'Any task', 'If assigned', 'If assigned', false),
+  row('Work on tasks while the project is not active (Draft, Paused, Completed)', true, true, false, false),
+  row('Start, pause, complete or reopen the project (Workflow screen)', true, false, false, false),
   row('Add artifacts', true, true, true, false),
   row('Delete an artifact', true, 'Own uploads', 'Own uploads', 'Own uploads'),
 ]

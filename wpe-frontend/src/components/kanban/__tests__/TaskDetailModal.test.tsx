@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskDetailModal } from '../TaskDetailModal'
+import { useWorkflowStore } from '../../../store/useWorkflowStore'
 import type { KanbanTask, UserSummary } from '../../../types/kanban.types'
 
 describe('TaskDetailModal Component', () => {
@@ -248,5 +249,31 @@ describe('TaskDetailModal Component', () => {
     )
     expect(options()).toContain('4')
     expect((screen.getByLabelText('Assignee') as HTMLSelectElement).value).toBe('4')
+  })
+  describe('dự án chưa chạy (không ACTIVE)', () => {
+    const setProject = (status: string, myRole: string) =>
+      useWorkflowStore.setState((st) => ({
+        currentProjectId: '7',
+        settings: { ...st.settings, settings: null },
+        project: { ...st.project, info: { id: '7', name: 'P', description: '', status, ownerId: '1', myRole, createdAt: '', updatedAt: '' } as never },
+      }))
+    afterEach(() => useWorkflowStore.setState((st) => ({ project: { ...st.project, info: null } })))
+
+    it('Cộng tác viên (người được giao) ở dự án DRAFT: có băng báo, không có nút Start và Add Deliverable', () => {
+      setProject('DRAFT', 'COLLABORATOR')
+      render(<TaskDetailModal task={{ ...mockTask, status: 'TODO' }} actor={mockMembers[1]} members={mockMembers} onClose={vi.fn()} onMove={vi.fn()} />)
+
+      expect(screen.getByTestId('project-not-active-banner')).toBeDefined()
+      expect(screen.queryByRole('button', { name: /Start Task/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: /Add Deliverable/i })).toBeNull()
+    })
+
+    it('Quản lý ở dự án PAUSED: không có băng báo, vẫn có nút Start', () => {
+      setProject('PAUSED', 'MANAGER')
+      render(<TaskDetailModal task={{ ...mockTask, status: 'TODO', assignedUserId: '3' }} actor={managerActor} members={mockMembers} onClose={vi.fn()} onMove={vi.fn()} />)
+
+      expect(screen.queryByTestId('project-not-active-banner')).toBeNull()
+      expect(screen.getByRole('button', { name: /Start Task/i })).toBeDefined()
+    })
   })
 })

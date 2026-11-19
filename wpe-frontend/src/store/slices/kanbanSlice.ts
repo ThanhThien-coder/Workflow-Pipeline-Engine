@@ -4,6 +4,7 @@ import { getStoredUserId } from '../../services/http/apiClient'
 import { ApiError } from '../../services/http/ApiError'
 import { phaseDisplayName } from '../../utils/phaseName'
 import { evaluateTransition } from '../../domain/taskTransitions'
+import { selectProjectStatus, type ProjectInfoState } from '../projectInfo'
 import type { ArtifactsSlice } from './artifactsSlice'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -61,7 +62,7 @@ export const createKanbanSlice = (set: (update: (state: KanbanSlice) => KanbanSl
       // Người thao tác là người đang đăng nhập, không mượn quyền người khác
       const actor = k().members.find((member) => member.id === k().currentUserId);
       if (!task || !actor || k().pendingTaskIds.includes(taskId)) return
-      const decision = evaluateTransition(task, to, actor)
+      const decision = evaluateTransition(task, to, actor, selectProjectStatus(get() as unknown as ProjectInfoState))
       if (decision.kind === 'deny') { if (decision.message) k().showToast(decision.message); return }
       if (decision.kind === 'needs-artifact') { set((state) => ({ ...state, kanban: { ...state.kanban, isSubmitModalOpen: true, submittingTaskId: taskId } })); return }
       // Trả task từ Review về In Progress: backend bắt buộc có lý do (UI hỏi lý do trước khi gọi vào đây)

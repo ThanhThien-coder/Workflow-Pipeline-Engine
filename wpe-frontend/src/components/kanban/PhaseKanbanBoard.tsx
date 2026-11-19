@@ -4,6 +4,9 @@ import { TaskCard } from './TaskCard'
 import { RejectReasonModal } from './RejectReasonModal'
 import { evaluateTransition } from '../../domain/taskTransitions'
 import { normalizeText } from '../../utils/searchProject'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectMemberWorkLocked, selectProjectStatus } from '../../store/projectInfo'
+import { ProjectNotActiveBanner } from '../common/ProjectNotActiveBanner'
 
 // Cột "Đang khóa" đứng đầu: task chờ task trước xong. Không kéo ra khỏi cột này, cũng không thả vào.
 const COLUMNS: TaskStatus[] = ['LOCKED', 'TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']
@@ -79,6 +82,9 @@ export function PhaseKanbanBoard({
   // Kéo REVIEW -> IN_PROGRESS: backend bắt buộc có lý do, nên hỏi lý do trước khi gọi API
   const [rejectTask, setRejectTask] = useState<KanbanTask | null>(null)
   // Thanh lọc: chữ (mã, tên), người làm ('ALL' | 'UNASSIGNED' | id thành viên), chỉ task của tôi
+  // Dự án chưa chạy: Cộng tác viên chỉ xem (kéo thẻ bị luật chuyển trạng thái chặn, kèm câu báo)
+  const workLocked = useWorkflowStore(selectMemberWorkLocked)
+  const projectStatus = useWorkflowStore(selectProjectStatus)
   const [filterText, setFilterText] = useState('')
   const [filterAssignee, setFilterAssignee] = useState<string>('ALL')
   const [onlyMine, setOnlyMine] = useState(false)
@@ -163,6 +169,8 @@ export function PhaseKanbanBoard({
           </span>
         </div>
       </div>
+
+      {workLocked && <ProjectNotActiveBanner projectStatus={projectStatus} className="mb-3" />}
 
       {/* Thanh lọc: chữ, người làm, chỉ task của tôi */}
       <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2 text-xs" data-testid="kanban-filter-bar">
