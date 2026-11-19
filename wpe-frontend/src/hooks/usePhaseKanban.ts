@@ -96,7 +96,8 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
       .filter((n) => n.kind === 'branch')
       .map((n) => {
         const b = n as BranchGraphNode
-        return [b.id, b.status, b.title, b.assignee ?? '', b.due ?? '', b.joinPolicy ?? '', b.isOverdue ? 1 : 0, b.forceUnlocked ? 1 : 0].join(':')
+        // Có cả mô tả: chỉ sửa mô tả cũng tải lại Kanban (chi tiết task đọc mô tả từ Kanban)
+        return [b.id, b.status, b.title, b.description ?? '', b.assignee ?? '', b.due ?? '', b.joinPolicy ?? '', b.isOverdue ? 1 : 0, b.forceUnlocked ? 1 : 0].join(':')
       })
       .sort()
       .join('|')

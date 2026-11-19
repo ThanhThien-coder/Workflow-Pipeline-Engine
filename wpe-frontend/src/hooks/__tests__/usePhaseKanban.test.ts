@@ -186,4 +186,20 @@ describe('usePhaseKanban', () => {
     await new Promise((r) => setTimeout(r, 450))
     expect(getPhaseTasks).toHaveBeenCalledTimes(2)
   })
+
+  it('chỉ sửa mô tả task trên cây -> Kanban tải lại (chi tiết task đọc mô tả từ Kanban)', async () => {
+    const mk = (description: string) =>
+      ({ id: '1', kind: 'branch', code: '1', title: 'T1', description, isTrack: false, status: 'TODO', assignee: null, due: null, blocker: null, joinPolicy: 'ALL_COMPLETED', parentIds: ['root_56'] }) as never
+    useWorkflowStore.setState({ trees: { '56': { root_56: { id: 'root_56', kind: 'root', title: 'P', parentIds: [] }, '1': mk('cũ') } } })
+    cleanup()
+    const getPhaseTasks = vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
+
+    renderHook(() => usePhaseKanban(PHASE, '19'))
+    await waitFor(() => expect(getPhaseTasks).toHaveBeenCalledTimes(1))
+
+    act(() => {
+      useWorkflowStore.setState((s) => ({ trees: { '56': { ...s.trees['56'], '1': mk('mô tả mới') } } }))
+    })
+    await waitFor(() => expect(getPhaseTasks).toHaveBeenCalledTimes(2), { timeout: 2000 })
+  })
 })
