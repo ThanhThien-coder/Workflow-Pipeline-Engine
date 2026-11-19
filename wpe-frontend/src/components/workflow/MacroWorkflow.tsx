@@ -286,6 +286,11 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
       <div
         ref={panZoom.viewportRef}
         className="workflow-surface relative min-h-0 flex-1 overflow-hidden"
+        onScroll={(event) => {
+          // Khung nhìn chỉ di chuyển bằng pan/zoom; trình duyệt tự cuộn (kéo chọn chữ, focus) làm Fit lệch và nút zoom trôi đi
+          event.currentTarget.scrollTop = 0
+          event.currentTarget.scrollLeft = 0
+        }}
         onMouseDown={panZoom.onMouseDown}
         onMouseMove={panZoom.onMouseMove}
         onMouseUp={panZoom.onMouseUp}

@@ -55,6 +55,17 @@ describe('MacroWorkflow — trạng thái tải, Fit, nút Artifacts (TASK_72)',
     expect(load).toHaveBeenCalledWith('7')
   })
 
+  it('canvas không bị trình duyệt tự cuộn (cuộn native bị đặt lại về 0)', () => {
+    useWorkflowStore.setState({ graphStatus: 'ready' })
+    const { container } = render(<MacroWorkflow projectId="7" />)
+    const surface = container.querySelector('.workflow-surface') as HTMLDivElement
+    surface.scrollLeft = 640
+    surface.scrollTop = 300
+    fireEvent.scroll(surface)
+    expect(surface.scrollLeft).toBe(0)
+    expect(surface.scrollTop).toBe(0)
+  })
+
   it('sẵn sàng nhưng 0 phase thì hiện câu hướng dẫn', () => {
     useWorkflowStore.setState({ graphStatus: 'ready' })
     render(<MacroWorkflow projectId="7" />)
