@@ -68,6 +68,20 @@ describe('DemoToolsPanel (TASK_74)', () => {
     expect(await screen.findByLabelText('Toggle demo tools')).toBeDefined()
   })
 
+  it('variant header: nút nhỏ chữ "Demo", bấm mở bảng neo dưới nút', async () => {
+    vi.mocked(demo.fetchDemoStatus).mockResolvedValue(true)
+    setup({ myRole: 'OWNER', systemRole: 'USER' })
+    render(<DemoToolsPanel projectId="5" variant="header" />)
+    const btn = await screen.findByLabelText('Toggle demo tools')
+    expect(btn.textContent).toBe('Demo')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(btn)
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.className).toContain('absolute')
+    expect(dialog.className).toContain('top-full')
+    expect(dialog.className).toContain('right-0')
+  })
+
   it('status true + COLLABORATOR (không ADMIN) -> không render', async () => {
     vi.mocked(demo.fetchDemoStatus).mockResolvedValue(true)
     setup({ myRole: 'COLLABORATOR', systemRole: 'USER' })

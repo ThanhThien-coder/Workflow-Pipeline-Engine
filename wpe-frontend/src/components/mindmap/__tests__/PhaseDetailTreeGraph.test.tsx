@@ -4,7 +4,6 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import React from 'react'
 import { WorkflowService } from '../../../services/workflow/WorkflowService'
 import { WorkflowServiceProvider } from '../../../services/workflow/WorkflowContext'
-import { MicroGraphTree } from '../MicroGraphTree'
 import { AddGhostModal } from '../AddGhostModal'
 import { AddRootTaskModal } from '../AddRootTaskModal'
 import { GhostCard } from '../GhostCard'
@@ -143,7 +142,8 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
         />
       )
 
-      expect(screen.getByText('[GHOST - P1]')).toBeDefined()
+      expect(screen.getByText('From Other phase')).toBeDefined()
+      expect(screen.queryByText(/GHOST/)).toBeNull()
       expect(screen.getByText('Completed ✓')).toBeDefined()
       expect(container.querySelector('.border-dashed')).toBeDefined()
 
@@ -173,6 +173,7 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
         refId: 'x1',
         dir: 'up',
         status: 'LOCKED',
+        sourcePhaseTitle: 'Discovery',
       }
 
       const { container } = render(
@@ -183,7 +184,8 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
         />
       )
 
-      expect(screen.getByText('[GHOST - P2B]')).toBeDefined()
+      expect(screen.getByText('From Discovery')).toBeDefined()
+      expect(screen.queryByText(/P2B/i)).toBeNull()
       expect(screen.getByText('Waiting Prerequisite ⏳')).toBeDefined()
       expect(screen.queryByTitle(/connect dependency/i)).toBeNull()
       expect(container.querySelector('button[title="Remove ghost prerequisite"]')).toBeDefined()
@@ -191,26 +193,13 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
   })
 
   describe('Bottom Toolbar & Redesigned Modals (100% English)', () => {
-    it('renders 100% English bottom toolbar buttons (+ Add task and Add Ghost Node)', () => {
+    // Nút "+ Add task" / "Add Ghost Node" trên thanh công cụ đã có test ở MindmapTree.connect.test.tsx và graphRoleLock.test.tsx
+    it('opens 3-step cascading AddGhostModal with English labels', async () => {
       render(
         <WorkflowServiceProvider>
-          <MicroGraphTree phaseId="p2a" />
+          <AddGhostModal isOpen onClose={vi.fn()} currentPhaseId="p2a" />
         </WorkflowServiceProvider>
       )
-
-      expect(screen.getByText('+ Add task')).toBeDefined()
-      expect(screen.getByText('Add Ghost Node')).toBeDefined()
-    })
-
-    it('opens 3-step cascading AddGhostModal with English labels when clicking Add Ghost Node', async () => {
-      render(
-        <WorkflowServiceProvider>
-          <MicroGraphTree phaseId="p2a" />
-        </WorkflowServiceProvider>
-      )
-
-      const addGhostBtn = screen.getByText('Add Ghost Node')
-      fireEvent.click(addGhostBtn)
 
       // Modal header
       expect(screen.getByText('Attach Ghost Prerequisite')).toBeDefined()
@@ -229,17 +218,15 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
       expect(screen.getByText('Attach Ghost Node')).toBeDefined()
     })
 
-    it('opens AddRootTaskModal when clicking + Add task', () => {
+    it('AddRootTaskModal mặc định ghi "Add task" (root đã ẩn)', () => {
       render(
         <WorkflowServiceProvider>
-          <MicroGraphTree phaseId="p2a" />
+          <AddRootTaskModal isOpen onClose={vi.fn()} phaseId="p2a" />
         </WorkflowServiceProvider>
       )
 
-      const addRootBtn = screen.getByText('+ Add task')
-      fireEvent.click(addRootBtn)
-
-      expect(screen.getByText('Add Root Task')).toBeDefined()
+      expect(screen.getByText('Add task')).toBeDefined()
+      expect(screen.queryByText('Add Root Task')).toBeNull()
       expect(screen.getByLabelText('Task / Milestone Title')).toBeDefined()
       expect(screen.getByText('Create Task')).toBeDefined()
     })

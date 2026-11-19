@@ -304,6 +304,50 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
       expect(byId.g3.y).toBeGreaterThan(byId.g2.y + byId.g2.height - 1)
     })
 
+    it('phase có ghost: mọi task gốc cùng x (cột 1), ghost ở cột 0, con dịch theo, không thẻ nào đè nhau', () => {
+      const nodes: GraphNodeMap = {
+        root_1: root,
+        a: task('a', ['root_1']),
+        b: task('b', ['root_1']),
+        c: task('c', ['root_1']),
+        c1: task('c1', ['c']),
+        g1: ghost('g1', 'b'),
+        g2: ghost('g2', 'b'),
+      }
+      const { layoutNodes } = calculatePhaseGraphLayout(nodes)
+      const byId = Object.fromEntries(layoutNodes.map((n) => [n.id, n]))
+
+      // task gốc có ghost (b) và không có ghost (a, c) cùng x = START_X + LEVEL_STEP_X
+      expect(byId.a.x).toBe(320)
+      expect(byId.b.x).toBe(byId.a.x)
+      expect(byId.c.x).toBe(byId.a.x)
+      expect(byId.c1.x).toBe(600)
+      // ghost ở cột 0, bên trái task đích, ngang hàng (cùng khối dọc) với task đích
+      ;['g1', 'g2'].forEach((id) => {
+        expect(byId[id].x).toBe(40)
+        expect(byId[id].x + byId[id].width).toBeLessThanOrEqual(byId.b.x)
+      })
+      const gTop = Math.min(byId.g1.y, byId.g2.y)
+      const gBottom = Math.max(byId.g1.y + byId.g1.height, byId.g2.y + byId.g2.height)
+      expect(byId.b.centerY).toBeGreaterThanOrEqual(gTop)
+      expect(byId.b.centerY).toBeLessThanOrEqual(gBottom)
+
+      for (let i = 0; i < layoutNodes.length; i++) {
+        for (let j = i + 1; j < layoutNodes.length; j++) {
+          const a = layoutNodes[i]
+          const b = layoutNodes[j]
+          const overlap = a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+          expect(overlap, `${a.id} đè ${b.id}`).toBe(false)
+        }
+      }
+    })
+
+    it('phase không có ghost: task gốc vẫn ở cột 0', () => {
+      const nodes: GraphNodeMap = { root_1: root, a: task('a', ['root_1']), b: task('b', ['root_1']) }
+      const { layoutNodes } = calculatePhaseGraphLayout(nodes)
+      layoutNodes.forEach((n) => expect(n.x).toBe(40))
+    })
+
     it('dây phụ thuộc thật (task -> task) đánh dấu isDependency, dây track thì không', () => {
       const { layoutEdges } = calculatePhaseGraphLayout(initialNodes)
       // root -> track không còn; track -> task là dây cấu trúc

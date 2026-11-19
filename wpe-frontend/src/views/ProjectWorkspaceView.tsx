@@ -117,6 +117,8 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
             >
               All Pipelines
             </button>
+            {/* #24: công cụ demo, tự ẩn khi backend tắt DEMO_TOOLS_ENABLED hoặc người xem không phải chủ dự án / admin */}
+            <DemoToolsPanel projectId={projectId} variant="header" />
             <NotificationBell />
             <GlobalProfileMenu
               displayName={displayName}
@@ -149,8 +151,6 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
               {currentTab === 'settings' && <SettingsView projectId={projectId} />}
             </motion.div>
           </AnimatePresence>
-          {/* #24: công cụ demo, tự ẩn khi backend tắt DEMO_TOOLS_ENABLED hoặc người xem không phải chủ dự án / admin */}
-          <DemoToolsPanel projectId={projectId} />
         </main>
       </div>
     </div>

@@ -19,8 +19,8 @@ export function AddRootTaskModal({
   onClose,
   phaseId,
   onCreated,
-  heading = 'Add Root Task',
-  description = 'Create a top-level track or milestone under the Phase Root.',
+  heading = 'Add task',
+  description = 'Create a new task in this phase.',
   placeholder = 'e.g. Track: Core Database & Migration',
 }: AddRootTaskModalProps) {
   const [title, setTitle] = useState('')

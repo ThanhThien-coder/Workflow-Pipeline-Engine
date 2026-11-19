@@ -318,8 +318,9 @@ const GHOST_GAP_Y = 12
  *   Các node không có cha trong phase là cột đầu tiên (level 0, X = START_X).
  * - Dynamic Level-based X: X = START_X + level * LEVEL_STEP_X (40, 320, 600, 880, ...)
  * - Ghost là CHA của task đích nên đứng BÊN TRÁI nó, trong một cột riêng ngay trước task (level - 1).
- *   Task có ghost được đẩy sang phải 1 cột để cột đó không đè lên cha thật của nó; ghost nằm gọn trong
- *   khối dọc của task đích nên không đè thẻ khác. Dây đi ghost → task.
+ *   Phase có ghost: cột 0 chừa cho ghost, mọi task gốc ở cột 1 (x = START_X + LEVEL_STEP_X) nên thẳng hàng
+ *   dù có ghost hay không. Task con (không phải gốc) có ghost vẫn được đẩy sang phải 1 cột để ghost không
+ *   đè lên cha thật; ghost nằm gọn trong khối dọc của task đích nên không đè thẻ khác. Dây đi ghost → task.
  * - Recursive Subtree Height & Accumulator Spacing; cha căn giữa theo khối con.
  */
 export function calculatePhaseGraphLayout(
@@ -576,10 +577,12 @@ export function calculatePhaseGraphLayout(
 
   // Root ảo không được vẽ: các con của nó là cột đầu tiên (level 0, X = START_X), xếp từ START_Y
   {
+    // Phase có ghost: cột 0 dành cho ghost, mọi task gốc nằm cột 1 (thẳng hàng dù có ghost hay không)
+    const rootBaseLevel = Object.keys(ghostsByTarget).length > 0 ? 1 : 0
     const rootChildren = visibleChildren(rootNode.id)
     let childY = CARD_DIMENSIONS.START_Y
     rootChildren.forEach((child, i) => {
-      layoutSubtree(child.id, ghostClusterHeight(child.id) > 0 ? 1 : 0, childY)
+      layoutSubtree(child.id, rootBaseLevel, childY)
       childY += measureSubtreeHeight(child.id)
       if (i < rootChildren.length - 1) childY += siblingExtra(child, rootChildren[i + 1])
     })

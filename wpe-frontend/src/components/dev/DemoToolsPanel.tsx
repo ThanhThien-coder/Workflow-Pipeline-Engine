@@ -19,13 +19,15 @@ const STATUSES: NodeStatus[] = ['LOCKED', 'TODO', 'IN_PROGRESS', 'REVIEW', 'DONE
 
 interface DemoToolsPanelProps {
   projectId: string
+  /** 'header': nút nhỏ "Demo" trên thanh header, bảng mở dưới nút. Mặc định 'floating': nút tròn "D" nổi ở cạnh dưới. */
+  variant?: 'floating' | 'header'
 }
 
 /**
  * TASK_74 — Panel công cụ demo (chỉ để test đồ án). Hiện khi backend bật demo-tools
  * và người dùng là OWNER của dự án hoặc ADMIN hệ thống. Gọi API thật, không dùng mock.
  */
-export function DemoToolsPanel({ projectId }: DemoToolsPanelProps) {
+export function DemoToolsPanel({ projectId, variant = 'floating' }: DemoToolsPanelProps) {
   const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -101,14 +103,24 @@ export function DemoToolsPanel({ projectId }: DemoToolsPanelProps) {
   const btn =
     'px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed'
 
+  const isHeader = variant === 'header'
+
   return (
-    // Giữa cạnh dưới: góc dưới trái là thanh "+ Add task" của cây task, góc dưới phải là nút zoom
-    <div className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center">
+    // header: neo dưới nút, căn mép phải. floating: giữa cạnh dưới (góc dưới trái là "+ Add task", góc dưới phải là nút zoom)
+    <div
+      className={
+        isHeader
+          ? 'relative flex items-center'
+          : 'absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center'
+      }
+    >
       {open && (
         <div
           role="dialog"
           aria-label="Demo tools"
-          className="mb-2 w-80 max-h-[70vh] overflow-y-auto rounded-lg border border-amber-300 bg-white p-3 shadow-lg text-slate-700"
+          className={`${
+            isHeader ? 'absolute right-0 top-full z-50 mt-2' : 'mb-2'
+          } w-80 max-h-[70vh] overflow-y-auto rounded-lg border border-amber-300 bg-white p-3 shadow-lg text-slate-700`}
         >
           <div className="mb-2 text-sm font-semibold">Demo tools (testing only)</div>
 
@@ -283,9 +295,13 @@ export function DemoToolsPanel({ projectId }: DemoToolsPanelProps) {
         aria-label="Toggle demo tools"
         title="Demo tools (testing only) - Ctrl+Shift+D"
         onClick={() => setOpen((v) => !v)}
-        className="h-9 w-9 rounded-full border border-amber-400 bg-amber-100 text-xs font-bold text-amber-800 shadow hover:bg-amber-200"
+        className={
+          isHeader
+            ? 'rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100'
+            : 'h-9 w-9 rounded-full border border-amber-400 bg-amber-100 text-xs font-bold text-amber-800 shadow hover:bg-amber-200'
+        }
       >
-        D
+        {isHeader ? 'Demo' : 'D'}
       </button>
     </div>
   )
