@@ -20,6 +20,7 @@ export function GhostCard({
   onHover,
   isHovered,
   readOnly = false,
+  onSpawnDown,
 }: GhostCardProps) {
   const store = useWorkflowStore.getState()
   const sourceTask = store?.trees?.[node.refPhase]?.[node.refId]
@@ -85,6 +86,19 @@ export function GhostCard({
           <Trash2 className="w-3.5 h-3.5" />
         </button>}
       </div>
+
+      {/* Cổng nối: ghost là cha, kéo sang task khác để task đó cũng phụ thuộc vào ghost này */}
+      {!readOnly && onSpawnDown && (
+        <button
+          type="button"
+          data-connect-port="1"
+          aria-label="Link to another task"
+          onMouseDown={(event) => onSpawnDown(event, node.id)}
+          onClick={(event) => event.stopPropagation()}
+          title="Drag to another task to make it depend on this one"
+          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-3 h-3 rounded-full bg-indigo-500 border-2 border-white shadow ring-1 ring-indigo-300 hover:scale-125 z-10 cursor-crosshair"
+        />
+      )}
 
       {/* Card Body */}
       <div className="p-2.5 px-3 flex flex-col justify-between flex-1 min-h-0 bg-white">

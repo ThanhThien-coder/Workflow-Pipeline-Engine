@@ -98,10 +98,20 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
           ? 'Add task to this track'
           : 'Add child task'
       }
-      className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-6 h-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 shadow z-10 cursor-pointer"
+      className="absolute -bottom-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center w-6 h-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 shadow z-10 cursor-pointer"
     >
       <Plus size={13} />
     </button>}
+    {/* Cổng nối: kéo sang task khác để task đó phụ thuộc vào task này. Bấm không kéo thì không làm gì. */}
+    {!readOnly && !node.isTrack && onSpawnDown && <button
+      type="button"
+      data-connect-port="1"
+      aria-label="Link to another task"
+      onMouseDown={(event) => onSpawnDown(event, node.id)}
+      onClick={(event) => event.stopPropagation()}
+      title="Drag to another task to make it depend on this one"
+      className="absolute -right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-3 h-3 rounded-full bg-indigo-500 border-2 border-white shadow ring-1 ring-indigo-300 hover:scale-125 z-10 cursor-crosshair"
+    />}
     <div className="pointer-events-none flex items-center justify-between gap-1.5">
       <span className={`select-none inline-flex items-center gap-1 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 border ${style.c} pointer-events-none shrink-0`}>
         {node.status === 'LOCKED' && <Lock size={9} />}
@@ -110,6 +120,11 @@ export function BranchCard({ node, nodes, hasChildren, collapsed, selected, merg
       {node.forceUnlocked && (
         <span className="select-none shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 pointer-events-none">
           Unlocked early
+        </span>
+      )}
+      {node.isOverdue && node.status !== 'DONE' && (
+        <span className="select-none shrink-0 rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-600 pointer-events-none">
+          Overdue
         </span>
       )}
       {!node.isTrack && (

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  calculatePhaseGraphLayout,
   calculateDeterministicLayout,
   createNewBranchNode,
   childrenOfPrimary,
@@ -10,7 +11,7 @@ import {
   TRACK_H,
   TASK_H,
 } from '../spanningTreeLayout'
-import type { GraphNodeMap, RootGraphNode, BranchGraphNode } from '../../types/workflow.types'
+import type { GraphNodeMap, RootGraphNode, BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
 
 describe('spanningTreeLayout & Deterministic Layout Engine', () => {
   const initialNodes: GraphNodeMap = {
@@ -125,25 +126,21 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
     it('produces dynamic, level-based deterministic coordinates (Tidy Tree)', () => {
       const layout = calculateDeterministicLayout(initialNodes)
 
-      // Root validation: Level 0 (X = 40)
-      expect(layout['root']).toBeDefined()
-      expect(layout['root'].x).toBe(40)
-      expect(Number.isFinite(layout['root'].y)).toBe(true)
-      expect(isNaN(layout['root'].y)).toBe(false)
-      expect(layout['root'].level).toBe(0)
+      // TASK_73 (#16): root ảo bị ẩn, không có trong bố cục
+      expect(layout['root']).toBeUndefined()
 
-      // Track validation: Level 1 (X = 320)
+      // Track validation: cột đầu tiên, Level 0 (X = 40)
       expect(layout['trk-1']).toBeDefined()
-      expect(layout['trk-1'].x).toBe(320)
+      expect(layout['trk-1'].x).toBe(40)
       expect(Number.isFinite(layout['trk-1'].y)).toBe(true)
-      expect(layout['trk-1'].level).toBe(1)
+      expect(layout['trk-1'].level).toBe(0)
       expect(layout['trk-1'].order).toBe(0)
 
-      // Task validation: Level 2 (X = 600)
+      // Task validation: Level 1 (X = 320)
       expect(layout['task-1']).toBeDefined()
-      expect(layout['task-1'].x).toBe(600)
+      expect(layout['task-1'].x).toBe(320)
       expect(layout['task-1'].y).toBe(60)
-      expect(layout['task-1'].level).toBe(2)
+      expect(layout['task-1'].level).toBe(1)
       expect(layout['task-1'].order).toBe(0)
 
       // Center and edge anchors must be finite numbers
@@ -171,8 +168,8 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
       const pos1 = layout['task-1']
       const pos2 = layout[task2.id]
 
-      expect(pos1.x).toBe(600)
-      expect(pos2.x).toBe(600)
+      expect(pos1.x).toBe(320)
+      expect(pos2.x).toBe(320)
       expect(pos2.y).toBe(pos1.y + TASK_H + 16)
       expect(pos2.centerY).toBe(pos2.y + TASK_H / 2)
     })
@@ -185,11 +182,11 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
 
       const layout = calculateDeterministicLayout(nodesWithL4)
 
-      expect(layout[subtask.id].x).toBe(880) // Level 3: 40 + 3 * 280
-      expect(layout[subtask.id].level).toBe(3)
+      expect(layout[subtask.id].x).toBe(600) // Level 2: 40 + 2 * 280 (root ẩn nên cột đầu là level 0)
+      expect(layout[subtask.id].level).toBe(2)
 
-      expect(layout[subsubtask.id].x).toBe(1160) // Level 4: 40 + 4 * 280
-      expect(layout[subsubtask.id].level).toBe(4)
+      expect(layout[subsubtask.id].x).toBe(880) // Level 3: 40 + 3 * 280
+      expect(layout[subsubtask.id].level).toBe(3)
     })
 
     it('prevents NaN when node has corrupted or missing properties', () => {
@@ -237,6 +234,81 @@ describe('spanningTreeLayout & Deterministic Layout Engine', () => {
     it('detects ancestral loops to avoid graph cycle explosion', () => {
       expect(isAncestor(initialNodes, 'trk-1', 'task-1')).toBe(true)
       expect(isAncestor(initialNodes, 'task-1', 'trk-1')).toBe(false)
+    })
+  })
+
+  describe('TASK_73: root ẩn, ghost là cha nằm bên trái', () => {
+    const task = (id: string, parentIds: string[], extra: Partial<BranchGraphNode> = {}): BranchGraphNode => ({
+      kind: 'branch', id, code: id, title: id, isTrack: false, status: 'TODO', parentIds,
+      description: '', assignee: null, due: null, blocker: null, joinPolicy: 'ALL_COMPLETED', ...extra,
+    } as BranchGraphNode)
+    const ghost = (id: string, targetTaskId: string): GhostGraphNode => ({
+      id, kind: 'ghost', refPhase: '5', refId: `src-${id}`, dir: 'up', title: id, parentIds: [], targetTaskId,
+    } as GhostGraphNode)
+    const root: RootGraphNode = { kind: 'root', id: 'root_1', title: 'P', parentIds: [] } as RootGraphNode
+
+    it('không có node root trong layoutNodes và không có dây đi ra từ root', () => {
+      const nodes: GraphNodeMap = { root_1: root, a: task('a', ['root_1']), b: task('b', ['a']) }
+      const { layoutNodes, layoutEdges } = calculatePhaseGraphLayout(nodes)
+
+      expect(layoutNodes.map((n) => n.id).sort()).toEqual(['a', 'b'])
+      expect(layoutEdges.some((e) => e.sourceId === 'root_1' || e.targetId === 'root_1')).toBe(false)
+      // Task không có cha trong phase là cột đầu tiên, canh trái
+      const layout = Object.fromEntries(layoutNodes.map((n) => [n.id, n]))
+      expect(layout.a.x).toBe(40)
+      expect(layout.b.x).toBe(320)
+      // Chỉ còn dây a -> b, và đó là phụ thuộc thật
+      expect(layoutEdges).toHaveLength(1)
+      expect(layoutEdges[0]).toMatchObject({ sourceId: 'a', targetId: 'b', isDependency: true })
+    })
+
+    it('ghost nằm bên trái task đích (x + width <= x của task), dây đi ghost -> task', () => {
+      const nodes: GraphNodeMap = { root_1: root, a: task('a', ['root_1']), g1: ghost('g1', 'a') }
+      const { layoutNodes, layoutEdges } = calculatePhaseGraphLayout(nodes)
+      const g = layoutNodes.find((n) => n.id === 'g1')!
+      const a = layoutNodes.find((n) => n.id === 'a')!
+
+      expect(g.type).toBe('ghost')
+      expect(g.x + g.width).toBeLessThanOrEqual(a.x)
+      expect(g.x).toBe(40) // task chỉ có cha là ghost: ghost đứng ở cột đầu, task ở cột kế
+      const edge = layoutEdges.find((e) => e.isGhost)!
+      expect(edge).toMatchObject({ sourceId: 'g1', targetId: 'a', isDependency: true })
+      expect(edge.d.startsWith(`M ${g.right} ${g.centerY}`)).toBe(true)
+      expect(edge.d.endsWith(`${a.left} ${a.centerY}`)).toBe(true)
+    })
+
+    it('nhiều ghost cùng task xếp dọc, không đè nhau và không đè thẻ khác (kể cả cha thật của task)', () => {
+      const nodes: GraphNodeMap = {
+        root_1: root,
+        p: task('p', ['root_1']),
+        t: task('t', ['p']),
+        s: task('s', ['p']),
+        u: task('u', ['root_1']),
+        g1: ghost('g1', 't'),
+        g2: ghost('g2', 't'),
+        g3: ghost('g3', 't'),
+      }
+      const { layoutNodes } = calculatePhaseGraphLayout(nodes)
+      const byId = Object.fromEntries(layoutNodes.map((n) => [n.id, n]))
+
+      const overlaps = (a: typeof byId[string], b: typeof byId[string]) =>
+        a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+      const all = layoutNodes
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+          expect(overlaps(all[i], all[j]), `${all[i].id} đè ${all[j].id}`).toBe(false)
+        }
+      }
+      ;['g1', 'g2', 'g3'].forEach((id) => expect(byId[id].x + byId[id].width).toBeLessThanOrEqual(byId.t.x))
+      expect(byId.g2.y).toBeGreaterThan(byId.g1.y + byId.g1.height - 1)
+      expect(byId.g3.y).toBeGreaterThan(byId.g2.y + byId.g2.height - 1)
+    })
+
+    it('dây phụ thuộc thật (task -> task) đánh dấu isDependency, dây track thì không', () => {
+      const { layoutEdges } = calculatePhaseGraphLayout(initialNodes)
+      // root -> track không còn; track -> task là dây cấu trúc
+      expect(layoutEdges).toHaveLength(1)
+      expect(layoutEdges[0]).toMatchObject({ sourceId: 'trk-1', targetId: 'task-1', isDependency: false })
     })
   })
 })

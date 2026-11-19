@@ -12,15 +12,19 @@ import { useWorkflowStore, type NavigationTab } from '../store/useWorkflowStore'
 import { DEV_PERSONAS } from '../store/slices/devSlice'
 import { isMockMode } from '../services/env'
 import { useRouter } from '../router/useRouter'
+import { DemoToolsPanel } from '../components/dev/DemoToolsPanel'
 
 interface ProjectWorkspaceViewProps {
   projectId: string
   subTab?: NavigationTab
+  /** Có thì tab Workflow mở thẳng màn chi tiết phase này (đường dẫn .../workflow/phase/:phaseId). */
+  phaseId?: string
 }
 
 export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
   projectId,
   subTab,
+  phaseId,
 }) => {
   const { navigate } = useRouter()
   const activeTab = useWorkflowStore((state) => state.activeTab)
@@ -139,12 +143,14 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
               className="h-full w-full overflow-hidden"
               style={{ willChange: 'transform, opacity' }}
             >
-              {currentTab === 'workflow' && <WorkflowView projectId={projectId} />}
+              {currentTab === 'workflow' && <WorkflowView projectId={projectId} phaseId={phaseId ?? null} />}
               {currentTab === 'overview' && <OverviewScreen projectId={projectId} />}
               {currentTab === 'my-tasks' && <MyTasksView projectId={projectId} projectName={projectName} />}
               {currentTab === 'settings' && <SettingsView projectId={projectId} />}
             </motion.div>
           </AnimatePresence>
+          {/* #24: công cụ demo, tự ẩn khi backend tắt DEMO_TOOLS_ENABLED hoặc người xem không phải chủ dự án / admin */}
+          <DemoToolsPanel projectId={projectId} />
         </main>
       </div>
     </div>

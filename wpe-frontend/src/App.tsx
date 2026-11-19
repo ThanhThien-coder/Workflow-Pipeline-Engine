@@ -99,12 +99,21 @@ export default function App() {
   // Parse Project Route: /project/:id/:tab
   let projectId = '1'
   let projectSubTab: NavigationTab | undefined
+  let projectPhaseId: string | undefined
 
   if (isProjectRoute) {
     const parts = pathname.replace('/project/', '').split('/')
     if (parts[0]) projectId = parts[0]
     if (parts[1] && ['overview', 'workflow', 'my-tasks', 'settings'].includes(parts[1])) {
       projectSubTab = parts[1] as NavigationTab
+    }
+    // /project/:id/workflow/phase/:phaseId = màn chi tiết phase
+    if (parts[1] === 'workflow' && parts[2] === 'phase' && parts[3]) {
+      try {
+        projectPhaseId = decodeURIComponent(parts[3])
+      } catch {
+        projectPhaseId = parts[3]
+      }
     }
   }
 
@@ -156,7 +165,7 @@ export default function App() {
     }
 
     if (isProjectRoute) {
-      return <ProjectWorkspaceView projectId={projectId} subTab={projectSubTab} />
+      return <ProjectWorkspaceView projectId={projectId} subTab={projectSubTab} phaseId={projectPhaseId} />
     }
 
     // Default fallback

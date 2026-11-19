@@ -1,8 +1,7 @@
-import { Link2, Merge, X } from 'lucide-react'
+import { ArrowLeft, Link2, Merge } from 'lucide-react'
 import { useMemo, useState, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { GRAPH_READ_ONLY_MESSAGE, selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
-import { useResizable } from '../../hooks/useResizable'
 import { MindmapTree } from '../mindmap/MindmapTree'
 import { NodePropertiesModal } from '../mindmap/NodePropertiesModal'
 import { AddGhostModal } from '../mindmap/AddGhostModal'
@@ -11,9 +10,8 @@ import { KahnCycleModal } from '../settings/KahnCycleModal'
 import { cycleNodesOf, graphErrorMessage, useGraphErrorHandler } from './useGraphErrorHandler'
 import { Popover } from '../popovers/Popover'
 import { GhostInfo } from '../popovers/GhostInfo'
-import { GhostPicker } from '../popovers/GhostPicker'
 import type { BranchGraphNode, GhostGraphNode } from '../../types/workflow.types'
-import { isAncestor, TASK_H, W } from '../../utils/spanningTreeLayout'
+import { TASK_H, W } from '../../utils/spanningTreeLayout'
 import { toTaskNodePatch } from '../../mappers/graphMapper'
 import { prerequisitesOf } from '../../utils/taskPrerequisites'
 import { PhaseKanbanBoard } from '../kanban/PhaseKanbanBoard'
@@ -21,23 +19,36 @@ import { TaskDetailModal } from '../kanban/TaskDetailModal'
 import { SubmitArtifactModal } from '../kanban/SubmitArtifactModal'
 import { usePhaseKanban } from '../../hooks/usePhaseKanban'
 import { useWorkflowService } from '../../services/workflow/WorkflowContext'
+import { useRouter } from '../../router/useRouter'
 import type { KanbanTask } from '../../types/kanban.types'
 import { pluralize } from '../../utils/pluralize'
+import { phaseDisplayName } from '../../utils/phaseName'
 
-export function MindmapDrawer() {
-  const selectedPhaseId = useWorkflowStore((state) => state.selectedPhaseId)
+/** Đường dẫn màn chi tiết phase. */
+export function phaseDetailPath(projectId: string, phaseId: string): string {
+  return `/project/${projectId}/workflow/phase/${encodeURIComponent(phaseId)}`
+}
+
+/**
+ * Màn chi tiết phase TOÀN MÀN HÌNH (thay cho panel kéo giãn bên phải cũ).
+ * Phase lấy theo `phaseId` của ĐƯỜNG DẪN, không dựa vào `selectedPhaseId`: store có thể xóa selectedPhaseId
+ * (loadPhases khi đổi dự án) mà màn này vẫn đúng phase.
+ */
+export function PhaseDetailView({ projectId, phaseId }: { projectId: string; phaseId: string }) {
+  const { navigate } = useRouter()
+  const currentProjectId = useWorkflowStore((state) => state.currentProjectId)
+  const graphStatus = useWorkflowStore((state) => state.graphStatus)
+  const graphError = useWorkflowStore((state) => state.graphError)
+  const loadPhases = useWorkflowStore((state) => state.loadPhases)
+  // Dữ liệu chỉ tin được khi đồ thị trong store là của đúng dự án này
+  const dataIsForProject = currentProjectId !== null && String(currentProjectId) === String(projectId)
   const phase = useWorkflowStore((state) =>
-    state.macroPhases.find((item) => item.id === selectedPhaseId)
+    dataIsForProject ? state.macroPhases.find((item) => item.id === phaseId) : undefined
   )
-  const selectPhase = useWorkflowStore((state) => state.selectPhase)
-  const tree = useWorkflowStore((state) =>
-    selectedPhaseId ? state.trees[selectedPhaseId] : undefined
-  )
-  const trees = useWorkflowStore((state) => state.trees)
+  const tree = useWorkflowStore((state) => (dataIsForProject ? state.trees[phaseId] : undefined))
   const updateTree = useWorkflowStore((state) => state.updateTree)
   const deleteNode = useWorkflowStore((state) => state.deleteNode)
   const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
-  const currentProjectId = useWorkflowStore((state) => state.currentProjectId)
   // Tên dự án thật (tải lúc vào dự án), chưa có thì bỏ khỏi breadcrumb
   const projectName = useWorkflowStore((state) =>
     state.project.projectId === state.currentProjectId ? state.project.info?.name : undefined
@@ -51,15 +62,12 @@ export function MindmapDrawer() {
   const addChildTaskViaApi = useWorkflowStore((state) => state.addChildTask)
   const updateNodeInfoViaApi = useWorkflowStore((state) => state.updateNodeInfo)
   const removeNodeViaApi = useWorkflowStore((state) => state.removeNode)
+  const removeDependencyViaApi = useWorkflowStore((state) => state.removeDependency)
   const forceUnlockViaApi = useWorkflowStore((state) => state.forceUnlockNode)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
   const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
-  // Chế độ API: hộp nhập tên trước khi tạo task gốc, subtask (1 cha) hoặc task hội tụ (nhiều cha)
+  // Chế độ API: hộp nhập tên trước khi tạo task, subtask (1 cha) hoặc task hội tụ (nhiều cha)
   const [taskModal, setTaskModal] = useState<{ kind: 'root' } | { kind: 'child'; parentIds: string[] } | null>(null)
-
-  const { w, dragging, onMouseDown } = useResizable(
-    Math.round(window.innerWidth * 0.5)
-  )
 
   // View mode switcher: 'graph' (default) ⇄ 'kanban'
   const workflowService = useWorkflowService()
@@ -69,13 +77,14 @@ export function MindmapDrawer() {
   const [mergeSelection, setMergeSelection] = useState(new Set<string>())
   const [isGhostModalOpen, setIsGhostModalOpen] = useState(false)
   const [ghostAnchorTaskId, setGhostAnchorTaskId] = useState<string | undefined>()
-  const [popover, setPopover] = useState<{
-    type: 'info' | 'picker'
-    id?: string
-    x: number
-    y: number
-    anchorId?: string
-  } | null>(null)
+  const [popover, setPopover] = useState<{ id: string; x: number; y: number } | null>(null)
+
+  // Mở thẳng đường dẫn (F5) hoặc đổi dự án: đồ thị chưa tải cho dự án này thì tải
+  useEffect(() => {
+    if (!dataIsForProject || graphStatus === 'idle') void loadPhases(projectId)
+    // chỉ chạy lại khi đổi dự án; trạng thái 'loading'/'ready' không kích hoạt tải thêm
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, dataIsForProject])
 
   // Reset all transient popovers, modals, and selections when switching phases
   useEffect(() => {
@@ -86,14 +95,14 @@ export function MindmapDrawer() {
     setIsGhostModalOpen(false)
     setGhostAnchorTaskId(undefined)
     setTaskModal(null)
-  }, [selectedPhaseId])
+  }, [phaseId])
 
   // Automatically ensure phase tree data is loaded if missing
   useEffect(() => {
-    if (selectedPhaseId && !tree) {
-      void resetPhaseTree(selectedPhaseId)
+    if (phase && !tree) {
+      void resetPhaseTree(phaseId)
     }
-  }, [selectedPhaseId, tree, resetPhaseTree])
+  }, [phase, phaseId, tree, resetPhaseTree])
 
   // Hook managing phase-wide Kanban tasks, members, and status transitions
   const {
@@ -117,6 +126,8 @@ export function MindmapDrawer() {
     return phaseTasks.find((t) => t.id === selectedTask.id) || selectedTask
   }, [selectedTask, phaseTasks])
 
+  const backToWorkflow = () => navigate(`/project/${projectId}/workflow`)
+
   const toggleMerge = (id: string) =>
     setMergeSelection((current) => {
       const next = new Set(current)
@@ -124,32 +135,15 @@ export function MindmapDrawer() {
       return next
     })
 
-  const addGhost = (value: {
-    refPhase: string
-    refId: string
-    dir: 'up' | 'down'
-    anchorId?: string
-    targetTaskId?: string
-  }) => {
-    if (!selectedPhaseId || !canEdit) return
-    const targetTaskId = value.targetTaskId || value.anchorId
-    if (targetTaskId) {
-      const payload = { sourcePhaseId: value.refPhase, sourceTaskId: value.refId, targetTaskId }
-      if (graphWritesUseApi) void attachGhostViaApi(selectedPhaseId, payload).catch(handleError)
-      else void workflowService.attachGhostNode(selectedPhaseId, payload)
-    }
-    setPopover(null)
-  }
-
   /** Chế độ API: thêm cạnh ghost (nút Attach). Lỗi 422 mở modal chu trình, lỗi khác báo trong modal. */
   const attachGhost = async (payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }) => {
-    if (!selectedPhaseId) return
+    if (!dataIsForProject) return
     if (!graphWritesUseApi) {
-      await workflowService.attachGhostNode(selectedPhaseId, payload)
+      await workflowService.attachGhostNode(phaseId, payload)
       return
     }
     try {
-      await attachGhostViaApi(selectedPhaseId, payload)
+      await attachGhostViaApi(phaseId, payload)
     } catch (error) {
       if (cycleNodesOf(error)) {
         handleError(error) // mở KahnCycleModal, đóng hộp Attach
@@ -164,7 +158,7 @@ export function MindmapDrawer() {
    * Nguồn là gốc phase thì không có cạnh tương ứng ở backend.
    */
   const connectNodes = (parentId: string, childId: string) => {
-    if (!selectedPhaseId || !tree) return
+    if (!tree) return
     const source = tree[parentId]
     const target = tree[childId]
     if (!source || !target || target.kind !== 'branch') {
@@ -176,14 +170,21 @@ export function MindmapDrawer() {
       return
     }
     if (source.kind === 'ghost') {
-      void attachGhostViaApi(selectedPhaseId, {
+      void attachGhostViaApi(phaseId, {
         sourcePhaseId: source.refPhase,
         sourceTaskId: source.refId,
         targetTaskId: childId,
       }).catch(handleError)
       return
     }
-    void connectNodesViaApi(selectedPhaseId, parentId, childId).catch(handleError)
+    void connectNodesViaApi(phaseId, parentId, childId).catch(handleError)
+  }
+
+  /** Gỡ một phụ thuộc: ghost thì cha thật là task nguồn ở phase khác (refId), còn lại là chính node nguồn. */
+  const removeLink = (sourceId: string, targetId: string) => {
+    const source = tree?.[sourceId]
+    const parentTaskId = source?.kind === 'ghost' ? source.refId : sourceId
+    void removeDependencyViaApi(phaseId, parentTaskId, targetId).catch(handleError)
   }
 
   const taskTitle = (id: string) => {
@@ -194,18 +195,38 @@ export function MindmapDrawer() {
   /** Chế độ API: đổi tên trên thẻ = sửa task (PUT /nodes/{id}) với các trường còn lại giữ nguyên. */
   const renameTask = (id: string, title: string) => {
     const node = tree?.[id]
-    if (!selectedPhaseId || node?.kind !== 'branch') return
-    void updateNodeInfoViaApi(selectedPhaseId, id, { ...toTaskNodePatch(node), title }).catch(handleError)
+    if (node?.kind !== 'branch') return
+    void updateNodeInfoViaApi(phaseId, id, { ...toTaskNodePatch(node), title }).catch(handleError)
+  }
+
+  /** Xóa ghost = gỡ cạnh phụ thuộc (refId → task đích). Ghost không phải là một task nên không có node để xóa. */
+  const removeGhost = (ghost: GhostGraphNode) => {
+    if (graphWritesUseApi) {
+      const targetTaskId =
+        ghost.targetTaskId ??
+        Object.values(tree ?? {}).find((node) => node.kind === 'branch' && node.parentIds.includes(ghost.id))?.id
+      if (!targetTaskId) {
+        showToast('Could not find the task this ghost points to.', 3000)
+        return
+      }
+      void removeDependencyViaApi(phaseId, ghost.refId, targetTaskId).catch(handleError)
+    } else {
+      deleteNode(phaseId, ghost.id)
+    }
   }
 
   const removeTask = (id: string) => {
-    if (!selectedPhaseId) return
-    if (graphWritesUseApi) void removeNodeViaApi(selectedPhaseId, id).catch(handleError)
-    else deleteNode(selectedPhaseId, id)
+    const node = tree?.[id]
+    if (node?.kind === 'ghost') {
+      removeGhost(node)
+      return
+    }
+    if (graphWritesUseApi) void removeNodeViaApi(phaseId, id).catch(handleError)
+    else deleteNode(phaseId, id)
   }
 
   const createMerge = () => {
-    if (!selectedPhaseId || mergeSelection.size < 2) return
+    if (mergeSelection.size < 2) return
     const parents = [...mergeSelection]
     if (graphWritesUseApi) {
       setTaskModal({ kind: 'child', parentIds: parents })
@@ -224,7 +245,7 @@ export function MindmapDrawer() {
       id: childId,
       code,
       title: 'Converged task',
-      phaseId: selectedPhaseId,
+      phaseId,
       trackId,
       parentId: parents[0],
       parentIds: parents,
@@ -247,69 +268,99 @@ export function MindmapDrawer() {
       width: W.task,
       height: TASK_H,
     }
-    updateTree(selectedPhaseId, (nodes) => ({ ...nodes, [child.id]: child }))
+    updateTree(phaseId, (nodes) => ({ ...nodes, [child.id]: child }))
     setMergeSelection(new Set())
   }
 
-  if (!phase) return null
+  // Chưa có phase để vẽ: đang tải, lỗi hoặc không tìm thấy
+  if (!phase) {
+    const loading = !dataIsForProject || graphStatus === 'idle' || graphStatus === 'loading'
+    return (
+      <div className="flex h-full w-full flex-col bg-white">
+        <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 px-5 py-3">
+          <button
+            type="button"
+            onClick={backToWorkflow}
+            aria-label="Back to workflow"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 cursor-pointer"
+          >
+            <ArrowLeft size={14} />
+            <span>Back</span>
+          </button>
+        </header>
+        <div className="grid flex-1 place-items-center px-6 text-center text-sm text-slate-500">
+          {loading ? (
+            <span>Loading phase…</span>
+          ) : graphStatus === 'error' ? (
+            <div className="flex flex-col items-center gap-3">
+              <span>{graphError || 'Failed to load the graph'}</span>
+              <button
+                type="button"
+                onClick={() => void loadPhases(projectId)}
+                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <span className="font-medium text-slate-600">Phase not found</span>
+          )}
+        </div>
+      </div>
+    )
+  }
 
-  const breadcrumb = [projectName, 'Workflow', phase.name].filter(Boolean).join(' › ')
+  const phaseName = phaseDisplayName(phase)
+  const breadcrumb = [projectName, 'Workflow', phaseName].filter(Boolean).join(' › ')
 
   return (
-    <aside
-      style={{ width: Math.max(w, viewMode === 'kanban' ? 540 : 380) }}
-      className={`relative flex h-full shrink-0 flex-col border-l border-slate-200 bg-white ${
-        dragging ? '' : 'transition-all duration-300'
-      }`}
-    >
-      {/* Col resize handle */}
-      <div
-        onMouseDown={onMouseDown}
-        className="absolute left-0 top-0 z-10 h-full w-[7px] -translate-x-1/2 cursor-col-resize hover:bg-indigo-300"
-        aria-label="Resize panel"
-      />
-
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-white">
       {/* ── Header ── */}
-      <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 shrink-0">
-        <div className="min-w-0">
-          <div className="text-[11px] text-slate-400 truncate max-w-[200px] xl:max-w-none" title={breadcrumb}>
-            {breadcrumb}
-          </div>
-          <h2 className="mt-1 truncate text-base font-semibold text-slate-800">
-            {phase.sub}
-          </h2>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-            <i
-              className={`block h-full rounded-full transition-all duration-300 ${phase.status === 'COMPLETED' ? 'bg-emerald-400' : 'bg-blue-400'}`}
-              style={{ width: `${phase.pct}%` }}
-            />
+      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3">
+        <div className="flex min-w-0 items-center gap-4">
+          <button
+            type="button"
+            onClick={backToWorkflow}
+            aria-label="Back to workflow"
+            title="Back to workflow"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 cursor-pointer"
+          >
+            <ArrowLeft size={14} />
+            <span>Back</span>
+          </button>
+          <div className="min-w-0">
+            <div className="truncate text-[11px] text-slate-400" title={breadcrumb}>
+              {breadcrumb}
+            </div>
+            <h2 className="mt-0.5 truncate text-base font-semibold text-slate-800">{phaseName}</h2>
           </div>
         </div>
 
         {/* Header Action Controls */}
-        <div className="flex items-center gap-2">
-          <strong className="text-sm text-slate-600 mr-0.5">{phase.pct}%</strong>
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="hidden items-center gap-2 sm:flex" title={`${phase.pct}% complete`}>
+            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-100">
+              <i
+                className={`block h-full rounded-full transition-all duration-300 ${phase.status === 'COMPLETED' ? 'bg-emerald-400' : 'bg-blue-400'}`}
+                style={{ width: `${phase.pct}%` }}
+              />
+            </div>
+            <strong className="text-sm text-slate-600">{phase.pct}%</strong>
+          </div>
 
           {/* Segmented View Switcher: Graph ⇄ Kanban */}
-          <div className="flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5">
             <button
               type="button"
               onClick={() => setViewMode('graph')}
               title="Graph Node Tree View"
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold transition-all ${
                 viewMode === 'graph'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="18" cy="5" r="3" />
                 <circle cx="6" cy="12" r="3" />
                 <circle cx="18" cy="19" r="3" />
@@ -323,20 +374,13 @@ export function MindmapDrawer() {
               type="button"
               onClick={() => setViewMode('kanban')}
               title="Phase Kanban Board View"
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold transition-all ${
                 viewMode === 'kanban'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="5" height="18" rx="1" />
                 <rect x="11" y="3" width="5" height="12" rx="1" />
                 <rect x="19" y="3" width="5" height="15" rx="1" />
@@ -356,32 +400,21 @@ export function MindmapDrawer() {
               }}
               title={canEdit ? 'Attach Ghost Prerequisite' : GRAPH_READ_ONLY_MESSAGE}
               aria-label="Add ghost node"
-              className="rounded-lg p-1.5 text-indigo-500 hover:bg-indigo-50 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              className="rounded-lg p-1.5 text-indigo-500 transition-colors hover:bg-indigo-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             >
               <Link2 size={16} />
             </button>
           )}
-
-          {/* Close drawer */}
-          <button
-            type="button"
-            onClick={() => selectPhase(null)}
-            aria-label="Close drawer"
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
         </div>
       </header>
 
       {/* ── Conditional Body Content ── */}
-      <div className="flex-1 overflow-hidden relative min-h-0">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         {viewMode === 'graph' ? (
-          /* 1. GIỮ NGUYÊN SƠ ĐỒ NODE TASK HIỆN TẠI */
-          <div className="w-full h-full overflow-hidden relative">
+          <div className="relative h-full w-full overflow-hidden bg-slate-50/50">
             {tree ? (
               <MindmapTree
-                key={selectedPhaseId}
+                key={phaseId}
                 nodes={tree}
                 selectedId={selectedNodeId}
                 onSelect={(id) => setSelectedNodeId(id || null)}
@@ -393,28 +426,26 @@ export function MindmapDrawer() {
                 onToggleMerge={toggleMerge}
                 onGhostClick={(id, rect) =>
                   setPopover({
-                    type: 'info',
                     id,
                     x: rect.right + 8,
                     y: rect.top,
                   })
                 }
-                onUpdateNodes={(update) =>
-                  selectedPhaseId && updateTree(selectedPhaseId, update)
-                }
+                onUpdateNodes={(update) => updateTree(phaseId, update)}
                 onAddGhost={(pos) => {
                   if (!canEdit) return
                   setGhostAnchorTaskId(pos?.anchorId || selectedNodeId || undefined)
                   setIsGhostModalOpen(true)
                 }}
-                phaseId={selectedPhaseId ?? undefined}
+                phaseId={phaseId}
                 readOnly={!canEdit}
-                // Chế độ API: "+ Add Root Task" mở hộp nhập tên rồi POST /nodes; kéo-nối gọi POST /dependencies.
+                // Chế độ API: "+ Add task" mở hộp nhập tên rồi POST /nodes; kéo-nối gọi POST /dependencies.
                 // Chế độ mock: giữ cách cũ (thêm và nối cục bộ).
                 onAddRootTask={graphWritesUseApi ? () => setTaskModal({ kind: 'root' }) : undefined}
                 onAddChildTask={graphWritesUseApi ? (parentId) => setTaskModal({ kind: 'child', parentIds: [parentId] }) : undefined}
                 onRenameNode={graphWritesUseApi ? renameTask : undefined}
                 onConnectNodes={graphWritesUseApi ? connectNodes : undefined}
+                onRemoveDependency={graphWritesUseApi ? removeLink : undefined}
               />
             ) : (
               <div className="grid h-full place-items-center text-xs text-slate-400">
@@ -423,11 +454,11 @@ export function MindmapDrawer() {
             )}
           </div>
         ) : (
-          /* 2. HIỂN THỊ BẢNG KANBAN CỦA PHASE */
-          <div className="w-full h-full p-4 overflow-y-auto">
+          /* HIỂN THỊ BẢNG KANBAN CỦA PHASE */
+          <div className="h-full w-full overflow-y-auto p-4">
             {loadingTasks && phaseTasks.length === 0 ? (
               <div className="grid h-full place-items-center text-xs text-slate-400">
-                Loading Kanban board for {phase.name}…
+                Loading Kanban board for {phaseName}…
               </div>
             ) : (
               <PhaseKanbanBoard
@@ -453,7 +484,7 @@ export function MindmapDrawer() {
           <button
             type="button"
             onClick={createMerge}
-            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600 cursor-pointer"
           >
             <Merge size={13} />
             Create converged task from {mergeSelection.size} selected tasks
@@ -474,8 +505,8 @@ export function MindmapDrawer() {
             isOwner={canEdit}
             canReview={actor?.projectRole === 'OWNER' || actor?.projectRole === 'MANAGER'}
             onForceUnlock={
-              graphWritesUseApi && selectedPhaseId
-                ? () => void forceUnlockViaApi(selectedPhaseId, selectedNodeId).catch(handleError)
+              graphWritesUseApi
+                ? () => void forceUnlockViaApi(phaseId, selectedNodeId).catch(handleError)
                 : undefined
             }
             // Đổi trạng thái đi qua Kanban của phase: cùng luật chuyển, cùng hộp nộp minh chứng khi sang Chờ duyệt
@@ -483,17 +514,17 @@ export function MindmapDrawer() {
             onClose={() => setSelectedNodeId(null)}
             onSave={(updated) => {
               const current = tree[selectedNodeId]
-              if (selectedPhaseId && graphWritesUseApi && current?.kind === 'branch') {
+              if (graphWritesUseApi && current?.kind === 'branch') {
                 const patch = toTaskNodePatch({ ...current, ...updated })
-                void updateNodeInfoViaApi(selectedPhaseId, selectedNodeId, patch).catch(handleError)
-              } else if (selectedPhaseId && selectedNodeId) {
-                updateTree(selectedPhaseId, (nodes) => {
-                  const current = nodes[selectedNodeId]
-                  if (!current || current.kind !== 'branch') return nodes
+                void updateNodeInfoViaApi(phaseId, selectedNodeId, patch).catch(handleError)
+              } else if (selectedNodeId) {
+                updateTree(phaseId, (nodes) => {
+                  const node = nodes[selectedNodeId]
+                  if (!node || node.kind !== 'branch') return nodes
                   return {
                     ...nodes,
                     [selectedNodeId]: {
-                      ...current,
+                      ...node,
                       ...updated,
                     },
                   }
@@ -539,14 +570,13 @@ export function MindmapDrawer() {
         )}
       </AnimatePresence>
 
-      {/* Popovers for Ghosts in Graph View */}
+      {/* Popover thông tin ghost trong Graph View */}
       <AnimatePresence mode="wait">
-        {popover?.type === 'info' && popover.id && (() => {
-          const ghostId = popover.id
-          const ghostNode = ghostId && tree?.[ghostId]?.kind === 'ghost' ? (tree[ghostId] as GhostGraphNode) : null
+        {popover && (() => {
+          const ghostNode = tree?.[popover.id]?.kind === 'ghost' ? (tree[popover.id] as GhostGraphNode) : null
           return (
             <Popover
-              key={`ghost-info-${selectedPhaseId}-${ghostId}`}
+              key={`ghost-info-${phaseId}-${popover.id}`}
               x={popover.x}
               y={popover.y}
               w={290}
@@ -557,7 +587,7 @@ export function MindmapDrawer() {
                 onOpen={
                   ghostNode?.refPhase
                     ? () => {
-                        selectPhase(ghostNode.refPhase)
+                        navigate(phaseDetailPath(projectId, ghostNode.refPhase))
                         setPopover(null)
                       }
                     : undefined
@@ -566,24 +596,6 @@ export function MindmapDrawer() {
             </Popover>
           )
         })()}
-
-        {popover?.type === 'picker' && (
-          <Popover
-            key={`ghost-picker-${selectedPhaseId}`}
-            x={popover.x}
-            y={popover.y}
-            w={310}
-            onClose={() => setPopover(null)}
-          >
-            <GhostPicker
-              trees={trees}
-              currentPhase={selectedPhaseId ?? ''}
-              anchorId={popover.anchorId}
-              onConfirm={addGhost}
-              onClose={() => setPopover(null)}
-            />
-          </Popover>
-        )}
       </AnimatePresence>
 
       {/* Redesigned 3-Step Add Ghost Node Modal */}
@@ -593,21 +605,20 @@ export function MindmapDrawer() {
           setIsGhostModalOpen(false)
           setGhostAnchorTaskId(undefined)
         }}
-        currentPhaseId={selectedPhaseId ?? ''}
+        currentPhaseId={phaseId}
         anchorTaskId={ghostAnchorTaskId}
         onAttach={async (payload) => {
-          if (!selectedPhaseId) return
           await attachGhost(payload)
           setIsGhostModalOpen(false)
           setGhostAnchorTaskId(undefined)
         }}
       />
 
-      {/* Chế độ API: hỏi tên rồi tạo task gốc (POST /nodes) hoặc task con / hội tụ (POST /nodes + /dependencies) */}
+      {/* Chế độ API: hỏi tên rồi tạo task (POST /nodes) hoặc task con / hội tụ (POST /nodes + /dependencies) */}
       <AddRootTaskModal
         isOpen={taskModal !== null && canEdit && graphWritesUseApi}
         onClose={() => setTaskModal(null)}
-        phaseId={selectedPhaseId ?? ''}
+        phaseId={phaseId}
         {...(taskModal?.kind === 'child'
           ? taskModal.parentIds.length > 1
             ? {
@@ -620,14 +631,18 @@ export function MindmapDrawer() {
                 description: `Subtask of ${taskTitle(taskModal.parentIds[0])}.`,
                 placeholder: 'e.g. Build the login API',
               }
-          : {})}
+          : {
+              heading: 'Add task',
+              description: 'Create a new task in this phase.',
+              placeholder: 'e.g. Build the login API',
+            })}
         onCreated={async (title) => {
-          if (!selectedPhaseId || !taskModal) return
+          if (!taskModal) return
           try {
             if (taskModal.kind === 'root') {
-              await addRootTaskViaApi(selectedPhaseId, title)
+              await addRootTaskViaApi(phaseId, title)
             } else {
-              await addChildTaskViaApi(selectedPhaseId, taskModal.parentIds, title)
+              await addChildTaskViaApi(phaseId, taskModal.parentIds, title)
               if (taskModal.parentIds.length > 1) setMergeSelection(new Set())
             }
           } catch (error) {
@@ -646,6 +661,6 @@ export function MindmapDrawer() {
           {toastMessage}
         </div>
       )}
-    </aside>
+    </div>
   )
 }

@@ -76,8 +76,8 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
     })
   })
 
-  describe('Ghost Node Placement Logic (Strict Right-Side Anchoring)', () => {
-    it('places ghost nodes strictly to the RIGHT of their target tasks', () => {
+  describe('Ghost Node Placement Logic (Ghost là cha: nằm bên trái task đích)', () => {
+    it('places ghost nodes strictly to the LEFT of their target tasks, edge runs ghost -> task', () => {
       const currentNodes = useWorkflowStore.getState().trees['p2a']
       const { layoutNodes, layoutEdges } = calculatePhaseGraphLayout(currentNodes)
 
@@ -85,20 +85,18 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
       expect(ghostLayoutNodes.length).toBeGreaterThan(0)
 
       ghostLayoutNodes.forEach((ghost) => {
-        // Find ghost edge
-        const ghostEdge = layoutEdges.find((e) => e.targetId === ghost.id && e.isGhost)
+        // Dây ghost đi từ ghost tới task đích
+        const ghostEdge = layoutEdges.find((e) => e.sourceId === ghost.id && e.isGhost)
         expect(ghostEdge).toBeDefined()
 
-        const targetPos = layoutNodes.find((n) => n.id === ghostEdge!.sourceId)
+        const targetPos = layoutNodes.find((n) => n.id === ghostEdge!.targetId)
         expect(targetPos).toBeDefined()
 
-        // Strict right-side invariant: ghost.x must be strictly greater than target.right
-        expect(ghost.x).toBeGreaterThan(targetPos!.right)
-        expect(ghost.left).toBe(targetPos!.right + 60)
+        // Ghost nằm trọn bên trái task đích
+        expect(ghost.x + ghost.width).toBeLessThanOrEqual(targetPos!.x)
 
-        // Connecting curve must match specification:
-        // M (targetX) (targetY) C (targetX + 50) (targetY), (ghostX - 50) (ghostY), (ghostX) (ghostY)
-        const expectedD = `M ${targetPos!.right} ${targetPos!.centerY} C ${targetPos!.right + 50} ${targetPos!.centerY}, ${ghost.left - 50} ${ghost.centerY}, ${ghost.left} ${ghost.centerY}`
+        const mid = (ghost.right + targetPos!.left) / 2
+        const expectedD = `M ${ghost.right} ${ghost.centerY} C ${mid} ${ghost.centerY}, ${mid} ${targetPos!.centerY}, ${targetPos!.left} ${targetPos!.centerY}`
         expect(ghostEdge!.d).toBe(expectedD)
       })
     })
@@ -193,14 +191,14 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
   })
 
   describe('Bottom Toolbar & Redesigned Modals (100% English)', () => {
-    it('renders 100% English bottom toolbar buttons (+ Add Root Task and Add Ghost Node)', () => {
+    it('renders 100% English bottom toolbar buttons (+ Add task and Add Ghost Node)', () => {
       render(
         <WorkflowServiceProvider>
           <MicroGraphTree phaseId="p2a" />
         </WorkflowServiceProvider>
       )
 
-      expect(screen.getByText('+ Add Root Task')).toBeDefined()
+      expect(screen.getByText('+ Add task')).toBeDefined()
       expect(screen.getByText('Add Ghost Node')).toBeDefined()
     })
 
@@ -231,14 +229,14 @@ describe('Phase Detail Tree Graph & Ghost Node Placement (WPE)', () => {
       expect(screen.getByText('Attach Ghost Node')).toBeDefined()
     })
 
-    it('opens AddRootTaskModal when clicking + Add Root Task', () => {
+    it('opens AddRootTaskModal when clicking + Add task', () => {
       render(
         <WorkflowServiceProvider>
           <MicroGraphTree phaseId="p2a" />
         </WorkflowServiceProvider>
       )
 
-      const addRootBtn = screen.getByText('+ Add Root Task')
+      const addRootBtn = screen.getByText('+ Add task')
       fireEvent.click(addRootBtn)
 
       expect(screen.getByText('Add Root Task')).toBeDefined()

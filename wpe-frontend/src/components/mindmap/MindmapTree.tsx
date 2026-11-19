@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { RotateCcw, X } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import type { GraphNodeMap, BranchGraphNode } from '../../types/workflow.types'
 import {
@@ -43,7 +43,13 @@ export function MindmapTree({
   onConnectNodes,
   onAddChildTask,
   onRenameNode,
+  onRemoveDependency,
 }: {
+  /**
+   * Có thì rê chuột vào một dây phụ thuộc thật (task → task, ghost → task) hiện nút ✕ để gỡ.
+   * Nhận id nguồn (task hoặc ghost) và id task đích của dây.
+   */
+  onRemoveDependency?: (sourceId: string, targetId: string) => void
   /** T3: có thì nút (+) thêm task con gọi hàm này (chế độ API: hỏi tên rồi POST) thay vì tạo node tạm cục bộ. */
   onAddChildTask?: (parentId: string) => void
   /** T3: có thì đổi tên trên thẻ gọi hàm này (chế độ API: PUT /nodes/{id}) thay vì sửa cây cục bộ. */
@@ -73,6 +79,10 @@ export function MindmapTree({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  // Dây đang rê chuột (hiện nút ✕) và dây đang hỏi xác nhận gỡ
+  const [hoverEdgeId, setHoverEdgeId] = useState<string | null>(null)
+  const [confirmEdgeId, setConfirmEdgeId] = useState<string | null>(null)
+  const edgeLeaveTimer = useRef<number | null>(null)
 
   const activeMerge = mergeSelection ?? internalMerge
   const connect = useConnectDrag(nodes, (update) => {
@@ -101,6 +111,62 @@ export function MindmapTree({
       height: Math.max(700, maxY + 300),
     }
   }, [layoutNodes])
+
+  // Khung bao của các thẻ đang vẽ (root ẩn không tính) để fit
+  const layoutBounds = useMemo(() => {
+    if (layoutNodes.length === 0) return null
+    return {
+      minX: Math.min(...layoutNodes.map((n) => n.x)),
+      minY: Math.min(...layoutNodes.map((n) => n.y)),
+      maxX: Math.max(...layoutNodes.map((n) => n.right)),
+      maxY: Math.max(...layoutNodes.map((n) => n.y + n.height)),
+    }
+  }, [layoutNodes])
+
+  const { fitToBounds } = panZoom
+  const fitView = useCallback(() => {
+    fitToBounds(layoutBounds, { padding: 48, maxScale: 1 })
+  }, [fitToBounds, layoutBounds])
+
+  // Tự fit MỘT lần khi mở phase (khi đã có thẻ và khung nhìn đã có kích thước)
+  const autoFitted = useRef(false)
+  useEffect(() => {
+    if (autoFitted.current || !layoutBounds) return
+    if (fitToBounds(layoutBounds, { padding: 48, maxScale: 1 })) {
+      autoFitted.current = true
+      return
+    }
+    let tries = 0
+    let timer: number | undefined
+    const retry = () => {
+      if (fitToBounds(layoutBounds, { padding: 48, maxScale: 1 })) {
+        autoFitted.current = true
+        return
+      }
+      if (++tries < 20) timer = window.setTimeout(retry, 50)
+    }
+    timer = window.setTimeout(retry, 50)
+    return () => window.clearTimeout(timer)
+  }, [layoutBounds, fitToBounds])
+
+  const cancelEdgeLeave = useCallback(() => {
+    if (edgeLeaveTimer.current !== null) {
+      window.clearTimeout(edgeLeaveTimer.current)
+      edgeLeaveTimer.current = null
+    }
+  }, [])
+  const enterEdge = useCallback((id: string) => {
+    cancelEdgeLeave()
+    setHoverEdgeId(id)
+  }, [cancelEdgeLeave])
+  const leaveEdge = useCallback(() => {
+    cancelEdgeLeave()
+    edgeLeaveTimer.current = window.setTimeout(() => {
+      setHoverEdgeId(null)
+      setConfirmEdgeId(null)
+    }, 200)
+  }, [cancelEdgeLeave])
+  useEffect(() => cancelEdgeLeave, [cancelEdgeLeave])
 
   const handleHover = useCallback((id: string | null) => {
     setHoveredNodeId(id)
@@ -310,7 +376,73 @@ export function MindmapTree({
               />
             )
           })}
+
+          {/* Vùng bắt chuột (vô hình, nét dày) cho dây phụ thuộc thật: rê vào thì hiện nút gỡ dây */}
+          {onRemoveDependency && !readOnly && layoutEdges.filter((edge) => edge.isDependency).map((edge) => (
+            <path
+              key={`hit-${edge.id}`}
+              data-edge-hit={edge.id}
+              d={edge.d}
+              fill="none"
+              stroke="transparent"
+              strokeWidth="14"
+              style={{ pointerEvents: 'stroke' }}
+              onMouseEnter={() => enterEdge(edge.id)}
+              onMouseLeave={leaveEdge}
+            />
+          ))}
         </svg>
+
+        {/* Nút gỡ dây ở giữa dây đang rê chuột */}
+        {onRemoveDependency && !readOnly && hoverEdgeId && (() => {
+          const edge = layoutEdges.find((item) => item.id === hoverEdgeId && item.isDependency)
+          if (!edge) return null
+          const confirming = confirmEdgeId === edge.id
+          return (
+            <div
+              data-pan-zoom-ignore
+              className="absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1"
+              style={{ left: edge.midX, top: edge.midY }}
+              onMouseDown={(event) => event.stopPropagation()}
+              onMouseEnter={() => enterEdge(edge.id)}
+              onMouseLeave={leaveEdge}
+            >
+              {confirming ? (
+                <span className="flex items-center gap-1 rounded-full border border-rose-200 bg-white px-2 py-1 text-[10px] font-semibold shadow-md">
+                  <span className="text-slate-500">Remove link?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmEdgeId(null)
+                      setHoverEdgeId(null)
+                      onRemoveDependency(edge.sourceId, edge.targetId)
+                    }}
+                    className="rounded-full bg-rose-500 px-2 py-0.5 text-white hover:bg-rose-600 cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmEdgeId(null)}
+                    className="rounded-full px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Remove dependency"
+                  title="Remove this dependency"
+                  onClick={() => setConfirmEdgeId(edge.id)}
+                  className="grid h-5 w-5 place-items-center rounded-full border border-slate-300 bg-white text-slate-400 shadow hover:border-rose-300 hover:text-rose-500 cursor-pointer"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+          )
+        })()}
 
         {/* 2. Lớp DOM vẽ tất cả các Node (Render phẳng hoàn toàn từ layoutNodes) */}
         {layoutNodes.map((layoutNode) => {
@@ -342,9 +474,8 @@ export function MindmapTree({
               onAddSibling={handleAddChild}
               onSpawnDown={(event, sourceId) => {
                 if (readOnly) return
-                connect.startDrag(event, sourceId, () => {
-                  handleAddChild(sourceId)
-                })
+                // Cổng nối: chỉ kéo-thả mới nối; bấm không kéo thì không làm gì (thêm task con đã có nút (+) riêng)
+                connect.startDrag(event, sourceId, () => {})
               }}
               readOnly={readOnly}
               onDelete={(id) => {
@@ -371,10 +502,18 @@ export function MindmapTree({
         onZoomIn={panZoom.zoomIn}
         onZoomOut={panZoom.zoomOut}
         onReset={panZoom.reset}
+        onFit={fitView}
       />
+
+      {layoutNodes.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-xs text-slate-400">
+          No tasks yet. Use "+ Add task" to create the first one.
+        </div>
+      )}
 
       <AddNodeToolbar
         disabledReason={readOnly ? GRAPH_READ_ONLY_MESSAGE : undefined}
+        hint={readOnly ? undefined : 'Drag ● to link tasks · Shift+click to select several'}
         onAddTrack={onAddRootTask || addTrack}
         onAddGhost={(pos) =>
           onAddGhost?.({

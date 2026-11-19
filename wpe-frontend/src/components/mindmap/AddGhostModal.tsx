@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GitBranch, X, Link2, AlertCircle } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { phaseDisplayName } from '../../utils/phaseName'
 import { useWorkflowService } from '../../services/workflow/WorkflowContext'
 import type { BranchGraphNode } from '../../types/workflow.types'
 
@@ -24,11 +25,12 @@ export function AddGhostModal({
   anchorTaskId,
   onAttach,
 }: AddGhostModalProps) {
-  const store = useWorkflowStore()
+  const macroPhases = useWorkflowStore((state) => state.macroPhases)
+  const trees = useWorkflowStore((state) => state.trees)
   const workflowService = useWorkflowService()
 
   // 1. Available Source Phases (excluding current phase)
-  const availablePhases = store.macroPhases.filter((p) => p.id !== currentPhaseId)
+  const availablePhases = macroPhases.filter((p) => p.id !== currentPhaseId)
   const [sourcePhaseId, setSourcePhaseId] = useState<string>('')
   const [sourceTaskId, setSourceTaskId] = useState<string>('')
   const [targetTaskId, setTargetTaskId] = useState<string>('')
@@ -43,13 +45,13 @@ export function AddGhostModal({
   }, [availablePhases, sourcePhaseId])
 
   // Current Phase Tasks (Target Tasks)
-  const currentTree = store.trees[currentPhaseId] || {}
+  const currentTree = trees[currentPhaseId] || {}
   const targetTasks = Object.values(currentTree).filter(
     (n): n is BranchGraphNode => n.kind === 'branch' && !n.isTrack
   )
 
   // Source Phase Tasks
-  const sourceTree = store.trees[sourcePhaseId] || {}
+  const sourceTree = trees[sourcePhaseId] || {}
   const sourceTasks = Object.values(sourceTree).filter(
     (n): n is BranchGraphNode => n.kind === 'branch' && !n.isTrack
   )
@@ -179,7 +181,7 @@ export function AddGhostModal({
                       value={phase.id}
                       className="bg-white text-slate-900 py-1.5"
                     >
-                      {phase.name} — {phase.sub || 'Phase'}
+                      {phaseDisplayName(phase) || 'Phase'}
                     </option>
                   ))}
                   {availablePhases.length === 0 && (
