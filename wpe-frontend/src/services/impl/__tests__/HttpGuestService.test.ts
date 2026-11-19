@@ -98,13 +98,55 @@ describe('D5: HttpGuestService (impl/HttpGuestService.ts)', () => {
     })
   })
 
-  it('G25: AI và đánh giá chưa có backend -> features tắt, không dùng dữ liệu giả', async () => {
+  it('S08: AI summary bật (API thật), evaluation vẫn tắt và không dùng dữ liệu giả', async () => {
     const service = new HttpGuestService()
-    expect(service.features).toEqual({ aiSummary: false, evaluation: false })
-    await expect(service.getAiSummary('test-token')).rejects.toThrow('not available')
+    expect(service.features).toEqual({ aiSummary: true, evaluation: false })
     await expect(service.listFeedback('test-token', 's1')).resolves.toEqual([])
     await expect(service.getMyEvaluation('test-token', 's1')).resolves.toBeNull()
+    await expect(service.generateAiReport('test-token')).rejects.toThrow('not available')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('S08: getAiSummary gọi GET /guest/{token}/ai-summary và map đúng khuôn', async () => {
+    fetchMock.mockImplementationOnce(async () =>
+      jsonResponse(200, { content: 'Healthy', highlights: ['h1'], risks: ['WPE-1: slow'], generatedAt: '2026-11-19T01:00:00Z' }),
+    )
+    const service = new HttpGuestService()
+    const ai = await service.getAiSummary('test-token')
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/guest/test-token/ai-summary')
+    expect(init?.method).toBe('GET')
+    expect(ai).toEqual({ content: 'Healthy', highlights: ['h1'], risks: ['WPE-1: slow'], generatedAt: '2026-11-19T01:00:00.000Z' })
+  })
+
+  it('S08: getAiSummary 404 AI_SUMMARY_NOT_FOUND -> ném ApiError (trang khách ẩn khối AI)', async () => {
+    fetchMock.mockImplementationOnce(async () =>
+      jsonResponse(404, { status: 404, error: 'AI_SUMMARY_NOT_FOUND', message: 'No AI analysis is available for this project yet.' }),
+    )
+    const service = new HttpGuestService()
+    await expect(service.getAiSummary('test-token')).rejects.toMatchObject({ status: 404, code: 'AI_SUMMARY_NOT_FOUND' })
+  })
+
+  it('S08: getOverview map phases và memberCount (field cũ giữ nguyên)', async () => {
+    fetchMock.mockImplementationOnce(async () =>
+      jsonResponse(200, {
+        projectName: 'P',
+        totalNodes: 3,
+        completedNodes: 1,
+        phases: [
+          { name: 'Design', status: 'COMPLETED', progressPct: 100, totalTasks: 1, doneTasks: 1 },
+          { name: 'Build', status: 'WEIRD', progressPct: 50, totalTasks: 2, doneTasks: 1 },
+        ],
+        memberCount: 4,
+      }),
+    )
+    const overview = await new HttpGuestService().getOverview('test-token')
+    expect(overview.memberCount).toBe(4)
+    expect(overview.phases).toEqual([
+      { name: 'Design', status: 'COMPLETED', progressPct: 100, totalTasks: 1, doneTasks: 1 },
+      { name: 'Build', status: 'TODO', progressPct: 50, totalTasks: 2, doneTasks: 1 },
+    ])
+    expect(overview.totalNodes).toBe(3)
   })
 
   it('submitFeedback gọi POST /guest/{token}/feedback qua fetch thật', async () => {

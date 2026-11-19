@@ -54,6 +54,20 @@ export interface GuestOverviewDto {
   velocity: readonly GuestVelocityPoint[]
   statusBreakdown: readonly GuestStatusSlice[]
   recentActivity: readonly GuestActivityItem[]
+  /** S08: tiến độ từng phase (backend cũ không trả thì không có) */
+  phases?: readonly GuestPhaseProgress[]
+  /** S08: số thành viên (chủ dự án + thành viên đang hoạt động) */
+  memberCount?: number
+}
+
+export type GuestPhaseStatus = 'COMPLETED' | 'IN_PROGRESS' | 'LOCKED' | 'TODO'
+
+export interface GuestPhaseProgress {
+  name: string
+  status: GuestPhaseStatus
+  progressPct: number
+  totalTasks: number
+  doneTasks: number
 }
 
 export interface GuestAiSummaryDto {

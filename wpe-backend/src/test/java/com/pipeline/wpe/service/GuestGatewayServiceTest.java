@@ -65,6 +65,9 @@ class GuestGatewayServiceTest {
     @Mock
     private NodeDependencyRepository nodeDependencyRepository;
 
+    @Mock
+    private com.pipeline.wpe.repository.ProjectMemberRepository projectMemberRepository;
+
     @InjectMocks
     private GuestGatewayService guestGatewayService;
 
@@ -468,5 +471,140 @@ class GuestGatewayServiceTest {
         verify(authorizationService, never()).verifyProjectMemberOrOwner(any(), any());
         verify(guestLinkRepository, never()).save(any());
     }
-}
 
+    private GuestLinkEntity activeLink(String token) {
+        return GuestLinkEntity.builder().projectId(projectId).token(token).isRevoked(false)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS)).build();
+    }
+
+    @Test
+    @DisplayName("S08: overview co phases theo orderIndex (2 phase), %, so task, memberCount khong dem trung owner")
+    void testGetGuestOverview_phasesAndMemberCount() {
+        String token = "example-guest-token-s08";
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId)
+            .status(ProjectStatus.ACTIVE).build();
+        com.pipeline.wpe.entity.WorkPhaseEntity ph1 = com.pipeline.wpe.entity.WorkPhaseEntity.builder()
+            .id(10L).projectId(projectId).name("PHASE 1").subTitle("Design").orderIndex(0).build();
+        com.pipeline.wpe.entity.WorkPhaseEntity ph2 = com.pipeline.wpe.entity.WorkPhaseEntity.builder()
+            .id(11L).projectId(projectId).name("Build").orderIndex(1).build();
+        List<NodeEntity> nodes = List.of(
+            NodeEntity.builder().id(1L).projectId(projectId).phaseId(10L).status(NodeStatus.DONE).code("A-1").title("a").build(),
+            NodeEntity.builder().id(2L).projectId(projectId).phaseId(10L).status(NodeStatus.DONE).code("A-2").title("b").build(),
+            NodeEntity.builder().id(3L).projectId(projectId).phaseId(11L).status(NodeStatus.DONE).code("B-1").title("c").build(),
+            NodeEntity.builder().id(4L).projectId(projectId).phaseId(11L).status(NodeStatus.IN_PROGRESS).code("B-2").title("d").build(),
+            NodeEntity.builder().id(5L).projectId(projectId).phaseId(11L).status(NodeStatus.LOCKED).code("B-3").title("e").build());
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(nodes);
+        when(artifactRepository.findByProjectIdAndIsPublicForGuestTrue(projectId)).thenReturn(List.of());
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId)).thenReturn(List.of(ph1, ph2));
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId)).thenReturn(List.of(
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(projectId).userId(ownerId).build(),
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(projectId).userId(7L).build(),
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(projectId).userId(8L).build()));
+
+        GuestOverviewResponse overview = guestGatewayService.getGuestOverview(token);
+
+        assertThat(overview.memberCount()).isEqualTo(3);
+        assertThat(overview.phases()).hasSize(2);
+        GuestOverviewResponse.GuestPhaseDto first = overview.phases().get(0);
+        assertThat(first.name()).isEqualTo("Design");
+        assertThat(first.status()).isEqualTo("COMPLETED");
+        assertThat(first.progressPct()).isEqualTo(100);
+        assertThat(first.totalTasks()).isEqualTo(2);
+        assertThat(first.doneTasks()).isEqualTo(2);
+        GuestOverviewResponse.GuestPhaseDto second = overview.phases().get(1);
+        assertThat(second.name()).isEqualTo("Build");
+        assertThat(second.status()).isEqualTo("IN_PROGRESS");
+        assertThat(second.progressPct()).isEqualTo(33);
+        assertThat(second.totalTasks()).isEqualTo(3);
+        assertThat(second.doneTasks()).isEqualTo(1);
+        assertThat(overview.phases().toString()).doesNotContain("@");
+    }
+
+    @Test
+    @DisplayName("S08: phase con (tao bang nut +, co parentPhaseId) hien thanh dong rieng voi task cua chinh no, khong gop vao phase cha")
+    void testGetGuestOverview_childPhaseListedSeparately() {
+        String token = "example-guest-token-s08-child";
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId)
+            .status(ProjectStatus.ACTIVE).build();
+        com.pipeline.wpe.entity.WorkPhaseEntity parent = com.pipeline.wpe.entity.WorkPhaseEntity.builder()
+            .id(20L).projectId(projectId).name("Design").orderIndex(0).build();
+        com.pipeline.wpe.entity.WorkPhaseEntity child = com.pipeline.wpe.entity.WorkPhaseEntity.builder()
+            .id(21L).projectId(projectId).parentPhaseId(20L).name("Build").orderIndex(1).build();
+        List<NodeEntity> nodes = List.of(
+            NodeEntity.builder().id(1L).projectId(projectId).phaseId(20L).status(NodeStatus.DONE).code("A-1").title("a").build(),
+            NodeEntity.builder().id(2L).projectId(projectId).phaseId(21L).status(NodeStatus.LOCKED).code("B-1").title("b").build(),
+            NodeEntity.builder().id(3L).projectId(projectId).phaseId(21L).status(NodeStatus.LOCKED).code("B-2").title("c").build());
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(nodes);
+        when(artifactRepository.findByProjectIdAndIsPublicForGuestTrue(projectId)).thenReturn(List.of());
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId)).thenReturn(List.of(parent, child));
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId)).thenReturn(List.of());
+
+        GuestOverviewResponse overview = guestGatewayService.getGuestOverview(token);
+
+        assertThat(overview.phases()).hasSize(2);
+        assertThat(overview.phases().get(0).name()).isEqualTo("Design");
+        assertThat(overview.phases().get(0).totalTasks()).isEqualTo(1);
+        assertThat(overview.phases().get(0).status()).isEqualTo("COMPLETED");
+        assertThat(overview.phases().get(1).name()).isEqualTo("Build");
+        assertThat(overview.phases().get(1).totalTasks()).isEqualTo(2);
+        assertThat(overview.phases().get(1).status()).isEqualTo("LOCKED");
+    }
+
+    @Test
+    @DisplayName("S08: ai-summary co phan tich da luu -> dung khuon, risks bo muc LOW")
+    void testGetGuestAiSummary_success() {
+        String token = "example-guest-token-ai";
+        java.util.Map<String, Object> analysis = new java.util.LinkedHashMap<>();
+        analysis.put("analyzedAt", "2026-11-19T01:00:00Z");
+        analysis.put("metrics", java.util.Map.of("status", "RED_ALERT"));
+        analysis.put("actionableAdvice", List.of(java.util.Map.of("instruction", "Split task WPE-2", "priority", "HIGH")));
+        analysis.put("bottlenecks", List.of(
+            java.util.Map.of("nodeCode", "WPE-2", "title", "T", "reason", "Too slow", "severity", "HIGH"),
+            java.util.Map.of("nodeCode", "WPE-9", "title", "T", "reason", "On track", "severity", "LOW")));
+        analysis.put("taskTraps", List.of(java.util.Map.of("nodeCode", "WPE-3", "trapType", "OVER_SCOPED", "suggestion", "Break it down")));
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId)
+            .status(ProjectStatus.ACTIVE).latestAiAnalysis(analysis).build();
+        Instant now = Instant.now();
+        NodeEntity doneRecent = NodeEntity.builder().id(1L).projectId(projectId).status(NodeStatus.DONE).code("WPE-1").title("a").completedAt(now.minusSeconds(3600)).build();
+        NodeEntity doneOld = NodeEntity.builder().id(2L).projectId(projectId).status(NodeStatus.DONE).code("WPE-4").title("b").completedAt(now.minus(30, ChronoUnit.DAYS)).build();
+        NodeEntity open = NodeEntity.builder().id(3L).projectId(projectId).status(NodeStatus.TODO).code("WPE-2").title("c").build();
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of(doneRecent, doneOld, open));
+
+        var summary = guestGatewayService.getGuestAiSummary(token).orElseThrow();
+
+        assertThat(summary.content()).isEqualTo("Project health: red alert. 1 task was completed in the last 7 days; 1 task remains.");
+        assertThat(summary.highlights()).containsExactly("Split task WPE-2");
+        assertThat(summary.risks()).containsExactly("WPE-2: Too slow", "WPE-3: Break it down");
+        assertThat(summary.generatedAt()).isEqualTo("2026-11-19T01:00:00Z");
+    }
+
+    @Test
+    @DisplayName("S08: ai-summary chua co phan tich -> Optional rong (controller tra 404)")
+    void testGetGuestAiSummary_noAnalysis() {
+        String token = "example-guest-token-noai";
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId)
+            .status(ProjectStatus.ACTIVE).build();
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+
+        assertThat(guestGatewayService.getGuestAiSummary(token)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("S08: ai-summary voi link bi thu hoi -> ForbiddenException REVOKED_GUEST nhu overview")
+    void testGetGuestAiSummary_revoked() {
+        String token = "revoked-ai";
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token).isRevoked(true)
+            .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS)).build();
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+
+        assertThatThrownBy(() -> guestGatewayService.getGuestAiSummary(token))
+            .isInstanceOfSatisfying(ForbiddenException.class, e -> assertThat(e.getErrorCode()).isEqualTo("REVOKED_GUEST"));
+    }
+}

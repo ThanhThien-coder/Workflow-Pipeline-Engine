@@ -46,8 +46,23 @@ public record GuestOverviewResponse(
     List<GuestActivityDto> recentActivity,
 
     @Schema(description = "Kho tài nguyên và minh chứng công khai cho khách xem")
-    List<GuestArtifactDto> publicArtifacts
+    List<GuestArtifactDto> publicArtifacts,
+
+    @Schema(description = "Tiến độ từng phase theo thứ tự orderIndex")
+    List<GuestPhaseDto> phases,
+
+    @Schema(description = "Số thành viên (chủ dự án + thành viên đang hoạt động)", example = "4")
+    int memberCount
 ) {
+    /** status: COMPLETED | IN_PROGRESS | LOCKED | TODO (suy ra từ task, khớp FE phaseProgress). */
+    public record GuestPhaseDto(
+        String name,
+        String status,
+        int progressPct,
+        int totalTasks,
+        int doneTasks
+    ) {}
+
     public record GuestVelocityPointDto(
         String day,
         int value

@@ -16,6 +16,8 @@ import type {
   GuestLinkErrorCode,
   GuestLinkInfoDto,
   GuestOverviewDto,
+  GuestPhaseProgress,
+  GuestPhaseStatus,
   GuestScores,
   GuestSessionDto,
   GuestStatusKey,
@@ -86,6 +88,44 @@ function Logo() {
       </div>
       <span className="text-sm font-bold text-slate-900">Pipeline Engine</span>
     </div>
+  )
+}
+
+const PHASE_STATUS_LABEL: Record<GuestPhaseStatus, string> = {
+  COMPLETED: 'Completed',
+  IN_PROGRESS: 'In progress',
+  LOCKED: 'Locked',
+  TODO: 'To do',
+}
+const PHASE_STATUS_BADGE: Record<GuestPhaseStatus, string> = {
+  COMPLETED: 'bg-emerald-100 text-emerald-700',
+  IN_PROGRESS: 'bg-blue-100 text-blue-700',
+  LOCKED: 'bg-slate-100 text-slate-600',
+  TODO: 'bg-sky-100 text-sky-700',
+}
+
+/** S08: tiến độ từng phase dạng thanh ngang (chỉ tên phase và số, không tên người) */
+export function PhasesCard({ phases }: { phases: readonly GuestPhaseProgress[] }) {
+  return (
+    <section className="rise rounded-2xl border border-slate-200 bg-white p-6" aria-label="Phases">
+      <h2 className="text-sm font-bold text-slate-900">Phases</h2>
+      <div className="mt-4 space-y-4">
+        {phases.map((p, i) => (
+          <div key={`${i}-${p.name}`} data-testid="guest-phase">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="clamp1 font-medium text-slate-800">{p.name}</span>
+              <span className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-semibold', PHASE_STATUS_BADGE[p.status])}>{PHASE_STATUS_LABEL[p.status]}</span>
+                <b className="text-slate-800">{p.progressPct}%</b> · {p.doneTasks} / {pluralize(p.totalTasks, 'task')}
+              </span>
+            </div>
+            <div className="mt-1.5 h-2 rounded-full bg-slate-100">
+              <div className={clsx('h-full rounded-full', p.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-indigo-500')} style={{ width: `${p.progressPct}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -360,6 +400,8 @@ function Overview({
 }) {
   const [data, setData] = useState<GuestOverviewDto | null>(null)
   const [ai, setAi] = useState<GuestAiSummaryDto | null>(null)
+  // 'none' = chưa có phân tích AI (404) hoặc lỗi: ẩn khối AI, hiện "No AI analysis yet"
+  const [aiLoaded, setAiLoaded] = useState<'loading' | 'ready' | 'none'>('loading')
   const [feedback, setFeedback] = useState<GuestFeedbackDto[]>([])
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -369,7 +411,18 @@ function Overview({
 
   useEffect(() => {
     guestService.getOverview(token).then(setData).catch((e) => onError(toErrorState(e)))
-    if (features.aiSummary) guestService.getAiSummary(token).then(setAi).catch(() => setAi(null))
+    if (features.aiSummary) {
+      guestService
+        .getAiSummary(token)
+        .then((s) => {
+          setAi(s)
+          setAiLoaded('ready')
+        })
+        .catch(() => {
+          setAi(null)
+          setAiLoaded('none')
+        })
+    }
     guestService.listFeedback(token, session.sessionId).then(setFeedback).catch(() => undefined)
   }, [token, session.sessionId, onError, features.aiSummary])
 
@@ -432,16 +485,18 @@ function Overview({
             <h1 className="text-2xl font-bold text-slate-900">{info.projectName}</h1>
             {data && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">{data.phaseLabel}</span>}
           </div>
-          <p className="mt-1 text-xs text-slate-500">{[info.ownerName && `Shared by ${info.ownerName}`, data && `Last updated ${lastUpdatedText(data.lastUpdated)}`].filter(Boolean).join(' · ')}</p>
+          <p className="mt-1 text-xs text-slate-500">{[info.ownerName && `Shared by ${info.ownerName}`, data && data.memberCount != null && pluralize(data.memberCount, 'member'), data && `Last updated ${lastUpdatedText(data.lastUpdated)}`].filter(Boolean).join(' · ')}</p>
         </div>
 
         {features.aiSummary && (
         <section className="rise rounded-2xl border border-indigo-200 bg-white p-5">
           <div className="flex items-center gap-2">
-            <Sparkles size={16} className={clsx('text-indigo-600', !ai && 'pulse2')} />
+            <Sparkles size={16} className={clsx('text-indigo-600', aiLoaded === 'loading' && 'pulse2')} />
             <h2 className="grad-text text-sm font-bold">AI Summary</h2>
           </div>
-          {!ai ? (
+          {aiLoaded === 'none' ? (
+            <p className="mt-3 text-sm text-slate-500">No AI analysis yet</p>
+          ) : !ai ? (
             <div className="mt-3 space-y-2">
               <div className="h-3 w-full animate-pulse rounded bg-slate-100" />
               <div className="h-3 w-4/5 animate-pulse rounded bg-slate-100" />
@@ -459,12 +514,15 @@ function Overview({
               </div>
             </div>
           )}
-          <AiReportBlock token={token} onError={onError} />
+          {/* Bản mock (không khai báo features) giữ nút tạo báo cáo AI; bản gọi API thật chưa có API này nên ẩn */}
+          {guestService.features === undefined && <AiReportBlock token={token} onError={onError} />}
         </section>
         )}
 
         {data && (
           <>
+            {data.phases && data.phases.length > 0 && <PhasesCard phases={data.phases} />}
+
             <div className="grid gap-4 sm:grid-cols-3">
               <StatCard icon={<GitBranch size={18} />} tone="bg-indigo-50 text-indigo-600" label="Total Nodes" value={data.totalNodes} sub={`${pluralize(data.criticalNodes, 'node')} on critical path`} />
               <StatCard icon={<CheckCircle2 size={18} />} tone="bg-emerald-50 text-emerald-600" label="Completion" value={`${data.completionPct}%`} sub={`${data.completedNodes} / ${data.totalNodes} nodes completed`} right={<Ring pct={data.completionPct} />} />

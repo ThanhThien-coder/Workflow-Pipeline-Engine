@@ -10,7 +10,7 @@ import type {
   SubmitGuestEvaluationCommand,
   SubmitGuestFeedbackCommand,
 } from '../../types/guest.types'
-import { fetchGuestOverview, submitGuestFeedback } from './http/guest'
+import { fetchGuestAiSummary, fetchGuestOverview, submitGuestFeedback } from './http/guest'
 
 const ANONYMOUS = 'Guest'
 
@@ -25,10 +25,11 @@ const notAvailable = (what: string) => Promise.reject(new Error(`${what} is not 
  * - submitFeedback: POST /guest/{token}/feedback
  * - createSession: chỉ lưu trên trình duyệt (backend không có phiên khách)
  * - listFeedback: backend chưa có API đọc lại góp ý của khách → []
- * - AI summary / AI report / evaluation: chưa có API → features tắt, trang khách ẩn các khối này
+ * - getAiSummary: GET /guest/{token}/ai-summary (S08, đọc kết quả AI đã lưu; 404 AI_SUMMARY_NOT_FOUND = chưa có phân tích)
+ * - AI report / evaluation: chưa có API → ẩn các khối này (evaluation tắt trong features)
  */
 export class HttpGuestService implements IGuestService {
-  readonly features: GuestFeatures = { aiSummary: false, evaluation: false }
+  readonly features: GuestFeatures = { aiSummary: true, evaluation: false }
 
   private readonly sessionNames: Map<string, string> = new Map()
 
@@ -71,8 +72,9 @@ export class HttpGuestService implements IGuestService {
     return []
   }
 
-  getAiSummary(_token: string): Promise<GuestAiSummaryDto> {
-    return notAvailable('AI summary')
+  /** GET /guest/{token}/ai-summary — kết quả AI đã lưu, không chạy AI mới */
+  getAiSummary(token: string): Promise<GuestAiSummaryDto> {
+    return fetchGuestAiSummary(token)
   }
 
   generateAiReport(_token: string): Promise<GuestAiReportDto> {
