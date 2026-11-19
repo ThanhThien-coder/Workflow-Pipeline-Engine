@@ -196,6 +196,32 @@ describe('store: cập nhật lạc quan (S03)', () => {
     expect(store.getState().trees['20']['4'].parentIds).toEqual([ROOT])
   })
 
+  it('connectNodes: phía trên node cha có ghost (vòng có thể đi qua phase khác) -> chờ server, 422 thì cạnh không hề hiện', async () => {
+    const { store, service } = setup()
+    const ghost = { id: 'g1', kind: 'ghost', title: 'X', refPhase: '30', refId: '50', dir: 'up', parentIds: [ROOT] } as unknown as GraphNodeMap[string]
+    store.setState({ trees: { '20': { ...baseTree(), g1: ghost, '2': branch('2', { parentIds: ['g1'] }), '4': branch('4') } } })
+    let during: string[] = []
+    service.attachGhostNode.mockImplementationOnce(async () => {
+      during = store.getState().trees['20']['4'].parentIds
+      throw new ApiError({ status: 422, code: 'CYCLE_DETECTED', message: 'vòng' })
+    })
+
+    await expect(store.getState().connectNodes('20', '3', '4')).rejects.toMatchObject({ status: 422 })
+
+    expect(during).toEqual([ROOT]) // lúc chờ server chưa vẽ cạnh -> không nhấp nháy
+    expect(store.getState().trees['20']['4'].parentIds).toEqual([ROOT])
+  })
+
+  it('connectNodes: phía trên node cha có ghost, server nhận -> vẽ cạnh sau khi server trả về', async () => {
+    const { store } = setup()
+    const ghost = { id: 'g1', kind: 'ghost', title: 'X', refPhase: '30', refId: '50', dir: 'up', parentIds: [ROOT] } as unknown as GraphNodeMap[string]
+    store.setState({ trees: { '20': { ...baseTree(), g1: ghost, '2': branch('2', { parentIds: ['g1'] }), '4': branch('4') } } })
+
+    await store.getState().connectNodes('20', '3', '4')
+
+    expect(store.getState().trees['20']['4'].parentIds).toEqual(['3'])
+  })
+
   it('removeDependency: gỡ cạnh ngay; lỗi thì dựng lại cạnh', async () => {
     const { store, service } = setup()
     service.deleteDependency.mockRejectedValueOnce(new ApiError({ status: 500, code: 'X', message: 'x' }))

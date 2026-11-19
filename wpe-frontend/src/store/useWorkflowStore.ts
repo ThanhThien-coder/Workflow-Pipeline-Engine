@@ -5,7 +5,7 @@ import type { ProjectSettingsDto } from '../types/settings.types'
 import type { BranchGraphNode, GraphNodeMap, MacroPhase } from '../types/workflow.types'
 import { ApiError } from '../services/http/ApiError'
 import { computePhaseProgress, syncTrackProgress, withPhaseProgress } from '../domain/phaseProgress'
-import { deleteNodeCascade } from '../utils/spanningTreeLayout'
+import { deleteNodeCascade, hasGhostAncestor } from '../utils/spanningTreeLayout'
 import { rootIdOf } from '../mappers/graphMapper'
 import { currentProjectInfo } from './projectInfo'
 import { computeNewPhasePosition } from '../utils/macroLayout'
@@ -457,14 +457,25 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     // Cùng một API POST /dependencies với ghost; nguồn và đích nằm cùng phase
     // S03: vẽ cạnh ngay; server từ chối (vd. 422 tạo vòng) thì gỡ cạnh về như cũ rồi ném lỗi
     const rootId = rootIdOf(phaseId)
-    const undo = applyOptimistic(phaseId, (nodes) => {
+    const addEdge = (nodes: GraphNodeMap): GraphNodeMap => {
       const child = nodes[childId]
       if (!child || child.parentIds.includes(parentId)) return nodes
       const base = child.kind === 'branch' ? child.parentIds.filter((p) => p !== rootId) : child.parentIds
       return { ...nodes, [childId]: { ...child, parentIds: [...base, parentId] } }
-    })
+    }
+    const payload = { sourcePhaseId: phaseId, sourceTaskId: parentId, targetTaskId: childId }
+    // Vòng trong phase đã bị chặn lúc kéo (isAncestor). Vòng đi qua phase khác chỉ có khi phía trên node cha có ghost:
+    // khi đó chờ server nhận rồi mới vẽ cạnh, để cạnh không hiện lên rồi biến mất (nhấp nháy) khi server trả 422.
+    const tree = get().trees[phaseId]
+    if (tree && hasGhostAncestor(tree, parentId)) {
+      await service.attachGhostNode(phaseId, payload)
+      applyOptimistic(phaseId, addEdge)
+      void get().resetPhaseTree(phaseId)
+      return
+    }
+    const undo = applyOptimistic(phaseId, addEdge)
     try {
-      await service.attachGhostNode(phaseId, { sourcePhaseId: phaseId, sourceTaskId: parentId, targetTaskId: childId })
+      await service.attachGhostNode(phaseId, payload)
     } catch (error) {
       undo()
       throw error

@@ -56,6 +56,27 @@ export function isAncestor(nodes: GraphNodeMap, targetId: string, sourceId: stri
   return false
 }
 
+/**
+ * Node `id` (tính cả chính nó) có tổ tiên là ghost không, tức có phụ thuộc đi vào từ phase khác.
+ * Không có thì một cạnh mới vào node này không thể tạo vòng đi qua phase khác (vòng trong phase đã có isAncestor chặn).
+ */
+export function hasGhostAncestor(nodes: GraphNodeMap, id: string): boolean {
+  const queue = [id]
+  const seen = new Set(queue)
+  while (queue.length) {
+    const node = nodes[queue.shift() as string]
+    if (!node) continue
+    if (node.kind === 'ghost') return true
+    node.parentIds.forEach((parent) => {
+      if (!seen.has(parent)) {
+        seen.add(parent)
+        queue.push(parent)
+      }
+    })
+  }
+  return false
+}
+
 export function isPhaseAncestor(phases: Record<string, MacroPhase>, targetId: string, sourceId: string): boolean {
   const queue = [targetId]
   const visited = new Set(queue)
