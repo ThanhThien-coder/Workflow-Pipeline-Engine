@@ -13,7 +13,7 @@ import * as assignmentApi from './http/assignment'
 import * as activityApi from './http/activity'
 import * as overviewApi from './http/overview'
 import * as aiApi from './http/ai'
-import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree } from '../../mappers/graphMapper'
+import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree, toBranch } from '../../mappers/graphMapper'
 import { dateInputToEndOfDayIso } from '../../utils/dueDate'
 import type {
   ArtifactItem,
@@ -46,7 +46,7 @@ import type {
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
 import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
-import type { BackendGraphNodeDto, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
+import type { BackendGraphNodeDto, BranchGraphNode, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
 // Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
 import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
 
@@ -747,7 +747,7 @@ export class HttpWorkflowService implements IWorkflowService {
   }
 
   /** POST /projects/{id}/nodes — thêm 1 node vào phase (backend tạo ở trạng thái LOCKED). */
-  async addRootTask(phaseId: string, payload: { title: string }): Promise<PhaseNode> {
+  async addRootTask(phaseId: string, payload: { title: string }): Promise<PhaseNode & { node?: BranchGraphNode }> {
     const pid = this.projectIdOfPhase(phaseId)
     const created = await graphApi.createNode(pid, {
       phaseId: graphApi.toBackendId(String(phaseId), 'Phase'),
@@ -759,6 +759,7 @@ export class HttpWorkflowService implements IWorkflowService {
       title: created.title,
       status: ((created.status as TaskStatus) || 'LOCKED'),
       parentId: rootIdOf(String(phaseId)),
+      node: toBranch(created, String(phaseId)),
     }
   }
 
@@ -766,7 +767,7 @@ export class HttpWorkflowService implements IWorkflowService {
    * POST /projects/{id}/nodes rồi POST /dependencies từ từng task cha (subtask = 1 cha, task hội tụ = nhiều cha).
    * Nối lỗi (vd. 422 chu trình) thì xóa node vừa tạo để không để lại task mồ côi, rồi ném lỗi gốc.
    */
-  async addChildTask(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode> {
+  async addChildTask(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode & { node?: BranchGraphNode }> {
     const pid = this.projectIdOfPhase(phaseId)
     const parentIds = parentTaskIds.map((id) => graphApi.toBackendId(id, 'Task cha'))
     const created = await graphApi.createNode(pid, {
@@ -789,6 +790,7 @@ export class HttpWorkflowService implements IWorkflowService {
       title: created.title,
       status: ((created.status as TaskStatus) || 'LOCKED'),
       parentId: parentTaskIds[0],
+      node: { ...toBranch(created, String(phaseId)), parentIds: parentTaskIds.map(String) },
     }
   }
 

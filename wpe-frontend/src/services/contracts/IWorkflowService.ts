@@ -1,4 +1,4 @@
-import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency } from '../../types/workflow.types'
+import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency, BranchGraphNode } from '../../types/workflow.types'
 import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
 import type { ArtifactItem, KanbanTask, ReopenImpact, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import type {
@@ -67,10 +67,11 @@ export interface IWorkflowService {
   getMacroPhases(projectId?: string): Promise<MacroPhase[]>
   getPhaseEdges(projectId?: string): Promise<[string, string][]>
   getPhaseGraph(phaseId: string, projectId?: string): Promise<PhaseTreeData>
-  addRootTask?(phaseId: string, payload: { title: string }): Promise<PhaseNode>
+  /** `node` (nếu có) là thẻ đầy đủ để chèn vào cây ngay; thiếu thì store đọc lại cây. */
+  addRootTask?(phaseId: string, payload: { title: string }): Promise<PhaseNode & { node?: BranchGraphNode }>
   attachGhostNode?(phaseId: string, payload: { sourcePhaseId: string; sourceTaskId: string; targetTaskId: string }): Promise<GhostDependency>
   /** Chế độ API: tạo task trong phase rồi nối từ các task cha (1 cha = subtask, nhiều cha = task hội tụ). */
-  addChildTask?(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode>
+  addChildTask?(phaseId: string, parentTaskIds: string[], payload: { title: string }): Promise<PhaseNode & { node?: BranchGraphNode }>
   /** Chế độ API: sửa thông tin task (không sửa trạng thái). */
   updateTaskNode?(taskId: string, patch: TaskNodePatch): Promise<void>
   /** Chế độ API: xóa task (backend chỉ cho xóa task LOCKED hoặc TODO). */

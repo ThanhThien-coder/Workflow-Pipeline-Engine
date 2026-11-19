@@ -2,10 +2,11 @@ import { create } from 'zustand'
 import { workflowService } from '../services/container'
 import type { CreatePhaseDto, IWorkflowService, TaskNodePatch } from '../services/contracts/IWorkflowService'
 import type { ProjectSettingsDto } from '../types/settings.types'
-import type { GraphNodeMap, MacroPhase } from '../types/workflow.types'
+import type { BranchGraphNode, GraphNodeMap, MacroPhase } from '../types/workflow.types'
 import { ApiError } from '../services/http/ApiError'
 import { computePhaseProgress, syncTrackProgress, withPhaseProgress } from '../domain/phaseProgress'
 import { deleteNodeCascade } from '../utils/spanningTreeLayout'
+import { rootIdOf } from '../mappers/graphMapper'
 import { computeNewPhasePosition } from '../utils/macroLayout'
 import { getStoredProjectGraph, saveStoredProjectGraph } from '../services/mock/mockProjectGraphStore'
 import { TREES } from '../services/MockWorkflowService'
@@ -114,7 +115,48 @@ function ensureCanEditGraph(state: WorkflowState): void {
 export const createWorkflowStore = (service: IWorkflowService = workflowService) => {
   // Số thứ tự lần loadPhases: lần cũ về muộn thì bỏ kết quả (chống lẫn dự án)
   let loadSeq = 0
-  return create<WorkflowState>((set, get) => ({
+  // S03: số thứ tự thay đổi cây theo phase. Lần đọc lại cây (đồng bộ nền) bắt đầu trước một thay đổi mới
+  // thì bỏ kết quả, để bản cũ về muộn không xóa thẻ vừa chèn.
+  const treeSeq: Record<string, number> = {}
+  const bumpTreeSeq = (phaseId: string) => {
+    treeSeq[phaseId] = (treeSeq[phaseId] ?? 0) + 1
+  }
+  const sameNode = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b)
+  return create<WorkflowState>((set, get) => {
+  /** S03: áp thay đổi lên cây ngay; trả hàm hoàn lại đúng các thẻ đã đổi (không đụng thẻ khác). */
+  const applyOptimistic = (phaseId: string, mutate: (nodes: GraphNodeMap) => GraphNodeMap): (() => void) => {
+    const before = get().trees[phaseId] ?? {}
+    bumpTreeSeq(phaseId)
+    get().updateTree(phaseId, mutate)
+    const after = get().trees[phaseId] ?? {}
+    return () => {
+      bumpTreeSeq(phaseId)
+      get().updateTree(phaseId, (current) => {
+        const next = { ...current }
+        for (const id of new Set([...Object.keys(before), ...Object.keys(after)])) {
+          if (sameNode(before[id], after[id])) continue
+          if (before[id]) next[id] = before[id]
+          else delete next[id]
+        }
+        return next
+      })
+    }
+  }
+
+  /** S03: chèn thẻ task vừa tạo (id thật) vào cây. false = không chèn được (chưa có cây / service không trả thẻ). */
+  const insertCreatedNode = (phaseId: string, node: BranchGraphNode | undefined, parentIds: string[]): boolean => {
+    const tree = get().trees[phaseId]
+    if (!node || !tree) return false
+    const rootId = rootIdOf(phaseId)
+    const realParents = parentIds.filter((id) => tree[id]?.kind === 'branch')
+    bumpTreeSeq(phaseId)
+    get().updateTree(phaseId, (nodes) =>
+      nodes[node.id] ? nodes : { ...nodes, [node.id]: { ...node, parentIds: realParents.length > 0 ? realParents : [rootId] } }
+    )
+    return true
+  }
+
+  return {
   ...createOverviewSlice(set, get),
   ...createKanbanSlice(set, get),
   ...createSettingsSlice(set, get),
@@ -221,8 +263,29 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   removeDependency: async (phaseId, parentTaskId, childTaskId) => {
     ensureCanEditGraph(get())
     if (!service.deleteDependency) throw new Error('The current service does not support removing dependencies.')
-    await service.deleteDependency(phaseId, parentTaskId, childTaskId)
-    await get().resetPhaseTree(phaseId)
+    const rootId = rootIdOf(phaseId)
+    const undo = applyOptimistic(phaseId, (nodes) => {
+      const next: GraphNodeMap = {}
+      for (const [id, node] of Object.entries(nodes)) {
+        // Ghost của cạnh này: bỏ hẳn
+        if (node.kind === 'ghost' && node.refId === parentTaskId && node.targetTaskId === childTaskId) continue
+        // Cạnh cùng phase: con bỏ cha này (hết cha thì treo lại dưới root)
+        if (id === childTaskId && node.parentIds.includes(parentTaskId)) {
+          const parentIds = node.parentIds.filter((p) => p !== parentTaskId)
+          next[id] = { ...node, parentIds: parentIds.length > 0 || node.kind !== 'branch' ? parentIds : [rootId] }
+          continue
+        }
+        next[id] = node
+      }
+      return next
+    })
+    try {
+      await service.deleteDependency(phaseId, parentTaskId, childTaskId)
+    } catch (error) {
+      undo()
+      throw error
+    }
+    void get().resetPhaseTree(phaseId)
   },
   connectPhases: async (sourceId, targetId) => {
     ensureCanEditGraph(get())
@@ -360,8 +423,11 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   resetPhaseTree: async (phaseId: string) => {
     try {
       const currentProjectId = get().currentProjectId
+      const seqAtStart = treeSeq[phaseId] ?? 0
       const cleanTree = syncTrackProgress(await service.getPhaseGraph(phaseId, currentProjectId || undefined))
       if (get().currentProjectId !== currentProjectId) return
+      // Có thay đổi cây mới hơn lúc bắt đầu đọc: bản đọc này đã cũ, thay đổi đó tự đồng bộ lại
+      if ((treeSeq[phaseId] ?? 0) !== seqAtStart) return
       set((state) => ({
         macroPhases: state.macroPhases.map((p) => (p.id === phaseId ? withPhaseProgress(p, cleanTree) : p)),
         trees: { ...state.trees, [phaseId]: cleanTree },
@@ -374,8 +440,13 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   addRootTask: async (phaseId, title) => {
     ensureCanEditGraph(get())
     if (!service.addRootTask) throw new Error('The current service doesn\'t support adding tasks through the API.')
-    await service.addRootTask(phaseId, { title })
-    await get().resetPhaseTree(phaseId)
+    const created = await service.addRootTask(phaseId, { title })
+    // Có thẻ trả về: chèn vào cây ngay (id thật từ server), đọc lại cây chạy nền. Không thì đọc lại và chờ như cũ.
+    if (!insertCreatedNode(phaseId, created?.node, [])) {
+      await get().resetPhaseTree(phaseId)
+      return
+    }
+    void get().resetPhaseTree(phaseId)
   },
   attachGhostNode: async (phaseId, payload) => {
     ensureCanEditGraph(get())
@@ -388,31 +459,85 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     ensureCanEditGraph(get())
     if (!service.attachGhostNode) throw new Error('The current service doesn\'t support linking tasks through the API.')
     // Cùng một API POST /dependencies với ghost; nguồn và đích nằm cùng phase
-    await service.attachGhostNode(phaseId, { sourcePhaseId: phaseId, sourceTaskId: parentId, targetTaskId: childId })
-    // Server nhận rồi mới vẽ cạnh (không vẽ trước rồi phải gỡ)
-    get().updateTree(phaseId, (nodes) => {
+    // S03: vẽ cạnh ngay; server từ chối (vd. 422 tạo vòng) thì gỡ cạnh về như cũ rồi ném lỗi
+    const rootId = rootIdOf(phaseId)
+    const undo = applyOptimistic(phaseId, (nodes) => {
       const child = nodes[childId]
       if (!child || child.parentIds.includes(parentId)) return nodes
-      return { ...nodes, [childId]: { ...child, parentIds: [...child.parentIds, parentId] } }
+      const base = child.kind === 'branch' ? child.parentIds.filter((p) => p !== rootId) : child.parentIds
+      return { ...nodes, [childId]: { ...child, parentIds: [...base, parentId] } }
     })
+    try {
+      await service.attachGhostNode(phaseId, { sourcePhaseId: phaseId, sourceTaskId: parentId, targetTaskId: childId })
+    } catch (error) {
+      undo()
+      throw error
+    }
+    void get().resetPhaseTree(phaseId)
   },
   addChildTask: async (phaseId, parentTaskIds, title) => {
     ensureCanEditGraph(get())
     if (!service.addChildTask) throw new Error('The current service does not support adding child tasks.')
-    await service.addChildTask(phaseId, parentTaskIds, { title })
-    await get().resetPhaseTree(phaseId)
+    const created = await service.addChildTask(phaseId, parentTaskIds, { title })
+    if (!insertCreatedNode(phaseId, created?.node, parentTaskIds)) {
+      await get().resetPhaseTree(phaseId)
+      return
+    }
+    void get().resetPhaseTree(phaseId)
   },
   updateNodeInfo: async (phaseId, nodeId, patch) => {
     ensureCanEditGraph(get())
     if (!service.updateTaskNode) throw new Error('The current service does not support editing tasks.')
-    await service.updateTaskNode(nodeId, patch)
-    await get().resetPhaseTree(phaseId)
+    const before = get().trees[phaseId]?.[nodeId]
+    const undo =
+      before && before.kind === 'branch'
+        ? applyOptimistic(phaseId, (nodes) => ({
+            ...nodes,
+            [nodeId]: {
+              ...before,
+              title: patch.title.trim(),
+              description: patch.description,
+              joinPolicy: patch.joinPolicy,
+              assignee: patch.assigneeId,
+              due: patch.dueDate,
+            },
+          }))
+        : null
+    try {
+      await service.updateTaskNode(nodeId, patch)
+    } catch (error) {
+      undo?.()
+      throw error
+    }
+    void get().resetPhaseTree(phaseId)
   },
   removeNode: async (phaseId, nodeId) => {
     ensureCanEditGraph(get())
     if (!service.deleteTaskNode) throw new Error('The current service does not support deleting tasks.')
-    await service.deleteTaskNode(nodeId)
-    await get().resetPhaseTree(phaseId)
+    const rootId = rootIdOf(phaseId)
+    const undo = applyOptimistic(phaseId, (nodes) => {
+      if (!nodes[nodeId] || nodes[nodeId].kind === 'root') return nodes
+      const next: GraphNodeMap = {}
+      for (const [id, node] of Object.entries(nodes)) {
+        if (id === nodeId) continue
+        // Ghost trỏ tới task này (hoặc nằm trên task này) không còn nghĩa
+        if (node.kind === 'ghost' && (node.refId === nodeId || node.targetTaskId === nodeId)) continue
+        if (node.parentIds.includes(nodeId)) {
+          const parentIds = node.parentIds.filter((p) => p !== nodeId)
+          next[id] = { ...node, parentIds: parentIds.length > 0 || node.kind !== 'branch' ? parentIds : [rootId] }
+        } else {
+          next[id] = node
+        }
+      }
+      return next
+    })
+    try {
+      await service.deleteTaskNode(nodeId)
+    } catch (error) {
+      undo()
+      throw error
+    }
+    void get().resetPhaseTree(phaseId)
   },
   forceUnlockNode: async (phaseId, nodeId) => {
     ensureCanEditGraph(get())
@@ -421,7 +546,8 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     await get().resetPhaseTree(phaseId)
   },
   setActiveTab: (activeTab) => set({ activeTab }),
-}))
+  }
+  })
 }
 
 export const useWorkflowStore = createWorkflowStore()

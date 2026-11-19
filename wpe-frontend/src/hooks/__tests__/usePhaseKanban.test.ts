@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { renderHook, waitFor, act } from '@testing-library/react'
+import { renderHook, waitFor, act, cleanup } from '@testing-library/react'
 import { usePhaseKanban } from '../usePhaseKanban'
 import { workflowService } from '../../services/container'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
@@ -147,83 +147,43 @@ describe('usePhaseKanban', () => {
     expect(result.current.toastMessage).toContain('changed by someone else')
   })
 
-  it('nhận sự kiện PROJECT_TASKS_CHANGED cùng projectId -> gọi resetPhaseTree và loadPhases sau debounce 300ms', async () => {
-    vi.useFakeTimers()
-    let eventHandler: (eventName: string, data: any) => void = () => {}
-    const unsubscribe = vi.fn()
-    ;(workflowService as any).connectRealtime = vi.fn((_uid: string, handler: any) => {
-      eventHandler = handler
-      return unsubscribe
-    })
-
-    const resetPhaseTree = vi.fn(async () => {})
-    const loadPhases = vi.fn(async () => {})
-    useWorkflowStore.setState({ resetPhaseTree, loadPhases })
+  it('không còn tự mở kết nối realtime (đã chuyển sang useProjectRealtime)', () => {
+    const connectRealtime = vi.fn(() => vi.fn())
+    ;(workflowService as any).connectRealtime = connectRealtime
     vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
 
     renderHook(() => usePhaseKanban(PHASE, '19'))
 
-    expect((workflowService as any).connectRealtime).toHaveBeenCalledWith('9', expect.any(Function))
-
-    // Phát sự kiện cùng projectId '19'
-    act(() => {
-      eventHandler('PROJECT_TASKS_CHANGED', { projectId: '19', phaseId: '56', reason: 'STATUS_CHANGED' })
-    })
-
-    // Chưa qua 300ms -> chưa gọi refresh
-    act(() => {
-      vi.advanceTimersByTime(150)
-    })
-    expect(resetPhaseTree).not.toHaveBeenCalled()
-
-    // Đủ 300ms -> kích hoạt refresh
-    await act(async () => {
-      vi.advanceTimersByTime(200)
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-    expect(resetPhaseTree).toHaveBeenCalledWith('56')
-    expect(loadPhases).toHaveBeenCalledWith('19')
-
-    vi.useRealTimers()
+    expect(connectRealtime).not.toHaveBeenCalled()
   })
 
-  it('nhận sự kiện PROJECT_TASKS_CHANGED khác projectId -> không gọi refresh', async () => {
-    vi.useFakeTimers()
-    let eventHandler: (eventName: string, data: any) => void = () => {}
-    ;(workflowService as any).connectRealtime = vi.fn((_uid: string, handler: any) => {
-      eventHandler = handler
-      return vi.fn()
-    })
+  it('S03: đổi tọa độ thẻ thì không tải lại; đổi trạng thái / thêm task thì tải lại 1 lần (gộp 300ms)', async () => {
+    const mk = (id: string, status: string, x = 0) =>
+      ({ id, kind: 'branch', code: id, title: `T${id}`, description: '', isTrack: false, status, assignee: null, due: null, blocker: null, joinPolicy: 'ALL_COMPLETED', parentIds: ['root_56'], x, y: 0 }) as never
+    useWorkflowStore.setState({ trees: { '56': { root_56: { id: 'root_56', kind: 'root', title: 'P', parentIds: [] }, '1': mk('1', 'TODO') } } })
+    cleanup() // gỡ các hook còn treo từ test trước (chúng cũng nghe store)
+    const getPhaseTasks = vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
 
-    const resetPhaseTree = vi.fn(async () => {})
-    useWorkflowStore.setState({ resetPhaseTree })
-    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
+    const { rerender } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    await waitFor(() => expect(getPhaseTasks).toHaveBeenCalledTimes(1))
 
-    renderHook(() => usePhaseKanban(PHASE, '19'))
-
-    // Phát sự kiện projectId khác: '999'
+    // Chỉ đổi tọa độ
     act(() => {
-      eventHandler('PROJECT_TASKS_CHANGED', { projectId: '999', phaseId: '56', reason: 'STATUS_CHANGED' })
+      useWorkflowStore.setState((s) => ({ trees: { '56': { ...s.trees['56'], '1': mk('1', 'TODO', 500) } } }))
     })
+    rerender()
+    await new Promise((r) => setTimeout(r, 450))
+    expect(getPhaseTasks).toHaveBeenCalledTimes(1)
 
+    // Thêm task rồi đổi trạng thái liên tiếp: gộp thành 1 lần tải
     act(() => {
-      vi.advanceTimersByTime(500)
+      useWorkflowStore.setState((s) => ({ trees: { '56': { ...s.trees['56'], '2': mk('2', 'LOCKED') } } }))
     })
-    expect(resetPhaseTree).not.toHaveBeenCalled()
-
-    vi.useRealTimers()
-  })
-
-  it('hủy đăng ký kết nối SSE khi unmount', () => {
-    const unsubscribe = vi.fn()
-    ;(workflowService as any).connectRealtime = vi.fn(() => unsubscribe)
-    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
-
-    const { unmount } = renderHook(() => usePhaseKanban(PHASE, '19'))
-
-    expect((workflowService as any).connectRealtime).toHaveBeenCalled()
-    unmount()
-    expect(unsubscribe).toHaveBeenCalled()
+    act(() => {
+      useWorkflowStore.setState((s) => ({ trees: { '56': { ...s.trees['56'], '2': mk('2', 'TODO') } } }))
+    })
+    await waitFor(() => expect(getPhaseTasks).toHaveBeenCalledTimes(2), { timeout: 2000 })
+    await new Promise((r) => setTimeout(r, 450))
+    expect(getPhaseTasks).toHaveBeenCalledTimes(2)
   })
 })

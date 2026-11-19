@@ -67,7 +67,7 @@ public class StateMachineService {
     public List<KanbanTaskResponse> getMyTasks(Long projectId, Long userId) {
         List<NodeEntity> nodes = nodeRepository.findByProjectIdAndAssignedUserIdOrderByDueDateAsc(projectId, userId);
 
-        return nodes.stream().map(this::toKanbanTaskWithArtifacts).toList();
+        return toKanbanTasksWithArtifacts(nodes);
     }
 
     /**
@@ -76,11 +76,11 @@ public class StateMachineService {
      */
     @Transactional(readOnly = true)
     public List<KanbanTaskResponse> getPhaseTasks(Long projectId, Long phaseId) {
-        return nodeRepository.findByPhaseId(phaseId).stream()
+        List<NodeEntity> nodes = nodeRepository.findByPhaseId(phaseId).stream()
             .filter(node -> projectId.equals(node.getProjectId()))
             .sorted(Comparator.comparing(NodeEntity::getId))
-            .map(this::toKanbanTaskWithArtifacts)
             .toList();
+        return toKanbanTasksWithArtifacts(nodes);
     }
 
     /**
@@ -89,10 +89,10 @@ public class StateMachineService {
      */
     @Transactional(readOnly = true)
     public List<KanbanTaskResponse> getReviewTasks(Long projectId) {
-        return nodeRepository.findByProjectIdAndStatus(projectId, NodeStatus.REVIEW).stream()
+        List<NodeEntity> nodes = nodeRepository.findByProjectIdAndStatus(projectId, NodeStatus.REVIEW).stream()
             .sorted(Comparator.comparing(NodeEntity::getId))
-            .map(this::toKanbanTaskWithArtifacts)
             .toList();
+        return toKanbanTasksWithArtifacts(nodes);
     }
 
     /** Người duyệt được của dự án: chủ dự án + các quản lý còn trong dự án (không trùng). */
@@ -107,9 +107,25 @@ public class StateMachineService {
         return ids;
     }
 
+    /** S03: lấy artifact của cả danh sách task 1 lần (findByNodeIdIn), nhóm theo nodeId, giữ thứ tự task. */
+    private List<KanbanTaskResponse> toKanbanTasksWithArtifacts(List<NodeEntity> nodes) {
+        if (nodes.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = nodes.stream().map(NodeEntity::getId).toList();
+        java.util.Map<Long, List<ArtifactEntity>> byNode = artifactRepository.findByNodeIdIn(ids).stream()
+            .collect(java.util.stream.Collectors.groupingBy(ArtifactEntity::getNodeId));
+        return nodes.stream()
+            .map(node -> toKanbanTask(node, byNode.getOrDefault(node.getId(), List.of())))
+            .toList();
+    }
+
     private KanbanTaskResponse toKanbanTaskWithArtifacts(NodeEntity node) {
+        return toKanbanTask(node, artifactRepository.findByNodeId(node.getId()));
+    }
+
+    private KanbanTaskResponse toKanbanTask(NodeEntity node, List<ArtifactEntity> artifacts) {
         KanbanTaskResponse base = nodeMapper.toKanbanTaskResponse(node);
-        List<ArtifactEntity> artifacts = artifactRepository.findByNodeId(node.getId());
         List<NodeArtifactResponse> artifactResponses = artifacts.stream()
             .map(a -> new NodeArtifactResponse(
                 String.valueOf(a.getId()),

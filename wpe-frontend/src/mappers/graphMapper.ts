@@ -97,7 +97,8 @@ export function toPhaseEdges(graph: BackendGraphResponse | null | undefined): [s
   return (graph?.phaseEdges || []).map(([from, to]) => [String(from), String(to)] as [string, string])
 }
 
-function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
+/** S03: node backend → node trên cây (export để tạo task chèn thẻ ngay, không chờ tải lại đồ thị). */
+export function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
   // Giữ như cũ: backend gửi trạng thái nào thì dùng trạng thái đó, thiếu thì coi là LOCKED
   const status = ((n.status as NodeStatus) || 'LOCKED') as NodeStatus
   const joinPolicy: JoinPolicy = n.joinPolicy === 'ANY_COMPLETED' ? 'ANY_COMPLETED' : 'ALL_COMPLETED'

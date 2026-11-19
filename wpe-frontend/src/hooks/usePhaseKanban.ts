@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { workflowService } from '../services/container'
-import type { ArtifactType, KanbanTask, TaskStatus, UserSummary } from '../types/kanban.types'
-import type { MacroPhase } from '../types/workflow.types'
+import type { ArtifactType, KanbanTask, ReopenImpact, TaskStatus, UserSummary } from '../types/kanban.types'
+import type { BranchGraphNode, MacroPhase } from '../types/workflow.types'
 import { evaluateTransition } from '../domain/taskTransitions'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { ApiError } from '../services/http/ApiError'
@@ -89,9 +89,32 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     }
   }, [projectId, phaseId, phaseLabel, showToast])
 
+  // S03: chỉ tải lại khi "chữ ký" task của phase đổi (đổi tọa độ, kéo thẻ... không đổi chữ ký). Gộp trong 300ms.
+  const treeSignature = useMemo(() => {
+    if (!phaseTree) return ''
+    return Object.values(phaseTree)
+      .filter((n) => n.kind === 'branch')
+      .map((n) => {
+        const b = n as BranchGraphNode
+        return [b.id, b.status, b.title, b.assignee ?? '', b.due ?? '', b.joinPolicy ?? '', b.isOverdue ? 1 : 0, b.forceUnlocked ? 1 : 0].join(':')
+      })
+      .sort()
+      .join('|')
+  }, [phaseTree])
+
+  // Đổi phase / dự án: tải ngay
   useEffect(() => {
     void loadPhaseTasks()
-  }, [loadPhaseTasks, phaseTree])
+  }, [loadPhaseTasks])
+
+  const lastSeenRef = useRef<{ phaseId: string | null; signature: string }>({ phaseId, signature: treeSignature })
+  useEffect(() => {
+    const last = lastSeenRef.current
+    lastSeenRef.current = { phaseId, signature: treeSignature }
+    if (last.phaseId !== phaseId || last.signature === treeSignature) return
+    const timer = window.setTimeout(() => void loadPhaseTasks(), 300)
+    return () => window.clearTimeout(timer)
+  }, [phaseId, treeSignature, loadPhaseTasks])
 
   /** Đổi trạng thái / nộp / giao xong: đọc lại cây (task con có thể vừa được mở khóa), Kanban tự tải lại theo cây. */
   const refreshAfterWrite = useCallback(async () => {
