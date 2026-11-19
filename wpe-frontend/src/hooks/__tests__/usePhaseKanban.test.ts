@@ -6,6 +6,7 @@ import { workflowService } from '../../services/container'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import type { KanbanTask, UserSummary } from '../../types/kanban.types'
 import type { MacroPhase } from '../../types/workflow.types'
+import { ApiError } from '../../services/http/ApiError'
 
 /** T4 (G10) — Kanban của phase: task lấy theo dự án + phase từ service, thành viên thật, không trộn node tạm. */
 
@@ -43,7 +44,7 @@ describe('usePhaseKanban', () => {
     await waitFor(() => expect(result.current.phaseTasks).toHaveLength(2))
     expect(getPhaseTasks).toHaveBeenCalledWith('19', '56')
     expect(result.current.phaseTasks.map((t) => [t.status, t.assignedUserId])).toEqual([['LOCKED', ''], ['TODO', '9']])
-    expect(result.current.phaseTasks[0].phaseLabel).toBe('PHASE 4 · Cụm công việc 4')
+    expect(result.current.phaseTasks[0].phaseLabel).toBe('Cụm công việc 4')
   })
 
   it('chưa có dự án thì không gọi API', async () => {
@@ -90,6 +91,60 @@ describe('usePhaseKanban', () => {
 
     expect(result.current.phaseTasks[0].status).toBe('IN_PROGRESS')
     expect(resetPhaseTree).toHaveBeenCalledWith('56')
+  })
+
+  it('sau F5: người thao tác lấy theo auth.currentUser, không theo kanban.currentUserId mặc định "1"', async () => {
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([])
+    useWorkflowStore.setState((state) => ({
+      kanban: { ...state.kanban, currentUserId: '1' },
+      auth: { ...state.auth, currentUser: { id: '9', username: 'a', email: 'a@x.io', systemRole: 'USER' } as never },
+    }))
+    const { result } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    expect(result.current.actor?.id).toBe('9')
+    useWorkflowStore.setState((state) => ({ auth: { ...state.auth, currentUser: null } }))
+  })
+
+  it('REVIEW -> IN_PROGRESS không có lý do: không gọi API; có lý do: updateTaskStatus(id, IN_PROGRESS, lý do)', async () => {
+    vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([task('3', 'REVIEW', '5')])
+    const update = vi.spyOn(workflowService, 'updateTaskStatus').mockResolvedValue(task('3', 'IN_PROGRESS', '5'))
+    useWorkflowStore.setState({ resetPhaseTree: vi.fn(async () => {}) })
+    const { result } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    await waitFor(() => expect(result.current.phaseTasks).toHaveLength(1))
+
+    await act(() => result.current.moveTask('3', 'IN_PROGRESS'))
+    expect(update).not.toHaveBeenCalled()
+
+    await act(() => result.current.moveTask('3', 'IN_PROGRESS', 'Thiếu test'))
+    expect(update).toHaveBeenCalledWith('3', 'IN_PROGRESS', 'Thiếu test')
+  })
+
+  it('409 khi đổi trạng thái: tải lại task của phase, hoàn lại thẻ và báo bản cũ', async () => {
+    const getPhaseTasks = vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([task('2', 'TODO', '9')])
+    vi.spyOn(workflowService, 'updateTaskStatus').mockRejectedValue(new ApiError({ status: 409, code: 'OPTIMISTIC_LOCK_CONFLICT', message: 'x' }))
+    useWorkflowStore.setState({ resetPhaseTree: vi.fn(async () => {}) })
+    const { result } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    await waitFor(() => expect(result.current.phaseTasks).toHaveLength(1))
+    expect(getPhaseTasks).toHaveBeenCalledTimes(1)
+
+    await act(() => result.current.moveTask('2', 'IN_PROGRESS'))
+
+    expect(getPhaseTasks).toHaveBeenCalledTimes(2)
+    expect(result.current.phaseTasks[0].status).toBe('TODO')
+    expect(result.current.toastMessage).toBe('This task was changed by someone else. The board has been refreshed, please try again.')
+  })
+
+  it('409 khi đổi người được giao: tải lại task của phase', async () => {
+    const getPhaseTasks = vi.spyOn(workflowService, 'getPhaseTasks').mockResolvedValue([task('2', 'TODO', '9')])
+    vi.spyOn(workflowService, 'updateTaskAssignment').mockRejectedValue(new ApiError({ status: 409, code: 'OPTIMISTIC_LOCK_CONFLICT', message: 'x' }))
+    const { result } = renderHook(() => usePhaseKanban(PHASE, '19'))
+    await waitFor(() => expect(result.current.phaseTasks).toHaveLength(1))
+
+    let ok = true
+    await act(async () => { ok = await result.current.updateAssignment('2', { assignedUserId: '9' }) })
+
+    expect(ok).toBe(false)
+    expect(getPhaseTasks).toHaveBeenCalledTimes(2)
+    expect(result.current.toastMessage).toContain('changed by someone else')
   })
 
   it('nhận sự kiện PROJECT_TASKS_CHANGED cùng projectId -> gọi resetPhaseTree và loadPhases sau debounce 300ms', async () => {

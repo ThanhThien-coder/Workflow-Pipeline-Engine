@@ -85,6 +85,16 @@ describe('Auth Module (authSlice)', () => {
     expect(authState.currentUser?.username).toBe('alex.kim')
   })
 
+  it('hydrate có phiên: kanban.currentUserId = id người đăng nhập (sau F5 không còn là admin "1")', () => {
+    localStorage.setItem('wpe_auth_token', 'mock-token-xyz')
+    localStorage.setItem('wpe_auth_user', JSON.stringify({ id: 42, username: 'minh', email: 'minh@x.io', systemRole: 'USER' }))
+    expect(store.getState().kanban.currentUserId).toBe('1')
+
+    store.getState().auth.hydrate()
+
+    expect(store.getState().kanban.currentUserId).toBe('42')
+  })
+
   it('logs out and clears all storage keys', async () => {
     await store.getState().auth.login({
       identifier: 'alex.kim@pipeline.engine',

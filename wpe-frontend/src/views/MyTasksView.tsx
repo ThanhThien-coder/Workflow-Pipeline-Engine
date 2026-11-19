@@ -182,7 +182,7 @@ export function MyTasksView({
         tasks={visible}
         actor={actor}
         pendingIds={pending}
-        onMove={(id, to) => void moveTask(id, to)}
+        onMove={(id, to, rejectReason) => void moveTask(id, to, rejectReason)}
         filtering={Boolean(query || phase !== 'ALL')}
         onOpenDetails={(task) => setSelectedTaskId(task.id)}
       />

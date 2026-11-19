@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { TaskCard } from './TaskCard'
+import { RejectReasonModal } from './RejectReasonModal'
+import { evaluateTransition } from '../../domain/taskTransitions'
 
 // Cột "Đang khóa" đứng đầu: task chờ task trước xong. Không kéo ra khỏi cột này, cũng không thả vào.
 const COLUMNS: TaskStatus[] = ['LOCKED', 'TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']
@@ -59,20 +61,32 @@ export interface PhaseKanbanBoardProps {
   actor?: UserSummary
   pendingIds?: string[]
   onOpenTaskDetails: (task: KanbanTask) => void
-  onMoveTask?: (taskId: string, to: TaskStatus) => void
+  onMoveTask?: (taskId: string, to: TaskStatus, rejectReason?: string) => void
 }
 
 export function PhaseKanbanBoard({
   phaseId: _phaseId,
   tasks,
   members = [],
-  actor: _actor,
+  actor,
   pendingIds = [],
   onOpenTaskDetails,
   onMoveTask,
 }: PhaseKanbanBoardProps) {
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<TaskStatus | null>(null)
+  // Kéo REVIEW -> IN_PROGRESS: backend bắt buộc có lý do, nên hỏi lý do trước khi gọi API
+  const [rejectTask, setRejectTask] = useState<KanbanTask | null>(null)
+
+  const requestMove = (id: string, to: TaskStatus) => {
+    if (!onMoveTask) return
+    const task = tasks.find((t) => t.id === id)
+    if (task && task.status === 'REVIEW' && to === 'IN_PROGRESS' && (!actor || evaluateTransition(task, to, actor).kind === 'allow')) {
+      setRejectTask(task)
+      return
+    }
+    onMoveTask(id, to)
+  }
 
   const memberMap = useMemo(
     () => new Map(members.map((member) => [member.id, member])),
@@ -154,7 +168,7 @@ export function PhaseKanbanBoard({
                   e.preventDefault()
                   const id = e.dataTransfer.getData('text/plain') || dragId
                   if (id && onMoveTask && !isLockedColumn) {
-                    onMoveTask(id, column)
+                    requestMove(id, column)
                   }
                   setDragId(null)
                   setOverCol(null)
@@ -218,6 +232,17 @@ export function PhaseKanbanBoard({
           })}
         </div>
       </div>
+      {rejectTask && (
+        <RejectReasonModal
+          taskCode={rejectTask.code}
+          onCancel={() => setRejectTask(null)}
+          onConfirm={(reason) => {
+            const id = rejectTask.id
+            setRejectTask(null)
+            onMoveTask?.(id, 'IN_PROGRESS', reason)
+          }}
+        />
+      )}
     </div>
   )
 }

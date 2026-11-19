@@ -4,12 +4,21 @@ import type { ArtifactType, KanbanTask, TaskStatus, UserSummary } from '../types
 import type { MacroPhase } from '../types/workflow.types'
 import { evaluateTransition } from '../domain/taskTransitions'
 import { useWorkflowStore } from '../store/useWorkflowStore'
+import { ApiError } from '../services/http/ApiError'
+import { phaseDisplayName } from '../utils/phaseName'
 
 const SUCCESS_MESSAGES: Partial<Record<string, (code: string) => string>> = {
   'TODO>IN_PROGRESS': (code) => `Started task ${code}.`,
   'IN_PROGRESS>TODO': (code) => `Moved task ${code} back to To Do.`,
   'REVIEW>DONE': (code) => `Approved task ${code}: Marked as Done.`,
   'REVIEW>IN_PROGRESS': (code) => `Changes requested for ${code}: Moved back to In Progress.`,
+}
+
+export const STALE_TASK_MESSAGE = 'This task was changed by someone else. The board has been refreshed, please try again.'
+
+/** Chỉ lỗi lệch version (backend: 409 OPTIMISTIC_LOCK_CONFLICT); 409 khác như PROJECT_ARCHIVED giữ câu báo của backend. */
+function isStaleVersion(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.code === 'OPTIMISTIC_LOCK_CONFLICT'
 }
 
 function errorText(err: unknown, fallback: string): string {
@@ -31,7 +40,10 @@ function syncMyTasks(taskId: string, update: (task: KanbanTask) => KanbanTask): 
  * Tải lại khi đổi phase hoặc khi cây của phase đổi (sửa task, nối dây, đổi trạng thái đều đọc lại cây).
  */
 export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: string | null) {
-  const currentUserId = useWorkflowStore((state) => state.kanban.currentUserId)
+  // Người thao tác = người đang đăng nhập (sau F5 vẫn đúng); kanban.currentUserId chỉ là dự phòng cho chế độ mock
+  const authUserId = useWorkflowStore((state) => state.auth.currentUser?.id)
+  const kanbanUserId = useWorkflowStore((state) => state.kanban.currentUserId)
+  const currentUserId = authUserId != null && String(authUserId) !== '' ? String(authUserId) : kanbanUserId
   const members = useWorkflowStore((state) => state.project.members)
   const storeToast = useWorkflowStore((state) => state.kanban.showToast)
   const resetPhaseTree = useWorkflowStore((state) => state.resetPhaseTree)
@@ -46,7 +58,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
   const requestRef = useRef(0)
 
   const phaseId = phase?.id ?? null
-  const phaseLabel = phase ? `${phase.name} · ${phase.sub}` : ''
+  const phaseLabel = phase ? phaseDisplayName(phase) : ''
 
   const showToast = useCallback(
     (message: string) => {
@@ -163,6 +175,11 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         setIsSubmitModalOpen(true)
         return
       }
+      // Trả task từ Review về In Progress: backend bắt buộc có lý do (board hỏi lý do trước khi gọi vào đây)
+      if (task.status === 'REVIEW' && to === 'IN_PROGRESS' && !rejectReason?.trim()) {
+        showToast('Please enter a reason for the requested changes.')
+        return
+      }
 
       const previous = task
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: to } : t)))
@@ -176,12 +193,17 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         await refreshAfterWrite()
       } catch (err) {
         setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)))
-        showToast(errorText(err, 'Unable to update status. Please try again.'))
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to update status. Please try again.'))
+        }
       } finally {
         setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
       }
     },
-    [tasks, pendingTaskIds, actor, phaseLabel, showToast, refreshAfterWrite]
+    [tasks, pendingTaskIds, actor, phaseLabel, showToast, refreshAfterWrite, loadPhaseTasks]
   )
 
   const submitArtifact = useCallback(
@@ -200,13 +222,18 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         await refreshAfterWrite()
         return true
       } catch (err) {
-        showToast(errorText(err, 'Unable to submit deliverable. Please try again.'))
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to submit deliverable. Please try again.'))
+        }
         return false
       } finally {
         setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
       }
     },
-    [tasks, phaseLabel, showToast, refreshAfterWrite]
+    [tasks, phaseLabel, showToast, refreshAfterWrite, loadPhaseTasks]
   )
 
   const updateAssignment = useCallback(
@@ -226,11 +253,16 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
         await refreshAfterWrite()
         return true
       } catch (err) {
-        showToast(errorText(err, 'Unable to update assignment. Please try again.'))
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to update assignment. Please try again.'))
+        }
         return false
       }
     },
-    [tasks, showToast, refreshAfterWrite]
+    [tasks, showToast, refreshAfterWrite, loadPhaseTasks]
   )
 
   const submittingTask = useMemo(

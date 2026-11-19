@@ -23,6 +23,7 @@ export function TaskCard({
   const frozen = task.status === 'DONE'
   const locked = task.status === 'LOCKED'
   const canDrag = !frozen && !locked && Boolean(onDragStart)
+  const showOverdue = task.isOverdue && task.status !== 'DONE'
   const phaseText = task.phaseLabel || ''
   const assignee = !task.assignedUserId
     ? undefined
@@ -37,9 +38,14 @@ export function TaskCard({
     <div
       data-testid={`task-card-${task.id}`}
       draggable={canDrag}
-      onDragStart={() => onDragStart?.(task.id)}
+      onDragStart={(event) => {
+        // Firefox không bắt đầu kéo nếu dragstart không đặt dữ liệu
+        event.dataTransfer?.setData('text/plain', task.id)
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+        onDragStart?.(task.id)
+      }}
       onClick={() => onOpenDetails(task)}
-      className={`group rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-150 cursor-pointer flex flex-col justify-between gap-2.5 min-h-[96px] w-full select-none ${
+      className={`group rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-150 cursor-pointer flex flex-col justify-between gap-2.5 min-h-[96px] w-full min-w-0 overflow-hidden select-none ${
         frozen ? 'border-emerald-200/80 bg-emerald-50/20' : ''
       } ${locked ? 'bg-slate-50/80' : ''} ${canDrag ? 'cursor-grab active:cursor-grabbing' : ''} ${
         dragging ? 'opacity-40' : ''
@@ -47,10 +53,17 @@ export function TaskCard({
     >
       {/* 1. Header: Code & Phase */}
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] font-semibold text-slate-400">
-          {task.code}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="font-mono text-[10px] font-semibold text-slate-400">
+            {task.code}
+          </span>
+          {showOverdue && (
+            <span className="shrink-0 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">
+              Overdue
+            </span>
+          )}
         </span>
-        <span className="max-w-[130px] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+        <span className="min-w-0 max-w-[130px] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
           {phaseText}
         </span>
       </div>
@@ -71,8 +84,8 @@ export function TaskCard({
       )}
 
       {/* 3. Footer: Nằm trọn vẹn bên trong card */}
-      <div className="flex items-center justify-between border-t border-slate-100 pt-2">
-        <div className="flex items-center gap-1.5" title={assigneeName}>
+      <div className="flex min-w-0 items-center justify-between gap-1.5 border-t border-slate-100 pt-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5" title={assigneeName}>
           {avatarUrl ? (
             <img
               src={avatarUrl}
@@ -86,7 +99,7 @@ export function TaskCard({
               {assigneeInitials}
             </div>
           )}
-          <span className="max-w-[90px] truncate text-[11px] font-medium text-slate-600">
+          <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-600">
             {assigneeName}
           </span>
         </div>
@@ -97,9 +110,11 @@ export function TaskCard({
             e.stopPropagation()
             onOpenDetails(task)
           }}
-          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
+          aria-label="Open details"
+          title="Details"
+          className="flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
         >
-          Details <span>↗</span>
+          <span aria-hidden="true">↗</span>
         </button>
       </div>
     </div>
