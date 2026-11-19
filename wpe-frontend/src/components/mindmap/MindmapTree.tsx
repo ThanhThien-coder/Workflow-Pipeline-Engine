@@ -139,6 +139,7 @@ export function MindmapTree({
     let tries = 0
     let timer: number | undefined
     const retry = () => {
+      if (autoFitted.current) return
       if (fitToBounds(layoutBounds, { padding: 48, maxScale: 1 })) {
         autoFitted.current = true
         return
@@ -148,6 +149,51 @@ export function MindmapTree({
     timer = window.setTimeout(retry, 50)
     return () => window.clearTimeout(timer)
   }, [layoutBounds, fitToBounds])
+
+  // Làm nổi task từ kết quả tìm kiếm: zoom tới node (≤ 100%), viền sáng ~2 giây, rồi xóa highlightNodeId
+  const highlightNodeId = useWorkflowStore((state) => state.ui.highlightNodeId)
+  const setHighlightNodeId = useWorkflowStore((state) => state.ui.setHighlightNodeId)
+  const [litNodeId, setLitNodeId] = useState<string | null>(null)
+  const litTimer = useRef<number | null>(null)
+  useEffect(() => {
+    if (!highlightNodeId || !nodes[highlightNodeId]) return // chưa tải xong hoặc task thuộc cây khác: giữ để lần sau
+    const target = layoutNodes.find((n) => n.id === highlightNodeId)
+    if (!target) {
+      // Task đang bị ẩn dưới nhánh thu gọn: mở hết nhánh rồi tính lại
+      setCollapsed(new Set())
+      return
+    }
+    const bounds = { minX: target.x, minY: target.y, maxX: target.right, maxY: target.y + target.height }
+    const finish = () => {
+      autoFitted.current = true // đã có zoom theo yêu cầu: không để tự fit toàn cây ghi đè
+      setLitNodeId(highlightNodeId)
+      setHighlightNodeId(null)
+      if (litTimer.current !== null) window.clearTimeout(litTimer.current)
+      litTimer.current = window.setTimeout(() => {
+        litTimer.current = null
+        setLitNodeId(null)
+      }, 2000)
+    }
+    if (fitToBounds(bounds, { padding: 120, maxScale: 1 })) {
+      finish()
+      return
+    }
+    // Khung nhìn chưa có kích thước (vừa mở phase): thử lại ngắn
+    let tries = 0
+    let timer: number | undefined
+    const retry = () => {
+      if (fitToBounds(bounds, { padding: 120, maxScale: 1 })) {
+        finish()
+        return
+      }
+      if (++tries < 20) timer = window.setTimeout(retry, 50)
+    }
+    timer = window.setTimeout(retry, 50)
+    return () => window.clearTimeout(timer)
+  }, [highlightNodeId, nodes, layoutNodes, fitToBounds, setHighlightNodeId])
+  useEffect(() => () => {
+    if (litTimer.current !== null) window.clearTimeout(litTimer.current)
+  }, [])
 
   const cancelEdgeLeave = useCallback(() => {
     if (edgeLeaveTimer.current !== null) {
@@ -441,6 +487,19 @@ export function MindmapTree({
                 </button>
               )}
             </div>
+          )
+        })()}
+
+        {/* Viền sáng quanh task vừa chọn từ ô tìm kiếm */}
+        {litNodeId && (() => {
+          const lit = layoutNodes.find((n) => n.id === litNodeId)
+          if (!lit) return null
+          return (
+            <div
+              data-testid="node-highlight"
+              className="pointer-events-none absolute z-10 animate-pulse rounded-2xl ring-4 ring-amber-400 shadow-[0_0_24px_6px_rgba(251,191,36,0.55)]"
+              style={{ left: lit.x - 4, top: lit.y - 4, width: lit.width + 8, height: lit.height + 8 }}
+            />
           )
         })()}
 

@@ -72,6 +72,11 @@ export function PhaseDetailView({ projectId, phaseId }: { projectId: string; pha
   // View mode switcher: 'graph' (default) ⇄ 'kanban'
   const workflowService = useWorkflowService()
   const [viewMode, setViewMode] = useState<'graph' | 'kanban'>('graph')
+  // S09: chọn một task từ ô tìm kiếm khi đang xem Kanban của chính phase này -> chuyển sang Graph để task được làm nổi
+  const highlightNodeId = useWorkflowStore((state) => state.ui.highlightNodeId)
+  useEffect(() => {
+    if (highlightNodeId && tree?.[highlightNodeId] && viewMode === 'kanban') setViewMode('graph')
+  }, [highlightNodeId, tree, viewMode])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null)
   const [mergeSelection, setMergeSelection] = useState(new Set<string>())

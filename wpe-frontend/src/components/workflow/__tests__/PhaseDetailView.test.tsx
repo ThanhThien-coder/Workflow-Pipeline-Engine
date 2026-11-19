@@ -125,6 +125,17 @@ describe('PhaseDetailView', () => {
     render(<PhaseDetailView projectId="7" phaseId="12" />)
     expect(screen.getByRole('heading', { name: 'Thiết kế hệ thống' })).toBeDefined()
   })
+
+  it('S09: đang xem Kanban, chọn task của phase này từ ô tìm kiếm -> tự chuyển sang Graph để làm nổi task', async () => {
+    seedStore()
+    const { container } = render(<PhaseDetailView projectId="7" phaseId="12" />)
+    fireEvent.click(screen.getByRole('button', { name: /Kanban/ }))
+    expect(container.querySelector('[data-node-id="2"]')).toBeNull()
+    act(() => {
+      useWorkflowStore.setState((s) => ({ ui: { ...s.ui, highlightNodeId: '2' } }))
+    })
+    await waitFor(() => expect(container.querySelector('[data-node-id="2"]')).not.toBeNull())
+  })
 })
 
 describe('WorkflowView — đồng bộ đường dẫn và selectedPhaseId', () => {

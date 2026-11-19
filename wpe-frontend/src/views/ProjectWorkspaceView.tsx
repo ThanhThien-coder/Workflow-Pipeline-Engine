@@ -1,6 +1,5 @@
 import { useEffect, type FC } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search } from 'lucide-react'
 import { WorkflowView } from '../components/views/WorkflowView'
 import { MyTasksView } from './MyTasksView'
 import SettingsView from './SettingsView'
@@ -13,6 +12,8 @@ import { DEV_PERSONAS } from '../store/slices/devSlice'
 import { isMockMode } from '../services/env'
 import { useRouter } from '../router/useRouter'
 import { DemoToolsPanel } from '../components/dev/DemoToolsPanel'
+import { useProjectRealtime } from '../hooks/useProjectRealtime'
+import { ProjectSearchBox } from '../components/search/ProjectSearchBox'
 
 interface ProjectWorkspaceViewProps {
   projectId: string
@@ -95,19 +96,9 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Workspace Top Header with Floating Tab Slider */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/90 px-5 backdrop-blur-md z-10">
-          {/* Left: Search box with fluid responsive width */}
+          {/* Left: ô tìm task và phase của dự án (Ctrl/⌘+K để focus) */}
           <div className="flex items-center gap-2">
-            <label className="hidden sm:flex items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-400 focus-within:border-indigo-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100/60 w-48 lg:w-64 focus-within:w-80 transition-all duration-200">
-              <Search size={15} className="shrink-0 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search projects, tasks..."
-                className="w-full bg-transparent text-xs text-slate-800 placeholder:text-slate-400 outline-none"
-              />
-              <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 font-mono shrink-0">
-                ⌘K
-              </kbd>
-            </label>
+            <ProjectSearchBox projectId={projectId} />
           </div>
 
 

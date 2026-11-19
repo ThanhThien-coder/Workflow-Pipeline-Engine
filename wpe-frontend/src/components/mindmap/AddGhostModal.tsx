@@ -5,6 +5,7 @@ import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { phaseDisplayName } from '../../utils/phaseName'
 import { useWorkflowService } from '../../services/workflow/WorkflowContext'
 import type { BranchGraphNode } from '../../types/workflow.types'
+import { normalizeText } from '../../utils/searchProject'
 
 export interface AddGhostModalProps {
   isOpen: boolean
@@ -34,6 +35,7 @@ export function AddGhostModal({
   const [sourcePhaseId, setSourcePhaseId] = useState<string>('')
   const [sourceTaskId, setSourceTaskId] = useState<string>('')
   const [targetTaskId, setTargetTaskId] = useState<string>('')
+  const [sourceQuery, setSourceQuery] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,9 +54,18 @@ export function AddGhostModal({
 
   // Source Phase Tasks
   const sourceTree = trees[sourcePhaseId] || {}
-  const sourceTasks = Object.values(sourceTree).filter(
+  const allSourceTasks = Object.values(sourceTree).filter(
     (n): n is BranchGraphNode => n.kind === 'branch' && !n.isTrack
   )
+  // Ô tìm task nguồn: lọc theo mã, tên (không phân biệt dấu)
+  const normalizedSourceQuery = normalizeText(sourceQuery)
+  const sourceTasks = normalizedSourceQuery
+    ? allSourceTasks.filter(
+        (t) =>
+          normalizeText(t.code).includes(normalizedSourceQuery) ||
+          normalizeText(t.title).includes(normalizedSourceQuery),
+      )
+    : allSourceTasks
 
   // Update sourceTaskId when sourcePhaseId changes
   useEffect(() => {
@@ -63,7 +74,7 @@ export function AddGhostModal({
     } else {
       setSourceTaskId('')
     }
-  }, [sourcePhaseId, sourceTasks.length])
+  }, [sourcePhaseId, sourceTasks.length, normalizedSourceQuery])
 
   // Initialize or set targetTaskId
   useEffect(() => {
@@ -203,6 +214,14 @@ export function AddGhostModal({
                 >
                   Source Milestone / Task
                 </label>
+                <input
+                  type="text"
+                  value={sourceQuery}
+                  onChange={(e) => setSourceQuery(e.target.value)}
+                  placeholder="Search by code or title..."
+                  aria-label="Search source tasks"
+                  className="mb-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
                 <select
                   id="sourceTaskId"
                   value={sourceTaskId}
@@ -224,7 +243,7 @@ export function AddGhostModal({
                       value=""
                       className="bg-white text-slate-500"
                     >
-                      No tasks found in selected phase
+                      {allSourceTasks.length > 0 ? 'No tasks match your search' : 'No tasks found in selected phase'}
                     </option>
                   )}
                 </select>

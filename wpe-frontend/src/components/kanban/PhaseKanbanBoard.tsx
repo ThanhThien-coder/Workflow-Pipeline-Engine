@@ -3,6 +3,7 @@ import type { KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.typ
 import { TaskCard } from './TaskCard'
 import { RejectReasonModal } from './RejectReasonModal'
 import { evaluateTransition } from '../../domain/taskTransitions'
+import { normalizeText } from '../../utils/searchProject'
 
 // Cột "Đang khóa" đứng đầu: task chờ task trước xong. Không kéo ra khỏi cột này, cũng không thả vào.
 const COLUMNS: TaskStatus[] = ['LOCKED', 'TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']
@@ -77,6 +78,16 @@ export function PhaseKanbanBoard({
   const [overCol, setOverCol] = useState<TaskStatus | null>(null)
   // Kéo REVIEW -> IN_PROGRESS: backend bắt buộc có lý do, nên hỏi lý do trước khi gọi API
   const [rejectTask, setRejectTask] = useState<KanbanTask | null>(null)
+  // Thanh lọc: chữ (mã, tên), người làm ('ALL' | 'UNASSIGNED' | id thành viên), chỉ task của tôi
+  const [filterText, setFilterText] = useState('')
+  const [filterAssignee, setFilterAssignee] = useState<string>('ALL')
+  const [onlyMine, setOnlyMine] = useState(false)
+  const hasFilter = filterText.trim() !== '' || filterAssignee !== 'ALL' || onlyMine
+  const clearFilters = () => {
+    setFilterText('')
+    setFilterAssignee('ALL')
+    setOnlyMine(false)
+  }
 
   const requestMove = (id: string, to: TaskStatus) => {
     if (!onMoveTask) return
@@ -93,6 +104,17 @@ export function PhaseKanbanBoard({
     [members]
   )
 
+  const visibleTasks = useMemo(() => {
+    const q = normalizeText(filterText)
+    return tasks.filter((task) => {
+      if (q && !normalizeText(task.code).includes(q) && !normalizeText(task.title).includes(q)) return false
+      if (filterAssignee === 'UNASSIGNED' && task.assignedUserId) return false
+      if (filterAssignee !== 'ALL' && filterAssignee !== 'UNASSIGNED' && task.assignedUserId !== filterAssignee) return false
+      if (onlyMine && (!actor || task.assignedUserId !== actor.id)) return false
+      return true
+    })
+  }, [tasks, filterText, filterAssignee, onlyMine, actor])
+
   const groupedTasks = useMemo(() => {
     const map: Record<TaskStatus, KanbanTask[]> = {
       LOCKED: [],
@@ -101,11 +123,11 @@ export function PhaseKanbanBoard({
       REVIEW: [],
       DONE: [],
     }
-    for (const task of tasks) {
+    for (const task of visibleTasks) {
       map[task.status]?.push(task)
     }
     return map
-  }, [tasks])
+  }, [visibleTasks])
 
   return (
     <div className="flex flex-col h-full min-h-0 select-none">
@@ -114,7 +136,9 @@ export function PhaseKanbanBoard({
         <div className="flex items-center gap-2">
           <span className="font-semibold text-slate-800">Phase Kanban Board</span>
           <span className="text-slate-300">·</span>
-          <span className="font-medium text-slate-600">{tasks.length} total tasks</span>
+          <span className="font-medium text-slate-600">
+            {hasFilter ? `${visibleTasks.length} of ${tasks.length} tasks` : `${tasks.length} total tasks`}
+          </span>
         </div>
         <div className="flex items-center gap-3 text-[11px]">
           <span className="flex items-center gap-1.5 font-medium text-slate-500">
@@ -138,6 +162,53 @@ export function PhaseKanbanBoard({
             {groupedTasks.DONE.length} Done
           </span>
         </div>
+      </div>
+
+      {/* Thanh lọc: chữ, người làm, chỉ task của tôi */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2 text-xs" data-testid="kanban-filter-bar">
+        <input
+          type="search"
+          value={filterText}
+          onChange={(event) => setFilterText(event.target.value)}
+          placeholder="Filter by code or title..."
+          aria-label="Filter tasks by code or title"
+          className="w-56 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100/60"
+        />
+        <select
+          value={filterAssignee}
+          onChange={(event) => setFilterAssignee(event.target.value)}
+          aria-label="Filter tasks by assignee"
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-400 cursor-pointer"
+        >
+          <option value="ALL">All assignees</option>
+          <option value="UNASSIGNED">No assignee</option>
+          {/* label thay vì nội dung chữ: tên thành viên chỉ hiện trên thẻ task, không trùng khi tìm theo chữ */}
+          {members.map((member) => (
+            <option key={member.id} value={member.id} label={member.name} />
+          ))}
+        </select>
+        <button
+          type="button"
+          aria-pressed={onlyMine}
+          disabled={!actor}
+          onClick={() => setOnlyMine((value) => !value)}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+            onlyMine
+              ? 'border-indigo-500 bg-indigo-600 text-white'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          Only mine
+        </button>
+        {hasFilter && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* 2. 5 cột: Đang khóa · To Do · In Progress · In Review · Done (hẹp thì cuộn ngang) */}
