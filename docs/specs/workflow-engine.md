@@ -83,6 +83,13 @@
 | `DONE` | Bất kỳ | ❌ | ❌ | Chặn qua `PATCH /status`: không cho kéo ngược. Cách duy nhất để rời `DONE` là thao tác **Reopen** bên dưới. |
 | `DONE` | `IN_PROGRESS` (Reopen) | ❌ | ✅ *(Owner hoặc Manager)* | `POST /api/nodes/{id}/reopen` (S04): bắt buộc `reason`; xóa `completed_at`, ghi `reopened_at`; task con `TODO` không còn đủ điều kiện hội tụ quay về `LOCKED` (con đã bắt đầu giữ nguyên); artifact cũ giữ nguyên. |
 
+**Trạng thái dự án và quyền làm task (19/11/2026, Thiện chốt):**
+- Owner và Manager làm task (bảng trên) ở **mọi** trạng thái dự án, trừ `ARCHIVED` (mọi người chỉ xem, 409 `PROJECT_ARCHIVED`).
+- Collaborator chỉ đổi trạng thái task và nộp bài khi dự án `ACTIVE`. Dự án `DRAFT` / `PLANNING` / `PAUSED` / `COMPLETED` thì `PATCH /status` và `POST /submit` của Collaborator trả **409 `PROJECT_NOT_ACTIVE`** (`StateMachineService.ensureProjectRunningForMember`). Viewer luôn chỉ xem (403).
+- FE: `domain/projectWork.ts` (`isMemberWorkLocked`), `evaluateTransition(task, to, actor, projectStatus)` từ chối kèm câu báo; `TaskDetailModal` ẩn nút Start/Submit/Add Deliverable và hiện băng; Kanban phase và My Tasks hiện băng `ProjectNotActiveBanner`.
+- Đổi trạng thái dự án ở màn **Workflow** (`ProjectStatusControl`, chỉ Owner): `DRAFT`/`PLANNING` → Start project (publish, kiểm chu trình) · `ACTIVE` → Pause / Mark completed · `PAUSED` → Resume / Mark completed · `COMPLETED` → Reopen project (`COMPLETED → ACTIVE`, mới). Lưu trữ / khôi phục / xóa vẫn ở Settings.
+- Task tạo khi dự án đã publish (không `DRAFT`/`PLANNING`) là `TODO`; nối cha chưa xong thì tự về `LOCKED`.
+
 ### 2.2 Hàm Đánh giá Chuyển đổi Trạng thái (`evaluateTransition`)
 
 Mọi hành động kéo thả trên giao diện hoặc gọi API cập nhật trạng thái bắt buộc phải đi qua một bộ hàm đánh giá thuần túy (Pure Function) trước khi ghi nhận:

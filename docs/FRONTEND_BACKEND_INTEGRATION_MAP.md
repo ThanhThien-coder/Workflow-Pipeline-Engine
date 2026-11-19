@@ -757,6 +757,8 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 
 ---
 
+> **Trạng thái dự án (19/11/2026):** Collaborator gọi `PATCH /api/nodes/{taskId}/status` hoặc `POST /api/nodes/{taskId}/submit` khi dự án không `ACTIVE` (`DRAFT`, `PLANNING`, `PAUSED`, `COMPLETED`) -> **409 `PROJECT_NOT_ACTIVE`**. Owner và Manager không bị chặn. `PATCH /api/v1/projects/{id}/status` cho thêm `COMPLETED -> ACTIVE` (mở lại dự án). Nút đổi trạng thái dự án nằm ở màn Workflow (`ProjectStatusControl`).
+
 ### 5.2 Bắt đầu task (`TODO` -> `IN_PROGRESS`) & Hủy làm (`IN_PROGRESS` -> `TODO`)
 1. **Mục tiêu Nghiệp vụ**: Người thực hiện bấm bắt đầu làm task hoặc hủy nhận làm task đưa về trạng thái chờ.
 2. **Luồng Mã Nguồn**:
