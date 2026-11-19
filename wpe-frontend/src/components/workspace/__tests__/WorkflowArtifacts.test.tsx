@@ -119,13 +119,15 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
 
     const panel = container.querySelector('aside')
     expect(panel).not.toBeNull()
-    expect(panel?.className).toContain('fixed')
-    expect(panel?.className).toContain('top-20')
-    expect(panel?.className).toContain('bottom-20')
-    expect(panel?.className).toContain('right-6')
+    // TASK_72: popover neo ngay dưới nút Artifacts (không còn fixed theo màn hình)
+    expect(panel?.className).not.toContain('fixed')
+    expect(panel?.className).toContain('absolute')
+    expect(panel?.className).toContain('top-full')
+    expect(panel?.className).toContain('right-0')
     expect(panel?.className).toContain('z-50')
     expect(panel?.className).toContain('w-[380px]')
-    expect(panel?.className).toContain('max-w-[calc(100vw-48px)]')
+    expect(panel?.className).toContain('max-w-[calc(100vw-32px)]')
+    expect(panel?.className).toContain('max-h-[70vh]')
     expect(panel?.className).toContain('flex-col')
     expect(panel?.className).toContain('overflow-hidden')
 
@@ -148,6 +150,14 @@ describe('Workflow Artifacts Island & Drawer UI Components', () => {
     expect(list?.className).toContain('overscroll-contain')
   })
 
+  it('TASK_72: Esc đóng popover', () => {
+    useWorkflowStore.getState().artifacts.openDrawer()
+    render(<WorkflowArtifactsDrawer projectId="1" />)
+    expect(useWorkflowStore.getState().artifacts.isDrawerOpen).toBe(true)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(useWorkflowStore.getState().artifacts.isDrawerOpen).toBe(false)
+  })
   it('renders friendly Empty State when no artifacts are present', async () => {
     vi.spyOn(workflowService, 'getProjectArtifacts').mockResolvedValueOnce([])
     useWorkflowStore.setState((state) => ({

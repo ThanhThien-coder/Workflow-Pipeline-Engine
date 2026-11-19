@@ -37,25 +37,39 @@ export function phaseColumns(phases: Pick<MacroPhase, 'id' | 'parentPhaseIds'>[]
   return col
 }
 
-/** Đặt thẻ theo cột: x theo cột, y theo y mong muốn, đẩy xuống để không đè thẻ cùng cột. */
+/** y nhỏ nhất (cao nhất trên màn hình) trong các phase cha đã được đặt; không có cha thì null. */
+function highestParentY(parentIds: string[], placed: Positions): number | null {
+  const ys = parentIds.map((id) => placed[id]?.y).filter((y): y is number => y != null)
+  return ys.length ? Math.min(...ys) : null
+}
+
+/**
+ * Đặt thẻ theo cột: x theo cột; y = lớn nhất của (y mong muốn, y của phase cha CAO NHẤT, ô trống kế tiếp trong cột).
+ * Xét cột từ trái sang phải để phase cha luôn được đặt trước phase con: phase con không bao giờ cao hơn phase cha.
+ */
 export function arrangePhases(
   phases: Pick<MacroPhase, 'id' | 'parentPhaseIds'>[],
   preferredY: Record<string, number>
 ): Positions {
   const cols = phaseColumns(phases)
-  const byCol = new Map<number, string[]>()
+  const byCol = new Map<number, (typeof phases)[number][]>()
   for (const phase of phases) {
     const list = byCol.get(cols[phase.id]) ?? []
-    list.push(phase.id)
+    list.push(phase)
     byCol.set(cols[phase.id], list)
   }
   const result: Positions = {}
-  byCol.forEach((ids, col) => {
-    ids.sort((a, b) => (preferredY[a] ?? TOP) - (preferredY[b] ?? TOP) || a.localeCompare(b))
+  const wanted = (phase: (typeof phases)[number]) => {
+    const parentTop = highestParentY(phase.parentPhaseIds, result)
+    return Math.max(preferredY[phase.id] ?? TOP, parentTop ?? -Infinity)
+  }
+  Array.from(byCol.keys()).sort((a, b) => a - b).forEach((col) => {
+    const items = (byCol.get(col) ?? []).map((phase) => ({ id: phase.id, y: wanted(phase) }))
+    items.sort((a, b) => a.y - b.y || a.id.localeCompare(b.id))
     let nextFree = 20
-    for (const id of ids) {
-      const y = Math.max(preferredY[id] ?? TOP, nextFree)
-      result[id] = { x: columnX(col), y }
+    for (const item of items) {
+      const y = Math.max(item.y, nextFree)
+      result[item.id] = { x: columnX(col), y }
       nextFree = y + MACRO_CARD_H + MACRO_GAP_Y
     }
   })
@@ -64,32 +78,30 @@ export function arrangePhases(
 
 /**
  * Auto Layout: giữ cột theo DAG, sắp thứ tự trong mỗi cột theo trung bình y của các phase cha
- * (heuristic barycenter) để ít dây cắt nhau, xếp sát nhau trong cột, và căn giữa mỗi cột theo chiều dọc
- * so với cột cao nhất (G19: trước đây mọi cột dồn lên đầu).
+ * (heuristic barycenter) để ít dây cắt nhau, xếp sát nhau từ trên xuống, và không cho phase con cao hơn
+ * phase cha cao nhất của nó (không còn căn giữa cột theo cột cao nhất).
  */
 export function autoLayoutColumns(phases: Pick<MacroPhase, 'id' | 'parentPhaseIds'>[], currentY: Record<string, number>): Positions {
   const cols = phaseColumns(phases)
   const maxCol = Math.max(0, ...Object.values(cols))
   const step = MACRO_CARD_H + MACRO_GAP_Y
-  const countOf = (col: number) => phases.filter((p) => cols[p.id] === col).length
-  const tallest = Math.max(1, ...Array.from({ length: maxCol + 1 }, (_, col) => countOf(col)))
   const result: Positions = {}
   for (let col = 0; col <= maxCol; col++) {
     const inCol = phases.filter((p) => cols[p.id] === col)
-    // Cột ít thẻ hơn cột cao nhất thì đẩy xuống nửa phần chênh lệch
-    const top = TOP + ((tallest - inCol.length) * step) / 2
     const key = (p: (typeof inCol)[number]) => {
       const placedParents = p.parentPhaseIds.map((id) => result[id]?.y).filter((y): y is number => y != null)
       return placedParents.length ? placedParents.reduce((a, b) => a + b, 0) / placedParents.length : currentY[p.id] ?? TOP
     }
     inCol.sort((a, b) => key(a) - key(b) || a.id.localeCompare(b.id))
-    inCol.forEach((p, i) => {
-      result[p.id] = { x: columnX(col), y: top + i * step }
-    })
+    let nextFree = TOP
+    for (const p of inCol) {
+      const y = Math.max(TOP, highestParentY(p.parentPhaseIds, result) ?? TOP, nextFree)
+      result[p.id] = { x: columnX(col), y }
+      nextFree = y + step
+    }
   }
   return result
 }
-
 /**
  * Lệch ngang của đoạn dọc trong khe cho từng phase nguồn: các nguồn khác nhau cùng cột không chồng đoạn dọc lên nhau.
  * Nguồn trong một cột sắp theo y, lệch đều quanh giữa khe.

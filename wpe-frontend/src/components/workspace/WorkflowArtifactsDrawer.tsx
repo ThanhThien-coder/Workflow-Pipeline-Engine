@@ -157,6 +157,18 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
     if (isOpen) void loadArtifacts(projectId)
   }, [projectId, isOpen, loadArtifacts])
 
+  // Esc đóng popover
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') handleClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // handleClose đổi mỗi lần render nhưng chỉ gọi hàm đóng hiện hành
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, propOnClose, storeCloseDrawer])
+
   const isLoading = status === 'loading' || status === 'idle'
 
   // Quick Add Form State
@@ -255,7 +267,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
             exit={{ opacity: 0, scale: 0.95, y: -8 }}
             style={{ transformOrigin: 'top right' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className={`fixed top-20 bottom-20 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] flex flex-col rounded-3xl bg-white/95 backdrop-blur-xl border border-mp-n-200 shadow-2xl overflow-hidden select-text ${className}`}
+            className={`absolute right-0 top-full z-50 mt-2 w-[380px] max-w-[calc(100vw-32px)] max-h-[70vh] flex flex-col rounded-3xl bg-white/95 backdrop-blur-xl border border-mp-n-200 shadow-2xl overflow-hidden select-text ${className}`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >

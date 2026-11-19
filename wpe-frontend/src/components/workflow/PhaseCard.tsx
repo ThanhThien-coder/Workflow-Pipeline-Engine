@@ -1,6 +1,9 @@
-import { ChevronRight, Lock, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronRight, Lock, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { MacroPhase } from '../../types/workflow.types'
 import { MACRO_CARD_H, MACRO_CARD_W } from '../../utils/macroLayout'
+import { phaseDisplayName } from '../../utils/phaseName'
+import { useWorkflowStore } from '../../store/useWorkflowStore'
 
 const accentStyles = {
   emerald: { bar: 'bg-emerald-400', pill: 'bg-emerald-50 text-emerald-600 border-emerald-200', track: 'bg-emerald-400' },
@@ -22,6 +25,8 @@ export interface PhaseCardProps {
   readOnlyTitle?: string
   /** T5: rê chuột vào / ra thẻ, để làm nổi các dây của phase này. */
   onHoverChange?: (hovered: boolean) => void
+  /** Lưu tên bị lỗi (ví dụ 403/409): nơi dùng hiện toast. */
+  onRenameError?: (error: unknown) => void
 }
 
 export function PhaseCard({
@@ -35,11 +40,59 @@ export function PhaseCard({
   readOnly = false,
   readOnlyTitle,
   onHoverChange,
+  onRenameError,
 }: PhaseCardProps) {
   // Màu đi theo trạng thái suy ra từ task: hoàn thành -> xanh lá, đang khóa -> xám, còn lại giữ accent của Phase
   const accentKey =
     phase.status === 'COMPLETED' ? 'emerald' : phase.status === 'LOCKED' ? 'slate' : phase.accent
   const accent = accentStyles[accentKey] || accentStyles.blue
+
+  const renamePhase = useWorkflowStore((state) => state.renamePhase)
+  const phaseToRename = useWorkflowStore((state) => state.phaseToRename)
+  const clearPhaseToRename = useWorkflowStore((state) => state.clearPhaseToRename)
+  const displayName = phaseDisplayName(phase)
+
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Enter rồi blur (hoặc Esc rồi blur) không được xử lý hai lần
+  const finished = useRef(false)
+
+  const startEditing = () => {
+    if (readOnly || editing) return
+    finished.current = false
+    setDraft(displayName)
+    setEditing(true)
+  }
+
+  // Phase vừa tạo bằng (+): tự bật ô nhập tên rồi xóa cờ
+  useEffect(() => {
+    if (phaseToRename === phase.id && !readOnly) {
+      finished.current = false
+      setDraft(displayName)
+      setEditing(true)
+      clearPhaseToRename()
+    }
+    // displayName chỉ dùng làm giá trị khởi tạo của ô nhập
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phaseToRename, phase.id, readOnly, clearPhaseToRename])
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  const finishEditing = (save: boolean) => {
+    if (finished.current) return
+    finished.current = true
+    setEditing(false)
+    const next = draft.trim()
+    if (save && next && next !== displayName) {
+      void Promise.resolve(renamePhase(phase.id, next)).catch((error) => onRenameError?.(error))
+    }
+  }
 
   return (
     <div
@@ -47,11 +100,12 @@ export function PhaseCard({
       role="button"
       tabIndex={0}
       onMouseDown={(event) => {
-        if (event.button === 0 && !(event.target as HTMLElement).closest('button, a')) {
+        if (event.button === 0 && !(event.target as HTMLElement).closest('button, a, input')) {
           onDragCardStart?.(event, phase.id)
         }
       }}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
         if (event.key === 'Enter' || event.key === ' ') onClick()
       }}
       onMouseEnter={() => onHoverChange?.(true)}
@@ -71,8 +125,10 @@ export function PhaseCard({
           : 'border-slate-200 hover:shadow-md hover:border-slate-300'
       }`}
     >
-      {/* Top Accent Strip */}
-      <div className={`h-1.5 w-full rounded-t-2xl ${accent.bar}`} />
+      {/* Top Accent Strip: bọc trong lớp bo góc bằng thẻ (trừ 1px viền) để thanh màu không lòi ra ngoài góc bo */}
+      <div data-accent-clip className="pointer-events-none absolute inset-0 overflow-hidden rounded-[15px]">
+        <div className={`h-1.5 w-full ${accent.bar}`} />
+      </div>
 
       {/* Target Connection Handle (Left Port) */}
       <div
@@ -85,15 +141,55 @@ export function PhaseCard({
       </div>
 
       {/* Main Content Area */}
-      <div className="p-4 h-full flex flex-col pointer-events-none">
+      <div className="px-4 pb-4 pt-[22px] h-full flex flex-col pointer-events-none">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 pr-1">
-            <div className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-              {phase.name}
-            </div>
-            <div className="text-sm font-semibold text-slate-800 mt-0.5 leading-snug truncate" title={phase.sub}>
-              {phase.sub}
-            </div>
+          <div className="min-w-0 flex-1 pr-1">
+            {editing ? (
+              <input
+                ref={inputRef}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  event.stopPropagation()
+                  if (event.key === 'Enter') finishEditing(true)
+                  else if (event.key === 'Escape') finishEditing(false)
+                }}
+                onBlur={() => finishEditing(true)}
+                aria-label="Phase name"
+                className="pointer-events-auto w-full rounded-md border border-indigo-300 bg-white px-1.5 py-0.5 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100"
+              />
+            ) : (
+              <div className="flex items-center gap-1">
+                <div
+                  data-phase-name
+                  className="pointer-events-auto min-w-0 truncate text-sm font-semibold leading-snug text-slate-800"
+                  title={displayName}
+                  onDoubleClick={(event) => {
+                    event.stopPropagation()
+                    startEditing()
+                  }}
+                >
+                  {displayName}
+                </div>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      startEditing()
+                    }}
+                    title="Rename phase"
+                    aria-label="Rename phase"
+                    className="pointer-events-auto shrink-0 rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-500 group-hover:opacity-100"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 pointer-events-auto">

@@ -1,4 +1,5 @@
 import type { MacroPhase } from '../types/workflow.types'
+import { arrangePhases, columnX, phaseColumns } from './phaseColumnLayout'
 
 export const MACRO_CARD_W = 380
 export const MACRO_CARD_H = 180
@@ -151,16 +152,41 @@ export function computeMacroGraphLayout(phases: Record<string, MacroPhase>, root
 
 /**
  * Vị trí cho phase sắp tạo, tính theo vị trí đang hiển thị của các phase hiện có
- * (phase chưa lưu vị trí thì lấy từ bố cục tự động) để phase mới không đè lên phase nào.
+ * (y đã lưu hoặc bố cục tự động, rồi áp luật cột/ngang cha của arrangePhases).
+ * Có cha: cột = cột cha + 1, y = ô trống đầu tiên trong cột đó từ y hiển thị của cha trở xuống.
+ * Không cha: cột 0, dưới cùng.
  */
 export function computeNewPhasePosition(phases: MacroPhase[], parentPhaseId?: string): { x: number; y: number } {
-  const layout = computeMacroGraphLayout(Object.fromEntries(phases.map((phase) => [phase.id, phase])))
-  const displayed = phases.map((phase) =>
-    phase.x != null && phase.y != null ? phase : { ...phase, ...(layout[phase.id] ?? { x: 40, y: 60 }) }
-  )
-  return computeSmartMacroPhasePosition(displayed, parentPhaseId)
-}
+  const step = MACRO_CARD_H + MACRO_GAP_Y
+  if (phases.length === 0) return { x: columnX(0), y: 60 }
 
+  const layout = computeMacroGraphLayout(Object.fromEntries(phases.map((phase) => [phase.id, phase])))
+  const preferredY: Record<string, number> = {}
+  phases.forEach((phase) => {
+    preferredY[phase.id] = phase.y ?? layout[phase.id]?.y ?? 60
+  })
+  const displayed = arrangePhases(phases, preferredY)
+  const cols = phaseColumns(phases)
+
+  const parent = parentPhaseId ? phases.find((phase) => phase.id === parentPhaseId) : undefined
+  if (!parent) {
+    const col0 = phases.filter((phase) => cols[phase.id] === 0).map((phase) => displayed[phase.id].y)
+    return { x: columnX(0), y: col0.length ? Math.max(...col0) + step : 60 }
+  }
+
+  const targetCol = (cols[parent.id] ?? 0) + 1
+  const taken = phases
+    .filter((phase) => cols[phase.id] === targetCol)
+    .map((phase) => displayed[phase.id].y)
+    .sort((a, b) => a - b)
+  let y = displayed[parent.id].y
+  for (const other of taken) {
+    if (other + step <= y) continue // thẻ này nằm hẳn phía trên ô đang xét
+    if (y + step <= other) break // ô đang xét còn vừa trước thẻ này
+    y = other + step
+  }
+  return { x: columnX(targetCol), y }
+}
 export function computeSmartMacroPhasePosition(
   existingPhases: MacroPhase[],
   parentPhaseId?: string
