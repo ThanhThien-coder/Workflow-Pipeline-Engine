@@ -48,6 +48,21 @@ describe('CreatePipelineModal Component', () => {
     })
   })
 
+  it('does not show a Visibility choice and does not send visibility to onCreate', async () => {
+    mockCreate.mockResolvedValueOnce(undefined)
+    render(<CreatePipelineModal isOpen={true} onClose={mockClose} onCreate={mockCreate} />)
+
+    expect(screen.queryByText('Visibility')).toBeNull()
+    expect(screen.queryByText('Private')).toBeNull()
+    expect(screen.queryByText('Public')).toBeNull()
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. Authentication Service V2'), { target: { value: 'No Vis' } })
+    fireEvent.click(screen.getByText('Create Pipeline ➔'))
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled())
+    expect(Object.keys(mockCreate.mock.calls[0][0])).not.toContain('visibility')
+  })
+
   it('shows validation error when submitting with empty pipeline name', async () => {
     render(
       <CreatePipelineModal
@@ -64,7 +79,7 @@ describe('CreatePipelineModal Component', () => {
     expect(mockCreate).not.toHaveBeenCalled()
   })
 
-  it('submits form with templateId, visibility, and invokes onCreate', async () => {
+  it('submits form with templateId and invokes onCreate (no visibility)', async () => {
     mockCreate.mockResolvedValueOnce(undefined)
 
     render(
@@ -91,7 +106,6 @@ describe('CreatePipelineModal Component', () => {
         name: 'My Fintech Core Pipeline',
         desc: expect.any(String),
         templateId: 'tpl-1',
-        visibility: 'PRIVATE',
       })
     })
   })

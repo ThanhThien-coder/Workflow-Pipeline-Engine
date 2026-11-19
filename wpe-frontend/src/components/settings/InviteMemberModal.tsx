@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { InviteMemberCommand } from '../../types/settings.types'
+import { INVITE_ROLE_HINTS } from './rolePermissions'
 
 interface InviteMemberModalProps {
   isOpen: boolean
@@ -82,9 +83,9 @@ export function InviteMemberModal({ isOpen, onClose, onInvite }: InviteMemberMod
               value={role}
               onChange={(e) => setRole(e.target.value as 'MANAGER' | 'COLLABORATOR' | 'VIEWER')}
             >
-              <option value="MANAGER">MANAGER (Can review tasks and assign nodes)</option>
-              <option value="COLLABORATOR">COLLABORATOR (Can edit tasks and pipelines)</option>
-              <option value="VIEWER">VIEWER (Read-only access)</option>
+              <option value="MANAGER">MANAGER ({INVITE_ROLE_HINTS.MANAGER})</option>
+              <option value="COLLABORATOR">COLLABORATOR ({INVITE_ROLE_HINTS.COLLABORATOR})</option>
+              <option value="VIEWER">VIEWER ({INVITE_ROLE_HINTS.VIEWER})</option>
             </select>
           </div>
 

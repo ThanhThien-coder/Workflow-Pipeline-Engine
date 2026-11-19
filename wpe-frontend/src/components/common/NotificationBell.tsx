@@ -54,6 +54,40 @@ export function NotificationSender({ n }: { n: NotificationDto }) {
   return <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white', AVATAR_BG[hash(n.actorName) % AVATAR_BG.length])}>{initials(n.actorName)}</span>
 }
 
+/** Đang ở trang của dự án `id` (đường dẫn dạng /project/<id>/...). */
+function isViewingProject(id: string): boolean {
+  const m = /^\/project\/([^/]+)/.exec(window.location.pathname)
+  return m != null && m[1] === id
+}
+
+/**
+ * Thông báo hệ thống về vai trò: đổi vai trò -> tải lại dữ liệu dự án đang mở;
+ * bị xóa khỏi dự án -> báo và về danh sách workspace. Không khớp thì không làm gì.
+ */
+function handleRoleNotification(data: { title?: string; linkUrl?: string } | null | undefined) {
+  if (!data) return
+  const title = (data.title ?? '').toLowerCase()
+  const link = data.linkUrl ?? ''
+  const store = useWorkflowStore.getState()
+
+  if (title.includes('role changed')) {
+    const id = /^\/project\/([^/?#]+)/.exec(link)?.[1]
+    if (!id || !isViewingProject(id)) return
+    void store.project.loadProject(id)
+    void store.kanban.loadMembers(id)
+    if (store.settings.settings?.id === id) void store.settings.loadSettings(id)
+    store.ui.showToast('Your role in this project has changed.')
+    return
+  }
+
+  if (title.includes('removed from project')) {
+    const id = /[?&]removedFrom=([^&#]+)/.exec(link)?.[1]
+    if (!id || !isViewingProject(id)) return
+    store.ui.showToast('You were removed from this project.')
+    navigate('/workspaces')
+  }
+}
+
 export default function NotificationBell() {
   const { items, unreadCount, loading, error, load, markRead, markAllRead, receiveRealtime } = useNotificationStore()
   const currentUserId = useWorkflowStore((state) => state.auth.currentUser?.id)
@@ -78,6 +112,7 @@ export default function NotificationBell() {
 
     try {
       const unsubscribe = connectFn.call(workflowService, resolvedUserId, (eventName: string, data: any) => {
+        if (eventName === 'NOTIFICATION_RECEIVED') handleRoleNotification(data)
         if (
           eventName === 'NOTIFICATION_RECEIVED' ||
           eventName === 'INVITATION_CREATED' ||

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Clock, History, Mail, Trash2, UserPlus, UserX } from 'lucide-react'
 import { navigate } from '../../router/useRouter'
+import { ROLE_DESCRIPTIONS } from './rolePermissions'
 import type {
   ProjectInvitationDto,
   ProjectMemberDetail,
@@ -146,6 +147,7 @@ export function WorkspaceMembersSection({
                   {isOwner && member.role !== 'OWNER' ? (
                     <select
                       value={member.role}
+                      title={ROLE_DESCRIPTIONS[member.role] ?? undefined}
                       onChange={(e) => handleRoleSelect(member, e.target.value as ProjectRole)}
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-xs outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     >

@@ -168,7 +168,6 @@ export const createWorkspaceSlice = (
             templateId: cmd.templateId,
             projectName: cmd.name,
             description: cmd.desc ?? cmd.description ?? '',
-            visibility: cmd.visibility,
           })
           newProjectDto = {
             id: detail.id,
