@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { HttpWorkflowService } from '../HttpWorkflowService'
 import { AUTH_TOKEN_KEY } from '../../http/apiClient'
-import * as authApi from '../http/auth'
+
+// realtimeHub là singleton cấp module: nạp lại module mỗi test để không rò trạng thái (EventSource cũ, timer đóng) sang test sau
+let HttpWorkflowService: typeof import('../HttpWorkflowService').HttpWorkflowService
+let authApi: typeof import('../http/auth')
 
 class MockEventSource {
   static readonly CONNECTING = 0
@@ -53,7 +55,10 @@ async function flushMicrotasks() {
 describe('HttpWorkflowService.connectRealtime', () => {
   const originalEventSource = globalThis.EventSource
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules()
+    authApi = await import('../http/auth')
+    ;({ HttpWorkflowService } = await import('../HttpWorkflowService'))
     vi.useFakeTimers()
     localStorage.clear()
     sessionStorage.clear()
@@ -141,6 +146,9 @@ describe('HttpWorkflowService.connectRealtime', () => {
 
     // Hủy đăng ký
     unsubscribe()
+    // Hub chờ 2 giây rồi mới đóng kết nối (đổi trang không phải nối lại)
+    expect(firstEs.closed).toBe(false)
+    vi.advanceTimersByTime(2000)
     expect(firstEs.closed).toBe(true)
 
     // Phát error sau khi đã hủy

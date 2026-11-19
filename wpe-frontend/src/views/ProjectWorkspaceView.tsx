@@ -64,6 +64,9 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
 
   const currentTab = subTab || activeTab
 
+  // Một bộ nghe realtime cấp dự án cho mọi tab: tự tải lại đúng phần vừa đổi
+  useProjectRealtime(projectId, currentTab)
+
   const handleLogout = async () => {
     await logout()
     showToast('Logged out successfully.')

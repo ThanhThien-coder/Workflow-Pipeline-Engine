@@ -99,56 +99,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     else await loadPhaseTasks()
   }, [phaseId, resetPhaseTree, loadPhaseTasks])
 
-  // Lắng nghe realtime SSE: cập nhật Kanban và đồ thị macro khi có sự kiện task thay đổi
-  useEffect(() => {
-    if (!projectId || !phaseId) return
-
-    const connectFn = (
-      workflowService as {
-        connectRealtime?: (userId: string, onEvent: (eventName: string, data: any) => void) => () => void
-      }
-    ).connectRealtime
-    if (typeof connectFn !== 'function') return
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-    const scheduleRefresh = () => {
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer)
-      }
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null
-        void (async () => {
-          await refreshAfterWrite()
-          const store = useWorkflowStore.getState()
-          if (typeof store.loadPhases === 'function') {
-            void store.loadPhases(projectId)
-          }
-        })()
-      }, 300)
-    }
-
-    const unsubscribe = connectFn.call(workflowService, currentUserId ?? '', (eventName: string, data: any) => {
-      if (eventName === 'PROJECT_TASKS_CHANGED') {
-        if (data && data.projectId != null && String(data.projectId) !== String(projectId)) {
-          return
-        }
-        scheduleRefresh()
-      } else if (eventName.startsWith('TASK_')) {
-        scheduleRefresh()
-      }
-    })
-
-    return () => {
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer)
-        debounceTimer = null
-      }
-      if (typeof unsubscribe === 'function') {
-        unsubscribe()
-      }
-    }
-  }, [projectId, phaseId, currentUserId, refreshAfterWrite])
+  // Realtime: useProjectRealtime (gắn ở ProjectWorkspaceView) tải lại đồ thị khi có sự kiện; Kanban tự tải lại theo cây (phaseTree) nên không còn nghe SSE ở đây.
 
   // Người đang thao tác là người đăng nhập, không mượn quyền người khác
   const actor = useMemo<UserSummary | null>(

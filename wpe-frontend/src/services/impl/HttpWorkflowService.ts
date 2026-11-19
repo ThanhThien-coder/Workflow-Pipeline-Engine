@@ -1,8 +1,9 @@
 import { MockWorkflowService } from '../MockWorkflowService'
 import type { CreatePhaseDto, IWorkflowService, TaskNodePatch } from '../contracts/IWorkflowService'
-import { apiRequest, API_BASE_URL, getStoredUserId } from '../http/apiClient'
+import { apiRequest, getStoredUserId } from '../http/apiClient'
 import { ApiError, isApiError } from '../http/ApiError'
 import * as authApi from './http/auth'
+import { realtimeHub } from '../realtime/realtimeHub'
 import * as graphApi from './http/graph'
 import * as workspaceApi from './http/workspace'
 import * as membersApi from './http/members'
@@ -245,123 +246,20 @@ export class HttpWorkflowService implements IWorkflowService {
 
   // ───────────────────────── Realtime (C) ─────────────────────────
 
-  /** GET /realtime/subscribe?access_token= (SSE). EventSource không gửi được header nên token đi qua query, backend chỉ nhận token qua query ở đúng endpoint này. */
+  /**
+   * Nghe realtime qua hub dùng chung (cả tab chỉ 1 EventSource tới GET /realtime/subscribe?access_token=).
+   * EventSource không gửi được header nên token đi qua query, backend chỉ nhận token qua query ở đúng endpoint này.
+   * Sự kiện TASK_* được đổi sang KanbanTask; INIT không chuyển tiếp (chỉ để hub đặt lại thời gian chờ).
+   */
   connectRealtime(_userId: string, onEvent: (eventName: string, data: any) => void): () => void {
-    let closed = false
-    let currentEventSource: EventSource | null = null
-    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null
-    let retryDelay = 3000
-
-    const open = async () => {
-      if (closed) return
-
-      const token = await authApi.ensureFreshAccessToken()
-      if (closed) return
-      if (!token) {
-        // Token null -> KHÔNG mở EventSource và KHÔNG hẹn giờ kết nối lại (phiên đã hết, phần đăng xuất do installAuthRefresh lo)
+    return realtimeHub.subscribe((eventName, data) => {
+      if (eventName === 'INIT') return
+      if (eventName.startsWith('TASK_')) {
+        onEvent(eventName, this.mapBackendTaskToKanban(data as BackendTaskResponse))
         return
       }
-
-      const sseUrl = `${API_BASE_URL}/realtime/subscribe?access_token=${encodeURIComponent(token)}`
-      const eventSource = new EventSource(sseUrl)
-      currentEventSource = eventSource
-
-      eventSource.addEventListener('INIT', (e) => {
-        retryDelay = 3000
-        console.log('[SSE] Connected to the real-time stream:', e.data)
-      })
-
-      eventSource.addEventListener('TASK_UNLOCKED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_UNLOCKED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_UNLOCKED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_STATUS_CHANGED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_STATUS_CHANGED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_STATUS_CHANGED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_OVERDUE', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_OVERDUE', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_OVERDUE:', err)
-        }
-      })
-
-      eventSource.addEventListener('NOTIFICATION_RECEIVED', (e) => {
-        try {
-          const notif = JSON.parse(e.data)
-          onEvent('NOTIFICATION_RECEIVED', notif)
-        } catch (err) {
-          console.error('[SSE] Failed to parse data NOTIFICATION_RECEIVED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_SUBMITTED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_SUBMITTED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_SUBMITTED:', err)
-        }
-      })
-
-      eventSource.addEventListener('TASK_REJECTED', (e) => {
-        try {
-          const task = JSON.parse(e.data)
-          onEvent('TASK_REJECTED', this.mapBackendTaskToKanban(task))
-        } catch (err) {
-          console.error('[SSE] Failed to parse data TASK_REJECTED:', err)
-        }
-      })
-
-      eventSource.addEventListener('PROJECT_TASKS_CHANGED', (e) => {
-        try {
-          const payload = JSON.parse(e.data)
-          onEvent('PROJECT_TASKS_CHANGED', payload)
-        } catch (err) {
-          console.error('[SSE] Failed to parse data PROJECT_TASKS_CHANGED:', err)
-        }
-      })
-
-      eventSource.addEventListener('error', () => {
-        if (closed) return
-        eventSource.close()
-        if (retryTimeoutId !== null) return
-        const delay = retryDelay
-        retryDelay = Math.min(retryDelay * 2, 30000)
-        retryTimeoutId = setTimeout(() => {
-          retryTimeoutId = null
-          if (!closed) {
-            void open()
-          }
-        }, delay)
-      })
-    }
-
-    void open()
-
-    return () => {
-      closed = true
-      if (retryTimeoutId !== null) {
-        clearTimeout(retryTimeoutId)
-        retryTimeoutId = null
-      }
-      if (currentEventSource) {
-        currentEventSource.close()
-        currentEventSource = null
-      }
-    }
+      onEvent(eventName, data)
+    })
   }
 
   // ───────────────────────── Workspace (D) ─────────────────────────
