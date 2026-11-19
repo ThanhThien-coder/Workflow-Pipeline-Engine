@@ -12,6 +12,7 @@
 | [D-du-an/](D-du-an/README.md) | D | D1–D8: dự án, thành viên, template, khách, AI, OOAD mảng D |
 | [chung/](chung/README.md) | cả nhóm | T0, T1 (đầu kỳ, mỗi người tự làm) và X1–X4 (cuối kỳ, làm chung) |
 | [ghi-chep/](ghi-chep/README.md) | từng người | Ghi chép T0, T1 và biên bản |
+| [S-sau-deploy/](S-sau-deploy/README.md) | 3 người, Thiện giao | Việc còn lại sau khi test production 19/11/2026 (S01–S11) |
 
 > ⚡ **Cần xong trong 1–2 ngày? Làm theo [SPRINT_2_NGAY.md](SPRINT_2_NGAY.md)**: chọn task quan trọng nhất, Claude làm code và tự chạy test, mỗi task có một vòng hiểu 15–20 phút trước khi merge; bước cần trình duyệt gom về buổi kiểm chung.
 
