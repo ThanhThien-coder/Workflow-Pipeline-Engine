@@ -92,6 +92,7 @@ class StateMachineServiceTest {
             .id(projectId)
             .ownerId(ownerId)
             .name("Core Banking Pipeline")
+            .status(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE)
             .build();
 
         mockNode = NodeEntity.builder()
@@ -124,6 +125,51 @@ class StateMachineServiceTest {
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("Viewers can't change task status");
         verify(nodeRepository, never()).saveAndFlush(any(NodeEntity.class));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = com.pipeline.wpe.common.enums.ProjectStatus.class, names = {"DRAFT", "PLANNING", "PAUSED", "COMPLETED"})
+    @DisplayName("Dự án chưa chạy (không ACTIVE): Cộng tác viên không đổi trạng thái task -> 409 PROJECT_NOT_ACTIVE, không lưu")
+    void testCollaboratorBlockedWhenProjectNotActive(com.pipeline.wpe.common.enums.ProjectStatus status) {
+        mockProject.setStatus(status);
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+
+        assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), collaboratorId))
+            .isInstanceOfSatisfying(com.pipeline.wpe.exception.ConflictException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo("PROJECT_NOT_ACTIVE"));
+        verify(nodeRepository, never()).saveAndFlush(any(NodeEntity.class));
+    }
+
+    @Test
+    @DisplayName("Dự án DRAFT: Quản lý vẫn làm task bình thường (cùng quyền với chủ dự án)")
+    void testManagerWorksWhenProjectDraft() {
+        mockProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.DRAFT);
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, collaboratorId))
+            .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(collaboratorId).role(ProjectRole.MANAGER).build()));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
+
+        stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), collaboratorId);
+
+        assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("Dự án PAUSED: chủ dự án vẫn làm task bình thường")
+    void testOwnerWorksWhenProjectPaused() {
+        mockProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.PAUSED);
+        mockNode.setAssignedUserId(ownerId);
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(i -> i.getArgument(0));
+        when(nodeMapper.toKanbanTaskResponse(any())).thenReturn(mockResponse);
+
+        stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), ownerId);
+
+        assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
     }
 
     @Test

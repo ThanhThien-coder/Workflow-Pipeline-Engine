@@ -387,7 +387,8 @@ class ProjectServiceTest {
         "PLANNING, ARCHIVED",
         "COMPLETED, ARCHIVED",
         "ARCHIVED, DRAFT",
-        "ACTIVE, COMPLETED"
+        "ACTIVE, COMPLETED",
+        "COMPLETED, ACTIVE"
     })
     @DisplayName("updateProjectStatus: Cho phép chuyển trạng thái hợp lệ")
     void shouldAllowValidStatusTransitions(ProjectStatus from, ProjectStatus to) {
@@ -534,7 +535,7 @@ class ProjectServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "COMPLETED, ACTIVE",
+        "COMPLETED, PAUSED",
         "ARCHIVED, PAUSED",
         "ACTIVE, ACTIVE"
     })

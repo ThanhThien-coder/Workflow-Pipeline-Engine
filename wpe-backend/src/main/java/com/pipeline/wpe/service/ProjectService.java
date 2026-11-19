@@ -46,7 +46,7 @@ public class ProjectService {
         ProjectStatus.PLANNING, Set.of(ProjectStatus.ARCHIVED),
         ProjectStatus.ACTIVE, Set.of(ProjectStatus.PAUSED, ProjectStatus.ARCHIVED, ProjectStatus.COMPLETED),
         ProjectStatus.PAUSED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED),
-        ProjectStatus.COMPLETED, Set.of(ProjectStatus.ARCHIVED),
+        ProjectStatus.COMPLETED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED), // mở lại dự án đã xong
         ProjectStatus.INACTIVE, Set.of(ProjectStatus.ARCHIVED),
         ProjectStatus.ARCHIVED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.DRAFT)
     );

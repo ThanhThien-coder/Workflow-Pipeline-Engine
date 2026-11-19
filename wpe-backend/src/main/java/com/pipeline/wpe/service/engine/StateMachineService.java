@@ -176,6 +176,7 @@ public class StateMachineService {
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         ensureNotViewer(project, currentUserId);
+        ensureProjectRunningForMember(project, currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
         boolean canReview = isOwner || projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), currentUserId)
             .map(m -> m.getRole() == ProjectRole.MANAGER)
@@ -405,6 +406,18 @@ public class StateMachineService {
         }
     }
 
+    /**
+     * Chủ dự án và Quản lý làm task ở mọi trạng thái dự án (trừ ARCHIVED, đã chặn trước đó).
+     * Cộng tác viên chỉ làm task khi dự án đang chạy (ACTIVE); DRAFT/PLANNING/PAUSED/COMPLETED thì chỉ xem.
+     */
+    private void ensureProjectRunningForMember(ProjectEntity project, Long userId) {
+        if (project.getStatus() == ProjectStatus.ACTIVE || canReviewProject(project, userId)) {
+            return;
+        }
+        throw new ConflictException("PROJECT_NOT_ACTIVE",
+            "The project isn't running (" + project.getStatus() + "). Only the owner or a manager can work on tasks until it is active.");
+    }
+
     private boolean canReviewProject(ProjectEntity project, Long userId) {
         return project.getOwnerId().equals(userId)
             || projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), userId)
@@ -462,6 +475,7 @@ public class StateMachineService {
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
         ensureNotViewer(project, currentUserId);
+        ensureProjectRunningForMember(project, currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
         if (!isOwner && !isAssignee) {
             throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to submit this task.");
