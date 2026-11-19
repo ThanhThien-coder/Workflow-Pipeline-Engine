@@ -36,6 +36,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -106,6 +107,9 @@ class SubmitTaskArtifactTest {
         stateMachineService.submitTaskArtifact(TASK_ID, withArtifact("https://github.com/org/repo/pull/42", null), ASSIGNEE);
 
         assertThat(savedArtifact().getIsPublicForGuest()).isTrue();
+        verify(projectRealtimeNotifier).notifyProjectChanged(
+            eq(1L), eq("ARTIFACTS"), eq("ARTIFACT_ADDED"), eq(ASSIGNEE), any(), eq(TASK_ID));
+        verify(projectRealtimeNotifier).notifyTasksChanged(any(), any(), any(), eq("SUBMITTED"), eq(ASSIGNEE));
     }
 
     @Test

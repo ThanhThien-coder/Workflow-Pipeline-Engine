@@ -15,6 +15,7 @@ import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.*;
 import com.pipeline.wpe.service.engine.CriticalPathCalculator;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final TemplateCloneService templateCloneService;
     private final NodeDependencyRepository nodeDependencyRepository;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
     private static final Map<ProjectStatus, Set<ProjectStatus>> ALLOWED_TRANSITIONS = Map.of(
         ProjectStatus.DRAFT, Set.of(ProjectStatus.ARCHIVED),
@@ -291,6 +293,7 @@ public class ProjectService {
         project.setStatus(newStatus);
         project.setUpdatedAt(Instant.now());
         ProjectEntity saved = projectRepository.save(project);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "PROJECT", "STATUS_CHANGED", currentUserId, null, null);
 
         String ownerName = getOwnerDisplayName(saved.getOwnerId());
 
@@ -352,6 +355,7 @@ public class ProjectService {
         project.setDescription(desc);
         project.setUpdatedAt(Instant.now());
         projectRepository.save(project);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "PROJECT", "PROJECT_UPDATED", currentUserId, null, null);
 
         return getProjectDetail(projectId, currentUserId);
     }
@@ -359,6 +363,8 @@ public class ProjectService {
     @Transactional
     public void deleteProject(Long projectId, Long currentUserId) {
         ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
+        // Lấy danh sách người nhận TRƯỚC khi xóa (notifier tính người nhận ngay lúc gọi, gửi sau commit)
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "PROJECT", "PROJECT_DELETED", currentUserId, null, null);
         nodeRepository.deleteByProjectId(projectId);
         workPhaseRepository.deleteByProjectId(projectId);
         projectMemberRepository.deleteByProjectId(projectId);

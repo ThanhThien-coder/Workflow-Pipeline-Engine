@@ -162,7 +162,7 @@ class StateMachineServiceTest {
         assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.DONE);
         assertThat(mockNode.getCompletedAt()).isNotNull();
         verify(eventPublisher).publishTaskCompleted(any(TaskCompletedEvent.class));
-        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), taskId, "STATUS_CHANGED");
+        verify(projectRealtimeNotifier).notifyTasksChanged(projectId, mockNode.getPhaseId(), taskId, "STATUS_CHANGED", ownerId);
     }
 
     @Test

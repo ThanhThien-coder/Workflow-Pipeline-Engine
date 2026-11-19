@@ -30,60 +30,107 @@ public class ProjectRealtimeNotifier {
         String projectId,
         String phaseId,
         String taskId,
-        String reason
+        String reason,
+        String actorUserId
     ) {}
+
+    /**
+     * Payload sự kiện chung PROJECT_CHANGED. resource thuộc GRAPH | MEMBERS | PROJECT | ARTIFACTS | FEEDBACK | AI.
+     * actorUserId là null khi không có người thao tác (khách gửi góp ý, job nền).
+     */
+    public record ProjectChangedPayload(
+        String projectId,
+        String resource,
+        String reason,
+        String actorUserId,
+        String phaseId,
+        String taskId
+    ) {}
+
+    /** Overload cũ (không biết ai thao tác): gọi overload mới với actorUserId = null. */
+    public void notifyTasksChanged(Long projectId, Long phaseId, Long taskId, String reason) {
+        notifyTasksChanged(projectId, phaseId, taskId, reason, null);
+    }
 
     /**
      * Bắn sự kiện PROJECT_TASKS_CHANGED tới chủ dự án và tất cả thành viên đang hoạt động.
      * Nếu đang trong transaction, chỉ bắn sau khi transaction commit thành công.
      * Rollback thì không bắn. Lỗi gửi chỉ ghi log.
      */
-    public void notifyTasksChanged(Long projectId, Long phaseId, Long taskId, String reason) {
+    public void notifyTasksChanged(Long projectId, Long phaseId, Long taskId, String reason, Long actorUserId) {
         if (projectId == null) {
             return;
         }
-
         try {
             ProjectTasksChangedPayload payload = new ProjectTasksChangedPayload(
                 String.valueOf(projectId),
                 phaseId != null ? String.valueOf(phaseId) : null,
                 taskId != null ? String.valueOf(taskId) : null,
-                reason
+                reason,
+                actorUserId != null ? String.valueOf(actorUserId) : null
             );
-
-            Set<Long> recipientIds = resolveRecipientUserIds(projectId);
-
-            Runnable sendAction = () -> {
-                for (Long userId : recipientIds) {
-                    try {
-                        sseEmitterService.sendToUser(userId, "PROJECT_TASKS_CHANGED", payload);
-                    } catch (RuntimeException ex) {
-                        log.warn("Không gửi được SSE PROJECT_TASKS_CHANGED tới user {}: {}", userId, ex.getMessage());
-                    }
-                }
-            };
-
-            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-                sendAction.run();
-                return;
-            }
-
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    if (status != STATUS_COMMITTED) {
-                        return;
-                    }
-                    try {
-                        sendAction.run();
-                    } catch (RuntimeException ex) {
-                        log.error("Gửi SSE PROJECT_TASKS_CHANGED sau commit thất bại: {}", ex.getMessage(), ex);
-                    }
-                }
-            });
+            dispatchAfterCommit(projectId, "PROJECT_TASKS_CHANGED", payload);
         } catch (RuntimeException ex) {
             log.error("Lỗi khi xử lý thông báo notifyTasksChanged cho projectId {}: {}", projectId, ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * Bắn sự kiện PROJECT_CHANGED (chỉ báo phần nào đổi, client tự tải lại). Cùng người nhận và cùng cách gửi
+     * (sau commit, lỗi chỉ ghi log) với notifyTasksChanged.
+     */
+    public void notifyProjectChanged(Long projectId, String resource, String reason, Long actorUserId,
+                                     Long phaseId, Long taskId) {
+        if (projectId == null) {
+            return;
+        }
+        try {
+            ProjectChangedPayload payload = new ProjectChangedPayload(
+                String.valueOf(projectId),
+                resource,
+                reason,
+                actorUserId != null ? String.valueOf(actorUserId) : null,
+                phaseId != null ? String.valueOf(phaseId) : null,
+                taskId != null ? String.valueOf(taskId) : null
+            );
+            dispatchAfterCommit(projectId, "PROJECT_CHANGED", payload);
+        } catch (RuntimeException ex) {
+            log.error("Lỗi khi xử lý thông báo notifyProjectChanged cho projectId {}: {}", projectId, ex.getMessage(), ex);
+        }
+    }
+
+    /** Lấy người nhận ngay lúc gọi (để xóa dự án vẫn còn danh sách), gửi sau commit nếu đang có transaction. */
+    private void dispatchAfterCommit(Long projectId, String eventName, Object payload) {
+        Set<Long> recipientIds = resolveRecipientUserIds(projectId);
+
+        Runnable sendAction = () -> {
+            for (Long userId : recipientIds) {
+                try {
+                    sseEmitterService.sendToUser(userId, eventName, payload);
+                } catch (RuntimeException ex) {
+                    log.warn("Không gửi được SSE {} tới user {}: {}", eventName, userId, ex.getMessage());
+                }
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            sendAction.run();
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    return;
+                }
+                try {
+                    sendAction.run();
+                } catch (RuntimeException ex) {
+                    log.error("Gửi SSE {} sau commit thất bại: {}", eventName, ex.getMessage(), ex);
+                }
+            }
+        });
     }
 
     /**

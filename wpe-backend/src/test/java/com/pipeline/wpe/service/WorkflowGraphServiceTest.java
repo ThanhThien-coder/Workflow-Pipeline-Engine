@@ -192,6 +192,7 @@ class WorkflowGraphServiceTest {
 
         assertEquals(1L, p4.getParentPhaseId());
         verify(phaseDependencyRepository).save(argThat(d -> d.getParentPhaseId().equals(5L) && d.getChildPhaseId().equals(4L)));
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_LINKED"), eq(2L), eq(4L), isNull());
     }
 
     @Test
@@ -262,6 +263,7 @@ class WorkflowGraphServiceTest {
         assertEquals("4", response.id());
         assertEquals("Phase 4", response.name());
         verify(authorizationService).verifyProjectOwner(1L, 2L);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_CREATED"), eq(2L), eq(4L), isNull());
     }
 
     @Test
@@ -312,7 +314,7 @@ class WorkflowGraphServiceTest {
         verify(nodeRepository).deleteAll(List.of(a, b));
         verify(workPhaseRepository).delete(phase);
         assertEquals(NodeStatus.TODO, c.getStatus());
-        verify(projectRealtimeNotifier).notifyTasksChanged(1L, 10L, null, "PHASE_DELETED");
+        verify(projectRealtimeNotifier).notifyTasksChanged(1L, 10L, null, "PHASE_DELETED", 2L);
     }
 
     @Test
@@ -650,6 +652,7 @@ class WorkflowGraphServiceTest {
 
         assertEquals(pos, phase.getUiMetadata());
         assertEquals(pos, response.uiMetadata());
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_UPDATED"), eq(2L), eq(10L), isNull());
     }
 
     @Test
@@ -730,6 +733,7 @@ class WorkflowGraphServiceTest {
         verify(phaseDependencyRepository).deleteByParentPhaseIdAndChildPhaseId(1L, 4L);
         assertNull(p4.getParentPhaseId());
         verify(workPhaseRepository).save(p4);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_UNLINKED"), eq(2L), eq(4L), isNull());
     }
 
     // ===================== B3: 4 lỗ hổng của API node và phụ thuộc =====================
@@ -1063,7 +1067,7 @@ class WorkflowGraphServiceTest {
 
         verify(nodeDependencyRepository).deleteAll(outgoing);
         verify(nodeRepository).delete(n);
-        verify(projectRealtimeNotifier).notifyTasksChanged(1L, null, 100L, "NODE_DELETED");
+        verify(projectRealtimeNotifier).notifyTasksChanged(1L, null, 100L, "NODE_DELETED", 2L);
         assertEquals(NodeStatus.TODO, child.getStatus());
     }
 

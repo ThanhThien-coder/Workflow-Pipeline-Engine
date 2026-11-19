@@ -252,7 +252,8 @@ public class StateMachineService {
             saved.getProjectId(),
             saved.getPhaseId(),
             saved.getId(),
-            isRejected ? "REJECTED" : "STATUS_CHANGED"
+            isRejected ? "REJECTED" : "STATUS_CHANGED",
+            currentUserId
         );
 
         // Bắn tín hiệu real-time cập nhật trạng thái tới tất cả các bên (sau commit)
@@ -393,8 +394,11 @@ public class StateMachineService {
             savedNode.getProjectId(),
             savedNode.getPhaseId(),
             savedNode.getId(),
-            "SUBMITTED"
+            "SUBMITTED",
+            currentUserId
         );
+        projectRealtimeNotifier.notifyProjectChanged(
+            savedNode.getProjectId(), "ARTIFACTS", "ARTIFACT_ADDED", currentUserId, savedNode.getPhaseId(), savedNode.getId());
 
         // Bắn SSE real-time cho Owner (sau commit)
         // G18: cả quản lý cũng duyệt được nên cũng nhận tín hiệu (cập nhật số "Chờ duyệt")
@@ -435,7 +439,8 @@ public class StateMachineService {
             saved.getProjectId(),
             saved.getPhaseId(),
             saved.getId(),
-            "FORCE_UNLOCKED"
+            "FORCE_UNLOCKED",
+            currentUserId
         );
 
         log.info("Force unlock: task ID {} ({}) trong dự án {} được user {} mở khóa sớm LOCKED -> TODO",

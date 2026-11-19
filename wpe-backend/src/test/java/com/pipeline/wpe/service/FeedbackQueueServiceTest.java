@@ -56,6 +56,8 @@ class FeedbackQueueServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
+
     @InjectMocks
     private FeedbackQueueService feedbackQueueService;
 
@@ -88,6 +90,7 @@ class FeedbackQueueServiceTest {
         GuestFeedbackResponse response = feedbackQueueService.submitGuestFeedback(token, request);
 
         assertThat(response.id()).isEqualTo(101L);
+        verify(projectRealtimeNotifier).notifyProjectChanged(any(), eq("FEEDBACK"), eq("FEEDBACK_CREATED"), isNull(), isNull(), any());
         assertThat(response.reviewerName()).isEqualTo("TS. Nguyen Van A");
         assertThat(response.reviewerRole()).isEqualTo(ReviewerRole.TEACHER);
         assertThat(response.status()).isEqualTo(FeedbackStatus.OPEN);
@@ -149,6 +152,7 @@ class FeedbackQueueServiceTest {
         assertThat(response.status()).isEqualTo(FeedbackStatus.RESOLVED);
         assertThat(fb.getStatus()).isEqualTo(FeedbackStatus.RESOLVED);
         verify(feedbackRepository).save(fb);
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(projectId), eq("FEEDBACK"), eq("FEEDBACK_RESOLVED"), any(), isNull(), any());
     }
 
     @Test

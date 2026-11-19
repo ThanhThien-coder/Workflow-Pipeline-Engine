@@ -126,6 +126,106 @@ class ProjectRealtimeNotifierTest {
         assertThat(payload.phaseId()).isEqualTo("10");
         assertThat(payload.taskId()).isEqualTo("20");
         assertThat(payload.reason()).isEqualTo("STATUS_CHANGED");
+        // Overload cũ không có người thao tác -> actorUserId null
+        assertThat(payload.actorUserId()).isNull();
+    }
+
+    @Test
+    @DisplayName("notifyTasksChanged có actor -> payload mang actorUserId dạng chuỗi, field cũ giữ nguyên")
+    void notifyTasksChangedWithActor_payloadHasActorUserId() {
+        stubOwnerOnly();
+
+        notifier.notifyTasksChanged(projectId, 10L, 20L, "STATUS_CHANGED", 5L);
+
+        ArgumentCaptor<ProjectRealtimeNotifier.ProjectTasksChangedPayload> captor =
+            ArgumentCaptor.forClass(ProjectRealtimeNotifier.ProjectTasksChangedPayload.class);
+        verify(sseEmitterService).sendToUser(eq(ownerId), eq("PROJECT_TASKS_CHANGED"), captor.capture());
+        assertThat(captor.getValue().actorUserId()).isEqualTo("5");
+        assertThat(captor.getValue().projectId()).isEqualTo("100");
+        assertThat(captor.getValue().phaseId()).isEqualTo("10");
+        assertThat(captor.getValue().taskId()).isEqualTo("20");
+    }
+
+    @Test
+    @DisplayName("notifyProjectChanged không có transaction -> gửi ngay sự kiện PROJECT_CHANGED tới chủ và thành viên")
+    void notifyProjectChangedWithoutTransaction_sendsImmediately() {
+        ProjectMemberEntity memberActive = ProjectMemberEntity.builder()
+            .projectId(projectId).userId(2L).removedAt(null).build();
+        when(projectRepository.findById(projectId))
+            .thenReturn(Optional.of(ProjectEntity.builder().id(projectId).ownerId(ownerId).build()));
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId)).thenReturn(List.of(memberActive));
+
+        notifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_CREATED", 5L, 40L, null);
+
+        ArgumentCaptor<ProjectRealtimeNotifier.ProjectChangedPayload> captor =
+            ArgumentCaptor.forClass(ProjectRealtimeNotifier.ProjectChangedPayload.class);
+        verify(sseEmitterService).sendToUser(eq(ownerId), eq("PROJECT_CHANGED"), captor.capture());
+        verify(sseEmitterService).sendToUser(eq(2L), eq("PROJECT_CHANGED"), any());
+        ProjectRealtimeNotifier.ProjectChangedPayload payload = captor.getValue();
+        assertThat(payload.projectId()).isEqualTo("100");
+        assertThat(payload.resource()).isEqualTo("GRAPH");
+        assertThat(payload.reason()).isEqualTo("PHASE_CREATED");
+        assertThat(payload.actorUserId()).isEqualTo("5");
+        assertThat(payload.phaseId()).isEqualTo("40");
+        assertThat(payload.taskId()).isNull();
+    }
+
+    @Test
+    @DisplayName("notifyProjectChanged actor null (khách/job nền) -> actorUserId null")
+    void notifyProjectChangedWithoutActor_actorIsNull() {
+        stubOwnerOnly();
+
+        notifier.notifyProjectChanged(projectId, "FEEDBACK", "FEEDBACK_CREATED", null, null, null);
+
+        ArgumentCaptor<ProjectRealtimeNotifier.ProjectChangedPayload> captor =
+            ArgumentCaptor.forClass(ProjectRealtimeNotifier.ProjectChangedPayload.class);
+        verify(sseEmitterService).sendToUser(eq(ownerId), eq("PROJECT_CHANGED"), captor.capture());
+        assertThat(captor.getValue().actorUserId()).isNull();
+    }
+
+    @Test
+    @DisplayName("notifyProjectChanged trong transaction -> chỉ gửi sau commit, rollback thì không gửi")
+    void notifyProjectChangedInTransaction_sendsOnlyAfterCommit() {
+        TransactionSynchronizationManager.initSynchronization();
+        stubOwnerOnly();
+
+        notifier.notifyProjectChanged(projectId, "MEMBERS", "MEMBER_JOINED", 5L, null, null);
+        verifyNoInteractions(sseEmitterService);
+
+        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+            sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+        }
+        verify(sseEmitterService, times(1)).sendToUser(eq(ownerId), eq("PROJECT_CHANGED"), any());
+    }
+
+    @Test
+    @DisplayName("notifyProjectChanged rollback -> không gửi")
+    void notifyProjectChangedInTransaction_doesNotSendOnRollback() {
+        TransactionSynchronizationManager.initSynchronization();
+        stubOwnerOnly();
+
+        notifier.notifyProjectChanged(projectId, "MEMBERS", "MEMBER_JOINED", 5L, null, null);
+        for (TransactionSynchronization sync : TransactionSynchronizationManager.getSynchronizations()) {
+            sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+        }
+        verifyNoInteractions(sseEmitterService);
+    }
+
+    @Test
+    @DisplayName("Lỗi gửi SSE chỉ ghi log, không ném ra ngoài")
+    void sendFailure_isSwallowed() {
+        stubOwnerOnly();
+        doThrow(new RuntimeException("boom")).when(sseEmitterService).sendToUser(any(), any(), any());
+
+        notifier.notifyProjectChanged(projectId, "AI", "AI_ANALYZED", 5L, null, null);
+
+        verify(sseEmitterService).sendToUser(eq(ownerId), eq("PROJECT_CHANGED"), any());
+    }
+
+    private void stubOwnerOnly() {
+        when(projectRepository.findById(projectId))
+            .thenReturn(Optional.of(ProjectEntity.builder().id(projectId).ownerId(ownerId).build()));
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId)).thenReturn(List.of());
     }
 
     @Test

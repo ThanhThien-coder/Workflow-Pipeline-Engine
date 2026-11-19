@@ -77,7 +77,8 @@ public class NodeAssignmentService {
             saved.getProjectId(),
             saved.getPhaseId(),
             saved.getId(),
-            "ASSIGNMENT_CHANGED"
+            "ASSIGNMENT_CHANGED",
+            currentUserId
         );
         return mapToGraphNodeResponse(saved);
     }

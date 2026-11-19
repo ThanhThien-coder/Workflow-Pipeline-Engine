@@ -15,6 +15,7 @@ import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectFeedbackRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import com.pipeline.wpe.service.event.WorkflowEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,7 @@ public class FeedbackQueueService {
     private final ProjectAuthorizationService authorizationService;
     private final WorkflowEventPublisher eventPublisher;
     private final CurrentUserProvider currentUserProvider;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
     /**
      * Khách hoặc Giáo viên gửi nhận xét 1 chiều vào dự án / task thông qua Guest Token.
@@ -96,6 +98,8 @@ public class FeedbackQueueService {
         feedback = feedbackRepository.save(feedback);
         log.info("Saved guest feedback ID: {} for project: {}, by: {} ({})",
             feedback.getId(), projectId, request.reviewerName(), request.reviewerRole());
+        // Khách không có tài khoản nên actorUserId = null
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "FEEDBACK", "FEEDBACK_CREATED", null, null, feedback.getNodeId());
 
         // Bắn Notification Event bất đồng bộ cho Project Owner
         try {
@@ -186,6 +190,7 @@ public class FeedbackQueueService {
         feedback.setStatus(FeedbackStatus.RESOLVED);
         feedbackRepository.save(feedback);
         log.info("Resolved feedback ID: {} in project: {} by user: {}", feedbackId, projectId, currentUserId);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "FEEDBACK", "FEEDBACK_RESOLVED", currentUserId, null, feedback.getNodeId());
 
         return new ResolveFeedbackResponse(true, feedback.getId(), FeedbackStatus.RESOLVED);
     }

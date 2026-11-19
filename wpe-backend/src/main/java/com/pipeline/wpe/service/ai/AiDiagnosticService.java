@@ -12,6 +12,7 @@ import com.pipeline.wpe.repository.ProjectFeedbackRepository;
 import com.pipeline.wpe.repository.ProjectRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.ProjectAuthorizationService;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,7 @@ public class AiDiagnosticService {
     private final CurrentUserProvider currentUserProvider;
     private final AiServiceClient aiServiceClient;
     private final ObjectMapper objectMapper;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
     @Value("${app.ai.cooldown-seconds:180}")
     private long cooldownSeconds;
@@ -93,6 +95,7 @@ public class AiDiagnosticService {
             // 4. Chỉ ghi cột latest_ai_analysis (không ghi đè cột khác, không đổi updated_at)
             projectRepository.updateLatestAiAnalysis(projectId, toJson(newAnalysis));
             log.info("Successfully updated AI diagnosis in PROJECT.latest_ai_analysis for project ID: {}", projectId);
+            projectRealtimeNotifier.notifyProjectChanged(projectId, "AI", "AI_ANALYZED", currentUserId, null, null);
             return newAnalysis;
         } catch (RuntimeException ex) {
             // AI lỗi (gồm AiServiceUnavailableException) hoặc lưu lỗi: trả lại chỗ, không tính cooldown

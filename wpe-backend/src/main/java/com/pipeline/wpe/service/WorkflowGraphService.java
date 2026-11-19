@@ -140,6 +140,7 @@ public class WorkflowGraphService {
                 .build());
             parentIds = Set.of(request.parentPhaseId());
         }
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_CREATED", currentUserId, saved.getId(), null);
         return mapToPhaseResponse(saved, Collections.emptyList(), parentIds);
     }
 
@@ -180,6 +181,7 @@ public class WorkflowGraphService {
         WorkPhaseEntity saved = workPhaseRepository.save(entity);
         Set<Long> parentIds = loadPhaseParents(projectId, workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId))
             .getOrDefault(phaseId, Set.of());
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_UPDATED", currentUserId, phaseId, null);
         return mapToPhaseResponse(saved, nodeRepository.findByPhaseId(phaseId), parentIds);
     }
 
@@ -251,7 +253,7 @@ public class WorkflowGraphService {
 
         // Các cạnh trong bảng phase_dependency tự xóa theo ON DELETE CASCADE (V6)
         workPhaseRepository.delete(entity);
-        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, null, "PHASE_DELETED");
+        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, null, "PHASE_DELETED", currentUserId);
     }
 
     /**
@@ -276,6 +278,7 @@ public class WorkflowGraphService {
 
         // Thêm cạnh vào bảng nối (giữ nguyên các Phase cha đã có), chặn chu trình
         addPhaseEdge(projectId, source, target);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_LINKED", currentUserId, targetPhaseId, null);
     }
 
     /**
@@ -299,6 +302,7 @@ public class WorkflowGraphService {
             target.setParentPhaseId(null);
             workPhaseRepository.save(target);
         }
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "GRAPH", "PHASE_UNLINKED", currentUserId, targetPhaseId, null);
     }
 
     /**
@@ -358,7 +362,7 @@ public class WorkflowGraphService {
             .build();
 
         NodeEntity saved = nodeRepository.save(node);
-        projectRealtimeNotifier.notifyTasksChanged(saved.getProjectId(), saved.getPhaseId(), saved.getId(), "NODE_CREATED");
+        projectRealtimeNotifier.notifyTasksChanged(saved.getProjectId(), saved.getPhaseId(), saved.getId(), "NODE_CREATED", currentUserId);
         return mapToGraphNodeResponse(saved);
     }
 
@@ -435,7 +439,8 @@ public class WorkflowGraphService {
             projectId,
             child.getPhaseId(),
             childId,
-            unlocked ? "UNLOCKED" : "DEPENDENCY_CHANGED"
+            unlocked ? "UNLOCKED" : "DEPENDENCY_CHANGED",
+            currentUserId
         );
 
         return new DependencyResponse(String.valueOf(parentId), String.valueOf(childId));
@@ -468,7 +473,8 @@ public class WorkflowGraphService {
             projectId,
             null,
             childNodeId,
-            childUnlocked[0] ? "UNLOCKED" : "DEPENDENCY_CHANGED"
+            childUnlocked[0] ? "UNLOCKED" : "DEPENDENCY_CHANGED",
+            currentUserId
         );
     }
 
@@ -539,7 +545,8 @@ public class WorkflowGraphService {
             saved.getProjectId(),
             saved.getPhaseId(),
             saved.getId(),
-            unlocked ? "UNLOCKED" : "NODE_UPDATED"
+            unlocked ? "UNLOCKED" : "NODE_UPDATED",
+            currentUserId
         );
         return mapToGraphNodeResponse(saved);
     }
@@ -572,7 +579,7 @@ public class WorkflowGraphService {
                 .ifPresent(child -> recomputeNodeStatus(child, loadParentsExcluding(childId, nodeId)));
         }
 
-        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, nodeId, "NODE_DELETED");
+        projectRealtimeNotifier.notifyTasksChanged(projectId, phaseId, nodeId, "NODE_DELETED", currentUserId);
     }
 
     /**
@@ -682,7 +689,7 @@ public class WorkflowGraphService {
         }
 
         log.info("Project #{} published successfully. Unlocked {} root tasks.", projectId, unlockedCount);
-        projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "PUBLISHED");
+        projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "PUBLISHED", currentUserId);
         return new PublishPipelineResponse(true, "ACTIVE", publishedAt, unlockedCount);
     }
 

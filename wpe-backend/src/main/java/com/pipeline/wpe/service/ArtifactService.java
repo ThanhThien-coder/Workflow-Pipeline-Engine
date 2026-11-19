@@ -15,6 +15,7 @@ import com.pipeline.wpe.repository.ArtifactRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class ArtifactService {
     private final ProjectAuthorizationService projectAuthorizationService;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
+    private final ProjectRealtimeNotifier projectRealtimeNotifier;
 
     /**
      * Lấy danh sách tài nguyên của dự án theo các điều kiện lọc.
@@ -91,6 +93,7 @@ public class ArtifactService {
 
         ArtifactEntity saved = artifactRepository.save(entity);
         log.info("[ArtifactService] Đã tạo artifact ID: {} cho Project: {}", saved.getId(), projectId);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "ARTIFACTS", "ARTIFACT_ADDED", currentUserId, null, saved.getNodeId());
         return ArtifactResponse.from(saved);
     }
 
@@ -129,6 +132,7 @@ public class ArtifactService {
 
         artifactRepository.delete(artifact);
         log.info("[ArtifactService] Đã xóa artifact ID: {} khỏi Project: {}", artifactId, projectId);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "ARTIFACTS", "ARTIFACT_REMOVED", currentUserId, null, artifact.getNodeId());
     }
 
     /**
@@ -148,6 +152,7 @@ public class ArtifactService {
         artifact.setIsInRepository(isInRepo);
         ArtifactEntity updated = artifactRepository.save(artifact);
         log.info("[ArtifactService] Đã cập nhật isInRepository = {} cho artifact ID: {}", isInRepo, artifactId);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "ARTIFACTS", "ARTIFACT_UPDATED", currentUserId, null, updated.getNodeId());
         return ArtifactResponse.from(updated);
     }
 

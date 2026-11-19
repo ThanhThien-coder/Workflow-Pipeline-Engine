@@ -54,6 +54,8 @@ class ProjectMemberServiceTest {
     @Mock
     private com.pipeline.wpe.service.event.WorkflowEventPublisher eventPublisher;
 
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
+
     @InjectMocks
     private ProjectMemberService projectMemberService;
 
@@ -189,6 +191,8 @@ class ProjectMemberServiceTest {
                 .thenReturn(List.of());
 
         ProjectMemberResponse res = projectMemberService.updateRole(projectId, newOwnerId, ProjectRole.OWNER, currentOwnerId);
+
+        verify(projectRealtimeNotifier).notifyProjectChanged(eq(projectId), eq("MEMBERS"), eq("ROLE_CHANGED"), eq(currentOwnerId), isNull(), isNull());
 
         assertThat(project.getOwnerId()).isEqualTo(newOwnerId);
         verify(projectRepository).save(project);

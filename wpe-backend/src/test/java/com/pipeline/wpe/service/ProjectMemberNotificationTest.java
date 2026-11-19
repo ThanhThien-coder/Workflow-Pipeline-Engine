@@ -34,6 +34,8 @@ class ProjectMemberNotificationTest {
     @Mock private UserRepository userRepository;
     @Mock private NodeRepository nodeRepository;
     @Mock private WorkflowEventPublisher eventPublisher;
+    @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
+
     @InjectMocks private ProjectMemberService service;
 
     private ProjectEntity project;
