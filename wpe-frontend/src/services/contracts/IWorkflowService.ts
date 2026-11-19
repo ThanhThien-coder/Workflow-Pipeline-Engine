@@ -77,6 +77,12 @@ export interface IWorkflowService {
   deleteTaskNode?(taskId: string): Promise<void>
   /** Chế độ API: chủ dự án mở khóa sớm task đang LOCKED (LOCKED → TODO dù task trước chưa xong). */
   forceUnlockTask?(taskId: string): Promise<void>
+  /** Chế độ API: một lần GET /graph trả phase, cạnh và cây của mọi phase. */
+  getProjectGraph?(projectId: string): Promise<{ phases: MacroPhase[]; edges: [string, string][]; trees: Record<string, PhaseTreeData> }>
+  /** Chế độ API: đổi tên phase (PUT chỉ gửi name, backend giữ vị trí). */
+  renamePhase?(phaseId: string, name: string, projectId?: string): Promise<void>
+  /** Chế độ API: gỡ cạnh phụ thuộc giữa 2 task (DELETE /dependencies). */
+  deleteDependency?(phaseId: string, parentTaskId: string, childTaskId: string): Promise<void>
   resetPhaseTree?(phaseId: string): Promise<void>
   createPhase(dto: CreatePhaseDto, projectId?: string): Promise<MacroPhase>
   connectPhases(sourcePhaseId: string, targetPhaseId: string, projectId?: string): Promise<void>

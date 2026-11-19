@@ -207,3 +207,20 @@ describe('graphMapper.toTaskNodePatch', () => {
     expect(toTaskNodePatch({ ...base, joinPolicy: 'ANY_COMPLETED' }).joinPolicy).toBe('ANY_COMPLETED')
   })
 })
+
+describe('graphMapper.toPhaseTree: isOverdue (TASK_69)', () => {
+  it('mang cờ quá hạn, task DONE thì không quá hạn', () => {
+    const graph: BackendGraphResponse = {
+      phases: [{ id: 1, name: 'P' }],
+      nodes: [
+        { id: 1, phaseId: 1, code: 'A', title: 'A', status: 'TODO', isOverdue: true },
+        { id: 2, phaseId: 1, code: 'B', title: 'B', status: 'DONE', isOverdue: true },
+        { id: 3, phaseId: 1, code: 'C', title: 'C', status: 'TODO' },
+      ],
+    }
+    const tree = toPhaseTree(graph, '1')!
+    expect((tree['1'] as BranchGraphNode).isOverdue).toBe(true)
+    expect((tree['2'] as BranchGraphNode).isOverdue).toBe(false)
+    expect((tree['3'] as BranchGraphNode).isOverdue).toBe(false)
+  })
+})

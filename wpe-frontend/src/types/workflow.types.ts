@@ -30,6 +30,8 @@ export interface BranchGraphNode extends GraphNodeBase {
   joinPolicy: JoinPolicy | 'AND' | null
   /** T6: chủ dự án đã mở khóa sớm */
   forceUnlocked?: boolean
+  /** Quá hạn (backend tính, chỉ đúng khi task chưa DONE) */
+  isOverdue?: boolean
   /** G21: ngày tạo task (ISO), hạn chót không sớm hơn ngày này */
   createdAt?: string | null
   phaseId?: string
@@ -135,6 +137,7 @@ export interface BackendGraphNodeDto {
   forceUnlockedBy?: string | number | null
   forceUnlockedAt?: string | null
   createdAt?: string | null
+  isOverdue?: boolean | null
   uiMetadata?: {
     position?: { x?: number; y?: number }
     width?: number

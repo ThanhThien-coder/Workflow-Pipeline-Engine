@@ -115,6 +115,7 @@ function toBranch(n: BackendGraphNodeDto, phaseId: string): BranchGraphNode {
     blocker: null,
     joinPolicy,
     forceUnlocked: Boolean(n.forceUnlockedAt),
+    isOverdue: Boolean(n.isOverdue) && status !== 'DONE',
     ...(n.createdAt ? { createdAt: n.createdAt } : {}),
     phaseId,
     // Mặc định treo dưới root; toPhaseTree đổi sang node cha nếu có cạnh phụ thuộc cùng phase

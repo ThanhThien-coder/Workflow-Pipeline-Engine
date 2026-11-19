@@ -37,8 +37,20 @@ export interface WorkflowState
   workflowEdges: [string, string][]
   selectedPhaseId: string | null
   trees: Record<string, GraphNodeMap>
+  /** Trạng thái tải đồ thị của dự án đang mở */
+  graphStatus: 'idle' | 'loading' | 'ready' | 'error'
+  graphError: string | null
   loadPhases: (projectId?: string) => Promise<void>
-  createPhase: (dto: CreatePhaseDto) => Promise<void>
+  /** Trả về id phase mới */
+  createPhase: (dto: CreatePhaseDto) => Promise<string>
+  /** true khi đang có một lần spawnChildPhase chưa xong (bỏ qua lần bấm mới) */
+  isSpawningPhase: boolean
+  /** Id phase vừa tạo bằng (+): thẻ phase tự bật ô sửa tên rồi gọi clearPhaseToRename */
+  phaseToRename: string | null
+  clearPhaseToRename: () => void
+  renamePhase: (phaseId: string, name: string) => Promise<void>
+  /** Gỡ cạnh phụ thuộc parent -> child (gỡ ghost: parent = ghost.refId, child = ghost.targetTaskId) rồi đọc lại cây */
+  removeDependency: (phaseId: string, parentTaskId: string, childTaskId: string) => Promise<void>
   spawnChildPhase: (parentPhaseId: string) => Promise<void>
   connectPhases: (sourceId: string, targetId: string) => Promise<void>
   disconnectPhases: (sourceId: string, targetId: string) => Promise<void>
@@ -99,7 +111,10 @@ function ensureCanEditGraph(state: WorkflowState): void {
   }
 }
 
-export const createWorkflowStore = (service: IWorkflowService = workflowService) => create<WorkflowState>((set, get) => ({
+export const createWorkflowStore = (service: IWorkflowService = workflowService) => {
+  // Số thứ tự lần loadPhases: lần cũ về muộn thì bỏ kết quả (chống lẫn dự án)
+  let loadSeq = 0
+  return create<WorkflowState>((set, get) => ({
   ...createOverviewSlice(set, get),
   ...createKanbanSlice(set, get),
   ...createSettingsSlice(set, get),
@@ -115,17 +130,52 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   workflowEdges: [],
   selectedPhaseId: null,
   trees: {},
+  graphStatus: 'idle',
+  graphError: null,
+  isSpawningPhase: false,
+  phaseToRename: null,
+  clearPhaseToRename: () => set({ phaseToRename: null }),
   loadPhases: async (projectId?: string) => {
-    set({ currentProjectId: projectId || null })
-    const macroPhases = await service.getMacroPhases(projectId)
-    const workflowEdges = await service.getPhaseEdges(projectId)
-    const treeEntries = await Promise.all(macroPhases.map(async (phase) => [phase.id, syncTrackProgress(await service.getPhaseGraph(phase.id, projectId))] as const))
-    const trees = Object.fromEntries(treeEntries) as Record<string, GraphNodeMap>
+    const pid = projectId || null
+    const seq = ++loadSeq
+    const switching = get().currentProjectId !== pid
     set({
-      macroPhases: macroPhases.map((phase) => withPhaseProgress(phase, trees[phase.id])),
-      workflowEdges,
-      trees,
+      currentProjectId: pid,
+      graphStatus: 'loading',
+      graphError: null,
+      ...(switching ? { macroPhases: [], workflowEdges: [], trees: {}, selectedPhaseId: null } : {}),
     })
+    const isStale = () => seq !== loadSeq || get().currentProjectId !== pid
+    try {
+      let phases: MacroPhase[]
+      let edges: [string, string][]
+      let rawTrees: Record<string, GraphNodeMap>
+      if (service.getProjectGraph) {
+        const graph = await service.getProjectGraph(projectId || '1')
+        phases = graph.phases
+        edges = graph.edges
+        rawTrees = graph.trees
+      } else {
+        phases = await service.getMacroPhases(projectId)
+        edges = await service.getPhaseEdges(projectId)
+        const entries = await Promise.all(phases.map(async (phase) => [phase.id, await service.getPhaseGraph(phase.id, projectId)] as const))
+        rawTrees = Object.fromEntries(entries)
+      }
+      if (isStale()) return
+      const trees = Object.fromEntries(
+        Object.entries(rawTrees).map(([id, tree]) => [id, syncTrackProgress(tree)]),
+      ) as Record<string, GraphNodeMap>
+      set({
+        macroPhases: phases.map((phase) => withPhaseProgress(phase, trees[phase.id])),
+        workflowEdges: edges,
+        trees,
+        graphStatus: 'ready',
+        graphError: null,
+      })
+    } catch (error) {
+      if (isStale()) return
+      set({ graphStatus: 'error', graphError: error instanceof Error ? error.message : 'Failed to load the graph' })
+    }
   },
   createPhase: async (dto) => {
     ensureCanEditGraph(get())
@@ -142,12 +192,37 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
       workflowEdges: [...state.workflowEdges, ...phase.parentPhaseIds.map((parent) => [parent, phase.id] as [string, string])],
       trees: { ...state.trees, [phase.id]: rootTree },
     }))
+    return phase.id
   },
   spawnChildPhase: async (parentPhaseId) => {
+    if (get().isSpawningPhase) return
     const parent = get().macroPhases.find((phase) => phase.id === parentPhaseId)
     if (!parent) return
-    const num = get().macroPhases.length + 1
-    await get().createPhase({ name: `PHASE ${num}`, sub: `Work group ${num}`, parentPhaseId })
+    set({ isSpawningPhase: true })
+    try {
+      const id = await get().createPhase({ name: 'New phase', sub: '', parentPhaseId })
+      set({ phaseToRename: id })
+    } finally {
+      set({ isSpawningPhase: false })
+    }
+  },
+  renamePhase: async (phaseId, name) => {
+    ensureCanEditGraph(get())
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Phase name cannot be empty')
+    const currentProjectId = get().currentProjectId
+    if (service.renamePhase) {
+      await service.renamePhase(phaseId, trimmed, currentProjectId || undefined)
+    }
+    set((state) => ({
+      macroPhases: state.macroPhases.map((phase) => (phase.id === phaseId ? { ...phase, name: trimmed } : phase)),
+    }))
+  },
+  removeDependency: async (phaseId, parentTaskId, childTaskId) => {
+    ensureCanEditGraph(get())
+    if (!service.deleteDependency) throw new Error('The current service does not support removing dependencies.')
+    await service.deleteDependency(phaseId, parentTaskId, childTaskId)
+    await get().resetPhaseTree(phaseId)
   },
   connectPhases: async (sourceId, targetId) => {
     ensureCanEditGraph(get())
@@ -191,6 +266,8 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
       trees: Object.fromEntries(Object.entries(state.trees).filter(([id]) => id !== phaseId)),
       selectedPhaseId: state.selectedPhaseId === phaseId ? null : state.selectedPhaseId,
     }))
+    // Cây các phase khác còn ghost trỏ tới task đã xóa: đọc lại cả đồ thị một lần
+    if (currentProjectId) await get().loadPhases(currentProjectId)
   },
   updatePhasePosition: async (phaseId, pos) => {
     // Chỉ xem thì không đổi vị trí và không gửi PUT (canvas cũng đã chặn kéo thả)
@@ -284,6 +361,7 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
     try {
       const currentProjectId = get().currentProjectId
       const cleanTree = syncTrackProgress(await service.getPhaseGraph(phaseId, currentProjectId || undefined))
+      if (get().currentProjectId !== currentProjectId) return
       set((state) => ({
         macroPhases: state.macroPhases.map((p) => (p.id === phaseId ? withPhaseProgress(p, cleanTree) : p)),
         trees: { ...state.trees, [phaseId]: cleanTree },
@@ -344,5 +422,6 @@ export const createWorkflowStore = (service: IWorkflowService = workflowService)
   },
   setActiveTab: (activeTab) => set({ activeTab }),
 }))
+}
 
 export const useWorkflowStore = createWorkflowStore()

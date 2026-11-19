@@ -382,7 +382,6 @@ export class HttpWorkflowService implements IWorkflowService {
         name: cmd.name,
         description: cmd.desc ?? cmd.description ?? '',
         templateId: cmd.templateId ? toTemplateIdPayload(cmd.templateId) : null,
-        visibility: cmd.visibility || 'PRIVATE',
       },
     })
     return {
@@ -421,7 +420,6 @@ export class HttpWorkflowService implements IWorkflowService {
         templateId: toTemplateIdPayload(req.templateId),
         projectName: req.projectName.trim(),
         description: req.description?.trim() || '',
-        visibility: req.visibility || 'PRIVATE',
       },
     })
     return {
@@ -737,6 +735,37 @@ export class HttpWorkflowService implements IWorkflowService {
       })
     }
     return tree
+  }
+
+  /** Một lần GET /projects/{id}/graph cho phase, cạnh và cây của mọi phase. */
+  async getProjectGraph(projectId: string): Promise<{ phases: MacroPhase[]; edges: [string, string][]; trees: Record<string, PhaseTreeData> }> {
+    const graph = await this.loadGraph(projectId)
+    const phases = toMacroPhases(graph)
+    const trees: Record<string, PhaseTreeData> = {}
+    for (const phase of phases) {
+      const tree = toPhaseTree(graph, phase.id)
+      if (tree) trees[phase.id] = tree
+    }
+    return { phases, edges: toPhaseEdges(graph), trees }
+  }
+
+  /** PUT /projects/{id}/phases/{phaseId} chỉ với name (không gửi uiMetadata để backend giữ vị trí). */
+  async renamePhase(phaseId: string, name: string, projectId?: string): Promise<void> {
+    const id = String(phaseId)
+    const pid = projectId || this.phaseIndex.get(id)?.projectId || '1'
+    const item = await graphApi.updatePhase(pid, id, { name })
+    // Lần lưu vị trí sau gửi name từ phaseIndex: phải cập nhật, không thì kéo thẻ sẽ trả lại tên cũ
+    this.phaseIndex.set(id, { projectId: pid, name: item?.name ?? name })
+  }
+
+  /** DELETE /projects/{id}/dependencies?parentNodeId=&childNodeId= */
+  async deleteDependency(phaseId: string, parentTaskId: string, childTaskId: string): Promise<void> {
+    const pid = this.projectIdOfPhase(phaseId)
+    await graphApi.deleteDependency(
+      pid,
+      graphApi.toBackendId(parentTaskId, 'Source task'),
+      graphApi.toBackendId(childTaskId, 'Target task'),
+    )
   }
 
   /** POST /projects/{id}/phases */

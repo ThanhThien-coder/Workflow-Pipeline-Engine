@@ -10,6 +10,7 @@ import type {
   ProjectSettingsDto,
   UpdateProjectCommand,
 } from '../../types/settings.types'
+import type { UserSummary } from '../../types/kanban.types'
 import { workflowService } from '../../services/container'
 import { isApiError } from '../../services/http/ApiError'
 import { isMockMode } from '../../services/env'
@@ -431,16 +432,31 @@ export const createSettingsSlice = (
           const updated = await workflowService.changeMemberRole(pid, userId, { role })
           if (role === 'OWNER') {
             await get().settings.loadSettings(pid)
+            // Chủ mới: tải lại thông tin dự án (vai trò của tôi, danh sách thành viên) ở chỗ khác
+            await (get() as any).project?.loadProject?.(pid)
             get().settings.showToast(`Ownership transferred to ${updated.username}.`)
             return true
           }
           set((state) =>
-            produce(state, (draft) => {
-              const idx = draft.settings.members.findIndex((m) => m.userId === userId)
+            produce(state, (draft: any) => {
+              const idx = draft.settings.members.findIndex((m: ProjectMemberDetail) => m.userId === userId)
               if (idx !== -1) {
                 draft.settings.members[idx] = updated
               }
               draft.settings.memberPendingDemote = null
+              // Cập nhật luôn danh sách thành viên ở Kanban và thông tin dự án nếu đang mở đúng dự án này
+              const patchMember = (m: UserSummary) => {
+                if (m.id === userId) {
+                  m.projectRole = role
+                  m.roleTitle = role
+                }
+              }
+              if (!draft.currentProjectId || String(draft.currentProjectId) === String(pid)) {
+                draft.kanban.members.forEach(patchMember)
+              }
+              if (!draft.project.info || String(draft.project.info.id) === String(pid)) {
+                draft.project.members.forEach(patchMember)
+              }
             }),
           )
           await refreshLogs(pid)

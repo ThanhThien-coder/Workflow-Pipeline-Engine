@@ -64,6 +64,11 @@ export function createDependency(projectId: string, parentNodeId: number, childN
   return apiRequest<BackendDependencyDto>('POST', `/projects/${projectId}/dependencies`, { body: { parentNodeId, childNodeId } })
 }
 
+/** DELETE /projects/{id}/dependencies?parentNodeId=&childNodeId= (gỡ 1 cạnh phụ thuộc) */
+export async function deleteDependency(projectId: string, parentNodeId: number, childNodeId: number): Promise<void> {
+  await apiRequest<void>('DELETE', `/projects/${projectId}/dependencies`, { query: { parentNodeId, childNodeId } })
+}
+
 export interface UpdateNodeBody {
   /** Backend bắt buộc có title và version (sai version trả 409). */
   title: string
