@@ -348,6 +348,38 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
+    @DisplayName("createNode: dự án đã publish (ACTIVE) -> task mới TODO ngay (không kẹt LOCKED vì publish chỉ mở task gốc một lần)")
+    void testCreateNodeInPublishedProjectStartsTodo() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE);
+        CreateNodeRequest req = new CreateNodeRequest(10L, null, "New task", null, null, null, null, null, null);
+        when(workPhaseRepository.findById(10L))
+            .thenReturn(Optional.of(WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build()));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> {
+            NodeEntity n = i.getArgument(0);
+            n.setId(500L);
+            return n;
+        });
+
+        assertEquals("TODO", String.valueOf(workflowGraphService.createNode(1L, req, 2L).status()));
+    }
+
+    @Test
+    @DisplayName("createNode: dự án chưa publish (DRAFT) -> task mới LOCKED, chờ publish mở")
+    void testCreateNodeInDraftProjectStartsLocked() {
+        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.DRAFT);
+        CreateNodeRequest req = new CreateNodeRequest(10L, null, "New task", null, null, null, null, null, null);
+        when(workPhaseRepository.findById(10L))
+            .thenReturn(Optional.of(WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build()));
+        when(nodeRepository.save(any(NodeEntity.class))).thenAnswer(i -> {
+            NodeEntity n = i.getArgument(0);
+            n.setId(501L);
+            return n;
+        });
+
+        assertEquals("LOCKED", String.valueOf(workflowGraphService.createNode(1L, req, 2L).status()));
+    }
+
+    @Test
     @DisplayName("S05 createNode: thiếu phaseId ném BadRequestException PHASE_REQUIRED (HTTP 400), không lưu node")
     void testCreateNodeWithoutPhaseRejected() {
         CreateNodeRequest req = new CreateNodeRequest(null, null, "Task Title", null, null, null, null, null, null);

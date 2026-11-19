@@ -312,7 +312,8 @@ public class WorkflowGraphService {
     @Transactional
     public GraphNodeResponse createNode(Long projectId, CreateNodeRequest request, Long currentUserId) {
         // Chỉ owner được thiết kế đồ thị (UC10). Thành viên và Viewer chỉ được đọc.
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(project);
 
         // Mọi task phải thuộc một phase: task không phase không hiện trên đồ thị nhưng vẫn bị đếm ở Overview (S05)
         if (request.phaseId() == null) {
@@ -343,8 +344,14 @@ public class WorkflowGraphService {
             }
         }
 
-        // Trạng thái ban đầu: task nằm trong Phase là LOCKED (task không phase đã bị chặn ở trên)
-        NodeStatus initialStatus = NodeStatus.LOCKED;
+        // Trạng thái ban đầu: dự án chưa publish (DRAFT/PLANNING) thì LOCKED, publish sẽ mở các task gốc.
+        // Dự án đã publish: task mới chưa có task trước nên TODO ngay (cùng luật publish mở task gốc);
+        // nối cha chưa xong vào sau đó thì recomputeNodeStatus tự khóa lại.
+        com.pipeline.wpe.common.enums.ProjectStatus projectStatus = project.getStatus();
+        boolean published = projectStatus != null
+            && projectStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT
+            && projectStatus != com.pipeline.wpe.common.enums.ProjectStatus.PLANNING;
+        NodeStatus initialStatus = published ? NodeStatus.TODO : NodeStatus.LOCKED;
         JoinPolicy joinPolicy = request.joinPolicy() != null ? request.joinPolicy() : JoinPolicy.ALL_COMPLETED;
         Map<String, Object> metadata = request.uiMetadata() != null ? request.uiMetadata() :
             Map.of("position", Map.of("x", 200, "y", 150), "width", 220, "height", 90);
