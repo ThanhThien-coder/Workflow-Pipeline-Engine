@@ -6,6 +6,8 @@ import com.pipeline.wpe.dto.request.node.UpdateNodeAssignmentRequest;
 import com.pipeline.wpe.dto.response.graph.GraphNodeResponse;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.exception.BadRequestException;
 import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
@@ -60,6 +62,13 @@ public class NodeAssignmentService {
                 || projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), req.assignedUserId());
             if (!isMember) {
                 throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: The assignee must be a member of the project.");
+            }
+            boolean isViewer = !req.assignedUserId().equals(project.getOwnerId())
+                && projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), req.assignedUserId())
+                    .map(m -> m.getRole() == ProjectRole.VIEWER)
+                    .orElse(false);
+            if (isViewer) {
+                throw new BadRequestException("ASSIGNEE_IS_VIEWER", "Viewers can't be assigned tasks.");
             }
             node.setAssignedUserId(req.assignedUserId());
         }

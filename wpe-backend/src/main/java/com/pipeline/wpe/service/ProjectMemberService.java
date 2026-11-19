@@ -177,6 +177,19 @@ public class ProjectMemberService {
             ProjectRole previousRole = targetMember.getRole();
             targetMember.setRole(newRole);
             targetMember = projectMemberRepository.save(targetMember);
+            if (newRole == ProjectRole.VIEWER) {
+                List<NodeEntity> nodesToUnassign = nodeRepository
+                        .findByProjectIdAndAssignedUserIdAndStatusNot(projectId, targetUserId, NodeStatus.DONE);
+                for (NodeEntity node : nodesToUnassign) {
+                    node.setAssignedUserId(null);
+                }
+                nodeRepository.saveAll(nodesToUnassign);
+                if (!nodesToUnassign.isEmpty()) {
+                    // Thẻ task đổi người làm: báo để mọi người tải lại đồ thị (MEMBERS không tải lại đồ thị)
+                    projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "UNASSIGNED", currentUserId);
+                }
+                log.info("Changed userId={} to VIEWER in project={}, unassigned {} tasks", targetUserId, projectId, nodesToUnassign.size());
+            }
             if (previousRole != newRole) {
                 notifyRoleChanged(projectId, project, targetUserId, newRole);
                 projectRealtimeNotifier.notifyProjectChanged(projectId, "MEMBERS", "ROLE_CHANGED", currentUserId, null, null);
@@ -211,6 +224,9 @@ public class ProjectMemberService {
             node.setAssignedUserId(null);
         }
         nodeRepository.saveAll(nodesToUnassign);
+        if (!nodesToUnassign.isEmpty()) {
+            projectRealtimeNotifier.notifyTasksChanged(projectId, null, null, "UNASSIGNED", currentUserId);
+        }
 
         notifyMemberRemoved(projectId, project, targetUserId);
         projectRealtimeNotifier.notifyProjectChanged(projectId, "MEMBERS", "MEMBER_REMOVED", currentUserId, null, null);

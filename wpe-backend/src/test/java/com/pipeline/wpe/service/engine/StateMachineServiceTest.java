@@ -113,6 +113,20 @@ class StateMachineServiceTest {
     }
 
     @Test
+    @DisplayName("S07: Viewer được giao task vẫn không đổi được trạng thái -> 403 ACCESS_DENIED, không lưu")
+    void testViewerCannotUpdateStatus() {
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, collaboratorId))
+            .thenReturn(Optional.of(ProjectMemberEntity.builder().projectId(projectId).userId(collaboratorId).role(ProjectRole.VIEWER).build()));
+
+        assertThatThrownBy(() -> stateMachineService.updateStatus(taskId, new UpdateNodeStatusRequest("IN_PROGRESS", null, 0L), collaboratorId))
+            .isInstanceOf(ForbiddenException.class)
+            .hasMessageContaining("Viewers can't change task status");
+        verify(nodeRepository, never()).saveAndFlush(any(NodeEntity.class));
+    }
+
+    @Test
     @DisplayName("FSM 1: TODO -> IN_PROGRESS bởi Assignee thành công")
     void testMoveTodoToInProgress_success() {
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));

@@ -175,6 +175,7 @@ public class StateMachineService {
         ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
+        ensureNotViewer(project, currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
         boolean canReview = isOwner || projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(project.getId(), currentUserId)
             .map(m -> m.getRole() == ProjectRole.MANAGER)
@@ -460,6 +461,7 @@ public class StateMachineService {
         ensureNotArchived(project);
 
         boolean isOwner = project.getOwnerId().equals(currentUserId);
+        ensureNotViewer(project, currentUserId);
         boolean isAssignee = Objects.equals(node.getAssignedUserId(), currentUserId);
         if (!isOwner && !isAssignee) {
             throw new ForbiddenException("ACCESS_DENIED", "You don't have permission to submit this task.");

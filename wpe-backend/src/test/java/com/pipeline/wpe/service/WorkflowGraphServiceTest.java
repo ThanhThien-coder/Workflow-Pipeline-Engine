@@ -982,6 +982,24 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
+    @DisplayName("S07 updateNode: giao task cho Viewer -> 400 ASSIGNEE_IS_VIEWER, không lưu")
+    void testUpdateNodeAssignToViewerRejected() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setVersion(3L);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(1L, 3L)).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(1L, 3L)).thenReturn(Optional.of(
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(1L).userId(3L)
+                .role(com.pipeline.wpe.common.enums.ProjectRole.VIEWER).build()));
+
+        var ex = assertThrows(com.pipeline.wpe.exception.BadRequestException.class,
+            () -> workflowGraphService.updateNode(100L, new UpdateNodeRequest("X", null, null, null, 3L, null, null, 3L), 2L));
+        assertEquals("ASSIGNEE_IS_VIEWER", ex.getErrorCode());
+        assertNull(n.getAssignedUserId());
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     @DisplayName("B3 updateNode: sai version ném OptimisticLockingFailureException (HTTP 409), không lưu")
     void testUpdateNodeWrongVersion() {
         NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);

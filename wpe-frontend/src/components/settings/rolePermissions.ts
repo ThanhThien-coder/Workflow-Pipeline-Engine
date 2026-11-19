@@ -68,7 +68,7 @@ export const ROLE_PERMISSIONS: RolePermissionRow[] = [
   row('Review queue', true, true, false, false),
   row('Change assignee and due date', true, true, false, false),
   row('Resolve guest feedback', true, true, false, false),
-  row('Start, return or submit a task', 'Any task', 'If assigned', 'If assigned', 'If assigned'),
+  row('Start, return or submit a task', 'Any task', 'If assigned', 'If assigned', false),
   row('Add artifacts', true, true, true, false),
   row('Delete an artifact', true, 'Own uploads', 'Own uploads', 'Own uploads'),
 ]

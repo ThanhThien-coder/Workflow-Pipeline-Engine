@@ -514,6 +514,13 @@ public class WorkflowGraphService {
             if (!isMember) {
                 throw new IllegalArgumentException("ASSIGNEE_NOT_MEMBER: The assignee must be a member of the project.");
             }
+            boolean isViewer = !request.assignedUserId().equals(project.getOwnerId())
+                && projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, request.assignedUserId())
+                    .map(m -> m.getRole() == com.pipeline.wpe.common.enums.ProjectRole.VIEWER)
+                    .orElse(false);
+            if (isViewer) {
+                throw new BadRequestException("ASSIGNEE_IS_VIEWER", "Viewers can't be assigned tasks.");
+            }
             node.setAssignedUserId(request.assignedUserId());
         }
 

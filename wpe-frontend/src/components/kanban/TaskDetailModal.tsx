@@ -361,7 +361,7 @@ export function TaskDetailModal({
                     onChange={(e) => setAssignedUserId(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
                   >
-                    {members.map((member) => (
+                    {members.filter((member) => member.projectRole !== 'VIEWER' || member.id === task.assignedUserId).map((member) => (
                       <option key={member.id} value={member.id}>
                         {member.name} ({member.roleTitle || member.projectRole})
                       </option>
