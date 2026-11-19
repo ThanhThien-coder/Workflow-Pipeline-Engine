@@ -19,6 +19,8 @@ export interface KanbanSlice {
     reviewTask: (taskId: string, to: 'DONE' | 'IN_PROGRESS', rejectReason?: string) => Promise<void>
     loadMembers: (projectId: string) => Promise<void>; loadTasks: (projectId: string) => Promise<void>; setUserId: (projectId: string, userId: string) => Promise<void>
     setFilterPhase: (id: PhaseFilterId) => void; setSearchQuery: (query: string) => void; moveTask: (taskId: string, to: TaskStatus, rejectReason?: string) => Promise<void>
+    /** S04: mở lại task Done của My Tasks (chủ dự án / quản lý, bắt buộc lý do). */
+    reopenTask: (taskId: string, reason: string) => Promise<boolean>
     closeSubmitModal: () => void; submitArtifact: (dto: Omit<SubmitArtifactDto, 'taskId'>) => Promise<boolean>; submitTaskArtifact: (taskId: string, dto: Omit<SubmitArtifactDto, 'taskId'>) => Promise<boolean>; showToast: (message: string) => void
   }
 }
@@ -109,6 +111,28 @@ export const createKanbanSlice = (set: (update: (state: KanbanSlice) => KanbanSl
         k().showToast(success[`REVIEW>${to}`]?.(task.code) ?? `Updated ${task.code}.`)
       } catch (error) {
         k().showToast(error instanceof Error ? error.message : 'Unable to update status. Please try again.')
+      } finally {
+        set((state) => ({ ...state, kanban: { ...state.kanban, pendingTaskIds: state.kanban.pendingTaskIds.filter((id) => id !== taskId) } }))
+      }
+    },
+    reopenTask: async (taskId, reason) => {
+      const task = k().tasks.find((item) => item.id === taskId)
+      if (!task || !workflowService.reopenTask || k().pendingTaskIds.includes(taskId)) return false
+      set((state) => ({ ...state, kanban: { ...state.kanban, pendingTaskIds: [...state.kanban.pendingTaskIds, taskId] } }))
+      try {
+        const saved = await workflowService.reopenTask(taskId, reason)
+        set((state) => ({ ...state, kanban: { ...state.kanban, tasks: state.kanban.tasks.map((item) => item.id === taskId ? { ...saved, phaseLabel: item.phaseLabel } : item) } }))
+        k().showToast(`Reopened ${task.code}: moved back to In Progress.`)
+        return true
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409 && error.code === 'OPTIMISTIC_LOCK_CONFLICT') {
+          const projectId = (get() as unknown as { currentProjectId?: string | null }).currentProjectId ?? get().artifacts?.projectId
+          if (projectId) await k().loadTasks(String(projectId)).catch(() => {})
+          k().showToast(STALE_TASK_MESSAGE)
+        } else {
+          k().showToast(error instanceof Error ? error.message : 'Unable to reopen the task. Please try again.')
+        }
+        return false
       } finally {
         set((state) => ({ ...state, kanban: { ...state.kanban, pendingTaskIds: state.kanban.pendingTaskIds.filter((id) => id !== taskId) } }))
       }

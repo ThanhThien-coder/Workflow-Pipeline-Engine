@@ -64,6 +64,7 @@ export const ROLE_PERMISSIONS: RolePermissionRow[] = [
   row('Invite members, change roles, remove members, transfer ownership', true, false, false, false),
   row('Create or revoke guest links', true, false, false, false),
   row('Approve or return tasks', true, true, false, false),
+  row('Reopen a done task', true, true, false, false),
   row('Review queue', true, true, false, false),
   row('Change assignee and due date', true, true, false, false),
   row('Resolve guest feedback', true, true, false, false),

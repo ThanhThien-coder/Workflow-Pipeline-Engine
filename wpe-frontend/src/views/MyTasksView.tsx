@@ -43,6 +43,7 @@ export function MyTasksView({
   const closeModal = useWorkflowStore((state) => state.kanban.closeSubmitModal)
   const submitArtifact = useWorkflowStore((state) => state.kanban.submitArtifact)
   const submitTaskArtifact = useWorkflowStore((state) => state.kanban.submitTaskArtifact)
+  const reopenTask = useWorkflowStore((state) => state.kanban.reopenTask)
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
@@ -197,6 +198,8 @@ export function MyTasksView({
           onClose={() => setSelectedTaskId(null)}
           onMove={(to, rejectReason) => void moveTask(selectedTask.id, to, rejectReason)}
           onSubmitArtifact={(dto) => submitTaskArtifact(selectedTask.id, dto)}
+          onReopen={(reason) => reopenTask(selectedTask.id, reason)}
+          getReopenImpact={() => workflowService.getReopenImpact?.(selectedTask.id) ?? Promise.resolve({ taskCode: selectedTask.code, children: [] })}
         />
       )}
 

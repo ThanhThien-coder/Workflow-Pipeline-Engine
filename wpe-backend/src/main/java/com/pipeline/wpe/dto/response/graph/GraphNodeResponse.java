@@ -26,13 +26,23 @@ public record GraphNodeResponse(
     // TASK_51: thời điểm hoàn thành task (khi sang DONE)
     Instant completedAt,
     // TASK_68: task đã quá hạn (khớp KanbanTaskResponse.isOverdue)
-    boolean isOverdue
+    boolean isOverdue,
+    // S04: lúc task Done được mở lại (null nếu chưa)
+    Instant reopenedAt
 ) {
+    public GraphNodeResponse(
+        String id, String phaseId, String code, String title, String description, String status, String joinPolicy,
+        String assignedUserId, Instant dueDate, Integer estimatedHours, Long version, Map<String, Object> uiMetadata,
+        String forceUnlockedBy, Instant forceUnlockedAt, Instant createdAt, Instant completedAt, boolean isOverdue
+    ) {
+        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, forceUnlockedBy, forceUnlockedAt, createdAt, completedAt, isOverdue, null);
+    }
+
     public GraphNodeResponse(
         String id, String phaseId, String code, String title, String description, String status, String joinPolicy,
         String assignedUserId, Instant dueDate, Integer estimatedHours, Long version, Map<String, Object> uiMetadata
     ) {
-        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, null, null, null, null, false);
+        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, null, null, null, null, false, null);
     }
 
     public GraphNodeResponse(
@@ -40,7 +50,7 @@ public record GraphNodeResponse(
         String assignedUserId, Instant dueDate, Integer estimatedHours, Long version, Map<String, Object> uiMetadata,
         String forceUnlockedBy, Instant forceUnlockedAt, Instant createdAt
     ) {
-        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, forceUnlockedBy, forceUnlockedAt, createdAt, null, false);
+        this(id, phaseId, code, title, description, status, joinPolicy, assignedUserId, dueDate, estimatedHours, version, uiMetadata, forceUnlockedBy, forceUnlockedAt, createdAt, null, false, null);
     }
 
     public static GraphNodeResponse from(NodeEntity n, Map<String, Object> uiMetadata) {
@@ -61,7 +71,8 @@ public record GraphNodeResponse(
             n.getForceUnlockedAt(),
             n.getCreatedAt(),
             n.getCompletedAt(),
-            Boolean.TRUE.equals(n.getIsOverdue())
+            Boolean.TRUE.equals(n.getIsOverdue()),
+            n.getReopenedAt()
         );
     }
 }

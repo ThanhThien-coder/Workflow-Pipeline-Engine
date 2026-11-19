@@ -216,6 +216,42 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     [tasks, showToast, refreshAfterWrite, loadPhaseTasks]
   )
 
+  /** S04: mở lại task Done (Owner / Manager, bắt buộc lý do). Xong thì đọc lại cây để task con bị khóa lại hiện đúng. */
+  const reopenTask = useCallback(
+    async (taskId: string, reason: string): Promise<boolean> => {
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task || !workflowService.reopenTask) return false
+      setPendingTaskIds((prev) => [...prev, taskId])
+      try {
+        const saved = await workflowService.reopenTask(taskId, reason)
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...saved, phaseLabel } : t)))
+        syncMyTasks(taskId, () => saved)
+        showToast(`Reopened task ${task.code}: moved back to In Progress.`)
+        await refreshAfterWrite()
+        return true
+      } catch (err) {
+        if (isStaleVersion(err)) {
+          await loadPhaseTasks()
+          showToast(STALE_TASK_MESSAGE)
+        } else {
+          showToast(errorText(err, 'Unable to reopen the task. Please try again.'))
+        }
+        return false
+      } finally {
+        setPendingTaskIds((prev) => prev.filter((id) => id !== taskId))
+      }
+    },
+    [tasks, phaseLabel, showToast, refreshAfterWrite, loadPhaseTasks]
+  )
+
+  const getReopenImpact = useCallback(
+    async (taskId: string): Promise<ReopenImpact> => {
+      if (!workflowService.getReopenImpact) return { taskCode: '', children: [] }
+      return workflowService.getReopenImpact(taskId)
+    },
+    []
+  )
+
   const submittingTask = useMemo(
     () => (submittingTaskId ? tasks.find((t) => t.id === submittingTaskId) ?? null : null),
     [tasks, submittingTaskId]
@@ -246,5 +282,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
     closeSubmitModal,
     refreshTasks: loadPhaseTasks,
     updateAssignment,
+    reopenTask,
+    getReopenImpact,
   }
 }

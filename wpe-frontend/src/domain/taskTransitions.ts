@@ -4,7 +4,7 @@ export function evaluateTransition(task: Pick<KanbanTask, 'status' | 'assignedUs
   const from = task.status
   const canReview = actor.projectRole === 'OWNER' || actor.projectRole === 'MANAGER'
   if (from === to) return { kind: 'deny', message: '' }
-  if (from === 'DONE') return { kind: 'deny', message: 'This task is Done and locked, so it can\'t be changed.' }
+  if (from === 'DONE') return { kind: 'deny', message: 'This task is Done. Use “Reopen task” in its details to reopen it.' }
   // Mở khóa chỉ do backend làm (đủ điều kiện task trước, hoặc chủ dự án mở khóa sớm); không kéo vào/ra cột Đang khóa
   if (from === 'LOCKED') return { kind: 'deny', message: 'This task is locked: its prerequisites must be done first (or the project owner can unlock it early).' }
   if (to === 'LOCKED') return { kind: 'deny', message: 'A task cannot be moved back to Locked.' }

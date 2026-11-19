@@ -19,6 +19,7 @@ import type {
   ArtifactItem,
   ArtifactType,
   KanbanTask,
+  ReopenImpact,
   SubmitArtifactDto,
   TaskStatus,
   UserSummary,
@@ -70,6 +71,7 @@ interface BackendTaskResponse {
   rejectReason?: string
   forceUnlockedAt?: string | null
   createdAt?: string | null
+  reopenedAt?: string | null
   dueDate?: string
   isOverdue: boolean
   version: number
@@ -166,6 +168,26 @@ export class HttpWorkflowService implements IWorkflowService {
     })
     this.taskVersionCache.set(String(updated.id), updated.version)
     return this.mapBackendTaskToKanban(updated)
+  }
+
+  /** POST /nodes/{taskId}/reopen: mở lại task Done (Owner / Manager), body {reason, version} */
+  async reopenTask(taskId: string, reason: string): Promise<KanbanTask> {
+    const currentVersion = this.taskVersionCache.get(taskId) ?? 0
+    const updated = await apiRequest<BackendTaskResponse>('POST', `/nodes/${taskId}/reopen`, {
+      body: { reason, version: currentVersion },
+    })
+    this.taskVersionCache.set(String(updated.id), updated.version)
+    return this.mapBackendTaskToKanban(updated)
+  }
+
+  /** GET /nodes/{taskId}/reopen-impact: các task con trực tiếp và con nào sẽ bị khóa lại */
+  async getReopenImpact(taskId: string): Promise<ReopenImpact> {
+    const data = await apiRequest<{ taskCode: string; children?: Array<{ id: string; code: string; title: string; status: string; willRelock: boolean }> }>(
+      'GET', `/nodes/${taskId}/reopen-impact`)
+    return {
+      taskCode: data.taskCode,
+      children: (data.children ?? []).map((c) => ({ id: String(c.id), code: c.code, title: c.title, status: c.status as TaskStatus, willRelock: Boolean(c.willRelock) })),
+    }
   }
 
   /** POST /nodes/{taskId}/submit */
@@ -905,6 +927,7 @@ export class HttpWorkflowService implements IWorkflowService {
       rejectReason: item.rejectReason,
       forceUnlocked: Boolean(item.forceUnlockedAt),
       ...(item.createdAt ? { createdAt: item.createdAt } : {}),
+      ...(item.reopenedAt ? { reopenedAt: item.reopenedAt } : {}),
     }
   }
 }

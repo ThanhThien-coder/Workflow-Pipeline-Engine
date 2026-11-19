@@ -1,8 +1,10 @@
 package com.pipeline.wpe.controller;
 
+import com.pipeline.wpe.dto.request.node.ReopenTaskRequest;
 import com.pipeline.wpe.dto.request.node.SubmitTaskArtifactRequest;
 import com.pipeline.wpe.dto.request.node.UpdateNodeStatusRequest;
 import com.pipeline.wpe.dto.response.node.KanbanTaskResponse;
+import com.pipeline.wpe.dto.response.node.ReopenImpactResponse;
 import com.pipeline.wpe.dto.response.node.SubmitTaskArtifactResponse;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.ProjectAuthorizationService;
@@ -106,6 +108,30 @@ public class NodeController {
         Long actorId = currentUserProvider.requireCurrentUserId();
         SubmitTaskArtifactResponse response = stateMachineService.submitTaskArtifact(taskId, request, actorId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/nodes/{taskId}/reopen-impact")
+    @Operation(
+        summary = "S04 Xem trước ảnh hưởng khi mở lại task Done",
+        description = "Chỉ Chủ dự án hoặc Quản lý (401 / 403). Trả danh sách task con trực tiếp, willRelock=true nếu con đang TODO sẽ bị khóa lại."
+    )
+    public ResponseEntity<ReopenImpactResponse> reopenImpact(@PathVariable Long taskId) {
+        Long actorId = currentUserProvider.requireCurrentUserId();
+        return ResponseEntity.ok(stateMachineService.reopenImpact(taskId, actorId));
+    }
+
+    @PostMapping("/nodes/{taskId}/reopen")
+    @Operation(
+        summary = "S04 Mở lại task đã Done (DONE -> IN_PROGRESS)",
+        description = "Chỉ Chủ dự án hoặc Quản lý (403 ACCESS_DENIED). Body {reason, version}: reason rỗng 400; sai version 409 OPTIMISTIC_LOCK_CONFLICT; "
+            + "task không DONE 409 TASK_NOT_DONE; dự án ARCHIVED 409 PROJECT_ARCHIVED. Task con TODO không còn đủ điều kiện được khóa lại."
+    )
+    public ResponseEntity<KanbanTaskResponse> reopen(
+        @PathVariable Long taskId,
+        @Valid @RequestBody ReopenTaskRequest request
+    ) {
+        Long actorId = currentUserProvider.requireCurrentUserId();
+        return ResponseEntity.ok(stateMachineService.reopen(taskId, request, actorId));
     }
 
     @PostMapping("/nodes/{taskId}/force-unlock")

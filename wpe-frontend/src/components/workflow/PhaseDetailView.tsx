@@ -123,6 +123,8 @@ export function PhaseDetailView({ projectId, phaseId }: { projectId: string; pha
     submitArtifact,
     closeSubmitModal,
     updateAssignment,
+    reopenTask,
+    getReopenImpact,
   } = usePhaseKanban(phase, currentProjectId)
 
   // Active selected task kept up to date with updates
@@ -558,6 +560,8 @@ export function PhaseDetailView({ projectId, phaseId }: { projectId: string; pha
             onMove={(to, rejectReason) => void moveTask(activeSelectedTask.id, to, rejectReason)}
             onSubmitArtifact={(dto) => submitArtifact(activeSelectedTask.id, dto)}
             onUpdateAssignment={(cmd) => updateAssignment(activeSelectedTask.id, cmd)}
+            onReopen={(reason) => reopenTask(activeSelectedTask.id, reason)}
+            getReopenImpact={() => getReopenImpact(activeSelectedTask.id)}
           />
         )}
       </AnimatePresence>

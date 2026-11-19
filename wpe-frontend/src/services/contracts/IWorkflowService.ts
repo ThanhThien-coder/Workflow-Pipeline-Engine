@@ -1,6 +1,6 @@
 import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency } from '../../types/workflow.types'
 import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
-import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
+import type { ArtifactItem, KanbanTask, ReopenImpact, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import type {
   ProjectSettingsDto,
   ProjectMemberDetail,
@@ -101,6 +101,10 @@ export interface IWorkflowService {
   /** G18: hàng chờ duyệt: mọi task REVIEW của dự án (chỉ chủ dự án / quản lý gọi được). */
   getReviewTasks(projectId: string): Promise<KanbanTask[]>
   updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask>
+  /** S04 (chế độ API): mở lại task Done (chỉ chủ dự án / quản lý, bắt buộc lý do). */
+  reopenTask?(taskId: string, reason: string): Promise<KanbanTask>
+  /** S04 (chế độ API): xem trước task con nào bị ảnh hưởng khi mở lại task Done. */
+  getReopenImpact?(taskId: string): Promise<ReopenImpact>
   submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }>
   updateTaskAssignment(taskId: string, cmd: { assignedUserId?: string; dueDate?: string; version: number }): Promise<Pick<KanbanTask, 'assignedUserId' | 'dueDate' | 'version'>>
   getProjectMembers(projectId: string): Promise<UserSummary[]>

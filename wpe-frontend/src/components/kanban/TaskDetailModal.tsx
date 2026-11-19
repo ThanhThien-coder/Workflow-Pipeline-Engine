@@ -16,7 +16,8 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ArtifactType, KanbanTask, TaskStatus, UserSummary } from '../../types/kanban.types'
+import type { ArtifactType, KanbanTask, ReopenImpact, TaskStatus, UserSummary } from '../../types/kanban.types'
+import { ReopenTaskModal } from './ReopenTaskModal'
 import { ARTIFACT_TYPE_OPTIONS, artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
 import { fmtDueDate } from '../../utils/date'
 import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput } from '../../utils/dueDate'
@@ -55,6 +56,14 @@ const statusConfigs: Record<
   },
 }
 
+/** S04: artifact nộp trước lúc mở lại task thì hiện nhãn "Before reopen". */
+function isBeforeReopen(uploadedAt: string | undefined, reopenedAt: string | undefined): boolean {
+  if (!uploadedAt || !reopenedAt) return false
+  const up = Date.parse(uploadedAt)
+  const re = Date.parse(reopenedAt)
+  return !Number.isNaN(up) && !Number.isNaN(re) && up < re
+}
+
 export interface TaskDetailModalProps {
   task: KanbanTask
   actor: UserSummary
@@ -64,6 +73,9 @@ export interface TaskDetailModalProps {
   onMove: (to: TaskStatus, rejectReason?: string) => void
   onSubmitArtifact?: (form: { type: ArtifactType; url: string; note: string }) => Promise<boolean>
   onUpdateAssignment?: (cmd: { assignedUserId?: string; dueDate?: string }) => Promise<boolean>
+  /** S04: mở lại task Done (chỉ hiện nút khi có cả hai prop này và người xem là Owner/Manager). */
+  onReopen?: (reason: string) => Promise<boolean>
+  getReopenImpact?: () => Promise<ReopenImpact>
 }
 
 export function TaskDetailModal({
@@ -75,6 +87,8 @@ export function TaskDetailModal({
   onMove,
   onSubmitArtifact,
   onUpdateAssignment,
+  onReopen,
+  getReopenImpact,
 }: TaskDetailModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const rejectModalRef = useRef<HTMLDivElement>(null)
@@ -85,7 +99,9 @@ export function TaskDetailModal({
   const [rejectReasonInput, setRejectReasonInput] = useState('')
   const [rejectReasonError, setRejectReasonError] = useState('')
 
-  useDismiss(!showRejectModal, close, [modalRef])
+  const [showReopenModal, setShowReopenModal] = useState(false)
+
+  useDismiss(!showRejectModal && !showReopenModal, close, [modalRef])
 
   const [showAttachForm, setShowAttachForm] = useState(false)
   const [artType, setArtType] = useState<ArtifactType>('PR')
@@ -227,7 +243,7 @@ export function TaskDetailModal({
               <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
               <div className="min-w-0 space-y-1">
                 <span className="font-bold text-amber-900">
-                  Changes Requested by Reviewer:
+                  {task.reopenedAt ? 'Reopened:' : 'Changes Requested by Reviewer:'}
                 </span>
                 <p className="whitespace-pre-wrap text-amber-800">{task.rejectReason}</p>
               </div>
@@ -446,6 +462,11 @@ export function TaskDetailModal({
                       <div className="min-w-0">
                         <span className="block truncate text-xs font-semibold text-slate-800">
                           {artifactLabel(artifact)}
+                          {isBeforeReopen(artifact.uploadedAt, task.reopenedAt) && (
+                            <span className="ml-1.5 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-slate-600">
+                              Before reopen
+                            </span>
+                          )}
                         </span>
                         {artifact.note && (
                           <span className="block truncate text-[11px] text-slate-500">
@@ -643,9 +664,29 @@ export function TaskDetailModal({
                 Completed & Verified
               </span>
             )}
+            {task.status === 'DONE' && canReview && onReopen && getReopenImpact && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setShowReopenModal(true)}
+                className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-amber-700 shadow-sm transition hover:bg-amber-50 disabled:opacity-50"
+              >
+                <RotateCcw size={13} />
+                Reopen task
+              </button>
+            )}
           </div>
         </footer>
       </div>
+
+      {showReopenModal && onReopen && getReopenImpact && (
+        <ReopenTaskModal
+          task={task}
+          loadImpact={getReopenImpact}
+          onConfirm={onReopen}
+          onClose={() => setShowReopenModal(false)}
+        />
+      )}
 
       {/* ── Sub-modal: Request Changes Confirmation (Mandatory Reject Reason) ── */}
       {showRejectModal && (

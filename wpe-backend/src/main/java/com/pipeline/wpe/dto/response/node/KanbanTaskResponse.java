@@ -23,15 +23,26 @@ public record KanbanTaskResponse(
     String forceUnlockedBy,
     Instant forceUnlockedAt,
     // G21: ngày tạo task, hạn chót không được sớm hơn ngày này
-    Instant createdAt
+    Instant createdAt,
+    // S04: lúc task Done được mở lại (null nếu chưa)
+    Instant reopenedAt
 ) {
+    public KanbanTaskResponse(
+        String id, String phaseId, String code, String title, String description,
+        String status, String assignedUserId, String joinPolicy, String rejectReason,
+        Instant dueDate, boolean isOverdue, Long version, Map<String, Object> uiMetadata,
+        List<NodeArtifactResponse> artifacts, String forceUnlockedBy, Instant forceUnlockedAt, Instant createdAt
+    ) {
+        this(id, phaseId, code, title, description, status, assignedUserId, joinPolicy, rejectReason, dueDate, isOverdue, version, uiMetadata, artifacts, forceUnlockedBy, forceUnlockedAt, createdAt, null);
+    }
+
     public KanbanTaskResponse(
         String id, String phaseId, String code, String title, String description,
         String status, String assignedUserId, String joinPolicy, String rejectReason,
         Instant dueDate, boolean isOverdue, Long version, Map<String, Object> uiMetadata,
         List<NodeArtifactResponse> artifacts, String forceUnlockedBy, Instant forceUnlockedAt
     ) {
-        this(id, phaseId, code, title, description, status, assignedUserId, joinPolicy, rejectReason, dueDate, isOverdue, version, uiMetadata, artifacts, forceUnlockedBy, forceUnlockedAt, null);
+        this(id, phaseId, code, title, description, status, assignedUserId, joinPolicy, rejectReason, dueDate, isOverdue, version, uiMetadata, artifacts, forceUnlockedBy, forceUnlockedAt, null, null);
     }
 
     public KanbanTaskResponse(
@@ -54,6 +65,6 @@ public record KanbanTaskResponse(
     /** Bản sao kèm danh sách artifact của task. */
     public KanbanTaskResponse withArtifacts(List<NodeArtifactResponse> list) {
         return new KanbanTaskResponse(id, phaseId, code, title, description, status, assignedUserId, joinPolicy, rejectReason,
-            dueDate, isOverdue, version, uiMetadata, list, forceUnlockedBy, forceUnlockedAt, createdAt);
+            dueDate, isOverdue, version, uiMetadata, list, forceUnlockedBy, forceUnlockedAt, createdAt, reopenedAt);
     }
 }
