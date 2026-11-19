@@ -230,4 +230,23 @@ describe('TaskDetailModal Component', () => {
     expect(screen.queryByText('Assignment')).toBeNull()
     expect(screen.queryByRole('button', { name: /Save assignment/i })).toBeNull()
   })
+  it('S07: ô chọn người làm không có Viewer; task đang giao cho Viewer (dữ liệu cũ) vẫn hiện người đó', () => {
+    const viewer: UserSummary = { ...mockMembers[1], id: '4', name: 'Vy Viewer', projectRole: 'VIEWER' }
+    const members = [...mockMembers, viewer]
+    const options = () => Array.from((screen.getByLabelText('Assignee') as HTMLSelectElement).options).map((o) => o.value)
+
+    const { unmount } = render(
+      <TaskDetailModal task={{ ...mockTask, status: 'IN_PROGRESS' }} actor={managerActor} members={members}
+        onClose={vi.fn()} onMove={vi.fn()} onUpdateAssignment={vi.fn().mockResolvedValue(true)} />
+    )
+    expect(options()).not.toContain('4')
+    unmount()
+
+    render(
+      <TaskDetailModal task={{ ...mockTask, status: 'IN_PROGRESS', assignedUserId: '4' }} actor={managerActor} members={members}
+        onClose={vi.fn()} onMove={vi.fn()} onUpdateAssignment={vi.fn().mockResolvedValue(true)} />
+    )
+    expect(options()).toContain('4')
+    expect((screen.getByLabelText('Assignee') as HTMLSelectElement).value).toBe('4')
+  })
 })

@@ -33,6 +33,22 @@ describe('NodePropertiesModal — người làm', () => {
     expect(assigneeSelect().value).toBe('')
   })
 
+  it('S07: không cho chọn Viewer làm người làm', () => {
+    const viewer = { ...member('20', 'viewer'), projectRole: 'VIEWER' as const }
+    render(<NodePropertiesModal node={node(null)} members={[member('9', 'a'), viewer]} onClose={() => {}} onDelete={() => {}} />)
+
+    const values = Array.from(assigneeSelect().options).map((o) => o.value)
+    expect(values).toEqual(['', '9'])
+  })
+
+  it('S07: task đang giao cho người nay là Viewer (dữ liệu cũ) vẫn hiện đúng tên người đó', () => {
+    const viewer = { ...member('20', 'viewer'), projectRole: 'VIEWER' as const }
+    render(<NodePropertiesModal node={node('20')} members={[member('9', 'a'), viewer]} onClose={() => {}} onDelete={() => {}} />)
+
+    expect(assigneeSelect().value).toBe('20')
+    expect(Array.from(assigneeSelect().options).map((o) => o.value)).toEqual(['', '9', '20'])
+  })
+
   it('chọn sẵn đúng người theo id và lưu id người được chọn', () => {
     const onSave = vi.fn()
     render(

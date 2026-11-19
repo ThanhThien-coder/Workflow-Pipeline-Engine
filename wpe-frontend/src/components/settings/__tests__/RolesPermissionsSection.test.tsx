@@ -25,6 +25,21 @@ describe('RolesPermissionsSection', () => {
     expect(within(cells[3]).getByLabelText('Not allowed')).toBeDefined()
   })
 
+  it('S07: Viewer cannot start, return or submit a task; only Owner and Manager can reopen a done task', () => {
+    render(<RolesPermissionsSection myRole="VIEWER" />)
+
+    const cellsOf = (row: string) =>
+      within(screen.getByRole('rowheader', { name: row }).closest('tr') as HTMLElement).getAllByRole('cell')
+
+    expect(within(cellsOf('Start, return or submit a task')[3]).getByLabelText('Not allowed')).toBeDefined()
+
+    const reopen = cellsOf('Reopen a done task')
+    expect(within(reopen[0]).getByLabelText('Allowed')).toBeDefined()
+    expect(within(reopen[1]).getByLabelText('Allowed')).toBeDefined()
+    expect(within(reopen[2]).getByLabelText('Not allowed')).toBeDefined()
+    expect(within(reopen[3]).getByLabelText('Not allowed')).toBeDefined()
+  })
+
   it('highlights only the current role column', () => {
     const { container } = render(<RolesPermissionsSection myRole="MANAGER" />)
     const current = container.querySelectorAll('[data-current="true"]')
