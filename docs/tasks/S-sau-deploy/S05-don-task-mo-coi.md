@@ -50,15 +50,15 @@ TASK_68 đã sửa cách xóa phase: chặn nếu còn task đang làm, còn l�
 - `OrphanNodeCleanupRunner implements ApplicationRunner` gọi `OrphanNodeCleanupService.cleanup()` (`@Transactional`). Lỗi thì ghi log ERROR, **không** làm backend dừng.
 - Với từng dự án có node `phase_id IS NULL`:
   - Node **LOCKED/TODO**: xóa mọi `node_dependency` có node đó là cha hoặc con, xóa node. Task con ở phase khác vừa mất cha: tính lại bằng `recomputeNodeStatus`, với cha còn lại = cha hiện tại trừ các node vừa xóa.
-  - Node **IN_PROGRESS/REVIEW/DONE**: tìm phase tên `Recovered tasks` của dự án, chưa có thì tạo (`orderIndex` = max + 1, `uiMetadata` rỗng để canvas tự xếp), rồi gán `phase_id` vào đó. Giữ nguyên dây và trạng thái.
-  - Ghi log INFO: số node đã xóa, số node đã chuyển, theo từng dự án.
+  - Node **IN_PROGRESS/REVIEW/DONE**: **Thiện chốt 19/11: xóa luôn** (dữ liệu hiện chỉ là dữ liệu test), cùng cách như node LOCKED/TODO. Không tạo phase "Recovered tasks".
+  - Ghi log INFO: số node đã xóa theo từng dự án.
 - Chạy lần 2 không làm gì (không còn node mồ côi).
 - **Chặn tái phát** (chỉ khi Bước 0 cho phép): `createNode` với `phaseId == null` → 400 `PHASE_REQUIRED` "A task must belong to a phase." Template clone thiếu `phaseId` thì gán vào phase đầu tiên của dự án mới.
 
 ## Việc cần làm
 1. 🧠 Bước 0, ghi kết quả đếm và kết luận vào Ghi chép.
 2. 🤝 Service dọn + runner + test:
-   - dự án có 2 node mồ côi TODO và 1 node DONE → 2 node bị xóa, node DONE nằm trong "Recovered tasks";
+   - dự án có 2 node mồ côi TODO và 1 node DONE → cả 3 node bị xóa;
    - task con ở phase khác chuyển LOCKED → TODO khi mất cha duy nhất;
    - chạy lại lần 2 không đổi gì;
    - tắt cờ thì không chạy.
@@ -67,7 +67,7 @@ TASK_68 đã sửa cách xóa phase: chặn nếu còn task đang làm, còn l�
 
 ## Tiêu chí xong
 - [ ] `./mvnw -q test` xanh.
-- [ ] Kiểm tay trên stack thử: tạo node mồ côi bằng SQL (`UPDATE node SET phase_id = NULL WHERE id = ...`), khởi động lại backend → node biến mất hoặc nằm trong "Recovered tasks"; Overview "Total Nodes" bằng số task thấy trên đồ thị.
+- [ ] Kiểm tay trên stack thử: tạo node mồ côi bằng SQL (`UPDATE node SET phase_id = NULL WHERE id = ...`), khởi động lại backend → node biến mất; Overview "Total Nodes" bằng số task thấy trên đồ thị.
 
 ## Câu hỏi bảo vệ
 1. Vì sao task mồ côi đã làm xong không xóa mà chuyển vào phase "Recovered tasks"?

@@ -17,9 +17,9 @@ Trang khách (`/guest?token=...`, file `FE/views/GuestView.tsx`) hiện rất í
 ## Đang làm gì (tóm tắt cho người đọc)
 1. API khách (`GET /api/v1/guest/{token}/overview`) trả thêm:
    - tiến độ từng phase;
-   - các hạn chót sắp tới;
-   - task vừa xong gần đây;
    - số thành viên.
+
+   (Thiện chốt 19/11: KHÔNG làm "hạn chót sắp tới" và "task vừa xong".)
 2. Thêm API `GET /api/v1/guest/{token}/ai-summary`, lấy **kết quả AI đã lưu sẵn** của dự án (không gọi AI mới) để bật lại khối "AI Summary".
 3. Giao diện khách hiện các phần mới. Khối "Evaluation" (chưa có API) bỏ hẳn khỏi giao diện thật.
 4. **Không lộ thông tin riêng tư**: không email, không tên đầy đủ người làm. Chỉ hiện chữ cái đầu như phần "Recent Activity" đang làm.
@@ -42,8 +42,6 @@ Trang khách (`/guest?token=...`, file `FE/views/GuestView.tsx`) hiện rất í
 ## Đặc tả đã chốt
 - `GuestOverviewResponse` thêm:
   - `phases: [{ name, status, progressPct, totalTasks, doneTasks }]` theo thứ tự `orderIndex`; tên dùng như `phaseDisplayName` của FE (tên dạng "PHASE 3" mà có phụ đề thì dùng phụ đề);
-  - `upcomingDeadlines: [{ code, title, phaseName, dueDate, status, isOverdue }]`: tối đa 5 task chưa DONE có hạn, sắp theo hạn tăng dần (quá hạn đứng đầu);
-  - `recentlyCompleted: [{ code, title, phaseName, completedAt }]`: tối đa 5 task DONE mới nhất theo `completedAt`;
   - `memberCount: number` (chủ dự án + thành viên đang hoạt động).
 - `GET /api/v1/guest/{token}/ai-summary`:
   - Kiểm link như `/overview` (hết hạn hoặc thu hồi → cùng mã lỗi như `/overview`).
@@ -58,14 +56,12 @@ Trang khách (`/guest?token=...`, file `FE/views/GuestView.tsx`) hiện rất í
   - `HttpGuestService.features = { aiSummary: true, evaluation: false }`; `getAiSummary` gọi API mới.
   - `GuestView` thêm:
     - khối **Phases**: danh sách phase dạng thanh tiến độ ngang (tên, %, nhãn trạng thái) — không cần vẽ đồ thị;
-    - khối **Upcoming deadlines** (nhãn đỏ khi quá hạn);
-    - khối **Recently completed**;
     - số thành viên trên đầu trang.
   - Bỏ hẳn khối Evaluation khỏi giao diện (`features.evaluation` vẫn false). Không xóa code mock của evaluation.
 
 ## Việc cần làm
 1. 🧠 Bước 0.
-2. 🤝 Backend: thêm field + tính dữ liệu + test (dự án 2 phase, task có hạn hoặc quá hạn hoặc xong; kiểm thứ tự, giới hạn 5, không có email hay tên người).
+2. 🤝 Backend: thêm field + tính dữ liệu + test (dự án 2 phase; kiểm thứ tự phase, %, số task, số thành viên; không có email hay tên người).
 3. 🤝 Endpoint ai-summary + test (có phân tích → 200 đúng khuôn; chưa có → 404; link thu hồi → mã lỗi như overview).
 4. 🤝 Frontend + test render từng khối, ẩn khối AI khi 404.
 
@@ -73,7 +69,7 @@ Trang khách (`/guest?token=...`, file `FE/views/GuestView.tsx`) hiện rất í
 - [ ] `./mvnw -q test` và `npx vitest run` (ổ `C:` hoa) xanh, `npx tsc -b` sạch.
 - [ ] Kiểm tay trên stack thử:
   - Owner bật link khách ở Overview, chạy AI 1 lần (cần key, hoặc bỏ qua phần AI).
-  - Mở link trong cửa sổ ẩn danh → thấy Phases, Upcoming deadlines, Recently completed, số thành viên, AI Summary (nếu có).
+  - Mở link trong cửa sổ ẩn danh → thấy Phases, số thành viên, AI Summary (nếu có).
   - Không thấy email hay tên đầy đủ của ai.
 
 ## Câu hỏi bảo vệ

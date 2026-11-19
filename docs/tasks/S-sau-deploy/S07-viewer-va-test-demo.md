@@ -25,7 +25,7 @@ Viewer có được làm task được giao không?
 - **(a)** Không: Viewer chỉ xem; chặn giao task cho Viewer, chặn Viewer đổi trạng thái; hạ xuống Viewer thì gỡ task chưa xong. *(Đề xuất)*
 - **(b)** Có: giữ như hiện tại, chỉ sửa bảng quyền cho rõ "Viewer làm được task được giao".
 
-`Thiện chốt: ___` (chọn b thì chỉ làm mục 4, 5 của Việc cần làm và sửa dòng bảng quyền)
+`Thiện chốt: (a) Viewer chỉ xem (19/11)` (chọn b thì chỉ làm mục 4, 5 của Việc cần làm và sửa dòng bảng quyền)
 
 ## Được đọc
 - `wpe-backend/src/**`, `wpe-frontend/src/**`

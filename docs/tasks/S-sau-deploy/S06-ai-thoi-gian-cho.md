@@ -30,7 +30,7 @@ Thiện muốn "xóa giới hạn". **Không nên bỏ hẳn** (vô hạn): mỗ
 ## Bước 0 — Thiện chốt số
 Đề xuất (Thiện sửa nếu muốn): backend connect 5s, read **180s**; Gemini mỗi lần thử **90000ms**, cả lượt **170000ms** (phải nhỏ hơn read của backend); cooldown mặc định **60s**.
 
-`Thiện chốt: connect ___ s, read ___ s, Gemini mỗi lần ___ ms, cả lượt ___ ms, cooldown ___ s`
+`Thiện chốt (19/11): connect 5 s, read 180 s, Gemini mỗi lần 90000 ms, cả lượt 170000 ms, cooldown 60 s; ĐƯỢC sửa wpe-ai-service/app/config.py; CHƯA test AI thật (bỏ bước 4 của Việc cần làm, ghi rõ trong Ghi chép)`
 
 ## Được đọc
 - `wpe-backend/src/main/java/com/pipeline/wpe/service/ai/**`, `wpe-backend/src/main/resources/application.yml`, `wpe-ai-service/app/**`, `docker-compose.prod.yml`, `deploy/prod.env.example`, `docs/DEPLOY.md`, `docs/specs/ai-diagnostics.md`, `wpe-frontend/src/components/popovers/AiDiagnosisPopover.tsx`, `wpe-frontend/src/store/slices/overviewSlice.ts`

@@ -21,7 +21,7 @@ Task phía sau (task con) **đã bắt đầu** (In Progress, Review hoặc Done
 - **(a)** chặn mở lại: báo lỗi kèm danh sách task con đó;
 - **(b)** vẫn cho mở lại, chỉ hiện cảnh báo danh sách trước khi xác nhận, task con giữ nguyên. *(Đề xuất: b)*
 
-Ghi lựa chọn vào đây: `Thiện chốt: ___`
+Ghi lựa chọn vào đây: `Thiện chốt: (b) vẫn cho mở lại, chỉ cảnh báo danh sách task con đã bắt đầu; Owner và Manager được mở lại (19/11)`
 
 Rồi người làm tự đọc `BE/service/engine/StateMachineService.java` (hàm `updateStatus`, `unlockDownstreamTasks`) và `BE/service/WorkflowGraphService.java` (hàm `recomputeNodeStatus`). Trả lời: khi task cha về lại In Progress, task con TODO dùng luật nào để biết có phải khóa lại không?
 

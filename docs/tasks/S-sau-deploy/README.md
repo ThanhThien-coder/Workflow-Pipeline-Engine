@@ -11,10 +11,10 @@
 
 | Gói | Người | Task | Nội dung | Ước lượng |
 | :-- | :-- | :-- | :-- | :-- |
-| **1. Realtime và tốc độ** | Người 1: ____ | [S01](S01-backend-su-kien-realtime.md) → [S02](S02-frontend-mot-ket-noi-realtime.md) → [S03](S03-tao-task-khong-lag.md) | Backend phát đủ sự kiện; frontend dùng 1 kết nối realtime và tự làm mới đúng chỗ; tạo task không lag | 2,5–3 ngày |
-| **2. Nghiệp vụ backend** | Người 2: ____ | [S04](S04-mo-lai-task-da-xong.md) → [S05](S05-don-task-mo-coi.md) → [S06](S06-ai-thoi-gian-cho.md) → [S07](S07-viewer-va-test-demo.md) | Mở lại task đã Done; dọn task mồ côi cũ; nới thời gian chờ AI và test AI; chốt quyền Viewer | 2,5–3 ngày |
-| **3. Giao diện** | Người 3: ____ | [S08](S08-trang-khach-them-du-lieu.md) → [S09](S09-tim-kiem.md) → [S10](S10-don-giao-dien-con-sot.md) | Trang khách có thêm dữ liệu; tìm kiếm; dọn các lỗi giao diện nhỏ còn sót | 2,5–3 ngày |
-| **Chờ Thiện chốt** | chưa giao | [S11](S11-quan-he-phase-qua-ghost.md) | Bỏ quan hệ cha-con giữa phase, dùng ghost thay thế | — |
+| **1. Realtime và tốc độ** | Thiện (Claude làm, 19/11) | [S01](S01-backend-su-kien-realtime.md) → [S02](S02-frontend-mot-ket-noi-realtime.md) → [S03](S03-tao-task-khong-lag.md) | Backend phát đủ sự kiện; frontend dùng 1 kết nối realtime và tự làm mới đúng chỗ; tạo task không lag | 2,5–3 ngày |
+| **2. Nghiệp vụ backend** | Thiện (Claude làm, 19/11) | [S04](S04-mo-lai-task-da-xong.md) → [S05](S05-don-task-mo-coi.md) → [S06](S06-ai-thoi-gian-cho.md) → [S07](S07-viewer-va-test-demo.md) | Mở lại task đã Done; dọn task mồ côi cũ; nới thời gian chờ AI và test AI; chốt quyền Viewer | 2,5–3 ngày |
+| **3. Giao diện** | Thiện (Claude làm, 19/11) | [S08](S08-trang-khach-them-du-lieu.md) → [S09](S09-tim-kiem.md) → [S10](S10-don-giao-dien-con-sot.md) | Trang khách có thêm dữ liệu; tìm kiếm; dọn các lỗi giao diện nhỏ còn sót | 2,5–3 ngày |
+| **Để sau** | chưa làm (Thiện quyết định 19/11) | [S11](S11-quan-he-phase-qua-ghost.md) | Bỏ quan hệ cha-con giữa phase, dùng ghost thay thế | — |
 
 Ánh xạ với báo cáo lỗi gốc (số # là thứ tự trong danh sách lỗi Thiện gửi):
 

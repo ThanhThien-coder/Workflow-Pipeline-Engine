@@ -24,7 +24,7 @@ Thiện đề xuất: chỉ dùng ghost, bỏ quan hệ cha-con phase. Về logi
 - **B (nhẹ):** giữ cạnh phase làm bằng tay nhưng ghi rõ "chỉ để sắp xếp, không chặn task" (tooltip, chữ trong hộp tạo phase). Vẽ thêm mũi tên **nét đứt** suy ra từ ghost để người dùng thấy phụ thuộc thật.
 - **C (không đề xuất):** cạnh phase có hiệu lực thật: nối A → B thì tự tạo ghost từ mọi task cuối của A tới mọi task đầu của B. Sinh dây ngầm nên khó hiểu và khó gỡ.
 
-`Thiện chốt: ___`
+`Thiện chốt: ___` (19/11: Thiện để sau, chưa làm)
 
 Ảnh hưởng nếu chọn **A** (phải tính trong task):
 - **Template**: `BE/service/PipelineTemplateService.java`, `BE/service/TemplateCloneService.java` (sao chép `phase_dependency`), `BE/service/engine/KahnDagService.java` (kiểm vòng của phase trong template), Template Studio phía admin (`FE/features/admin/templates/**`, `PhaseCanvas.tsx`).
