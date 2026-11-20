@@ -299,24 +299,6 @@ public class TemplateCloneService {
         List<Map<String, Object>> nodesData = (List<Map<String, Object>>) graphData.get("nodes");
         List<Map<String, Object>> edgesData = (List<Map<String, Object>>) graphData.get("edges");
 
-        Set<String> nodeIdsWithIncoming = new HashSet<>();
-        if (edgesData != null) {
-            for (Map<String, Object> edge : edgesData) {
-                Object target = edge.get("target") != null ? edge.get("target") : edge.get("childId");
-                if (target != null) {
-                    nodeIdsWithIncoming.add(target.toString());
-                }
-            }
-        }
-        if (nodesData != null) {
-            for (Map<String, Object> n : nodesData) {
-                Object parentId = n.get("parentId");
-                if (parentId != null && !parentId.toString().isBlank()) {
-                    nodeIdsWithIncoming.add(n.get("id") != null ? n.get("id").toString() : "");
-                }
-            }
-        }
-
         if (nodesData != null) {
             int nodeSeq = 1;
             for (Map<String, Object> n : nodesData) {
@@ -327,9 +309,9 @@ public class TemplateCloneService {
                     // Không để node mồ côi (phase_id NULL): gán vào phase đầu tiên của dự án mới
                     newPhaseId = firstPhaseId;
                 }
-                boolean hasIncoming = nodeIdsWithIncoming.contains(rawId);
-
-                NodeStatus initialStatus = hasIncoming ? NodeStatus.LOCKED : NodeStatus.TODO;
+                // Dự án mới là DRAFT: mọi task LOCKED (giống tạo task tay khi chưa Start).
+                // Start project (publishPipeline) sẽ mở các task gốc sang TODO.
+                NodeStatus initialStatus = NodeStatus.LOCKED;
                 String code = n.get("code") != null ? n.get("code").toString() : "WPE-" + String.format("%03d", nodeSeq++);
                 String title = n.get("title") != null ? n.get("title").toString() : "Untitled Task";
                 String description = n.get("description") != null ? n.get("description").toString() : null;
