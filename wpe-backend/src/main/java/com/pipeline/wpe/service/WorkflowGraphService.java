@@ -102,7 +102,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public PhaseResponse createPhase(Long projectId, CreatePhaseRequest request, Long currentUserId) {
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         if (request.parentPhaseId() != null) {
             WorkPhaseEntity parent = workPhaseRepository.findById(request.parentPhaseId())
@@ -150,7 +150,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public PhaseResponse updatePhase(Long projectId, Long phaseId, UpdatePhaseRequest request, Long currentUserId) {
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         WorkPhaseEntity entity = workPhaseRepository.findById(phaseId)
             .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + phaseId));
@@ -191,7 +191,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void deletePhase(Long projectId, Long phaseId, Long currentUserId) {
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         WorkPhaseEntity entity = workPhaseRepository.findById(phaseId)
             .orElseThrow(() -> new ResourceNotFoundException("Phase not found with ID: " + phaseId));
@@ -262,7 +262,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void connectPhases(Long projectId, Long sourcePhaseId, Long targetPhaseId, Long currentUserId) {
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         if (sourcePhaseId.equals(targetPhaseId)) {
             throw new IllegalArgumentException("A phase can't depend on itself.");
@@ -287,7 +287,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void disconnectPhases(Long projectId, Long sourcePhaseId, Long targetPhaseId, Long currentUserId) {
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         WorkPhaseEntity target = workPhaseRepository.findById(targetPhaseId)
             .orElseThrow(() -> new ResourceNotFoundException("Target phase not found with ID: " + targetPhaseId));
@@ -312,7 +312,7 @@ public class WorkflowGraphService {
     @Transactional
     public GraphNodeResponse createNode(Long projectId, CreateNodeRequest request, Long currentUserId) {
         // Chỉ owner được thiết kế đồ thị (UC10). Thành viên và Viewer chỉ được đọc.
-        ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ProjectEntity project = authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
         ensureNotArchived(project);
 
         // Mọi task phải thuộc một phase: task không phase không hiện trên đồ thị nhưng vẫn bị đếm ở Overview (S05)
@@ -381,7 +381,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public DependencyResponse createDependency(Long projectId, CreateDependencyRequest request, Long currentUserId) {
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         Long parentId = request.parentNodeId();
         Long childId = request.childNodeId();
@@ -461,7 +461,7 @@ public class WorkflowGraphService {
      */
     @Transactional
     public void deleteDependency(Long projectId, Long parentNodeId, Long childNodeId, Long currentUserId) {
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         Optional<NodeDependencyEntity> existing = nodeDependencyRepository.findByParentNodeIdAndChildNodeId(parentNodeId, childNodeId);
         if (existing.isEmpty()) {
@@ -496,7 +496,7 @@ public class WorkflowGraphService {
         NodeEntity node = nodeRepository.findById(nodeId)
             .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + nodeId));
         Long projectId = node.getProjectId();
-        ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ProjectEntity project = authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
         ensureNotArchived(project);
 
         if (!Objects.equals(node.getVersion(), request.version())) {
@@ -577,7 +577,7 @@ public class WorkflowGraphService {
             .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + nodeId));
         Long projectId = node.getProjectId();
         Long phaseId = node.getPhaseId();
-        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         if (node.getStatus() != NodeStatus.LOCKED && node.getStatus() != NodeStatus.TODO) {
             throw new ConflictException("NODE_IN_USE",
@@ -607,7 +607,7 @@ public class WorkflowGraphService {
         NodeEntity node = nodeRepository.findById(nodeId)
             .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + nodeId));
 
-        ensureNotArchived(authorizationService.verifyProjectOwner(node.getProjectId(), currentUserId));
+        ensureNotArchived(authorizationService.verifyProjectOwnerOrManager(node.getProjectId(), currentUserId));
 
         // UPDATE trực tiếp, không gọi save(): save() làm tăng version (@Version) và gây 409 oan trên Kanban.
         // Không setUiMetadata lên entity đang được quản lý, vì Hibernate sẽ tự phát hiện thay đổi và tăng version.

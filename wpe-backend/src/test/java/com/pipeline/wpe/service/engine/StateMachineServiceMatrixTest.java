@@ -383,13 +383,14 @@ class StateMachineServiceMatrixTest {
         }
 
         @Test
-        @DisplayName("Manager mở khóa sớm → 403 (force unlock vẫn chỉ Owner)")
-        void forceUnlock_byManager_forbidden() {
+        @DisplayName("Manager mở khóa sớm được: LOCKED → TODO và ghi lại người mở")
+        void forceUnlock_byManager_allowed() {
             node.setStatus(NodeStatus.LOCKED);
 
-            assertThatThrownBy(() -> stateMachineService.forceUnlock(TASK_ID, Role.MANAGER.userId))
-                .isInstanceOf(ForbiddenException.class);
-            assertThat(node.getStatus()).isEqualTo(NodeStatus.LOCKED);
+            stateMachineService.forceUnlock(TASK_ID, Role.MANAGER.userId);
+
+            assertThat(node.getStatus()).isEqualTo(NodeStatus.TODO);
+            assertThat(node.getForceUnlockedBy()).isEqualTo(Role.MANAGER.userId);
         }
 
         @Test

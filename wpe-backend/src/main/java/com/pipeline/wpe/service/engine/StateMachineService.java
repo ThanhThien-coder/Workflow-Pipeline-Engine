@@ -592,7 +592,7 @@ public class StateMachineService {
     }
 
     /**
-     * Mở khóa cưỡng bức (Force Unlock) cho Project Owner khi cần làm trước bằng mock data.
+     * Mở khóa cưỡng bức (Force Unlock) cho Owner hoặc Manager khi cần làm trước bằng mock data.
      */
     @Transactional
     public KanbanTaskResponse forceUnlock(Long taskId, Long currentUserId) {
@@ -603,8 +603,8 @@ public class StateMachineService {
             .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + node.getProjectId()));
         ensureNotArchived(project);
 
-        if (!project.getOwnerId().equals(currentUserId)) {
-            throw new ForbiddenException("ACCESS_DENIED", "Only the project owner can force unlock a task.");
+        if (!canReviewProject(project, currentUserId)) {
+            throw new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can force unlock a task.");
         }
 
         if (node.getStatus() != NodeStatus.LOCKED) {
@@ -636,7 +636,7 @@ public class StateMachineService {
                 assigneeId,
                 saved.getProjectId(),
                 "Task unlocked early",
-                "The project owner unlocked task " + saved.getCode() + " (" + saved.getTitle() + ") early. You can start now.",
+                "Task " + saved.getCode() + " (" + saved.getTitle() + ") was unlocked early. You can start now.",
                 "FORCE_UNLOCKED",
                 "/project/" + saved.getProjectId() + "/my-tasks",
                 Instant.now()

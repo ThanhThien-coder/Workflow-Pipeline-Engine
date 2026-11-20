@@ -103,6 +103,7 @@ class WorkflowGraphServiceTest {
             .build();
         // Các hàm ghi Phase đọc trạng thái dự án từ kết quả verifyProjectOwner để chặn ARCHIVED
         lenient().when(authorizationService.verifyProjectOwner(1L, 2L)).thenReturn(sampleProject);
+        lenient().when(authorizationService.verifyProjectOwnerOrManager(1L, 2L)).thenReturn(sampleProject);
     }
 
     @Test
@@ -262,7 +263,7 @@ class WorkflowGraphServiceTest {
         assertNotNull(response);
         assertEquals("4", response.id());
         assertEquals("Phase 4", response.name());
-        verify(authorizationService).verifyProjectOwner(1L, 2L);
+        verify(authorizationService).verifyProjectOwnerOrManager(1L, 2L);
         verify(projectRealtimeNotifier).notifyProjectChanged(eq(1L), eq("GRAPH"), eq("PHASE_CREATED"), eq(2L), eq(4L), isNull());
     }
 
@@ -608,7 +609,7 @@ class WorkflowGraphServiceTest {
 
     private void archiveSampleProject() {
         sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED);
-        when(authorizationService.verifyProjectOwner(1L, 2L)).thenReturn(sampleProject);
+        when(authorizationService.verifyProjectOwnerOrManager(1L, 2L)).thenReturn(sampleProject);
     }
 
     private void assertProjectArchived(org.junit.jupiter.api.function.Executable call) {
@@ -741,9 +742,9 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
-    @DisplayName("B2 createPhase: không phải owner ném ForbiddenException (HTTP 403), không lưu")
+    @DisplayName("B2 createPhase: không phải owner/manager ném ForbiddenException (HTTP 403), không lưu")
     void testCreatePhaseNotOwner() {
-        when(authorizationService.verifyProjectOwner(1L, 3L))
+        when(authorizationService.verifyProjectOwnerOrManager(1L, 3L))
             .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền."));
 
         assertThrows(ForbiddenException.class,
@@ -812,9 +813,9 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
-    @DisplayName("B3 lỗ hổng 2: người không phải owner (kể cả Viewer) gọi 4 API ghi node/cạnh/tọa độ đều bị 403")
+    @DisplayName("B3 lỗ hổng 2: người không phải owner/manager (kể cả Viewer) gọi 4 API ghi node/cạnh/tọa độ đều bị 403")
     void testNodeWriteApisRequireOwner() {
-        when(authorizationService.verifyProjectOwner(1L, 3L))
+        when(authorizationService.verifyProjectOwnerOrManager(1L, 3L))
             .thenThrow(new ForbiddenException("ACCESS_DENIED", "Chỉ Chủ dự án mới có quyền."));
         lenient().when(nodeRepository.findById(100L)).thenReturn(Optional.of(node(100L, "WPE-100", NodeStatus.TODO)));
         CreateNodeRequest nodeReq = new CreateNodeRequest(null, null, "Task", null, null, null, null, null, null);
