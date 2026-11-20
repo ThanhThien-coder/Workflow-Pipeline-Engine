@@ -23,6 +23,13 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G23 | Thông báo lời mời (và các thông báo khác) bằng tiếng Việt | FE + BE | Đã sửa, chờ test tay |
 | G24 | System Audit Log bằng tiếng Việt | FE + BE | Đã sửa, chờ test tay |
 | G25 | Mở link khách không xem được gì | FE + BE | Đã sửa, chờ test tay |
+| G26 | Admin: ô tìm kiếm trên topbar thừa, chỉ tìm user, phím ⌘K không chạy | FE | Đã sửa, chờ test tay |
+| G27 | Template: nút gạt "Public to All Users" không quyết định user có thấy template; template mới/bản Duplicate hiện ngay cho user | FE | Đã sửa, chờ test tay |
+| G28 | Admin Overview: thẻ Overdue tasks thừa; hiện các trạng thái dự án không dùng (PLANNING, INACTIVE, COMPLETED) | FE | Đã sửa, chờ test tay |
+| G29 | Màn dự án có 2 nút "All Pipelines" thừa (header và cuối thanh bên) | FE | Đã sửa, chờ test tay |
+| G30 | Admin: nút "Promote to admin" / "Demote to user" ở User Management không cần | FE | Đã sửa, chờ test tay |
+| G31 | Nút Start project có icon tên lửa; Settings có thêm nút "Start project in Workflow" trùng với màn Workflow | FE | Đã sửa, chờ test tay |
+| G32 | Trang danh sách pipeline có emoji trên các ô số liệu và "(⌘K)" trong ô tìm, nhìn như AI làm | FE | Đã sửa, chờ test tay |
 
 ---
 
@@ -668,3 +675,127 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 - FE: `getLinkInfo` gọi API thật (lấy tên dự án từ overview), không còn dùng mock khi chạy với backend.
 
 **Đã sửa (16/11/2026), chờ test tay**: `HttpGuestService` bỏ hẳn mock: phiên khách lưu ở trình duyệt; AI summary / AI report / đánh giá chưa có API nên ẩn (cờ `features`), không hiện số giả. BE overview: velocity 7 ngày và hoạt động gần đây lấy từ task thật (trước là số viết cứng), nhãn tiếng Anh, lỗi trả lý do cụ thể. API thật: link dự án "b" (DRAFT) → 200. Chưa có: tên chủ dự án trên trang khách (backend chưa trả), danh sách góp ý khách đã gửi (chỉ hiện trong phiên đang mở).
+
+---
+
+## G26. Admin: ô tìm kiếm trên topbar thừa
+
+**Ngày phát hiện:** 20/11/2026
+
+**Hiện trạng**
+- Topbar admin có ô "Search projects, pipelines, users..." kèm `⌘K`. Bấm Enter chỉ chuyển sang tab Users và điền chữ vào ô tìm user (`AdminPortalView.handleGlobalSearch`), không tìm project/pipeline. Phím `⌘K` không có code xử lý.
+- Tab Users, Workspaces, Templates đều đã có ô tìm riêng, nên ô này bị trùng.
+
+**Cách sửa**
+- FE: bỏ ô tìm trong `AdminTopbar`, bỏ prop `onGlobalSearch` và `handleGlobalSearch` trong `AdminPortalView`. BE không đổi.
+
+
+**Đã sửa (20/11/2026), chờ test tay**: `AdminTopbar`, `AdminPortalView`. Tìm user vẫn dùng ô tìm trong tab Users.
+---
+
+## G27. Template: nút "Public to All Users" không điều khiển việc user thấy template
+
+**Ngày phát hiện:** 20/11/2026
+
+**Tái hiện**
+1. Admin mở Template Studio, tắt nút gạt "Public to All Users", bấm "Save & Publish Template".
+2. Đăng nhập user: template vẫn hiện trong danh sách.
+3. Ở Template Library bấm Duplicate: báo "duplicated as a draft" nhưng user thấy bản copy ngay.
+
+**Nguyên nhân (đã xác định)**
+- BE: user thấy template hay không chỉ phụ thuộc `isHidden` (và `visibility`, template admin tạo luôn PUBLIC) — `PipelineTemplateService.getTemplates`. Nút gạt chỉ đổi `isSystemStandard`, cờ này chỉ để hiện nhãn "System template" bên admin.
+- FE: chữ "Public to All Users", "Save & Publish" và câu báo sau khi lưu dựa theo `isSystemStandard` nên gây hiểu sai. Template mới / bản Duplicate tạo ra với `isHidden = false`.
+
+**Cách sửa** (người dùng chọn: dùng Draft / Published, nút Publish / Unpublish)
+- FE: bỏ nút gạt ở `StudioTopbar`; nút lưu đổi thành "Save Template"; câu báo sau khi lưu dựa theo `isHidden`.
+- FE: Template Library đổi Hide/Show thành Unpublish/Publish, nhãn "Hidden" thành "Draft", câu báo tương ứng.
+- FE: template mới và bản Duplicate tự để Draft (gọi API ẩn có sẵn ngay sau khi tạo).
+- BE không đổi.
+
+
+**Đã sửa (20/11/2026), chờ test tay**: `StudioTopbar` (bỏ nút gạt, nút "Save Template"), `TemplateStudioView` (câu báo theo `isHidden`), `useTemplateStudio` (tạo mới xong gọi `setTemplateHidden(id, true)`), `TemplateCard` (Publish/Unpublish, nhãn Draft), `TemplateCatalogView` (bản Duplicate để Draft, câu báo mới). Sửa test theo chữ mới. Template cũ đang hiện vẫn giữ nguyên (Published).
+
+**Bổ sung (20/11/2026, người dùng yêu cầu)**: bỏ nhãn "System template" trên thẻ template ở Template Library (`TemplateCard`). Cờ `isSystemStandard` ở BE giữ nguyên. Đã sửa, chờ test tay.
+
+**Bổ sung (20/11/2026, người dùng yêu cầu)**: bỏ nhãn "v2 Engine" cạnh tiêu đề "System Pipeline Templates" (`TemplateCatalogView`). Đã sửa, chờ test tay.
+---
+
+## G28. Admin Overview: thẻ Overdue tasks và trạng thái dự án không dùng
+
+**Ngày phát hiện:** 20/11/2026
+
+**Hiện trạng**
+- Overview admin có thẻ "Overdue tasks" (không cần).
+- "Project status distribution" và bộ lọc tab Workspaces có PLANNING, INACTIVE (BE không có luồng nào chuyển dự án vào hai trạng thái này) và COMPLETED (nhóm dự định bỏ).
+
+**Cách sửa** (chỉ phần admin, không đụng màn Workflow và BE)
+- FE: bỏ thẻ Overdue tasks, lưới KPI còn 3 cột.
+- FE: biểu đồ trạng thái và bộ lọc Workspaces chỉ còn DRAFT, ACTIVE, PAUSED, ARCHIVED.
+
+
+**Đã sửa (20/11/2026), chờ test tay**: `AnalyticsTab` (bỏ thẻ Overdue, lưới 3 cột), `WorkspacesTab` (bộ lọc bỏ Planning, Completed, Inactive). Dự án COMPLETED cũ (nếu có) không hiện trong biểu đồ admin.
+
+**Bổ sung (20/11/2026, người dùng yêu cầu)**: biểu đồ trạng thái ở Overview admin bỏ luôn PAUSED, chỉ còn DRAFT, ACTIVE, ARCHIVED. Bộ lọc tab Workspaces vẫn giữ Paused (màn Workflow còn nút Pause). Dự án đang PAUSED không hiện trong biểu đồ admin. Đã sửa, chờ test tay.
+---
+
+## G29. Màn dự án có 2 nút "All Pipelines" thừa
+
+**Ngày phát hiện:** 20/11/2026
+
+**Hiện trạng**
+- Màn dự án có 4 chỗ quay về danh sách pipeline: logo, thẻ dự án ở thanh bên, nút "All Pipelines" cuối thanh bên, chữ "All Pipelines" trên header.
+
+**Cách sửa**
+- FE: bỏ nút "All Pipelines" cuối `CurvedCobaltSidebar` và trên header `ProjectWorkspaceView`. Vẫn quay về được qua logo và thẻ dự án. Tab lọc "All Pipelines" ở trang danh sách pipeline giữ nguyên.
+
+**Đã sửa (20/11/2026), chờ test tay**: `CurvedCobaltSidebar`, `ProjectWorkspaceView`.
+
+**Kiểm tra (20/11/2026)**: `npm run typecheck` qua; `vitest run` 976/977 qua. Test lỗi duy nhất `MacroWorkflow.states.test.tsx` (tự fit đúng 1 lần) đã lỗi sẵn trên main `48b0123`, không liên quan G26–G29.
+
+---
+
+## G30. Admin: nút "Promote to admin" không cần
+
+**Ngày phát hiện:** 20/11/2026
+
+**Hiện trạng**
+- User Management có nút "Promote to admin" ở dòng user thường, admin nâng user lên admin bằng một cú bấm. Người dùng thấy không cần.
+
+**Cách sửa**
+- FE: bỏ nút "Promote to admin" và hàm mở hộp xác nhận tương ứng trong `UserManagementTab`. Nút "Demote to user" (cho admin khác) giữ nguyên. API đổi quyền ở BE giữ nguyên.
+
+**Đã sửa (20/11/2026), chờ test tay**: `UserManagementTab`, sửa test `UserManagementTab.test.tsx`.
+
+**Bổ sung (20/11/2026, người dùng yêu cầu)**: bỏ luôn nút "Demote to user" (chỉ còn Demote mà không có Promote thì không đồng bộ). Bỏ prop `onChangeRole` ở `UserManagementTab`, `AdminPortalView` và hàm `handleChangeRole` ở `useAdminPortal`. Tooltip nút Suspend của admin đổi thành "Admins can't be suspended.". API đổi quyền ở BE và hàm `changeUserRole` trong service FE giữ nguyên. Đã sửa, chờ test tay.
+
+---
+
+## G31. Nút Start project: icon tên lửa và nút trùng ở Settings
+
+**Ngày phát hiện:** 20/11/2026
+
+**Hiện trạng**
+- Màn Workflow: nút xanh "Start project" có icon tên lửa (người dùng muốn bỏ icon).
+- Settings → General: có thêm nút xanh "Start project in Workflow →" (chỉ dẫn sang màn Workflow), trùng với nút ở Workflow.
+
+**Cách sửa**
+- FE: `ProjectStatusControl` bỏ icon của nút Start project (các nút Pause, Resume, Complete, Reopen giữ icon).
+- FE: `GeneralSettingsSection` bỏ nút "Start project in Workflow →". Bắt đầu dự án chỉ ở tab Workflow. BE không đổi.
+
+**Đã sửa (20/11/2026), chờ test tay**: `ProjectStatusControl`, `GeneralSettingsSection`, sửa test `settingsPublish.test.tsx`.
+
+---
+
+## G32. Trang danh sách pipeline có emoji và "(⌘K)"
+
+**Ngày phát hiện:** 20/11/2026
+
+**Hiện trạng**
+- `/workspaces`: 3 ô số liệu dưới tiêu đề "Pipelines & Workspaces" có emoji (📂, ⚡, 🟢); ô tìm trên header ghi "Search projects... (⌘K)". Người dùng thấy nhìn như AI làm. Logo góc trên trái giữ nguyên.
+
+**Cách sửa**
+- FE: `WorkspaceView` bỏ emoji ở 3 ô số liệu, placeholder đổi thành "Search projects...". Phím tắt Ctrl/⌘+K vẫn hoạt động.
+
+**Đã sửa (20/11/2026), chờ test tay**: `WorkspaceView`, sửa test `WorkspaceView.test.tsx`.
+
+**Bổ sung (20/11/2026, người dùng yêu cầu)**: thanh bên màn dự án bỏ nhãn "SSOT" cạnh chữ "Pipeline Engine" (`CurvedCobaltSidebar`). Dòng "DAG & State Machine" giữ nguyên. Đã sửa, chờ test tay.
