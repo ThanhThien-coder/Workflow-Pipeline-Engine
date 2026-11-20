@@ -35,6 +35,20 @@ if (-not (Test-Path 'deploy/.env')) { Stop-Deploy 'Khong thay deploy/.env. Lam t
 docker info > $null 2>&1
 if ($LASTEXITCODE -ne 0) { Stop-Deploy 'Docker chua chay. Docker Desktop chi chay khi da dang nhap Windows tren may chu.' }
 
+# Chay qua SSH (dang nhap bang khoa): phien khong doc duoc kho mat khau Windows, keo image bao
+# "A specified logon session does not exist". Dung cau hinh Docker rieng cho lan chay nay: tro thang toi
+# Docker Desktop va co san 1 muc auths rong (khong co muc nao thi Docker tu chon lai kho mat khau Windows).
+# Keo image cong khai khong can dang nhap. Cau hinh Docker Desktop (~/.docker) giu nguyen.
+if ($env:SSH_CONNECTION) {
+    $dockerHost = docker context inspect --format '{{.Endpoints.docker.Host}}'
+    $dockerConfig = Join-Path $env:TEMP 'wpe-docker-config'
+    New-Item -ItemType Directory -Force $dockerConfig -ErrorAction Stop | Out-Null
+    [IO.File]::WriteAllText((Join-Path $dockerConfig 'config.json'), '{"auths":{"https://index.docker.io/v1/":{}}}')
+    $env:DOCKER_HOST = $dockerHost
+    $env:DOCKER_CONFIG = $dockerConfig
+    Write-Host "Chay qua SSH: dung cau hinh Docker rieng ($dockerConfig), Docker tai $dockerHost"
+}
+
 # 1. Sao luu DB (dinh dang custom cua pg_dump, khoi phuc bang pg_restore). Bo qua khi postgres chua chay (lan dau).
 if (-not $SkipBackup) {
     Write-Step 'Sao luu co so du lieu'
