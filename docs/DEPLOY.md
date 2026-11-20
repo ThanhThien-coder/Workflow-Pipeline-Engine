@@ -157,7 +157,7 @@ ssh <user-windows>@<ip-may-chu> "cd /d <duong-dan-repo> && powershell -Execution
 Ví dụ: `ssh thien@192.168.1.50 "cd /d C:\wpe\Workflow_Pipeline && powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1"`. Nhập mật khẩu tài khoản Windows của máy chủ khi được hỏi (tài khoản Microsoft thì dùng mật khẩu tài khoản Microsoft, không phải mã PIN).
 
 Lưu ý khi chạy qua SSH:
-- **Đăng nhập bằng mật khẩu**, chưa cần dùng khóa SSH. Đăng nhập bằng khóa thì phiên SSH không có quyền đọc kho mật khẩu của Windows, nên `git pull` (repo riêng tư) hoặc `docker pull` có thể báo lỗi kiểu `A specified logon session does not exist`.
+- Đăng nhập bằng khóa SSH thì phiên SSH không đọc được kho mật khẩu của Windows, nên `docker build`/`docker pull` gõ tay báo `A specified logon session does not exist`. `deploy.ps1` tự xử lý: khi chạy qua SSH, nó dùng cấu hình Docker riêng (thư mục `%TEMP%\wpe-docker-config`, trỏ thẳng tới Docker Desktop, không dùng kho mật khẩu) vì image nền đều công khai. Repo công khai nên `git pull` không cần đăng nhập.
 - Phải SSH bằng **đúng tài khoản Windows đang chạy Docker Desktop**, nếu không lệnh `docker` không thấy Docker.
 - Muốn deploy khi không ở nhà: cài **Tailscale** trên cả hai máy rồi SSH tới IP Tailscale của máy chủ, không cần mở cổng trên router.
 - Khôi phục bản sao lưu khi cần: `docker compose ... cp <file.dump> postgres:/tmp/r.dump` rồi `docker compose ... exec postgres sh -c 'pg_restore -U $POSTGRES_USER -d $POSTGRES_DB --clean --if-exists /tmp/r.dump'` (dừng backend trước).
