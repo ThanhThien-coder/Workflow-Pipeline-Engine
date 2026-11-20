@@ -607,6 +607,12 @@ public class StateMachineService {
             throw new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can force unlock a task.");
         }
 
+        // Dự án chưa Start thì mọi task đều khóa; Start project mới mở task gốc
+        if (project.getStatus() == ProjectStatus.DRAFT || project.getStatus() == ProjectStatus.PLANNING) {
+            throw new ConflictException("PROJECT_NOT_STARTED",
+                "The project hasn't started yet. Start the project before unlocking tasks early.");
+        }
+
         if (node.getStatus() != NodeStatus.LOCKED) {
             throw new IllegalArgumentException("Only tasks in LOCKED status can be force unlocked.");
         }

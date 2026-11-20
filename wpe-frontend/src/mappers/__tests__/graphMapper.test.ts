@@ -74,7 +74,7 @@ describe('graphMapper.toMacroPhases', () => {
 describe('graphMapper.toCreatedMacroPhase', () => {
   it('phase mới có phase cha thì bị khóa, chưa có task nên TODO 0%', () => {
     const p = toCreatedMacroPhase({ id: 40, name: 'PHASE 4', orderIndex: 3, parentPhaseIds: [30] })
-    expect(p).toMatchObject({ id: '40', status: 'TODO', pct: 0, locked: true, parentPhaseIds: ['30'] })
+    expect(p).toMatchObject({ id: '40', status: 'NO_TASKS', pct: 0, locked: false, parentPhaseIds: ['30'] })
   })
 
   it('lấy vị trí backend đã lưu (uiMetadata trong response)', () => {

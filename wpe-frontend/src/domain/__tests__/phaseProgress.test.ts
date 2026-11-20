@@ -16,8 +16,8 @@ function tree(...nodes: BranchGraphNode[]): GraphNodeMap {
 }
 
 describe('computePhaseProgress', () => {
-  it('phase rỗng (chỉ có root) -> 0% và TODO', () => {
-    expect(computePhaseProgress(root)).toEqual({ pct: 0, status: 'TODO', totalTasks: 0, doneTasks: 0 })
+  it('phase rỗng (chỉ có root) -> 0% và NO_TASKS (G33)', () => {
+    expect(computePhaseProgress(root)).toEqual({ pct: 0, status: 'NO_TASKS', totalTasks: 0, doneTasks: 0 })
     expect(computePhaseProgress(undefined).pct).toBe(0)
   })
 
@@ -29,8 +29,8 @@ describe('computePhaseProgress', () => {
     expect(computePhaseProgress(nodes)).toMatchObject({ pct: 100, totalTasks: 1, doneTasks: 1, status: 'COMPLETED' })
   })
 
-  it('chỉ có Track mà không có task -> TODO 0%', () => {
-    expect(computePhaseProgress(tree(task('trk', 'IN_PROGRESS', true)))).toMatchObject({ pct: 0, status: 'TODO' })
+  it('chỉ có Track mà không có task -> NO_TASKS 0%', () => {
+    expect(computePhaseProgress(tree(task('trk', 'IN_PROGRESS', true)))).toMatchObject({ pct: 0, status: 'NO_TASKS' })
   })
 
   it('chỉ đếm DONE: IN_PROGRESS / REVIEW vẫn là 0%', () => {
@@ -97,6 +97,6 @@ describe('withPhaseProgress', () => {
 
   it('ghi đè số cũ bằng giá trị suy ra và đồng bộ cờ locked', () => {
     expect(withPhaseProgress(phase, tree(task('a', 'LOCKED')))).toMatchObject({ pct: 0, status: 'LOCKED', locked: true })
-    expect(withPhaseProgress(phase, root)).toMatchObject({ pct: 0, status: 'TODO', locked: false })
+    expect(withPhaseProgress(phase, root)).toMatchObject({ pct: 0, status: 'NO_TASKS', locked: false })
   })
 })

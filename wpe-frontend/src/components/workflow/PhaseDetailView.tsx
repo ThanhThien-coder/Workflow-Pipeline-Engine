@@ -23,6 +23,8 @@ import { useRouter } from '../../router/useRouter'
 import type { KanbanTask } from '../../types/kanban.types'
 import { pluralize } from '../../utils/pluralize'
 import { phaseDisplayName } from '../../utils/phaseName'
+import { selectProjectStatus } from '../../store/projectInfo'
+import { isProjectStarted } from '../../domain/projectWork'
 
 /** Đường dẫn màn chi tiết phase. */
 export function phaseDetailPath(projectId: string, phaseId: string): string {
@@ -64,6 +66,8 @@ export function PhaseDetailView({ projectId, phaseId }: { projectId: string; pha
   const removeNodeViaApi = useWorkflowStore((state) => state.removeNode)
   const removeDependencyViaApi = useWorkflowStore((state) => state.removeDependency)
   const forceUnlockViaApi = useWorkflowStore((state) => state.forceUnlockNode)
+  // G33: chưa Start thì mọi task đều khóa, không cho mở khóa sớm
+  const projectStarted = useWorkflowStore((state) => isProjectStarted(selectProjectStatus(state)))
   const showToast = useWorkflowStore((state) => state.ui.showToast)
   const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
   // Chế độ API: hộp nhập tên trước khi tạo task, subtask (1 cha) hoặc task hội tụ (nhiều cha)
@@ -512,7 +516,7 @@ export function PhaseDetailView({ projectId, phaseId }: { projectId: string; pha
             isOwner={canEdit}
             canReview={actor?.projectRole === 'OWNER' || actor?.projectRole === 'MANAGER'}
             onForceUnlock={
-              graphWritesUseApi
+              graphWritesUseApi && projectStarted
                 ? () => void forceUnlockViaApi(phaseId, selectedNodeId).catch(handleError)
                 : undefined
             }

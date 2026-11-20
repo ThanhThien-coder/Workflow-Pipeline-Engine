@@ -152,7 +152,7 @@ class WorkflowGraphServiceTest {
         assertEquals("LOCKED", phases.get(1).status());
 
         assertEquals(0, phases.get(2).progressPct());
-        assertEquals("TODO", phases.get(2).status());
+        assertEquals("NO_TASKS", phases.get(2).status());
         assertEquals(0, phases.get(2).totalTasks());
     }
 

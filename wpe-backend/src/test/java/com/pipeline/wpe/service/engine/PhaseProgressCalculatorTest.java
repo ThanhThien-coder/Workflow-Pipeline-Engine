@@ -21,9 +21,9 @@ class PhaseProgressCalculatorTest {
     }
 
     @Test
-    @DisplayName("Phase rỗng -> TODO 0%")
+    @DisplayName("Phase rỗng -> NO_TASKS 0%")
     void emptyPhase() {
-        assertEquals(new PhaseProgress("TODO", 0, 0, 0), PhaseProgressCalculator.compute(List.of()));
+        assertEquals(new PhaseProgress("NO_TASKS", 0, 0, 0), PhaseProgressCalculator.compute(List.of()));
     }
 
     @Test

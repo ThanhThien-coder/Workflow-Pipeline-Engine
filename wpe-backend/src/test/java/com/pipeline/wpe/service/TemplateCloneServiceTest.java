@@ -178,16 +178,15 @@ class TemplateCloneServiceTest {
         assertThat(savedMember.getRole()).isEqualTo(ProjectRole.OWNER);
 
         // Kiểm tra trạng thái FSM Reset của các Node:
-        // Node A là node gốc (không có incoming deps) -> phải là TODO
-        // Node B có incoming từ Node A -> phải là LOCKED
-        // Node C có incoming từ Node B -> phải là LOCKED
+        // Dự án mới là DRAFT nên mọi node đều LOCKED, kể cả node gốc A (G33);
+        // Start project mới mở node gốc sang TODO
         // assignedUserId phải là null
         ArgumentCaptor<NodeEntity> nodeCaptor = ArgumentCaptor.forClass(NodeEntity.class);
         verify(nodeRepository, times(3)).save(nodeCaptor.capture());
         List<NodeEntity> savedNodes = nodeCaptor.getAllValues();
 
         assertThat(savedNodes.get(0).getCode()).isEqualTo("TASK-A");
-        assertThat(savedNodes.get(0).getStatus()).isEqualTo(NodeStatus.TODO);
+        assertThat(savedNodes.get(0).getStatus()).isEqualTo(NodeStatus.LOCKED);
         assertThat(savedNodes.get(0).getAssignedUserId()).isNull();
 
         assertThat(savedNodes.get(1).getCode()).isEqualTo("TASK-B");
@@ -452,7 +451,7 @@ class TemplateCloneServiceTest {
         List<NodeEntity> savedNodes = nodeCaptor.getAllValues();
 
         assertThat(savedNodes.get(0).getCode()).isEqualTo("REQ-01");
-        assertThat(savedNodes.get(0).getStatus()).isEqualTo(NodeStatus.TODO);
+        assertThat(savedNodes.get(0).getStatus()).isEqualTo(NodeStatus.LOCKED); // dự án DRAFT: mọi node LOCKED (G33)
         assertThat(savedNodes.get(0).getUiMetadata()).isNotNull();
         assertThat(savedNodes.get(0).getUiMetadata()).containsKey("position");
 
@@ -646,17 +645,13 @@ class TemplateCloneServiceTest {
             "804->805"
         );
 
-        // 4. Trạng thái FSM: Node không có cạnh vào -> TODO, có cạnh vào -> LOCKED
-        // nd-1: không có cạnh vào -> TODO
-        // nd-2: có cạnh vào từ nd-1 -> LOCKED
-        // nd-3: không có cạnh vào -> TODO
-        // nd-4: có cạnh vào từ nd-2 và nd-3 -> LOCKED
-        // nd-5: có cạnh vào từ nd-4 -> LOCKED
+        // 4. Trạng thái FSM: dự án mới là DRAFT nên mọi node đều LOCKED, kể cả node không có cạnh vào (G33).
+        // Start project (publishPipeline) mới mở các node gốc nd-1, nd-3 sang TODO.
         Map<String, NodeStatus> statusByTitle = savedNodes.stream()
             .collect(Collectors.toMap(NodeEntity::getTitle, NodeEntity::getStatus));
-        assertThat(statusByTitle.get("Node 1")).isEqualTo(NodeStatus.TODO);
+        assertThat(statusByTitle.get("Node 1")).isEqualTo(NodeStatus.LOCKED);
         assertThat(statusByTitle.get("Node 2")).isEqualTo(NodeStatus.LOCKED);
-        assertThat(statusByTitle.get("Node 3")).isEqualTo(NodeStatus.TODO);
+        assertThat(statusByTitle.get("Node 3")).isEqualTo(NodeStatus.LOCKED);
         assertThat(statusByTitle.get("Node 4")).isEqualTo(NodeStatus.LOCKED);
         assertThat(statusByTitle.get("Node 5")).isEqualTo(NodeStatus.LOCKED);
     }

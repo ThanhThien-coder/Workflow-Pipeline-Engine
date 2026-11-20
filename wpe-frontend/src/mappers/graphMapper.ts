@@ -84,11 +84,11 @@ export function toCreatedMacroPhase(p: BackendPhaseDto): MacroPhase {
   const parents = (p.parentPhaseIds || []).map(String)
   return {
     ...toMacroPhase(p),
-    // Phase mới chưa có task: hiển thị TODO, 0%, bị khóa nếu có phase cha (giữ như cũ)
-    status: 'TODO',
+    // Phase mới chưa có task: NO_TASKS, 0%, không khóa (cạnh giữa phase không khóa task, G33)
+    status: 'NO_TASKS',
     pct: 0,
     parentPhaseIds: parents,
-    locked: parents.length > 0,
+    locked: false,
   }
 }
 

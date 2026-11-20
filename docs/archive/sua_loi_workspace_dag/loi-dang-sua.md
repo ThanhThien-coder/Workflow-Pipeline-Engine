@@ -30,6 +30,7 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G30 | Admin: nút "Promote to admin" / "Demote to user" ở User Management không cần | FE | Đã sửa, chờ test tay |
 | G31 | Nút Start project có icon tên lửa; Settings có thêm nút "Start project in Workflow" trùng với màn Workflow | FE | Đã sửa, chờ test tay |
 | G32 | Trang danh sách pipeline có emoji trên các ô số liệu và "(⌘K)" trong ô tìm, nhìn như AI làm | FE | Đã sửa, chờ test tay |
+| G33 | Dự án DRAFT tạo từ template: task đã TODO, thẻ phase xanh/xám lộn xộn, phase rỗng ghi TODO, mở khóa sớm được khi chưa Start | FE + BE + DB | Đã sửa, chờ test tay |
 
 ---
 
@@ -799,3 +800,46 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 **Đã sửa (20/11/2026), chờ test tay**: `WorkspaceView`, sửa test `WorkspaceView.test.tsx`.
 
 **Bổ sung (20/11/2026, người dùng yêu cầu)**: thanh bên màn dự án bỏ nhãn "SSOT" cạnh chữ "Pipeline Engine" (`CurvedCobaltSidebar`). Dòng "DAG & State Machine" giữ nguyên. Đã sửa, chờ test tay.
+
+---
+
+## G33. Trạng thái và màu thẻ phase sai khi dự án chưa Start
+
+**Ngày phát hiện:** 20/11/2026
+
+**Tái hiện**
+1. Tạo dự án "c" (id 29) từ template, thêm vài phase bằng Add Phase, chưa bấm Start project (dự án DRAFT).
+2. Màn Workflow: IaC Provisioning, CI/CD & Monitoring có thanh xanh và ghi TODO; các phase thêm sau thanh xám; "Cụm công việc 3" LOCKED, "Cụm công việc 4/5/6" TODO.
+3. Sau khi Start, các phase thêm sau vẫn xám.
+
+**Dữ liệu thật (DB dev, dự án 29, DRAFT)**
+- WPE-001, WPE-002, WPE-003 (sinh lúc tạo từ template) là TODO; task tạo tay sau đó (WPE-005, 006, 008) là LOCKED.
+- WPE-009 TODO vì đã bấm "Unlock early" (`force_unlocked_at` có giá trị) khi dự án còn DRAFT.
+- Phase 5, 6, "New phase" không có task.
+- Phase từ template có `accent_color = blue`, phase thêm bằng Add Phase có `slate`.
+
+**Nguyên nhân (đã xác định)**
+1. BE `TemplateCloneService` (dòng ~332): task không có tiền đề được tạo TODO ngay, dù dự án mới là DRAFT. Tạo task tay trong DRAFT thì `WorkflowGraphService.createNode` cho LOCKED. Hai đường không khớp nhau.
+2. FE `PhaseCard`: màu thanh lấy theo `accent` của phase (template = blue, Add Phase = slate mặc định ở BE `WorkflowGraphService` dòng ~127), chỉ đổi khi COMPLETED (xanh lá) hoặc LOCKED (xám). Nên màu phụ thuộc phase sinh ra từ đâu chứ không theo trạng thái.
+3. BE `PhaseProgressCalculator` và FE `domain/phaseProgress.ts`: phase không có task bị coi là TODO.
+4. BE `StateMachineService.forceUnlock`: không kiểm trạng thái dự án, nên mở khóa sớm được cả khi DRAFT.
+5. Ghi chú: cạnh nối giữa các phase (`phase_dependency`) chỉ để vẽ và chặn chu trình, không khóa task. Task chỉ khóa theo cạnh giữa các task (`node_dependency`). Tooltip ổ khóa "waiting for prerequisite phases" dễ hiểu nhầm.
+
+**Hướng sửa đề xuất (chờ người dùng chốt)**
+- BE: tạo dự án từ template thì mọi task là LOCKED. Start project (`publishPipeline`) đã có sẵn bước mở các task gốc sang TODO, giữ nguyên.
+- FE: màu thẻ phase chỉ theo trạng thái: LOCKED / không có task = xám, TODO / IN_PROGRESS = xanh dương, COMPLETED = xanh lá. Bỏ dùng `accent`.
+- BE + FE: phase không có task hiện "NO TASKS" (xám) thay cho TODO. Sửa cùng lúc `PhaseProgressCalculator` và `phaseProgress.ts`.
+- BE: chỉ cho "Unlock early" khi dự án ACTIVE; FE ẩn nút khi dự án chưa Start.
+- Dữ liệu cũ (dự án DRAFT đã có task TODO): cân nhắc migration Flyway đưa task của dự án DRAFT/PLANNING về LOCKED (trừ task đã mở sớm, tùy người dùng chọn).
+
+**Người dùng đã chốt (20/11/2026)**
+- Sau khi Start, phase mà mọi task đều chờ task đi trước thì giữ xám, có ổ khóa.
+- Cạnh nối giữa các phase giữ như hiện nay (chỉ để vẽ, không khóa task).
+- Migration dữ liệu cũ: chọn A1 (task TODO của dự án chưa Start về LOCKED, kể cả task đã mở sớm).
+
+**Đã sửa (20/11/2026), chờ test tay**
+- BE: `TemplateCloneService` tạo mọi task LOCKED (bỏ phần tính cạnh vào chỉ dùng để chọn TODO). `PhaseProgressCalculator` phase rỗng trả `NO_TASKS`. `StateMachineService.forceUnlock` báo 409 `PROJECT_NOT_STARTED` khi dự án DRAFT/PLANNING.
+- DB: `V23__lock_tasks_of_unstarted_projects.sql` đưa task TODO của dự án DRAFT/PLANNING về LOCKED, xóa dấu mở sớm, tăng `version`.
+- FE: `PhaseStatus` thêm `NO_TASKS`; `phaseProgress.ts` phase rỗng ra `NO_TASKS` (track rỗng vẫn TODO); `PhaseCard` màu chỉ theo trạng thái (xám: LOCKED/NO_TASKS, xanh dương: TODO/IN_PROGRESS, xanh lá: COMPLETED), nhãn "NO TASKS"; phase mới tạo là `NO_TASKS`, không khóa; `PhaseDetailView` ẩn "Unlock early" khi dự án chưa Start (`isProjectStarted` trong `domain/projectWork.ts`).
+- Tài liệu: `FRONTEND_BACKEND_INTEGRATION_MAP.md` ghi các giá trị `status` của Phase.
+- Kiểm tra: BE `./mvnw test` qua hết. FE typecheck qua; `vitest run` 980/981 qua (lỗi duy nhất `MacroWorkflow.states.test.tsx` có sẵn trên main). Migration chạy trên DB dev: dự án 29 còn 0 task TODO. API thật (alex.kim, dự án test 30 tạo từ SDLC): sau khi tạo 7/7 task LOCKED, 4 phase LOCKED; Unlock early → 409 `PROJECT_NOT_STARTED`; Start → mở 4 task gốc, 4 phase TODO; Unlock early WPE-002 sau khi Start → 200.
