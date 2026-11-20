@@ -104,13 +104,6 @@ export const ProjectWorkspaceView: FC<ProjectWorkspaceViewProps> = ({
 
           {/* Right: Quick actions, notifications & profile */}
           <div className="flex items-center gap-3 text-slate-500">
-            <button
-              type="button"
-              onClick={() => navigate('/workspaces')}
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline mr-1 transition-colors"
-            >
-              All Pipelines
-            </button>
             {/* #24: công cụ demo, tự ẩn khi backend tắt DEMO_TOOLS_ENABLED hoặc người xem không phải chủ dự án / admin */}
             <DemoToolsPanel projectId={projectId} variant="header" />
             <NotificationBell />

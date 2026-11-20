@@ -9,7 +9,6 @@ import {
   Network,
   Settings,
   Sparkles,
-  Layers,
 } from 'lucide-react'
 import type { NavigationTab } from '../../store/useWorkflowStore'
 import { getSavedAvatar } from '../../utils/avatarUtils'
@@ -342,7 +341,7 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
         </nav>
       </div>
 
-      {/* Bottom Section: Team Avatars & Quick Link */}
+      {/* Bottom Section: Team Avatars */}
       <div className="space-y-3 border-t border-white/15 pt-3">
         {/* Team Avatars Ribbon */}
         <div className="px-1">
@@ -470,51 +469,6 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
               )}
             </div>
           </div>
-        </div>
-
-        {/* Quick Link to Workspaces / Catalog */}
-        <div className="relative">
-          <motion.button
-            type="button"
-            onClick={onBackToWorkspaces}
-            onMouseEnter={() => isCollapsed && setHoveredTooltipId('all-pipelines')}
-            onMouseLeave={() => setHoveredTooltipId(null)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={`flex h-10 w-full items-center gap-2 rounded-xl bg-white/10 px-2 text-xs font-semibold text-blue-100 hover:bg-white/20 hover:text-white transition-colors cursor-pointer ${
-              isCollapsed ? 'justify-center' : 'justify-center'
-            }`}
-            title={isCollapsed ? undefined : 'Switch Project'}
-          >
-            <Layers size={16} />
-            <AnimatePresence>
-              {!isCollapsed && (
-                <motion.span
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -8 }}
-                  transition={{ duration: 0.15 }}
-                  className="whitespace-nowrap truncate"
-                >
-                  All Pipelines
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </motion.button>
-
-          {/* Floating Tooltip for All Pipelines when Collapsed */}
-          {isCollapsed && hoveredTooltipId === 'all-pipelines' && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, x: 10 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.9, x: 10 }}
-              transition={{ duration: 0.15 }}
-              className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 rounded-xl bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-white shadow-xl backdrop-blur-md border border-slate-700/80 whitespace-nowrap"
-            >
-              All Pipelines
-              <div className="absolute right-full top-1/2 -translate-y-1/2 -mr-1 border-4 border-transparent border-r-slate-900/95" />
-            </motion.div>
-          )}
         </div>
       </div>
     </motion.aside>
