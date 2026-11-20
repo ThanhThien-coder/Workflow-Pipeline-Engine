@@ -40,7 +40,7 @@ describe('NodePropertiesModal — trạng thái và chế độ chỉ xem', () =
 
     expect(screen.queryByRole('button', { name: /save changes/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /delete task/i })).toBeNull()
-    expect(screen.getByText('Only the project owner can edit the graph')).toBeTruthy()
+    expect(screen.getByText('Only the project owner or a manager can edit the graph')).toBeTruthy()
     expect(screen.getByText('Task Details')).toBeTruthy()
   })
 })

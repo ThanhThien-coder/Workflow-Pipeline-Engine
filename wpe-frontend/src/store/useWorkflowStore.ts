@@ -82,8 +82,8 @@ export interface WorkflowState
 }
 
 /**
- * B5 — Có được sửa đồ thị không. Quy ước giống GeneralSettingsSection: isOwner = myRole === 'OWNER'.
- * - Dự án ARCHIVED: owner cũng chỉ xem (backend trả 409 PROJECT_ARCHIVED).
+ * B5 — Có được sửa đồ thị không: Owner và Manager được sửa (khớp WorkflowGraphService ở backend).
+ * - Dự án ARCHIVED: owner/manager cũng chỉ xem (backend trả 409 PROJECT_ARCHIVED).
  * - Vai trò lấy từ Settings hoặc từ thông tin dự án tải khi vào dự án (T3).
  * - Chưa nạp vai trò của đúng dự án này: KHÔNG khóa, để owner vào thẳng canvas vẫn làm được;
  *   backend vẫn chặn bằng 403 và UI hiện toast.
@@ -92,12 +92,12 @@ export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'proj
   const info = currentProjectInfo(state)
   if (!info?.myRole) return true
   if (info.status === 'ARCHIVED') return false
-  return info.myRole === 'OWNER'
+  return info.myRole === 'OWNER' || info.myRole === 'MANAGER'
 }
 
-export const GRAPH_READ_ONLY_MESSAGE = 'Only the project owner can edit the graph'
+export const GRAPH_READ_ONLY_MESSAGE = 'Only the project owner or a manager can edit the graph'
 
-/** Lớp chặn cuối ở store: không phải owner thì không gửi request ghi đồ thị nào. */
+/** Lớp chặn cuối ở store: không phải owner/manager thì không gửi request ghi đồ thị nào. */
 function ensureCanEditGraph(state: WorkflowState): void {
   if (!selectCanEditGraph(state)) {
     throw new ApiError({ status: 403, code: 'GRAPH_READ_ONLY', message: GRAPH_READ_ONLY_MESSAGE })

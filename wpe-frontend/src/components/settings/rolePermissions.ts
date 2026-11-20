@@ -23,7 +23,7 @@ export const ROLE_TITLES: Record<ProjectRole, string> = {
 /** Mô tả ngắn từng vai trò (dùng cho tooltip). */
 export const ROLE_DESCRIPTIONS: Record<ProjectRole, string> = {
   OWNER: 'Full control: edits the pipeline, manages members and settings, and can do everything a Manager does.',
-  MANAGER: 'Reviews work: approves or returns tasks, assigns people and due dates, and handles guest feedback. Cannot edit the pipeline.',
+  MANAGER: 'Edits the pipeline, unlocks tasks early, approves or returns tasks, assigns people and due dates, and handles guest feedback. Cannot publish the pipeline or manage members and settings.',
   COLLABORATOR: 'Works on assigned tasks (start, return, submit) and adds artifacts. Cannot edit the pipeline or review work.',
   VIEWER: 'Read-only: can view the pipeline, tasks and artifacts, and run AI Diagnosis.',
 }
@@ -31,7 +31,7 @@ export const ROLE_DESCRIPTIONS: Record<ProjectRole, string> = {
 /** Một câu tóm tắt quyền, hiện ở SettingsHeader. */
 export const ROLE_SUMMARIES: Record<ProjectRole, string> = {
   OWNER: 'You can edit the pipeline, manage members and settings, and review all work.',
-  MANAGER: 'You can approve or return tasks, assign people and due dates, and handle guest feedback. You cannot edit the pipeline.',
+  MANAGER: 'You can edit the pipeline, unlock tasks early, approve or return tasks, assign people and due dates, and handle guest feedback. You cannot publish the pipeline or manage members and settings.',
   COLLABORATOR: 'You can work on your assigned tasks and add artifacts. You cannot edit the pipeline or review work.',
   VIEWER: 'You can view the pipeline, tasks and artifacts. You cannot make changes.',
 }
@@ -55,9 +55,9 @@ const row = (
 export const ROLE_PERMISSIONS: RolePermissionRow[] = [
   row('View pipeline graph, Kanban, Overview and artifacts', true, true, true, true),
   row('Run AI Diagnosis', true, true, true, true),
-  row('Edit pipeline (phases, tasks, links, ghost nodes)', true, false, false, false),
+  row('Edit pipeline (phases, tasks, links, ghost nodes)', true, true, false, false),
   row('Publish pipeline', true, false, false, false),
-  row('Unlock a task early', true, false, false, false),
+  row('Unlock a task early', true, true, false, false),
   row('Rename or edit project details', true, false, false, false),
   row('Archive, restore or delete project', true, false, false, false),
   row('Save project as template', true, false, false, false),

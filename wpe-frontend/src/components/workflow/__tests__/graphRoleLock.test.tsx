@@ -9,7 +9,7 @@ import type { ProjectRole, ProjectSettingsDto } from '../../../types/settings.ty
 import type { GraphNodeMap } from '../../../types/workflow.types'
 
 /**
- * B5 — Canvas khóa theo vai trò. Từ B3 backend chỉ cho owner sửa đồ thị;
+ * B5 — Canvas khóa theo vai trò. Backend chỉ cho owner và manager sửa đồ thị;
  * giao diện phải chặn trước để Collaborator/Viewer không bấm được rồi mới nhận 403.
  */
 
@@ -84,6 +84,12 @@ describe('B5: store chặn ghi đồ thị khi không phải owner', () => {
     await store.getState().updatePhasePosition('9', { x: 5, y: 6 })
     expect(service.createPhase).toHaveBeenCalledTimes(1)
     expect(service.updatePhasePosition).toHaveBeenCalledWith('9', { x: 5, y: 6 }, '1')
+  })
+
+  it('MANAGER cũng được sửa đồ thị như owner', async () => {
+    const { store, service } = storeWith('MANAGER')
+    await store.getState().createPhase({ name: 'P', sub: 's' })
+    expect(service.createPhase).toHaveBeenCalledTimes(1)
   })
 
   it('dự án ARCHIVED: owner cũng chỉ xem', async () => {
