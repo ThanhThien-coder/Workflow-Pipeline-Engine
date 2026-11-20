@@ -418,7 +418,7 @@ class StateMachineServiceTest {
 
         assertThatThrownBy(() -> stateMachineService.forceUnlock(taskId, collaboratorId))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("Only the project owner can force unlock a task");
+            .hasMessageContaining("Only the project owner or a manager can force unlock a task");
     }
 
     @Test
