@@ -22,7 +22,7 @@ interface StudioTopbarProps {
   onBack: () => void;
   onUpdateMeta: (
     patch: Partial<
-      Pick<TemplateDetailDto, 'name' | 'description' | 'category' | 'isSystemStandard'>
+      Pick<TemplateDetailDto, 'name' | 'description' | 'category'>
     >
   ) => void;
   onAutoLayout?: () => void;
@@ -106,31 +106,6 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
 
         <div className="h-6 w-px bg-slate-200" />
 
-        {/* Public to All Users Switch */}
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={draft.isSystemStandard}
-            onClick={() => onUpdateMeta({ isSystemStandard: !draft.isSystemStandard })}
-            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-              draft.isSystemStandard ? 'bg-blue-600' : 'bg-slate-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out mt-0.5 ml-0.5 ${
-                draft.isSystemStandard ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
-          <span className="text-xs font-semibold text-slate-700">
-            Public to All Users{' '}
-            <span className="hidden xl:inline text-slate-400 font-normal">
-              (System Standard)
-            </span>
-          </span>
-        </label>
-
         {/* Auto Layout (DAG) */}
         {onAutoLayout && (
           <button
@@ -157,7 +132,7 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
         {/* Badge status */}
         <DagStatusBadge validation={validation} />
 
-        {/* Save & Publish Button */}
+        {/* Save Button */}
         <button
           type="button"
           disabled={isSaving}
@@ -169,7 +144,7 @@ export const StudioTopbar: React.FC<StudioTopbarProps> = ({
           ) : (
             <Save className="h-4 w-4" />
           )}
-          <span>Save &amp; Publish Template</span>
+          <span>Save Template</span>
         </button>
       </header>
 

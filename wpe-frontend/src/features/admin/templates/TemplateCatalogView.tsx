@@ -7,7 +7,7 @@ import type {
 } from '../../../types/template.types';
 import { TemplateCard } from './components/TemplateCard';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { Search, Plus, RefreshCw, AlertCircle, Sparkles, Layers } from 'lucide-react';
+import { Search, Plus, RefreshCw, AlertCircle, Layers } from 'lucide-react';
 
 interface TemplateCatalogViewProps {
   onOpenStudio: (templateId: string | null) => void;
@@ -101,7 +101,8 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
         graphData: original.graphData,
       };
 
-      await container.templateService.createTemplate(copyPayload);
+      const copy = await container.templateService.createTemplate(copyPayload);
+      await container.templateService.setTemplateHidden(copy.id, true);
       onToast('Template duplicated as a draft', 'blue');
       await fetchTemplates();
     } catch (err: unknown) {
@@ -131,7 +132,7 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
       setTemplates((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...updated, isHidden: nextHidden } : t))
       );
-      onToast(nextHidden ? 'Template hidden' : 'Template visible', 'blue');
+      onToast(nextHidden ? 'Template moved to draft' : 'Template published to users', 'blue');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Couldn\'t update template visibility';
       onToast(msg, 'rose');
@@ -148,13 +149,9 @@ export const TemplateCatalogView: React.FC<TemplateCatalogViewProps> = ({
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               System Pipeline Templates
             </h1>
-            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
-              <Sparkles className="h-3 w-3" />
-              v2 Engine
-            </span>
           </div>
           <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-            Hidden templates don't appear when users create a project.
+            Draft templates don't appear when users create a project. Publish a template to show it to users.
           </p>
         </div>
 

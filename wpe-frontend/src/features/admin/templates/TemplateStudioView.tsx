@@ -145,9 +145,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
 
     try {
       const saved = await save();
-      const msg = saved.isSystemStandard
-        ? 'Template saved and published to all users.'
-        : 'Template saved as a draft.';
+      const msg = saved.isHidden
+        ? 'Template saved as a draft. Publish it in the Template Library to show it to users.'
+        : 'Template saved. It is published to users.';
       onToast(msg, 'emerald');
       onClose();
     } catch (err: unknown) {

@@ -267,7 +267,7 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
   }, []);
 
   const updateMeta = useCallback(
-    (patch: Partial<Pick<TemplateDetailDto, 'name' | 'description' | 'category' | 'isSystemStandard'>>) => {
+    (patch: Partial<Pick<TemplateDetailDto, 'name' | 'description' | 'category'>>) => {
       setDraft((curr) => {
         if (!curr) return null;
         return {
@@ -860,10 +860,13 @@ export function useTemplateStudio(initialTemplateId?: string | null) {
           requestDto as UpdateTemplateRequestDto
         );
       } else {
-        saved = await container.templateService.createTemplate({
+        const created = await container.templateService.createTemplate({
           ...requestDto,
           id: currentDraft.id,
         } as any);
+        // Template mới luôn ở Draft: user chưa thấy cho tới khi admin bấm Publish
+        await container.templateService.setTemplateHidden(created.id, true);
+        saved = { ...created, isHidden: true };
       }
 
       setDraft(saved);

@@ -143,7 +143,7 @@ describe('TemplateStudioView Component', () => {
       />
     );
 
-    const saveBtn = await screen.findByRole('button', { name: /Save & Publish Template/i });
+    const saveBtn = await screen.findByRole('button', { name: /Save Template/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -175,7 +175,7 @@ describe('TemplateStudioView Component', () => {
       />
     );
 
-    const saveBtn = await screen.findByRole('button', { name: /Save & Publish Template/i });
+    const saveBtn = await screen.findByRole('button', { name: /Save Template/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -206,7 +206,7 @@ describe('TemplateStudioView Component', () => {
       />
     );
 
-    const saveBtn = await screen.findByRole('button', { name: /Save & Publish Template/i });
+    const saveBtn = await screen.findByRole('button', { name: /Save Template/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -236,7 +236,7 @@ describe('TemplateStudioView Component', () => {
       />
     );
 
-    const saveBtn = await screen.findByRole('button', { name: /Save & Publish Template/i });
+    const saveBtn = await screen.findByRole('button', { name: /Save Template/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
