@@ -135,11 +135,6 @@ export const AdminPortalView: FC = () => {
     }
   };
 
-  const handleGlobalSearch = (term: string) => {
-    setCurrentTab('users');
-    setSearchQuery(term);
-  };
-
   const logout = useWorkflowStore((state) => state.auth.logout);
 
   const handleLogout = async () => {
@@ -179,7 +174,6 @@ export const AdminPortalView: FC = () => {
         {/* Top Header */}
         <AdminTopbar
           currentTab={currentTab}
-          onGlobalSearch={handleGlobalSearch}
           onLogout={handleLogout}
         />
 
