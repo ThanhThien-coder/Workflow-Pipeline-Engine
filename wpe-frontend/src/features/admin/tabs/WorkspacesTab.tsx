@@ -120,11 +120,8 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
           >
             <option value="ALL">All statuses</option>
             <option value="DRAFT">Draft</option>
-            <option value="PLANNING">Planning</option>
             <option value="ACTIVE">Active</option>
             <option value="PAUSED">Paused</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="INACTIVE">Inactive</option>
             <option value="ARCHIVED">Archived</option>
           </select>
         </div>
