@@ -42,10 +42,10 @@ export function PhaseCard({
   onHoverChange,
   onRenameError,
 }: PhaseCardProps) {
-  // Màu đi theo trạng thái suy ra từ task: hoàn thành -> xanh lá, đang khóa -> xám, còn lại giữ accent của Phase
+  // Màu chỉ theo trạng thái suy ra từ task (G33): xong -> xanh lá, khóa hoặc chưa có task -> xám, còn lại -> xanh dương
   const accentKey =
-    phase.status === 'COMPLETED' ? 'emerald' : phase.status === 'LOCKED' ? 'slate' : phase.accent
-  const accent = accentStyles[accentKey] || accentStyles.blue
+    phase.status === 'COMPLETED' ? 'emerald' : phase.status === 'LOCKED' || phase.status === 'NO_TASKS' ? 'slate' : 'blue'
+  const accent = accentStyles[accentKey]
 
   const renamePhase = useWorkflowStore((state) => state.renamePhase)
   const phaseToRename = useWorkflowStore((state) => state.phaseToRename)
@@ -231,7 +231,7 @@ export function PhaseCard({
         <div className="mt-auto pt-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className={`text-[9px] font-bold uppercase rounded-full px-2 py-0.5 border ${accent.pill}`}>
-              {phase.status}
+              {phase.status === 'NO_TASKS' ? 'NO TASKS' : phase.status}
             </span>
             <span className="text-xs font-semibold text-slate-500">{phase.pct}%</span>
           </div>

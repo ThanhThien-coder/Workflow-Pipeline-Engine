@@ -13,7 +13,7 @@ const isTask = (n: GraphNodeMap[string] | undefined): n is BranchGraphNode =>
 /**
  * Tiến độ = số task DONE / tổng số task (làm tròn %).
  * Trạng thái suy ra từ task (khớp engine backend):
- *   không có task -> TODO, tất cả DONE -> COMPLETED, tất cả LOCKED -> LOCKED,
+ *   không có task -> NO_TASKS, tất cả DONE -> COMPLETED, tất cả LOCKED -> LOCKED,
  *   có task IN_PROGRESS/REVIEW/DONE -> IN_PROGRESS, còn lại -> TODO.
  */
 function summarize(tasks: BranchGraphNode[]): PhaseProgress {
@@ -22,7 +22,7 @@ function summarize(tasks: BranchGraphNode[]): PhaseProgress {
   const pct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
 
   let status: PhaseStatus
-  if (totalTasks === 0) status = 'TODO'
+  if (totalTasks === 0) status = 'NO_TASKS'
   else if (doneTasks === totalTasks) status = 'COMPLETED'
   else if (tasks.every((t) => t.status === 'LOCKED')) status = 'LOCKED'
   else if (tasks.some((t) => t.status === 'IN_PROGRESS' || t.status === 'REVIEW' || t.status === 'DONE')) status = 'IN_PROGRESS'
@@ -79,7 +79,8 @@ export function syncTrackProgress(nodes: GraphNodeMap): GraphNodeMap {
   for (const n of Object.values(nodes)) {
     if (n.kind !== 'branch' || !n.isTrack) continue
     const { pct, status } = summarize(tasksByTrack[n.id] ?? [])
-    const trackStatus: NodeStatus = status === 'COMPLETED' ? 'DONE' : status
+    // Track rỗng giữ TODO như trước; NO_TASKS chỉ dùng cho Phase
+    const trackStatus: NodeStatus = status === 'COMPLETED' ? 'DONE' : status === 'NO_TASKS' ? 'TODO' : status
     if (n.status !== trackStatus || n.progress !== pct) {
       next[n.id] = { ...n, status: trackStatus, progress: pct }
       changed = true

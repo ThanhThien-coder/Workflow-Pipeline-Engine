@@ -9,7 +9,7 @@ import java.util.List;
  * Tính tiến độ & trạng thái của một Macro Phase từ danh sách task thuộc Phase đó.
  * Công thức đồng bộ với Frontend (wpe-frontend/src/domain/phaseProgress.ts):
  *   - progressPct = round(số task DONE / tổng số task * 100), Phase rỗng = 0.
- *   - status: rỗng -> TODO, tất cả DONE -> COMPLETED, tất cả LOCKED -> LOCKED,
+ *   - status: rỗng -> NO_TASKS, tất cả DONE -> COMPLETED, tất cả LOCKED -> LOCKED,
  *             có task IN_PROGRESS/REVIEW/DONE -> IN_PROGRESS, còn lại -> TODO.
  */
 public final class PhaseProgressCalculator {
@@ -25,7 +25,7 @@ public final class PhaseProgressCalculator {
 
         String status;
         if (total == 0) {
-            status = "TODO";
+            status = "NO_TASKS";
         } else if (done == total) {
             status = "COMPLETED";
         } else if (phaseTasks.stream().allMatch(n -> n.getStatus() == NodeStatus.LOCKED)) {

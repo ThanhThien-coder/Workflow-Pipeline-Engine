@@ -150,3 +150,30 @@ describe('CreatePhaseModal (TASK_72)', () => {
     expect(screen.getByText('Please enter a phase name.')).toBeDefined()
   })
 })
+
+describe('PhaseCard — màu theo trạng thái, không theo accent (G33)', () => {
+  afterEach(() => cleanup())
+
+  const barClass = (container: HTMLElement) =>
+    (container.querySelector('[data-accent-clip] > div') as HTMLElement).className
+
+  it('TODO và IN_PROGRESS luôn xanh dương, kể cả phase lưu accent slate', () => {
+    const { container, rerender } = render(<PhaseCard {...baseProps} phase={phase({ status: 'TODO', accent: 'slate' })} />)
+    expect(barClass(container)).toContain('bg-blue-400')
+    rerender(<PhaseCard {...baseProps} phase={phase({ status: 'IN_PROGRESS', accent: 'slate', pct: 30 })} />)
+    expect(barClass(container)).toContain('bg-blue-400')
+  })
+
+  it('LOCKED và NO_TASKS xám dù accent là blue; NO_TASKS ghi "NO TASKS"', () => {
+    const { container, rerender } = render(<PhaseCard {...baseProps} phase={phase({ status: 'LOCKED', locked: true, accent: 'blue' })} />)
+    expect(barClass(container)).toContain('bg-slate-300')
+    rerender(<PhaseCard {...baseProps} phase={phase({ status: 'NO_TASKS', accent: 'blue' })} />)
+    expect(barClass(container)).toContain('bg-slate-300')
+    expect(screen.getByText('NO TASKS')).toBeDefined()
+  })
+
+  it('COMPLETED xanh lá', () => {
+    const { container } = render(<PhaseCard {...baseProps} phase={phase({ status: 'COMPLETED', pct: 100, accent: 'slate' })} />)
+    expect(barClass(container)).toContain('bg-emerald-400')
+  })
+})

@@ -1,6 +1,6 @@
 export type NodeStatus = 'LOCKED' | 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE'
 export type JoinPolicy = 'ALL_COMPLETED' | 'ANY_COMPLETED'
-export type PhaseStatus = 'COMPLETED' | 'IN_PROGRESS' | 'TODO' | 'LOCKED'
+export type PhaseStatus = 'COMPLETED' | 'IN_PROGRESS' | 'TODO' | 'LOCKED' | 'NO_TASKS'
 export type PhaseAccent = 'emerald' | 'blue' | 'slate'
 
 interface GraphNodeBase {

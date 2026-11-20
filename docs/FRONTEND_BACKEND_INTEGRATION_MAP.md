@@ -567,6 +567,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
    - Truy vấn toàn bộ `NODE` và các liên kết phụ thuộc `NODE_DEPENDENCY` trong dự án.
    - Truy vấn toàn bộ cạnh `PHASE_DEPENDENCY` của dự án; `parentPhaseIds` gộp từ bảng này và cột cũ `WORK_PHASE.parent_phase_id`.
    - `status`, `progressPct`, `totalTasks`, `doneTasks` của mỗi Phase được tính từ các `NODE` thuộc Phase đó (`PhaseProgressCalculator`), không lưu trong DB.
+     `status` của Phase: `NO_TASKS` (chưa có task), `COMPLETED` (mọi task DONE), `LOCKED` (mọi task LOCKED), `IN_PROGRESS` (có task IN_PROGRESS/REVIEW/DONE), còn lại `TODO`.
    - Số câu SQL cố định, không phụ thuộc số Phase/Node (không N+1): 5 câu khi người gọi là owner, 6 câu khi là thành viên (thêm 1 câu kiểm tra `PROJECT_MEMBER`).
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`
