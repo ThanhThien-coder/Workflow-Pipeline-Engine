@@ -237,29 +237,6 @@ export function useAdminPortal(service: IAdminService = adminService) {
     [service, showToast, auditGroup]
   );
 
-  // Change user role
-  const handleChangeRole = useCallback(
-    async (userId: string, role: 'ADMIN' | 'USER'): Promise<boolean> => {
-      try {
-        const updated = await service.changeUserRole(userId, role);
-        setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-        const name = updated.name || users.find((u) => u.id === userId)?.name || '';
-        const roleLabel = role === 'ADMIN' ? 'Admin' : 'User';
-        showToast(`${name}'s role was changed to ${roleLabel}`, 'emerald');
-        service
-          .getSecurityAuditLogs(auditGroup === 'ALL' ? undefined : auditGroup)
-          .then(setAuditLogs)
-          .catch(() => {});
-        return true;
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Couldn\'t change the role';
-        showToast(message, 'rose');
-        return false;
-      }
-    },
-    [service, auditGroup, showToast, users]
-  );
-
   // Delete user
   const handleDeleteUser = useCallback(
     async (userId: string): Promise<boolean> => {
@@ -399,7 +376,6 @@ export function useAdminPortal(service: IAdminService = adminService) {
     closeBanModal,
     handleSuspendUser,
     handleUnbanUser,
-    handleChangeRole,
     handleDeleteUser,
     loadOwnedProjects,
     handleTransferOwner,

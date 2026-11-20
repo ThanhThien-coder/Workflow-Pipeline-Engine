@@ -27,7 +27,6 @@ function renderTab(users: AdminUserDto[]) {
       onOpenBanModal={vi.fn()}
       onUnban={vi.fn()}
       currentUserId="1"
-      onChangeRole={vi.fn()}
       onDeleteUser={vi.fn()}
       onOpenOwnedProjects={vi.fn()}
     />,

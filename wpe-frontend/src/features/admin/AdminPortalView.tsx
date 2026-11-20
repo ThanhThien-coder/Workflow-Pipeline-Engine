@@ -48,7 +48,6 @@ export const AdminPortalView: FC = () => {
     closeBanModal,
     handleSuspendUser,
     handleUnbanUser,
-    handleChangeRole,
     handleDeleteUser,
     loadOwnedProjects,
     handleTransferOwner,
@@ -212,7 +211,6 @@ export const AdminPortalView: FC = () => {
                     onOpenBanModal={openBanModal}
                     onUnban={handleUnbanUser}
                     currentUserId={currentUserId}
-                    onChangeRole={handleChangeRole}
                     onDeleteUser={handleDeleteUser}
                     onOpenOwnedProjects={setOwnedProjectsUser}
                   />

@@ -9,7 +9,6 @@ describe('UserManagementTab Component', () => {
   const onStatusFilterChange = vi.fn();
   const onOpenBanModal = vi.fn();
   const onUnban = vi.fn();
-  const onChangeRole = vi.fn().mockResolvedValue(true);
   const onDeleteUser = vi.fn().mockResolvedValue(true);
   const onOpenOwnedProjects = vi.fn();
 
@@ -79,7 +78,6 @@ describe('UserManagementTab Component', () => {
         onOpenBanModal={onOpenBanModal}
         onUnban={onUnban}
         currentUserId="1"
-        onChangeRole={onChangeRole}
         onDeleteUser={onDeleteUser}
         onOpenOwnedProjects={onOpenOwnedProjects}
       />
@@ -97,7 +95,7 @@ describe('UserManagementTab Component', () => {
     // 2. Dòng của admin khác (id: '2', Other Admin):
     const otherAdminRow = screen.getByText('Other Admin').closest('tr')!;
     expect(otherAdminRow).toBeTruthy();
-    expect(within(otherAdminRow).getByText('Demote to user')).toBeTruthy();
+    expect(within(otherAdminRow).queryByText('Demote to user')).toBeNull();
     expect(within(otherAdminRow).queryByText('Delete')).toBeNull();
     // ownedProjectCount = 0 không có "Dự án sở hữu"
     expect(within(otherAdminRow).queryByText('Owned projects')).toBeNull();
@@ -105,7 +103,7 @@ describe('UserManagementTab Component', () => {
     // 3. User thường (id: '3', Standard User):
     const standardRow = screen.getByText('Standard User').closest('tr')!;
     expect(standardRow).toBeTruthy();
-    expect(within(standardRow).getByText('Promote to admin')).toBeTruthy();
+    expect(within(standardRow).queryByText('Promote to admin')).toBeNull();
     expect(within(standardRow).getByText('Delete')).toBeTruthy();
     // ownedProjectCount = 0 không có "Dự án sở hữu"
     expect(within(standardRow).queryByText('Owned projects')).toBeNull();
@@ -127,7 +125,6 @@ describe('UserManagementTab Component', () => {
         onOpenBanModal={onOpenBanModal}
         onUnban={onUnban}
         currentUserId="1"
-        onChangeRole={onChangeRole}
         onDeleteUser={onDeleteUser}
         onOpenOwnedProjects={onOpenOwnedProjects}
       />
@@ -163,7 +160,6 @@ describe('UserManagementTab Component', () => {
         onOpenBanModal={onOpenBanModal}
         onUnban={onUnban}
         currentUserId="1"
-        onChangeRole={onChangeRole}
         onDeleteUser={onDeleteUser}
         onOpenOwnedProjects={onOpenOwnedProjects}
       />
@@ -173,6 +169,6 @@ describe('UserManagementTab Component', () => {
     const suspendBtn = within(otherAdminRow).getByText('Suspend');
     expect(suspendBtn).toBeTruthy();
     expect((suspendBtn as HTMLButtonElement).disabled).toBe(true);
-    expect(suspendBtn.getAttribute('title')).toBe("Admins can't be suspended. Demote to user first.");
+    expect(suspendBtn.getAttribute('title')).toBe("Admins can't be suspended.");
   });
 });
