@@ -59,13 +59,13 @@ describe('WorkspaceView Component', () => {
     cleanup()
   })
 
-  it('ô tìm kiếm ở header có placeholder "Search projects... (⌘K)", nối vào bộ lọc dự án và không hiện toast demo khi Enter', () => {
+  it('ô tìm kiếm ở header có placeholder "Search projects...", nối vào bộ lọc dự án và không hiện toast demo khi Enter', () => {
     const showToast = vi.fn()
     useWorkflowStore.setState((s) => ({ ui: { ...s.ui, showToast } }))
 
     render(<WorkspaceView />)
 
-    const topSearch = screen.getByPlaceholderText('Search projects... (⌘K)') as HTMLInputElement
+    const topSearch = screen.getByPlaceholderText('Search projects...') as HTMLInputElement
     expect(topSearch).toBeTruthy()
 
     expect(screen.getByText('Alpha Project')).toBeTruthy()

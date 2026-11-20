@@ -165,9 +165,6 @@ export const CurvedCobaltSidebar: FC<CurvedCobaltSidebarProps> = ({
                     <span className="text-sm font-extrabold tracking-tight text-white">
                       Pipeline Engine
                     </span>
-                    <span className="rounded-full bg-blue-400/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-100 border border-blue-300/30">
-                      SSOT
-                    </span>
                   </div>
                   <p className="text-[10px] font-medium text-blue-200/70">
                     DAG &amp; State Machine

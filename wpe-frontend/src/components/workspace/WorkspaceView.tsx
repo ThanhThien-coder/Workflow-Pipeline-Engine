@@ -137,7 +137,7 @@ export const WorkspaceView: FC = () => {
               ref={searchInputRef}
               value={q}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search projects... (⌘K)"
+              placeholder="Search projects..."
               className="w-full text-xs rounded-xl border border-slate-200/90 bg-slate-50 focus:bg-white focus:border-indigo-500 px-3.5 py-2 outline-none transition-colors"
             />
           </div>
@@ -169,13 +169,13 @@ export const WorkspaceView: FC = () => {
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="text-xs font-semibold text-slate-700 bg-white/95 border border-slate-200/90 rounded-full px-3 py-1 shadow-sm">
-                    📂 {stats.total} Total Projects
+                    {stats.total} Total Projects
                   </span>
                   <span className="text-xs font-semibold text-slate-700 bg-white/95 border border-slate-200/90 rounded-full px-3 py-1 shadow-sm">
-                    ⚡ {stats.activeNodes} Active Nodes
+                    {stats.activeNodes} Active Nodes
                   </span>
                   <span className="text-xs font-semibold text-slate-700 bg-white/95 border border-slate-200/90 rounded-full px-3 py-1 shadow-sm">
-                    🟢 {stats.runningInProduction} Running in Production
+                    {stats.runningInProduction} Running in Production
                   </span>
                 </div>
               </div>
