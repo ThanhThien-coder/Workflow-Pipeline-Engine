@@ -408,6 +408,23 @@ class StateMachineServiceTest {
         verify(sseEmitterService).sendToUser(eq(collaboratorId), eq("TASK_UNLOCKED"), any());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = com.pipeline.wpe.common.enums.ProjectStatus.class, names = {"DRAFT", "PLANNING"})
+    @DisplayName("Force Unlock: dự án chưa Start (DRAFT/PLANNING) thì báo PROJECT_NOT_STARTED, task vẫn LOCKED (G33)")
+    void testForceUnlock_projectNotStarted_rejected(com.pipeline.wpe.common.enums.ProjectStatus status) {
+        mockNode.setStatus(NodeStatus.LOCKED);
+        mockProject.setStatus(status);
+
+        when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
+
+        assertThatThrownBy(() -> stateMachineService.forceUnlock(taskId, ownerId))
+            .isInstanceOf(com.pipeline.wpe.exception.ConflictException.class)
+            .hasMessageContaining("Start the project before unlocking tasks early");
+        assertThat(mockNode.getStatus()).isEqualTo(NodeStatus.LOCKED);
+        verify(nodeRepository, org.mockito.Mockito.never()).saveAndFlush(any(NodeEntity.class));
+    }
+
     @Test
     @DisplayName("Force Unlock: Collaborator không có quyền Force Unlock")
     void testForceUnlock_byCollaborator_forbidden() {

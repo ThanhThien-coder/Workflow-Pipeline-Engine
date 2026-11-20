@@ -11,6 +11,11 @@ const NOT_RUNNING_LABEL: Record<string, string> = {
   INACTIVE: 'inactive',
 }
 
+/** Dự án đã Start (publish) chưa: DRAFT/PLANNING là chưa. Chưa tải trạng thái thì coi như chưa. */
+export function isProjectStarted(projectStatus: string | null | undefined): boolean {
+  return !!projectStatus && projectStatus !== 'DRAFT' && projectStatus !== 'PLANNING'
+}
+
 export function isMemberWorkLocked(projectStatus: string | null | undefined, role: string | null | undefined): boolean {
   if (!projectStatus || projectStatus === 'ACTIVE' || projectStatus === 'ARCHIVED') return false
   return role !== 'OWNER' && role !== 'MANAGER'
