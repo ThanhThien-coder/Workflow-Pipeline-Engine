@@ -83,7 +83,6 @@ describe('AnalyticsTab Component', () => {
 
     // 2. Kiểm tra các số KPI khác
     expect(screen.getByText('18')).toBeTruthy(); // Dự án đang chạy (ACTIVE)
-    expect(screen.getByText('8')).toBeTruthy(); // Task trễ hạn
     expect(screen.getByText('6')).toBeTruthy(); // Template PUBLIC
 
     // 3. Không còn chữ Uptime, Error rate, DAG executions
@@ -91,6 +90,29 @@ describe('AnalyticsTab Component', () => {
     expect(textContent.toLowerCase()).not.toContain('uptime');
     expect(textContent.toLowerCase()).not.toContain('error rate');
     expect(textContent.toLowerCase()).not.toContain('dag executions');
+
+    // 4. Không còn thẻ Overdue tasks
+    expect(screen.queryByText('Overdue tasks')).toBeNull();
+  });
+
+  it('phân bố trạng thái dự án chỉ có DRAFT, ACTIVE, ARCHIVED', () => {
+    const { container } = render(
+      <AnalyticsTab
+        stats={mockStats}
+        trends={mockTrends}
+        trendRange="7D"
+        onRangeChange={onRangeChange}
+      />
+    );
+
+    expect(screen.getByText('Draft (DRAFT)')).toBeTruthy();
+    expect(screen.getByText('Active (ACTIVE)')).toBeTruthy();
+    expect(screen.getByText('Archived (ARCHIVED)')).toBeTruthy();
+    const textContent = container.textContent || '';
+    expect(textContent).not.toContain('PLANNING');
+    expect(textContent).not.toContain('INACTIVE');
+    expect(textContent).not.toContain('COMPLETED');
+    expect(textContent).not.toContain('PAUSED');
   });
 
   it('bấm đổi khoảng thời gian gọi onRangeChange', () => {

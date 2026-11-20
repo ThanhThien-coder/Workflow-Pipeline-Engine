@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Archive, RotateCcw } from 'lucide-react'
 import type { ProjectRole, ProjectSettingsDto, UpdateProjectCommand } from '../../types/settings.types'
 import { container } from '../../services/container'
-import { navigate } from '../../router/useRouter'
 
 interface GeneralSettingsSectionProps {
   settings: ProjectSettingsDto | null
@@ -31,10 +30,6 @@ export function GeneralSettingsSection({
   const isOwner = myRole === 'OWNER'
   const isArchived = settings?.status === 'ARCHIVED'
   const currentProjectId = projectId || settings?.id || '1'
-  // B6: khớp backend (B4) — chỉ xuất bản được từ DRAFT hoặc PLANNING.
-  // ProjectStatus của settings.types chưa có PLANNING (file của D) dù backend có trả, nên so như chuỗi.
-  const statusText: string | undefined = settings?.status
-  const canPublish = statusText === 'DRAFT' || statusText === 'PLANNING'
   const [form, setForm] = useState({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
   const [restoring, setRestoring] = useState(false)
@@ -166,17 +161,6 @@ export function GeneralSettingsSection({
               >
                 <RotateCcw size={13} />
                 <span>{restoring ? 'Restoring...' : 'Restore to Active'}</span>
-              </button>
-            )}
-
-            {isOwner && canPublish && (
-              <button
-                type="button"
-                onClick={() => navigate(`/project/${currentProjectId}/workflow`)}
-                className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
-                title="Start, pause or complete the project from the Workflow screen"
-              >
-                Start project in Workflow →
               </button>
             )}
 

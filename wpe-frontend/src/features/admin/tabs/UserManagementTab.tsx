@@ -13,7 +13,6 @@ interface UserManagementTabProps {
   onOpenBanModal: (user: AdminUserDto) => void;
   onUnban: (userId: string) => void;
   currentUserId?: string;
-  onChangeRole: (userId: string, role: 'ADMIN' | 'USER') => Promise<boolean>;
   onDeleteUser: (userId: string) => Promise<boolean>;
   onOpenOwnedProjects: (user: AdminUserDto) => void;
 }
@@ -79,7 +78,6 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
   onOpenBanModal,
   onUnban,
   currentUserId,
-  onChangeRole,
   onDeleteUser,
   onOpenOwnedProjects,
 }) => {
@@ -101,28 +99,6 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
 
   const closeConfirmModal = () => {
     setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-  };
-
-  const handlePromoteClick = (user: AdminUserDto) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Promote to admin',
-      message: `Grant admin access to ${user.name}?`,
-      confirmLabel: 'Confirm',
-      tone: 'blue',
-      onConfirm: () => onChangeRole(user.id, 'ADMIN'),
-    });
-  };
-
-  const handleDemoteClick = (user: AdminUserDto) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Demote to user',
-      message: `Demote ${user.name} to a regular user? Their current session will be signed out.`,
-      confirmLabel: 'Confirm',
-      tone: 'rose',
-      onConfirm: () => onChangeRole(user.id, 'USER'),
-    });
   };
 
   const handleDeleteClick = (user: AdminUserDto) => {
@@ -261,26 +237,6 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
 
                         return (
                           <div className="grid w-[224px] grid-cols-2 gap-1.5 [&>button]:w-full [&>button]:whitespace-nowrap [&>button]:text-center">
-                            {/* Change Role: Nâng quản trị / Hạ về người dùng */}
-                            {!isCurrent && user.role === 'STANDARD_USER' && (
-                              <button
-                                type="button"
-                                onClick={() => handlePromoteClick(user)}
-                                className="rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
-                              >
-                                Promote to admin
-                              </button>
-                            )}
-                            {!isCurrent && user.role === 'ADMIN' && (
-                              <button
-                                type="button"
-                                onClick={() => handleDemoteClick(user)}
-                                className="rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
-                              >
-                                Demote to user
-                              </button>
-                            )}
-
                             {/* Owned Projects */}
                             {hasOwnedProjects && (
                               <button
@@ -297,7 +253,7 @@ export const UserManagementTab: FC<UserManagementTabProps> = ({
                               user.role === 'ADMIN' ? (
                                 <button
                                   disabled
-                                  title="Admins can't be suspended. Demote to user first."
+                                  title="Admins can't be suspended."
                                   className="cursor-not-allowed rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-300"
                                 >
                                   Suspend

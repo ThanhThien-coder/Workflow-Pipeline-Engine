@@ -100,8 +100,10 @@ describe('useTemplateStudio Hook Business Logic & Graph Actions', () => {
 
     expect(result.current.isDirty).toBe(false);
 
-    // Verify it exists in container service
-    const all = await container.templateService.getTemplates();
-    expect(all.some((t) => t.name === 'Automated Test Workflow')).toBe(true);
+    // Template mới lưu ở Draft (isHidden): admin thấy, user chưa thấy
+    const all = await container.templateService.getTemplates({ includeHidden: true });
+    expect(all.find((t) => t.name === 'Automated Test Workflow')?.isHidden).toBe(true);
+    const visibleToUsers = await container.templateService.getTemplates();
+    expect(visibleToUsers.some((t) => t.name === 'Automated Test Workflow')).toBe(false);
   });
 });

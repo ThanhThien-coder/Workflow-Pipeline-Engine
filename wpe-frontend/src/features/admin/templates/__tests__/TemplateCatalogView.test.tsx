@@ -130,7 +130,7 @@ describe('TemplateCatalogView Component', () => {
     ).toBeTruthy();
   });
 
-  it('thẻ ẩn có chữ "Đang ẩn" và nút "Hiện", thẻ hiện có nút "Ẩn"; bấm "Ẩn" gọi setTemplateHidden(id, true); không còn chữ PUBLIC trong catalog', async () => {
+  it('thẻ Draft có nhãn "Draft" và nút "Publish", thẻ đã publish có nút "Unpublish"; bấm "Unpublish" gọi setTemplateHidden(id, true); không còn chữ PUBLIC trong catalog', async () => {
     const mockTemplates: TemplateSummaryDto[] = [
       {
         id: 'tpl-visible',
@@ -174,23 +174,23 @@ describe('TemplateCatalogView Component', () => {
     expect(await screen.findByText('Visible Template')).toBeTruthy();
     expect(await screen.findByText('Hidden Template')).toBeTruthy();
 
-    // Thẻ ẩn có chữ "Đang ẩn"
-    expect(screen.getByText('Hidden')).toBeTruthy();
+    // Thẻ chưa publish có nhãn "Draft"
+    expect(screen.getByText('Draft')).toBeTruthy();
 
     // Không còn chữ "PUBLIC" trong catalog
     expect(screen.queryByText(/PUBLIC/)).toBeNull();
 
-    // Thẻ ẩn có nút "Hiện", thẻ hiện có nút "Ẩn"
-    const hideBtn = screen.getByRole('button', { name: 'Hide' });
-    const showBtn = screen.getByRole('button', { name: 'Show' });
-    expect(hideBtn).toBeTruthy();
-    expect(showBtn).toBeTruthy();
+    // Thẻ Draft có nút "Publish", thẻ đã publish có nút "Unpublish"
+    const unpublishBtn = screen.getByRole('button', { name: 'Unpublish' });
+    const publishBtn = screen.getByRole('button', { name: 'Publish' });
+    expect(unpublishBtn).toBeTruthy();
+    expect(publishBtn).toBeTruthy();
 
-    // Bấm nút "Ẩn" gọi setTemplateHidden(id, true)
-    fireEvent.click(hideBtn);
+    // Bấm "Unpublish" gọi setTemplateHidden(id, true)
+    fireEvent.click(unpublishBtn);
     await waitFor(() => {
       expect(setHiddenSpy).toHaveBeenCalledWith('tpl-visible', true);
-      expect(onToast).toHaveBeenCalledWith('Template hidden', 'blue');
+      expect(onToast).toHaveBeenCalledWith('Template moved to draft', 'blue');
     });
   });
 });

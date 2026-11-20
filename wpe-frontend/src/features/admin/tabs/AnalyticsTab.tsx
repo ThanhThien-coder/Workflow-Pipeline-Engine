@@ -1,6 +1,6 @@
 import type { FC } from 'react';
 import type { AdminStatsDto, AdminTrendPointDto } from '../../../types/admin.types';
-import { Users, PlayCircle, AlertCircle, Copy, Info } from 'lucide-react';
+import { Users, PlayCircle, Copy, Info } from 'lucide-react';
 import { pluralize } from '../../../utils/pluralize'
 
 interface AnalyticsTabProps {
@@ -14,21 +14,13 @@ interface AnalyticsTabProps {
 
 const PROJECT_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
-  PLANNING: 'Planning',
   ACTIVE: 'Active',
-  PAUSED: 'Paused',
-  COMPLETED: 'Completed',
-  INACTIVE: 'Inactive',
   ARCHIVED: 'Archived',
 };
 
 const PROJECT_STATUS_COLORS: Record<string, string> = {
   DRAFT: 'bg-slate-400',
-  PLANNING: 'bg-blue-500',
   ACTIVE: 'bg-emerald-500',
-  PAUSED: 'bg-amber-500',
-  COMPLETED: 'bg-indigo-500',
-  INACTIVE: 'bg-slate-300',
   ARCHIVED: 'bg-slate-500',
 };
 
@@ -79,12 +71,12 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
     return dateStr;
   };
 
-  const projectStatuses = ['DRAFT', 'PLANNING', 'ACTIVE', 'PAUSED', 'COMPLETED', 'INACTIVE', 'ARCHIVED'];
+  const projectStatuses = ['DRAFT', 'ACTIVE', 'ARCHIVED'];
 
   return (
     <section id="tab-overview" className="tab-panel active animate-fade">
-      {/* 4 Hàng KPI */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* 3 thẻ KPI */}
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* KPI 1: Người dùng */}
         <div className="admin-surface p-5">
           <div className="flex items-center justify-between">
@@ -117,23 +109,7 @@ export const AnalyticsTab: FC<AnalyticsTabProps> = ({
           </div>
         </div>
 
-        {/* KPI 3: Task trễ hạn */}
-        <div className="admin-surface p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500">Overdue tasks</span>
-            <span className="rounded-lg bg-rose-50 p-2 text-rose-600">
-              <AlertCircle className="h-5 w-5" />
-            </span>
-          </div>
-          <div className="mt-3 text-3xl font-extrabold text-rose-600">
-            {stats.tasks.overdue.toLocaleString()}
-          </div>
-          <div className="mt-2 text-xs text-slate-500">
-            {pluralize(stats.tasks.total, 'task')} total
-          </div>
-        </div>
-
-        {/* KPI 4: Template */}
+        {/* KPI 3: Template */}
         <div className="admin-surface p-5">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-500">Template</span>

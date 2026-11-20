@@ -34,8 +34,8 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
       expect(screen.getByText('Marketing Campaign Launch')).toBeDefined();
       expect(screen.getByText('Data Science / ETL Pipeline')).toBeDefined();
 
-      // Check badge presence
-      expect(screen.getAllByText('System template').length).toBe(2);
+      // Thẻ template không còn nhãn "System template"
+      expect(screen.queryByText('System template')).toBeNull();
 
       // Filter by category
       const select = screen.getByRole('combobox');
@@ -97,6 +97,11 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
         },
         { timeout: 3000 }
       );
+
+      // Bản copy ở Draft: user chưa thấy
+      const all = await container.templateService.getTemplates({ includeHidden: true });
+      const copy = all.find((t) => t.name.endsWith('(Copy)'));
+      expect(copy?.isHidden).toBe(true);
     });
   });
 
@@ -139,8 +144,8 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
         { timeout: 3000 }
       );
 
-      // Click "Save & Publish Template"
-      const saveBtn = screen.getByText('Save & Publish Template');
+      // Click "Save Template"
+      const saveBtn = screen.getByText('Save Template');
       fireEvent.click(saveBtn);
 
       await waitFor(
@@ -151,9 +156,12 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
         { timeout: 4000 }
       );
 
-      // Verify template was saved to container service
-      const all = await container.templateService.getTemplates();
-      expect(all.some((t) => t.name === 'Production Web App Pipeline')).toBe(true);
+      // Template mới lưu ở Draft: có trong danh sách admin nhưng user chưa thấy
+      const all = await container.templateService.getTemplates({ includeHidden: true });
+      const saved = all.find((t) => t.name === 'Production Web App Pipeline');
+      expect(saved?.isHidden).toBe(true);
+      const visibleToUsers = await container.templateService.getTemplates();
+      expect(visibleToUsers.some((t) => t.name === 'Production Web App Pipeline')).toBe(false);
     });
 
     it('opens Phase Detail Drawer and allows switching between Graph and Kanban view', async () => {

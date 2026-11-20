@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, Pause, Play, RotateCcw, Rocket } from 'lucide-react'
+import { CheckCircle2, Pause, Play, RotateCcw } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import { currentProjectInfo } from '../../store/projectInfo'
 import { workflowService } from '../../services/container'
@@ -17,14 +17,14 @@ type Action = {
   key: string
   label: string
   to: 'PUBLISH' | 'ACTIVE' | 'PAUSED' | 'COMPLETED'
-  icon: typeof Play
+  icon?: typeof Play
   primary?: boolean
   title: string
   message: string
 }
 
 const PUBLISH: Action = {
-  key: 'publish', label: 'Start project', to: 'PUBLISH', icon: Rocket, primary: true,
+  key: 'publish', label: 'Start project', to: 'PUBLISH', primary: true,
   title: 'Start this project?',
   message: 'The graph is checked for dependency cycles first. Tasks with no prerequisites become To Do and collaborators can start working on their tasks.',
 }
@@ -131,7 +131,7 @@ export function ProjectStatusControl({ projectId }: { projectId: string }) {
                 : 'flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50'
             }
           >
-            <Icon size={13} /> {action.label}
+            {Icon && <Icon size={13} />} {action.label}
           </button>
         )
       })}
