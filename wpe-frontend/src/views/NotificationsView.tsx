@@ -5,6 +5,7 @@ import { formatNotificationTime, NotificationSender } from '../components/common
 import { navigate } from '../router/useRouter'
 import { useNotificationStore } from '../store/useNotificationStore'
 import type { NotificationDto } from '../types/notification.types'
+import { notificationLines } from '../utils/notificationLines'
 
 export default function NotificationsView() {
   const { items, unreadCount, loading, error, load, markRead, markAllRead } = useNotificationStore()
@@ -109,12 +110,17 @@ export default function NotificationsView() {
                   >
                     <NotificationSender n={notification} />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm leading-relaxed text-slate-600">
+                      <span className="block text-sm leading-relaxed text-slate-700">
                         {notification.actorName && notification.kind !== 'overdue' && (
                           <strong className="font-semibold text-slate-900">{notification.actorName} </strong>
                         )}
-                        {notification.text || notification.message || notification.title}
+                        {notificationLines(notification).headline}
                       </span>
+                      {notificationLines(notification).detail && (
+                        <span className="mt-0.5 line-clamp-2 block text-sm leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
+                          {notificationLines(notification).detail}
+                        </span>
+                      )}
                       <span className="mt-1 block text-xs text-slate-400">
                         {formatNotificationTime(notification.createdAt)}
                       </span>
