@@ -131,10 +131,60 @@ describe('GuestReportView', () => {
     expect(mocks.submitGuestFeedback).toHaveBeenCalledTimes(1)
     expect(mocks.submitGuestFeedback).toHaveBeenCalledWith('tok-fb', {
       reviewerName: 'Dr. Tran',
-      reviewerRole: 'TEACHER',
+      reviewerRole: 'GUEST',
       content: '[Phase 2 · Design] Clean class diagram',
       nodeId: null,
     })
+  })
+
+  it('bật Anonymous không nhập tên vẫn gửi được với reviewerName là Anonymous và giữ lại tên đã gõ khi tắt', async () => {
+    mocks.fetchGuestAiSummary.mockRejectedValue(new Error('404'))
+    mocks.submitGuestFeedback.mockResolvedValue({
+      id: 'fb-anon',
+      author: 'Anonymous',
+      message: 'Looks good overall',
+      createdAt: '2026-11-20T09:00:00.000Z',
+    })
+
+    render(<GuestReportView token="tok-anon" overview={normalOverview} />)
+
+    const nameInput = screen.getByLabelText('Your name') as HTMLInputElement
+    const anonCheckbox = screen.getByLabelText('Anonymous') as HTMLInputElement
+
+    fireEvent.change(nameInput, { target: { value: 'Dr. Tran' } })
+    fireEvent.click(anonCheckbox)
+
+    expect(nameInput.disabled).toBe(true)
+    expect(nameInput.placeholder).toBe('Sent without a name')
+
+    fireEvent.change(screen.getByLabelText('Feedback content'), { target: { value: 'Looks good overall' } })
+    fireEvent.click(screen.getByRole('button', { name: /Send/i }))
+
+    await waitFor(() => expect(screen.getByText(/Sent\./)).toBeTruthy())
+    expect(mocks.submitGuestFeedback).toHaveBeenCalledWith('tok-anon', {
+      reviewerName: 'Anonymous',
+      reviewerRole: 'GUEST',
+      content: 'Looks good overall',
+      nodeId: null,
+    })
+
+    fireEvent.click(anonCheckbox)
+    expect(nameInput.disabled).toBe(false)
+    expect(nameInput.value).toBe('Dr. Tran')
+  })
+
+  it('tắt Anonymous mà không nhập tên thì hiện lỗi và không gọi submitGuestFeedback', () => {
+    mocks.fetchGuestAiSummary.mockRejectedValue(new Error('404'))
+
+    render(<GuestReportView token="tok-noname" overview={normalOverview} />)
+
+    fireEvent.change(screen.getByLabelText('Feedback content'), { target: { value: 'Missing name test' } })
+    fireEvent.click(screen.getByRole('button', { name: /Send/i }))
+
+    expect(
+      screen.getByText('Please enter your name so the team knows who wrote this, or tick Anonymous.'),
+    ).toBeTruthy()
+    expect(mocks.submitGuestFeedback).not.toHaveBeenCalled()
   })
 
   it('gửi góp ý thất bại thì hiện câu lỗi backend trả về', async () => {

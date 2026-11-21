@@ -15,7 +15,7 @@ export interface FeedbackSectionProps {
 
 export function FeedbackSection({ token, model, scope, onScopeChange, focusKey }: FeedbackSectionProps) {
   const [name, setName] = useState('')
-  const [role, setRole] = useState<'TEACHER' | 'GUEST'>('TEACHER')
+  const [anonymous, setAnonymous] = useState(false)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -48,8 +48,9 @@ export function FeedbackSection({ token, model, scope, onScopeChange, focusKey }
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setOk(false)
-    if (!name.trim()) {
-      setErr('Please enter your name so the team knows who wrote this.')
+    const trimmedName = name.trim()
+    if (!anonymous && !trimmedName) {
+      setErr('Please enter your name so the team knows who wrote this, or tick Anonymous.')
       return
     }
     if (!msg.trim()) return
@@ -66,8 +67,8 @@ export function FeedbackSection({ token, model, scope, onScopeChange, focusKey }
     setErr('')
     try {
       await submitGuestFeedback(token, {
-        reviewerName: name.trim(),
-        reviewerRole: role,
+        reviewerName: anonymous ? 'Anonymous' : trimmedName,
+        reviewerRole: 'GUEST',
         content,
         nodeId,
       })
@@ -116,30 +117,29 @@ export function FeedbackSection({ token, model, scope, onScopeChange, focusKey }
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
           <input
             type="text"
-            value={name}
+            value={anonymous ? '' : name}
+            disabled={anonymous}
             onChange={(e) => {
               setName(e.target.value)
               if (err) setErr('')
             }}
             maxLength={60}
             aria-label="Your name"
-            placeholder="Your name, e.g. Dr. Tran"
-            className="min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+            placeholder={anonymous ? 'Sent without a name' : 'Your name, e.g. Dr. Tran'}
+            className="min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
           />
-          <div className="flex rounded-lg border border-slate-200 p-0.5 text-xs font-semibold">
-            {(['TEACHER', 'GUEST'] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={`rounded-md px-2.5 py-1.5 ${
-                  role === r ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {r === 'TEACHER' ? 'Teacher' : 'Guest'}
-              </button>
-            ))}
-          </div>
+          <label className="flex shrink-0 cursor-pointer select-none items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <input
+              type="checkbox"
+              checked={anonymous}
+              onChange={(e) => {
+                setAnonymous(e.target.checked)
+                if (err) setErr('')
+              }}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>Anonymous</span>
+          </label>
         </div>
 
         <select

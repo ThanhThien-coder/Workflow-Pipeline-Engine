@@ -105,4 +105,27 @@ describe('FeedbackQueueCard Component', () => {
 
     expect(screen.getByRole('button', { name: /Mark Resolved/i })).toBeTruthy()
   })
+
+  it('chỉ hiện tên người góp ý, không hiện chip vai trò GUEST hay TEACHER', () => {
+    envMock.isMock = true
+    const items: FeedbackItem[] = [
+      ...sampleItems,
+      {
+        id: 'fb-2',
+        reviewerName: 'Dr. Tran',
+        reviewerRole: 'TEACHER',
+        nodeRef: null,
+        content: 'Old teacher feedback.',
+        status: 'RESOLVED',
+        createdAt: new Date().toISOString(),
+      },
+    ]
+
+    render(<FeedbackQueueCard items={items} onResolve={vi.fn()} />)
+
+    expect(screen.getByText('John Reviewer')).toBeTruthy()
+    expect(screen.getByText('Dr. Tran')).toBeTruthy()
+    expect(screen.queryByText('GUEST')).toBeNull()
+    expect(screen.queryByText('TEACHER')).toBeNull()
+  })
 })

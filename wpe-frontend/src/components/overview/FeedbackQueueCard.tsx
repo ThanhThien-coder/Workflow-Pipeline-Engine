@@ -48,12 +48,7 @@ export function FeedbackQueueCard({ items, onResolve, canResolve }: FeedbackQueu
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-800">{item.reviewerName}</span>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
-                      {item.reviewerRole}
-                    </span>
-                  </div>
+                  <span className="text-sm font-semibold text-slate-800">{item.reviewerName}</span>
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                       isResolved
