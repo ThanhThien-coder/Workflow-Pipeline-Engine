@@ -4,7 +4,7 @@ import { AuthView } from './components/auth/AuthView'
 import { ResetPasswordView } from './components/auth/ResetPasswordView'
 import { WorkspaceView } from './components/workspace/WorkspaceView'
 import { ProjectWorkspaceView } from './views/ProjectWorkspaceView'
-import GuestView from './views/GuestView' // NEW
+import GuestRouteGate from './views/guest-report/GuestRouteGate' // NEW
 import { AdminPortalView } from './features/admin/AdminPortalView'
 import ProfileView from './views/ProfileView'
 import PublicProfileView from './views/PublicProfileView'
@@ -124,7 +124,7 @@ export default function App() {
     }
 
     if (isGuestRoute) {                                // NEW
-      return <GuestView />                             // NEW
+      return <GuestRouteGate />                        // NEW
     }
     
     if (isLandingRoute) {
