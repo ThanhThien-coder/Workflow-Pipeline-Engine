@@ -1,0 +1,217 @@
+{
+  "projectName": "Thesis Tracker",
+  "phaseLabel": "Phase 1: Planning",
+  "lastUpdated": "2026-11-20T03:00:00.000Z",
+  "totalNodes": 5,
+  "criticalNodes": 0,
+  "completedNodes": 1,
+  "completionPct": 20,
+  "overdueCount": 0,
+  "blockingCount": 2,
+  "totalTasks": 5,
+  "velocity": [],
+  "statusBreakdown": [],
+  "recentActivity": [],
+  "publicArtifacts": [
+    {
+      "id": 901,
+      "name": "Project charter",
+      "type": "DOCS",
+      "url": "https://docs.google.com/document/d/doc-3"
+    }
+  ],
+  "phases": [
+    {
+      "name": "Planning",
+      "status": "IN_PROGRESS",
+      "progressPct": 20,
+      "totalTasks": 5,
+      "doneTasks": 1
+    }
+  ],
+  "memberCount": 3,
+  "report": {
+    "serverNow": "2026-11-20T08:00:00.000Z",
+    "project": {
+      "name": "Thesis Tracker",
+      "description": "Helps students and supervisors track thesis milestones and meeting notes.",
+      "status": "ACTIVE",
+      "createdAt": "2026-11-16T05:00:00.000Z",
+      "linkExpiresAt": "2026-12-16T05:00:00.000Z"
+    },
+    "graph": {
+      "phases": [
+        {
+          "id": "101",
+          "name": "Planning",
+          "sub": "",
+          "accent": "indigo",
+          "orderIndex": 0,
+          "parentPhaseIds": [],
+          "status": "IN_PROGRESS",
+          "progressPct": 20,
+          "totalTasks": 5,
+          "doneTasks": 1,
+          "uiMetadata": {}
+        }
+      ],
+      "phaseEdges": [],
+      "nodes": [
+        {
+          "id": "5001",
+          "phaseId": "101",
+          "code": "TT-01",
+          "title": "Project charter",
+          "description": "",
+          "status": "DONE",
+          "joinPolicy": "AND",
+          "assignedUserId": "11",
+          "dueDate": "2026-11-18T05:00:00.000Z",
+          "estimatedHours": 4,
+          "version": 0,
+          "uiMetadata": {},
+          "forceUnlockedBy": null,
+          "forceUnlockedAt": null,
+          "createdAt": "2026-11-16T05:00:00.000Z",
+          "completedAt": "2026-11-17T05:00:00.000Z",
+          "isOverdue": false,
+          "reopenedAt": null,
+          "startedAt": "2026-11-16T05:00:00.000Z"
+        },
+        {
+          "id": "5002",
+          "phaseId": "101",
+          "code": "TT-02",
+          "title": "Collect requirements",
+          "description": "",
+          "status": "IN_PROGRESS",
+          "joinPolicy": "AND",
+          "assignedUserId": "12",
+          "dueDate": "2026-11-21T05:00:00.000Z",
+          "estimatedHours": 8,
+          "version": 0,
+          "uiMetadata": {},
+          "forceUnlockedBy": null,
+          "forceUnlockedAt": null,
+          "createdAt": "2026-11-16T05:00:00.000Z",
+          "completedAt": null,
+          "isOverdue": false,
+          "reopenedAt": null,
+          "startedAt": "2026-11-19T05:00:00.000Z"
+        },
+        {
+          "id": "5003",
+          "phaseId": "101",
+          "code": "TT-03",
+          "title": "Use case list",
+          "description": "",
+          "status": "LOCKED",
+          "joinPolicy": "AND",
+          "assignedUserId": "13",
+          "dueDate": "2026-11-24T05:00:00.000Z",
+          "estimatedHours": 6,
+          "version": 0,
+          "uiMetadata": {},
+          "forceUnlockedBy": null,
+          "forceUnlockedAt": null,
+          "createdAt": "2026-11-16T05:00:00.000Z",
+          "completedAt": null,
+          "isOverdue": false,
+          "reopenedAt": null,
+          "startedAt": null
+        },
+        {
+          "id": "5004",
+          "phaseId": "101",
+          "code": "TT-04",
+          "title": "Tech stack decision",
+          "description": "",
+          "status": "TODO",
+          "joinPolicy": "AND",
+          "assignedUserId": null,
+          "dueDate": "2026-11-25T05:00:00.000Z",
+          "estimatedHours": 3,
+          "version": 0,
+          "uiMetadata": {},
+          "forceUnlockedBy": null,
+          "forceUnlockedAt": null,
+          "createdAt": "2026-11-17T05:00:00.000Z",
+          "completedAt": null,
+          "isOverdue": false,
+          "reopenedAt": null,
+          "startedAt": null
+        },
+        {
+          "id": "5005",
+          "phaseId": "101",
+          "code": "TT-05",
+          "title": "Plan review with supervisor",
+          "description": "",
+          "status": "LOCKED",
+          "joinPolicy": "AND",
+          "assignedUserId": "11",
+          "dueDate": "2026-11-27T05:00:00.000Z",
+          "estimatedHours": 2,
+          "version": 0,
+          "uiMetadata": {},
+          "forceUnlockedBy": null,
+          "forceUnlockedAt": null,
+          "createdAt": "2026-11-17T05:00:00.000Z",
+          "completedAt": null,
+          "isOverdue": false,
+          "reopenedAt": null,
+          "startedAt": null
+        }
+      ],
+      "dependencies": [
+        {
+          "parentNodeId": "5001",
+          "childNodeId": "5002"
+        },
+        {
+          "parentNodeId": "5002",
+          "childNodeId": "5003"
+        },
+        {
+          "parentNodeId": "5001",
+          "childNodeId": "5004"
+        },
+        {
+          "parentNodeId": "5003",
+          "childNodeId": "5005"
+        }
+      ]
+    },
+    "members": [
+      {
+        "id": "11",
+        "name": "Hoa Lý",
+        "role": "OWNER"
+      },
+      {
+        "id": "12",
+        "name": "Khang Mai",
+        "role": "MANAGER"
+      },
+      {
+        "id": "13",
+        "name": "Long Tạ",
+        "role": "COLLABORATOR"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": "901",
+        "name": "Project charter",
+        "type": "DOCS",
+        "url": "https://docs.google.com/document/d/doc-3",
+        "nodeId": "5001",
+        "createdAt": "2026-11-17T05:00:00.000Z"
+      }
+    ],
+    "feedback": {
+      "total": 0,
+      "resolved": 0
+    }
+  }
+}

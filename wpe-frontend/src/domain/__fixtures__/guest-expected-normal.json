@@ -1,0 +1,226 @@
+{
+  "total": 20,
+  "done": 10,
+  "pct": 50,
+  "overdueCodes": [
+    "WPE-16",
+    "WPE-09"
+  ],
+  "blockedByOverdue": 4,
+  "onTime": 8,
+  "onTimeBase": 12,
+  "breakdown": {
+    "DONE": 8,
+    "LATE": 2,
+    "REVIEW": 2,
+    "IN_PROGRESS": 3,
+    "TODO": 1,
+    "LOCKED": 4
+  },
+  "lateDone": [
+    {
+      "code": "WPE-07",
+      "lateBy": 4
+    },
+    {
+      "code": "WPE-03",
+      "lateBy": 2
+    }
+  ],
+  "lateDays": 6,
+  "overdueDays": 3,
+  "missed": 4,
+  "reopened": 1,
+  "completed": false,
+  "lastDueDate": "2026-12-15T05:00:00.000Z",
+  "finishedAt": "2026-11-14T05:00:00.000Z",
+  "currentPhase": "Build",
+  "attention": [
+    {
+      "code": "WPE-16",
+      "kind": 0,
+      "text": "Overdue 1d"
+    },
+    {
+      "code": "WPE-09",
+      "kind": 0,
+      "text": "Overdue 2d"
+    },
+    {
+      "code": "WPE-13",
+      "kind": 1,
+      "text": "Due today"
+    },
+    {
+      "code": "WPE-15",
+      "kind": 2,
+      "text": "No assignee · due in 6d"
+    }
+  ],
+  "phases": [
+    {
+      "name": "Analysis",
+      "index": 0,
+      "tasks": 4,
+      "done": 4,
+      "pct": 100,
+      "overdue": 0,
+      "late": 1,
+      "plannedEnd": "2026-10-20T05:00:00.000Z",
+      "start": "2026-10-05T05:00:00.000Z",
+      "end": "2026-10-20T05:00:00.000Z",
+      "verdict": "Finished on time",
+      "onTimePct": 75
+    },
+    {
+      "name": "Design",
+      "index": 1,
+      "tasks": 6,
+      "done": 4,
+      "pct": 67,
+      "overdue": 1,
+      "late": 1,
+      "plannedEnd": "2026-11-22T05:00:00.000Z",
+      "start": "2026-10-24T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 1 overdue",
+      "onTimePct": 60
+    },
+    {
+      "name": "Build",
+      "index": 2,
+      "tasks": 6,
+      "done": 2,
+      "pct": 33,
+      "overdue": 1,
+      "late": 0,
+      "plannedEnd": "2026-11-26T05:00:00.000Z",
+      "start": "2026-11-03T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 1 overdue",
+      "onTimePct": 67
+    },
+    {
+      "name": "Testing & Delivery",
+      "index": 3,
+      "tasks": 4,
+      "done": 0,
+      "pct": 0,
+      "overdue": 0,
+      "late": 0,
+      "plannedEnd": "2026-12-15T05:00:00.000Z",
+      "start": null,
+      "end": null,
+      "verdict": "Not started",
+      "onTimePct": null
+    }
+  ],
+  "team": [
+    {
+      "memberId": "11",
+      "total": 5,
+      "done": 3,
+      "onTime": 3,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 1,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 100
+    },
+    {
+      "memberId": "12",
+      "total": 4,
+      "done": 3,
+      "onTime": 3,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 1,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": 100
+    },
+    {
+      "memberId": "13",
+      "total": 4,
+      "done": 2,
+      "onTime": 0,
+      "late": 2,
+      "worstCode": "WPE-07",
+      "worstDays": 4,
+      "overdue": 1,
+      "active": 1,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 0
+    },
+    {
+      "memberId": "14",
+      "total": 4,
+      "done": 2,
+      "onTime": 2,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 1,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 100
+    },
+    {
+      "memberId": "15",
+      "total": 2,
+      "done": 0,
+      "onTime": 0,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 1,
+      "active": 1,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 0
+    }
+  ],
+  "blocks": {
+    "WPE-09": [
+      "WPE-19",
+      "WPE-20"
+    ],
+    "WPE-13": [
+      "WPE-17",
+      "WPE-18",
+      "WPE-19",
+      "WPE-20"
+    ],
+    "WPE-14": [
+      "WPE-17",
+      "WPE-18",
+      "WPE-19",
+      "WPE-20"
+    ],
+    "WPE-16": [
+      "WPE-17",
+      "WPE-18",
+      "WPE-19",
+      "WPE-20"
+    ],
+    "WPE-17": [
+      "WPE-18",
+      "WPE-19",
+      "WPE-20"
+    ],
+    "WPE-18": [
+      "WPE-19",
+      "WPE-20"
+    ],
+    "WPE-19": [
+      "WPE-20"
+    ]
+  }
+}

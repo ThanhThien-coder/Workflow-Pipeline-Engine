@@ -1,0 +1,721 @@
+{
+  "total": 265,
+  "done": 224,
+  "pct": 85,
+  "overdueCodes": [
+    "CEP-222",
+    "CEP-227",
+    "CEP-224",
+    "CEP-030",
+    "CEP-104",
+    "CEP-137",
+    "CEP-169",
+    "CEP-179",
+    "CEP-184",
+    "CEP-223"
+  ],
+  "blockedByOverdue": 6,
+  "onTime": 166,
+  "onTimeBase": 234,
+  "breakdown": {
+    "DONE": 166,
+    "LATE": 58,
+    "REVIEW": 3,
+    "IN_PROGRESS": 10,
+    "TODO": 7,
+    "LOCKED": 21
+  },
+  "lateDone": [
+    {
+      "code": "CEP-019",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-023",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-048",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-053",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-068",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-086",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-101",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-115",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-120",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-133",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-142",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-160",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-200",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-219",
+      "lateBy": 6
+    },
+    {
+      "code": "CEP-005",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-021",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-054",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-077",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-079",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-080",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-106",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-217",
+      "lateBy": 5
+    },
+    {
+      "code": "CEP-022",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-072",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-091",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-122",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-127",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-132",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-148",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-151",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-166",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-167",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-180",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-209",
+      "lateBy": 4
+    },
+    {
+      "code": "CEP-034",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-058",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-075",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-083",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-089",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-095",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-143",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-187",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-216",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-226",
+      "lateBy": 3
+    },
+    {
+      "code": "CEP-002",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-044",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-057",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-112",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-114",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-129",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-170",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-173",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-207",
+      "lateBy": 2
+    },
+    {
+      "code": "CEP-015",
+      "lateBy": 1
+    },
+    {
+      "code": "CEP-043",
+      "lateBy": 1
+    },
+    {
+      "code": "CEP-105",
+      "lateBy": 1
+    },
+    {
+      "code": "CEP-168",
+      "lateBy": 1
+    },
+    {
+      "code": "CEP-213",
+      "lateBy": 1
+    }
+  ],
+  "lateDays": 225,
+  "overdueDays": 732,
+  "missed": 68,
+  "reopened": 6,
+  "completed": false,
+  "lastDueDate": "2026-12-29T05:00:00.000Z",
+  "finishedAt": "2026-11-20T07:00:00.000Z",
+  "currentPhase": "Integration & testing",
+  "attention": [
+    {
+      "code": "CEP-222",
+      "kind": 0,
+      "text": "Overdue 7d"
+    },
+    {
+      "code": "CEP-227",
+      "kind": 0,
+      "text": "Overdue 1d"
+    },
+    {
+      "code": "CEP-224",
+      "kind": 0,
+      "text": "Overdue 5d"
+    },
+    {
+      "code": "CEP-030",
+      "kind": 0,
+      "text": "Overdue 258d"
+    },
+    {
+      "code": "CEP-104",
+      "kind": 0,
+      "text": "Overdue 157d"
+    },
+    {
+      "code": "CEP-137",
+      "kind": 0,
+      "text": "Overdue 113d"
+    },
+    {
+      "code": "CEP-169",
+      "kind": 0,
+      "text": "Overdue 73d"
+    },
+    {
+      "code": "CEP-179",
+      "kind": 0,
+      "text": "Overdue 59d"
+    },
+    {
+      "code": "CEP-184",
+      "kind": 0,
+      "text": "Overdue 53d"
+    },
+    {
+      "code": "CEP-223",
+      "kind": 0,
+      "text": "Overdue 6d"
+    },
+    {
+      "code": "CEP-230",
+      "kind": 1,
+      "text": "Due in 2d"
+    },
+    {
+      "code": "CEP-232",
+      "kind": 2,
+      "text": "No assignee · due in 5d"
+    },
+    {
+      "code": "CEP-228",
+      "kind": 2,
+      "text": "No assignee · due in 0d"
+    }
+  ],
+  "phases": [
+    {
+      "name": "Kickoff",
+      "index": 0,
+      "tasks": 30,
+      "done": 29,
+      "pct": 97,
+      "overdue": 1,
+      "late": 7,
+      "plannedEnd": "2026-03-07T05:00:00.000Z",
+      "start": "2026-02-02T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 1 overdue",
+      "onTimePct": 73
+    },
+    {
+      "name": "Requirements",
+      "index": 1,
+      "tasks": 21,
+      "done": 21,
+      "pct": 100,
+      "overdue": 0,
+      "late": 4,
+      "plannedEnd": "2026-04-09T05:00:00.000Z",
+      "start": "2026-03-04T05:00:00.000Z",
+      "end": "2026-04-10T05:00:00.000Z",
+      "verdict": "Finished 1d late",
+      "onTimePct": 81
+    },
+    {
+      "name": "a",
+      "index": 2,
+      "tasks": 24,
+      "done": 24,
+      "pct": 100,
+      "overdue": 0,
+      "late": 7,
+      "plannedEnd": "2026-05-12T05:00:00.000Z",
+      "start": "2026-04-05T05:00:00.000Z",
+      "end": "2026-05-15T05:00:00.000Z",
+      "verdict": "Finished 3d late",
+      "onTimePct": 71
+    },
+    {
+      "name": "a",
+      "index": 3,
+      "tasks": 28,
+      "done": 28,
+      "pct": 100,
+      "overdue": 0,
+      "late": 9,
+      "plannedEnd": "2026-06-14T05:00:00.000Z",
+      "start": "2026-05-09T05:00:00.000Z",
+      "end": "2026-06-18T05:00:00.000Z",
+      "verdict": "Finished 4d late",
+      "onTimePct": 68
+    },
+    {
+      "name": "New phase",
+      "index": 4,
+      "tasks": 22,
+      "done": 21,
+      "pct": 95,
+      "overdue": 1,
+      "late": 7,
+      "plannedEnd": "2026-07-17T05:00:00.000Z",
+      "start": "2026-06-14T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 1 overdue",
+      "onTimePct": 64
+    },
+    {
+      "name": "Architecture & design",
+      "index": 5,
+      "tasks": 31,
+      "done": 30,
+      "pct": 97,
+      "overdue": 1,
+      "late": 8,
+      "plannedEnd": "2026-08-19T05:00:00.000Z",
+      "start": "2026-07-15T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 1 overdue",
+      "onTimePct": 71
+    },
+    {
+      "name": "Backend services",
+      "index": 6,
+      "tasks": 22,
+      "done": 21,
+      "pct": 95,
+      "overdue": 1,
+      "late": 6,
+      "plannedEnd": "2026-09-21T05:00:00.000Z",
+      "start": "2026-08-17T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 1 overdue",
+      "onTimePct": 68
+    },
+    {
+      "name": "Web frontend",
+      "index": 7,
+      "tasks": 28,
+      "done": 26,
+      "pct": 93,
+      "overdue": 2,
+      "late": 3,
+      "plannedEnd": "2026-10-24T05:00:00.000Z",
+      "start": "2026-09-20T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 2 overdue",
+      "onTimePct": 82
+    },
+    {
+      "name": "Integration & testing",
+      "index": 8,
+      "tasks": 27,
+      "done": 18,
+      "pct": 67,
+      "overdue": 4,
+      "late": 7,
+      "plannedEnd": "2026-11-26T05:00:00.000Z",
+      "start": "2026-10-23T05:00:00.000Z",
+      "end": null,
+      "verdict": "Behind · 4 overdue",
+      "onTimePct": 50
+    },
+    {
+      "name": "Release and final report",
+      "index": 9,
+      "tasks": 28,
+      "done": 4,
+      "pct": 14,
+      "overdue": 0,
+      "late": 0,
+      "plannedEnd": "2026-12-29T05:00:00.000Z",
+      "start": "2026-11-18T07:00:00.000Z",
+      "end": null,
+      "verdict": "On track",
+      "onTimePct": 100
+    },
+    {
+      "name": "No phase",
+      "index": -1,
+      "tasks": 4,
+      "done": 2,
+      "pct": 50,
+      "overdue": 0,
+      "late": 0,
+      "plannedEnd": "2026-11-27T05:00:00.000Z",
+      "start": "2026-11-08T05:00:00.000Z",
+      "end": null,
+      "verdict": "On track",
+      "onTimePct": 100
+    }
+  ],
+  "team": [
+    {
+      "memberId": "11",
+      "total": 44,
+      "done": 37,
+      "onTime": 27,
+      "late": 10,
+      "worstCode": "CEP-053",
+      "worstDays": 6,
+      "overdue": 2,
+      "active": 3,
+      "todo": 1,
+      "waiting": 3,
+      "onTimePct": 69
+    },
+    {
+      "memberId": "12",
+      "total": 37,
+      "done": 36,
+      "onTime": 22,
+      "late": 14,
+      "worstCode": "CEP-019",
+      "worstDays": 6,
+      "overdue": 1,
+      "active": 1,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": 59
+    },
+    {
+      "memberId": "13",
+      "total": 43,
+      "done": 38,
+      "onTime": 27,
+      "late": 11,
+      "worstCode": "CEP-068",
+      "worstDays": 6,
+      "overdue": 1,
+      "active": 1,
+      "todo": 2,
+      "waiting": 2,
+      "onTimePct": 69
+    },
+    {
+      "memberId": "14",
+      "total": 36,
+      "done": 30,
+      "onTime": 25,
+      "late": 5,
+      "worstCode": "CEP-101",
+      "worstDays": 6,
+      "overdue": 1,
+      "active": 1,
+      "todo": 0,
+      "waiting": 5,
+      "onTimePct": 81
+    },
+    {
+      "memberId": "15",
+      "total": 25,
+      "done": 20,
+      "onTime": 14,
+      "late": 6,
+      "worstCode": "CEP-120",
+      "worstDays": 6,
+      "overdue": 1,
+      "active": 1,
+      "todo": 2,
+      "waiting": 2,
+      "onTimePct": 67
+    },
+    {
+      "memberId": "16",
+      "total": 21,
+      "done": 17,
+      "onTime": 14,
+      "late": 3,
+      "worstCode": "CEP-023",
+      "worstDays": 6,
+      "overdue": 1,
+      "active": 2,
+      "todo": 0,
+      "waiting": 2,
+      "onTimePct": 78
+    },
+    {
+      "memberId": "17",
+      "total": 14,
+      "done": 12,
+      "onTime": 9,
+      "late": 3,
+      "worstCode": "CEP-151",
+      "worstDays": 4,
+      "overdue": 2,
+      "active": 2,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": 64
+    },
+    {
+      "memberId": "18",
+      "total": 14,
+      "done": 10,
+      "onTime": 7,
+      "late": 3,
+      "worstCode": "CEP-200",
+      "worstDays": 6,
+      "overdue": 1,
+      "active": 1,
+      "todo": 1,
+      "waiting": 2,
+      "onTimePct": 64
+    },
+    {
+      "memberId": "19",
+      "total": 12,
+      "done": 11,
+      "onTime": 11,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 100
+    },
+    {
+      "memberId": "20",
+      "total": 7,
+      "done": 6,
+      "onTime": 4,
+      "late": 2,
+      "worstCode": "CEP-166",
+      "worstDays": 4,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 67
+    },
+    {
+      "memberId": "21",
+      "total": 8,
+      "done": 7,
+      "onTime": 6,
+      "late": 1,
+      "worstCode": "CEP-142",
+      "worstDays": 6,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 86
+    },
+    {
+      "memberId": "22",
+      "total": 0,
+      "done": 0,
+      "onTime": 0,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": null
+    }
+  ],
+  "blocks": {
+    "CEP-222": [
+      "CEP-246",
+      "CEP-254",
+      "CEP-255"
+    ],
+    "CEP-224": [
+      "CEP-250"
+    ],
+    "CEP-227": [
+      "CEP-259",
+      "CEP-261"
+    ],
+    "CEP-230": [
+      "CEP-231",
+      "CEP-235",
+      "CEP-247",
+      "CEP-249",
+      "CEP-252",
+      "CEP-260"
+    ],
+    "CEP-232": [
+      "CEP-240",
+      "CEP-243",
+      "CEP-244",
+      "CEP-245"
+    ],
+    "CEP-235": [
+      "CEP-247",
+      "CEP-252"
+    ],
+    "CEP-236": [
+      "CEP-257"
+    ],
+    "CEP-240": [
+      "CEP-243",
+      "CEP-244",
+      "CEP-245"
+    ],
+    "CEP-241": [
+      "CEP-242",
+      "CEP-251",
+      "CEP-258"
+    ],
+    "CEP-243": [
+      "CEP-244",
+      "CEP-245"
+    ],
+    "CEP-244": [
+      "CEP-245"
+    ],
+    "CEP-248": [
+      "CEP-253"
+    ],
+    "CEP-249": [
+      "CEP-260"
+    ]
+  }
+}

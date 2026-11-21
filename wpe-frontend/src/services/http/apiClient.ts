@@ -25,6 +25,8 @@ export interface ApiRequestOptions {
   query?: Record<string, QueryValue>
   headers?: Record<string, string>
   signal?: AbortSignal
+  /** Bỏ qua xác thực: không gửi Authorization / X-Debug-User-Id và không gọi unauthorizedHandler. */
+  skipAuth?: boolean
 }
 
 export interface UnauthorizedContext {
@@ -103,11 +105,13 @@ function buildHeaders(options: ApiRequestOptions, token: string | null): Record<
   if (options.body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json'
   }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  } else if (import.meta.env.DEV) {
-    const debugUserId = getStoredUserId()
-    if (debugUserId) headers['X-Debug-User-Id'] = debugUserId
+  if (!options.skipAuth) {
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    } else if (import.meta.env.DEV) {
+      const debugUserId = getStoredUserId()
+      if (debugUserId) headers['X-Debug-User-Id'] = debugUserId
+    }
   }
   return { ...headers, ...(options.headers ?? {}) }
 }
@@ -163,7 +167,7 @@ export function getLastLocalWriteAt(): number {
 
 async function send(method: HttpMethod, path: string, options: ApiRequestOptions): Promise<{ res: Response; sentToken: string | null }> {
   if (method !== 'GET') lastLocalWriteAt = Date.now()
-  const token = getStoredToken()
+  const token = options.skipAuth ? null : getStoredToken()
   const init: RequestInit = {
     method,
     headers: buildHeaders(options, token),

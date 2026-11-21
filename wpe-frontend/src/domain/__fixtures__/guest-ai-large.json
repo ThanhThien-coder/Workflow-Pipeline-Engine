@@ -1,0 +1,12 @@
+{
+  "content": "Project health: at risk. The first seven phases are essentially complete, but Integration & testing is slipping: a cluster of overdue tasks there holds up most of the release phase.",
+  "highlights": [
+    "Clear the overdue integration tasks before starting new frontend work.",
+    "Give an owner to the unassigned tasks due next week."
+  ],
+  "risks": [
+    "Several overdue tasks sit on the path to the final release.",
+    "Three members hold most of the open work; the load is uneven."
+  ],
+  "generatedAt": "2026-11-19T08:00:00.000Z"
+}

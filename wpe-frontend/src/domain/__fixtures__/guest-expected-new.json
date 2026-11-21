@@ -1,0 +1,107 @@
+{
+  "total": 5,
+  "done": 1,
+  "pct": 20,
+  "overdueCodes": [],
+  "blockedByOverdue": 0,
+  "onTime": 1,
+  "onTimeBase": 1,
+  "breakdown": {
+    "DONE": 1,
+    "LATE": 0,
+    "REVIEW": 0,
+    "IN_PROGRESS": 1,
+    "TODO": 1,
+    "LOCKED": 2
+  },
+  "lateDone": [],
+  "lateDays": 0,
+  "overdueDays": 0,
+  "missed": 0,
+  "reopened": 0,
+  "completed": false,
+  "lastDueDate": "2026-11-27T05:00:00.000Z",
+  "finishedAt": "2026-11-17T05:00:00.000Z",
+  "currentPhase": "Planning",
+  "attention": [
+    {
+      "code": "TT-02",
+      "kind": 1,
+      "text": "Due in 1d"
+    },
+    {
+      "code": "TT-04",
+      "kind": 2,
+      "text": "No assignee · due in 5d"
+    }
+  ],
+  "phases": [
+    {
+      "name": "Planning",
+      "index": 0,
+      "tasks": 5,
+      "done": 1,
+      "pct": 20,
+      "overdue": 0,
+      "late": 0,
+      "plannedEnd": "2026-11-27T05:00:00.000Z",
+      "start": "2026-11-16T05:00:00.000Z",
+      "end": null,
+      "verdict": "On track",
+      "onTimePct": 100
+    }
+  ],
+  "team": [
+    {
+      "memberId": "11",
+      "total": 2,
+      "done": 1,
+      "onTime": 1,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": 100
+    },
+    {
+      "memberId": "12",
+      "total": 1,
+      "done": 0,
+      "onTime": 0,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 1,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": null
+    },
+    {
+      "memberId": "13",
+      "total": 1,
+      "done": 0,
+      "onTime": 0,
+      "late": 0,
+      "worstCode": null,
+      "worstDays": 0,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 1,
+      "onTimePct": null
+    }
+  ],
+  "blocks": {
+    "TT-02": [
+      "TT-03",
+      "TT-05"
+    ],
+    "TT-03": [
+      "TT-05"
+    ]
+  }
+}
