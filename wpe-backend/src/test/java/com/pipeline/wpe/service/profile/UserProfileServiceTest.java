@@ -483,7 +483,7 @@ class UserProfileServiceTest {
     @DisplayName("setProjectPublic: user là thành viên -> cập nhật publicProjectIds thành công")
     void setProjectPublic_success() {
         when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
-        ProjectEntity project = ProjectEntity.builder().id(999L).ownerId(888L).name("Collab Project").status(ProjectStatus.PLANNING).build();
+        ProjectEntity project = ProjectEntity.builder().id(999L).ownerId(888L).name("Collab Project").status(ProjectStatus.DRAFT).build();
         when(projectRepository.findById(999L)).thenReturn(Optional.of(project));
         when(projectMemberRepository.existsByProjectIdAndUserIdAndRemovedAtIsNull(999L, 10L)).thenReturn(true);
         when(workPhaseRepository.findByProjectIdAndParentPhaseIdIsNullOrderByOrderIndexAsc(999L)).thenReturn(List.of());
@@ -602,9 +602,9 @@ class UserProfileServiceTest {
 
         ProjectEntity projActive = ProjectEntity.builder()
             .id(50L).name("Active Project").ownerId(10L).status(ProjectStatus.ACTIVE).build();
-        ProjectEntity projCompleted = ProjectEntity.builder()
-            .id(51L).name("Done Project").ownerId(10L).status(ProjectStatus.COMPLETED).build();
-        when(projectRepository.findAllAccessibleProjects(10L)).thenReturn(List.of(projActive, projCompleted));
+        ProjectEntity projDraft = ProjectEntity.builder()
+            .id(51L).name("Draft Project").ownerId(10L).status(ProjectStatus.DRAFT).build();
+        when(projectRepository.findAllAccessibleProjects(10L)).thenReturn(List.of(projActive, projDraft));
 
         WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(1L).projectId(50L).name("Discovery").orderIndex(0).build();
         WorkPhaseEntity p2 = WorkPhaseEntity.builder().id(2L).projectId(50L).name("Delivery").orderIndex(1).build();
@@ -636,7 +636,7 @@ class UserProfileServiceTest {
         assertThat(activeProjRes.stats().tasksDone()).isEqualTo(1); // n1 done
         assertThat(activeProjRes.stats().onTimePct()).isEqualTo(100); // 1 on time / 1 done
 
-        ProfileProjectResponse completedProjRes = res.projects().stream().filter(p -> p.projectId().equals("51")).findFirst().orElseThrow();
-        assertThat(completedProjRes.phaseLabel()).isEqualTo("Completed");
+        ProfileProjectResponse draftProjRes = res.projects().stream().filter(p -> p.projectId().equals("51")).findFirst().orElseThrow();
+        assertThat(draftProjRes.phaseLabel()).isEqualTo("Draft");
     }
 }

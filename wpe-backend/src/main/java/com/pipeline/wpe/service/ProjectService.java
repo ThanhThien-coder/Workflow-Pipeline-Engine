@@ -43,11 +43,7 @@ public class ProjectService {
 
     private static final Map<ProjectStatus, Set<ProjectStatus>> ALLOWED_TRANSITIONS = Map.of(
         ProjectStatus.DRAFT, Set.of(ProjectStatus.ARCHIVED),
-        ProjectStatus.PLANNING, Set.of(ProjectStatus.ARCHIVED),
-        ProjectStatus.ACTIVE, Set.of(ProjectStatus.PAUSED, ProjectStatus.ARCHIVED, ProjectStatus.COMPLETED),
-        ProjectStatus.PAUSED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED),
-        ProjectStatus.COMPLETED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED), // mở lại dự án đã xong
-        ProjectStatus.INACTIVE, Set.of(ProjectStatus.ARCHIVED),
+        ProjectStatus.ACTIVE, Set.of(ProjectStatus.ARCHIVED),
         ProjectStatus.ARCHIVED, Set.of(ProjectStatus.ACTIVE, ProjectStatus.DRAFT)
     );
 
@@ -264,8 +260,7 @@ public class ProjectService {
         }
 
         ProjectStatus currentStatus = project.getStatus();
-        if ((currentStatus == ProjectStatus.DRAFT || currentStatus == ProjectStatus.PLANNING)
-                && newStatus == ProjectStatus.ACTIVE) {
+        if (currentStatus == ProjectStatus.DRAFT && newStatus == ProjectStatus.ACTIVE) {
             throw new ConflictException("USE_PUBLISH", "A draft project can only become active by publishing it.");
         }
 

@@ -17,6 +17,8 @@ import com.pipeline.wpe.service.admin.AdminProjectOwnerService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -103,9 +105,10 @@ class AdminProjectOwnerServiceTest {
         assertThat(resp.candidates().get(0).username()).isEqualTo("alex.kim");
     }
 
-    @Test
-    @DisplayName("transferOwner: chuyển thành công -> ownerId đổi, member mới OWNER, chủ cũ COLLABORATOR, gọi record")
-    void testTransferOwner_success() {
+    @ParameterizedTest
+    @EnumSource(value = ProjectStatus.class, names = {"DRAFT", "ACTIVE"})
+    @DisplayName("transferOwner: chuyển thành công (mọi trạng thái trừ ARCHIVED) -> ownerId đổi, member mới OWNER, chủ cũ COLLABORATOR, gọi record")
+    void testTransferOwner_success(ProjectStatus status) {
         Long projectId = 10L;
         Long oldOwnerId = 1L;
         Long newOwnerId = 2L;
@@ -115,7 +118,7 @@ class AdminProjectOwnerServiceTest {
             .id(projectId)
             .name("Dự án Alpha")
             .ownerId(oldOwnerId)
-            .status(ProjectStatus.ACTIVE)
+            .status(status)
             .build();
 
         ProjectMemberEntity newOwnerMember = ProjectMemberEntity.builder()
@@ -227,32 +230,7 @@ class AdminProjectOwnerServiceTest {
             .satisfies(ex -> {
                 ConflictException ce = (ConflictException) ex;
                 assertThat(ce.getErrorCode()).isEqualTo("PROJECT_CLOSED");
-                assertThat(ce.getMessage()).isEqualTo("This project is archived or completed, so its owner can't be changed.");
-            });
-
-        verify(projectRepository, never()).save(any());
-        verify(projectMemberRepository, never()).save(any());
-        verify(adminAuditService, never()).record(any(), any(), any(), any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("transferOwner: dự án COMPLETED -> ném ConflictException mã PROJECT_CLOSED và không save gì")
-    void testTransferOwner_completedProject_throwsProjectClosed() {
-        Long projectId = 10L;
-        ProjectEntity project = ProjectEntity.builder()
-            .id(projectId)
-            .ownerId(1L)
-            .status(ProjectStatus.COMPLETED)
-            .build();
-
-        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
-
-        assertThatThrownBy(() -> adminProjectOwnerService.transferOwner(projectId, 2L, 99L))
-            .isInstanceOf(ConflictException.class)
-            .satisfies(ex -> {
-                ConflictException ce = (ConflictException) ex;
-                assertThat(ce.getErrorCode()).isEqualTo("PROJECT_CLOSED");
-                assertThat(ce.getMessage()).isEqualTo("This project is archived or completed, so its owner can't be changed.");
+                assertThat(ce.getMessage()).isEqualTo("This project is archived, so its owner can't be changed.");
             });
 
         verify(projectRepository, never()).save(any());

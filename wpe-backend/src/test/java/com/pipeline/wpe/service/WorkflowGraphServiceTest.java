@@ -445,25 +445,6 @@ class WorkflowGraphServiceTest {
     // ===================== B4: vá publishPipeline =====================
 
     @Test
-    @DisplayName("B4 lỗi 1: dự án PAUSED, COMPLETED, INACTIVE không xuất bản được, ném ConflictException INVALID_PROJECT_STATUS (HTTP 409)")
-    void testPublishPipelineRejectsNonDraftStatuses() {
-        for (var status : List.of(
-            com.pipeline.wpe.common.enums.ProjectStatus.PAUSED,
-            com.pipeline.wpe.common.enums.ProjectStatus.COMPLETED,
-            com.pipeline.wpe.common.enums.ProjectStatus.INACTIVE)) {
-            sampleProject.setStatus(status);
-
-            ConflictException ex = assertThrows(ConflictException.class,
-                () -> workflowGraphService.publishPipeline(1L, 2L),
-                "Dự án " + status + " phải bị chặn xuất bản");
-
-            assertEquals("INVALID_PROJECT_STATUS", ex.getErrorCode());
-            assertEquals(status, sampleProject.getStatus(), "Trạng thái dự án không được đổi");
-        }
-        verify(projectRepository, never()).save(any());
-    }
-
-    @Test
     @DisplayName("B4 lỗi 1: dự án ARCHIVED không xuất bản được, ném ConflictException PROJECT_ARCHIVED (HTTP 409)")
     void testPublishPipelineRejectsArchived() {
         sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.ARCHIVED);
@@ -484,19 +465,6 @@ class WorkflowGraphServiceTest {
 
         assertEquals("INVALID_PROJECT_STATUS", ex.getErrorCode());
         verify(projectRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("B4: dự án PLANNING vẫn xuất bản được")
-    void testPublishPipelineFromPlanning() {
-        sampleProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.PLANNING);
-        when(nodeRepository.findByProjectId(1L)).thenReturn(List.of());
-        when(nodeDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
-
-        PublishPipelineResponse response = workflowGraphService.publishPipeline(1L, 2L);
-
-        assertEquals("ACTIVE", response.status());
-        assertEquals(com.pipeline.wpe.common.enums.ProjectStatus.ACTIVE, sampleProject.getStatus());
     }
 
     @Test
