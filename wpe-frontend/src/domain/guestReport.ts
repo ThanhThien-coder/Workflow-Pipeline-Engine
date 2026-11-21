@@ -127,8 +127,17 @@ export interface GuestTeamMemberRow {
 
 export interface GuestTeamSummary {
   rows: GuestTeamMemberRow[]
+  /** Task chưa xong mà chưa giao cho ai. */
   unassignedTasks: GuestTask[]
+  /**
+   * G39: dòng "Unassigned" tính như một thành viên, gồm mọi task không có người làm (kể cả đã xong).
+   * null khi task nào cũng có người. Không nằm trong `rows` để luôn đứng cuối bảng.
+   */
+  unassignedRow: GuestTeamMemberRow | null
 }
+
+/** Thành viên giả cho dòng "Unassigned" ở bảng Who did what. */
+export const UNASSIGNED_MEMBER: GuestMember = { id: '__unassigned__', name: 'Unassigned', role: 'UNASSIGNED', initials: '?' }
 
 export type GuestBurnUpUnit = 'day' | 'week' | 'month'
 
@@ -650,44 +659,46 @@ export function buildGuestReport(dto: GuestReportDto): GuestReportModel {
     attention.sort((a, b) => a.kind - b.kind || b.task.blocks.length - a.task.blocks.length || dueSortMs(a.task) - dueSortMs(b.task))
   }
 
+  // Một dòng của bảng Who did what, từ các task của một người (hoặc nhóm task chưa giao).
+  const buildTeamRow = (member: GuestMember, ts: GuestTask[]): GuestTeamMemberRow => {
+    const memberDone = ts.filter((t) => t.status === 'DONE')
+    const memberLate = memberDone.filter(isLateDone)
+    const memberOverdue = ts.filter(isOverdue).length
+    const memberOnTime = memberDone.filter(isOnTime).length
+    const memberOnTimeBase = ts.filter(
+      (t) => t.due !== null && ((t.status === 'DONE' && t.done !== null) || isOverdue(t)),
+    ).length
+    const worstTask = memberLate.reduce<GuestTask | null>(
+      (w, t) => (!w || lateBy(t) > lateBy(w) ? t : w),
+      null,
+    )
+
+    return {
+      member,
+      memberId: member.id,
+      total: ts.length,
+      done: memberDone.length,
+      onTime: memberOnTime,
+      late: memberLate.length,
+      worst: worstTask ? { task: worstTask, lateBy: lateBy(worstTask) } : null,
+      overdue: memberOverdue,
+      active: ts.filter((t) => t.status === 'IN_PROGRESS' || t.status === 'REVIEW').length,
+      todo: ts.filter((t) => t.status === 'TODO').length,
+      waiting: ts.filter((t) => t.status === 'LOCKED').length,
+      onTimePct: memberOnTimeBase > 0 ? Math.round((memberOnTime / memberOnTimeBase) * 100) : null,
+    }
+  }
+
   // Bảng thành viên: bỏ VIEWER nếu không có task nào; FORMER vẫn giữ.
   const teamRows: GuestTeamMemberRow[] = members
-    .map((member) => {
-      const ts = tasks.filter((t) => t.assigneeId === member.id)
-      return { member, ts }
-    })
+    .map((member) => ({ member, ts: tasks.filter((t) => t.assigneeId === member.id) }))
     .filter(({ member, ts }) => !(String(member.role).toUpperCase() === 'VIEWER' && ts.length === 0))
-    .map(({ member, ts }) => {
-      const memberDone = ts.filter((t) => t.status === 'DONE')
-      const memberLate = memberDone.filter(isLateDone)
-      const memberOverdue = ts.filter(isOverdue).length
-      const memberOnTime = memberDone.filter(isOnTime).length
-      const memberOnTimeBase = ts.filter(
-        (t) => t.due !== null && ((t.status === 'DONE' && t.done !== null) || isOverdue(t)),
-      ).length
-      const worstTask = memberLate.reduce<GuestTask | null>(
-        (w, t) => (!w || lateBy(t) > lateBy(w) ? t : w),
-        null,
-      )
-
-      return {
-        member,
-        memberId: member.id,
-        total: ts.length,
-        done: memberDone.length,
-        onTime: memberOnTime,
-        late: memberLate.length,
-        worst: worstTask ? { task: worstTask, lateBy: lateBy(worstTask) } : null,
-        overdue: memberOverdue,
-        active: ts.filter((t) => t.status === 'IN_PROGRESS' || t.status === 'REVIEW').length,
-        todo: ts.filter((t) => t.status === 'TODO').length,
-        waiting: ts.filter((t) => t.status === 'LOCKED').length,
-        onTimePct: memberOnTimeBase > 0 ? Math.round((memberOnTime / memberOnTimeBase) * 100) : null,
-      }
-    })
+    .map(({ member, ts }) => buildTeamRow(member, ts))
     .sort((a, b) => b.done - a.done || (b.onTimePct ?? -1) - (a.onTimePct ?? -1))
 
   const unassignedTasks = tasks.filter((t) => !t.assigneeId && t.status !== 'DONE')
+  const allUnassigned = tasks.filter((t) => !t.assigneeId)
+  const unassignedRow = allUnassigned.length > 0 ? buildTeamRow(UNASSIGNED_MEMBER, allUnassigned) : null
 
   const burnUp = buildBurnUp(tasks, projectCreatedAt, serverNow, completed, lastDueDate, finishedAt)
 
@@ -750,6 +761,7 @@ export function buildGuestReport(dto: GuestReportDto): GuestReportModel {
     team: {
       rows: teamRows,
       unassignedTasks,
+      unassignedRow,
     },
     burnUp,
     artifacts,

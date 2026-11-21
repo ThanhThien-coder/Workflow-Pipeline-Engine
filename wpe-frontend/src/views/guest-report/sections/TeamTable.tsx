@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { GuestReportModel } from '../../../domain/guestReport'
+import type { GuestReportModel, GuestTeamMemberRow } from '../../../domain/guestReport'
 import { Avatar, Card, Sub, plural, type AvatarPerson } from '../ui'
 import { formatMemberRole } from './helpers'
 
@@ -12,20 +12,113 @@ function pctBadgeClass(pct: number | null): string {
   return 'bg-rose-50 text-rose-700'
 }
 
+/** Một dòng của bảng: một thành viên, hoặc dòng "Unassigned" (G39) gom các task chưa giao cho ai. */
+function TeamRow({
+  r,
+  person,
+  className = '',
+  isUnassigned = false,
+}: {
+  r: GuestTeamMemberRow
+  person: AvatarPerson | null
+  className?: string
+  isUnassigned?: boolean
+}) {
+  const roleMeta = [
+    isUnassigned ? 'No assignee' : formatMemberRole(r.member.role),
+    r.todo > 0 ? `${r.todo} to do` : '',
+    r.waiting > 0 ? `${r.waiting} waiting` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  return (
+    <tr className={className}>
+      <td className="py-2 pr-2">
+        <div className="flex items-center gap-2">
+          <Avatar person={person} size="h-7 w-7 text-[10px]" />
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-slate-900">{r.member.name}</div>
+            <div className="text-[10.5px] text-slate-400">{roleMeta}</div>
+          </div>
+        </div>
+      </td>
+
+      <td className="py-2 text-center font-semibold text-emerald-700">{r.onTime}</td>
+
+      <td
+        className={`py-2 text-center font-semibold ${r.late > 0 ? 'text-orange-700' : 'text-slate-300'}`}
+        title={
+          r.worst ? `Most late: ${r.worst.task.code}, done ${r.worst.lateBy} days after its due date` : undefined
+        }
+      >
+        {r.late}
+        {r.worst && (
+          <span className="block whitespace-nowrap text-[10px] font-normal text-orange-500">
+            worst +{r.worst.lateBy}d
+          </span>
+        )}
+      </td>
+
+      <td className={`py-2 text-center font-semibold ${r.overdue > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
+        {r.overdue}
+      </td>
+
+      <td className="py-2 text-center text-slate-600">{r.active}</td>
+
+      <td className="w-28 py-2">
+        <div className="flex items-center gap-1.5">
+          <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full bg-emerald-500"
+              style={{ width: `${r.total > 0 ? (r.onTime / r.total) * 100 : 0}%` }}
+            />
+            <div
+              className="h-full bg-emerald-300"
+              style={{
+                width: `${r.total > 0 ? (Math.max(0, r.done - r.onTime - r.late) / r.total) * 100 : 0}%`,
+              }}
+            />
+            <div className="h-full bg-orange-400" style={{ width: `${r.total > 0 ? (r.late / r.total) * 100 : 0}%` }} />
+          </div>
+          <span className="w-9 text-right text-[11px] font-semibold text-slate-700">
+            {r.done}/{r.total}
+          </span>
+        </div>
+      </td>
+
+      <td className="py-2 text-right">
+        {r.onTimePct === null ? (
+          <span className="text-slate-400">{r.total > 0 ? '—' : 'no task'}</span>
+        ) : (
+          <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${pctBadgeClass(r.onTimePct)}`}>
+            {r.onTimePct}%
+          </span>
+        )}
+      </td>
+    </tr>
+  )
+}
+
 export interface TeamTableProps {
   model: GuestReportModel
   avatarById: Record<string, AvatarPerson>
 }
 
 export function TeamTable({ model, avatarById }: TeamTableProps) {
-  const { rows, unassignedTasks } = model.team
+  const { rows, unassignedRow } = model.team
   const [all, setAll] = useState(false)
 
   return (
     <Card
       className="h-full"
       title="Who did what"
-      note={<Sub>Per member, from the tasks currently assigned to them. Sorted by tasks done, then on-time %.</Sub>}
+      note={
+        <Sub>
+          Per member, from the tasks currently assigned to them. Sorted by tasks done, then on-time %. Tasks with no
+          assignee are grouped in the last row.
+        </Sub>
+      }
       right={
         <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
           {plural(rows.length, 'member')}
@@ -48,103 +141,17 @@ export function TeamTable({ model, avatarById }: TeamTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((r, i) => {
-              const roleMeta = [
-                formatMemberRole(r.member.role),
-                r.todo > 0 ? `${r.todo} to do` : '',
-                r.waiting > 0 ? `${r.waiting} waiting` : '',
-              ]
-                .filter(Boolean)
-                .join(' · ')
+            {rows.map((r, i) => (
+              <TeamRow
+                key={r.memberId}
+                r={r}
+                person={avatarById[r.memberId] ?? null}
+                className={all || i < LIMIT ? '' : 'hidden print:table-row'}
+              />
+            ))}
 
-              return (
-                <tr key={r.memberId} className={all || i < LIMIT ? '' : 'hidden print:table-row'}>
-                  <td className="py-2 pr-2">
-                    <div className="flex items-center gap-2">
-                      <Avatar person={avatarById[r.memberId]} size="h-7 w-7 text-[10px]" />
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-slate-900">{r.member.name}</div>
-                        <div className="text-[10.5px] text-slate-400">{roleMeta}</div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-2 text-center font-semibold text-emerald-700">{r.onTime}</td>
-
-                  <td
-                    className={`py-2 text-center font-semibold ${r.late > 0 ? 'text-orange-700' : 'text-slate-300'}`}
-                    title={
-                      r.worst
-                        ? `Most late: ${r.worst.task.code}, done ${r.worst.lateBy} days after its due date`
-                        : undefined
-                    }
-                  >
-                    {r.late}
-                    {r.worst && (
-                      <span className="block whitespace-nowrap text-[10px] font-normal text-orange-500">
-                        worst +{r.worst.lateBy}d
-                      </span>
-                    )}
-                  </td>
-
-                  <td
-                    className={`py-2 text-center font-semibold ${r.overdue > 0 ? 'text-rose-600' : 'text-slate-300'}`}
-                  >
-                    {r.overdue}
-                  </td>
-
-                  <td className="py-2 text-center text-slate-600">{r.active}</td>
-
-                  <td className="w-28 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full bg-emerald-500"
-                          style={{ width: `${r.total > 0 ? (r.onTime / r.total) * 100 : 0}%` }}
-                        />
-                        <div
-                          className="h-full bg-emerald-300"
-                          style={{
-                            width: `${r.total > 0 ? (Math.max(0, r.done - r.onTime - r.late) / r.total) * 100 : 0}%`,
-                          }}
-                        />
-                        <div
-                          className="h-full bg-orange-400"
-                          style={{ width: `${r.total > 0 ? (r.late / r.total) * 100 : 0}%` }}
-                        />
-                      </div>
-                      <span className="w-9 text-right text-[11px] font-semibold text-slate-700">
-                        {r.done}/{r.total}
-                      </span>
-                    </div>
-                  </td>
-
-                  <td className="py-2 text-right">
-                    {r.onTimePct === null ? (
-                      <span className="text-slate-400">{r.total > 0 ? '—' : 'no task'}</span>
-                    ) : (
-                      <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${pctBadgeClass(r.onTimePct)}`}>
-                        {r.onTimePct}%
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-
-            {unassignedTasks.length > 0 && (
-              <tr className="bg-slate-50/70">
-                <td className="py-2 pr-2" colSpan={7}>
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Avatar person={null} size="h-7 w-7 text-[10px]" />
-                    <span>
-                      <b>{unassignedTasks.length}</b> open {unassignedTasks.length === 1 ? 'task has' : 'tasks have'} no
-                      assignee
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            )}
+            {/* G39: task không ai làm cũng có một dòng như thành viên, kể cả khi đã xong. Luôn ở cuối, không bị ẩn. */}
+            {unassignedRow && <TeamRow r={unassignedRow} person={null} className="bg-slate-50/70" isUnassigned />}
           </tbody>
         </table>
       </div>

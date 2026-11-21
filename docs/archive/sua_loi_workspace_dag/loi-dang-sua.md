@@ -35,6 +35,7 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G36 | Nộp task: ô "Handover Notes" thực chất thành tên artifact | FE + BE | Đã sửa, chờ test tay |
 | G37 | Trang khách: thẻ On time ghi "chưa tới hạn" khi task không có hạn chót; bảng Schedule ở mock v6 khác trang thật | FE + mock | Đã sửa, chờ test tay |
 | G38 | Trang khách: không task nào có hạn chót mà Missed deadlines vẫn ghi "Every due date met", đầu trang ghi "On track" / "all on time" | FE + mock | Đã sửa, chờ test tay |
+| G39 | Trang khách: task không giao cho ai mà đã xong thì biến mất khỏi bảng Who did what | FE + mock | Đã sửa, chờ test tay |
 
 ---
 
@@ -1007,3 +1008,21 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 **Còn lại (chưa sửa)**
 - Dải trạng thái dưới 4 thẻ (`StatusRibbon`) xếp task xong mà không có hạn chót vào "Done on time".
 
+## G39. Trang khách: task chưa giao mà đã xong biến mất khỏi bảng Who did what
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề**
+- Bảng chỉ có dòng phụ "N open task has no assignee", đếm task **chưa xong** không có người làm (`team.unassignedTasks`). Task chưa giao mà đã xong không nằm ở dòng nào, người xem không biết ai (hay không ai) làm.
+
+**Đã làm, chờ kiểm**
+- FE `domain/guestReport.ts`: tách cách tính một dòng thành `buildTeamRow`; thêm `team.unassignedRow` (thành viên giả `UNASSIGNED_MEMBER`, gồm mọi task không có người làm, kể cả đã xong), `null` khi task nào cũng có người. Không nằm trong `team.rows` nên dữ liệu mẫu và sắp xếp thành viên không đổi. Giữ `team.unassignedTasks`.
+- FE `TeamTable.tsx`: tách component `TeamRow` dùng chung; dòng "Unassigned · No assignee" đủ cột như thành viên, luôn ở cuối, không bị "Show top 6" ẩn; bỏ dòng phụ cũ; số "N members" không đếm dòng này; thêm câu "Tasks with no assignee are grouped in the last row."
+- Mock v6 `TeamTable`: làm giống (hàm `rowOf`, dòng Unassigned, bỏ dòng phụ).
+
+**Kết quả kiểm**
+- FE: test `views/guest-report` và `domain` 102/102 (thêm 4 ca ở `TeamTableUnassigned.test.tsx`); `npm run typecheck` qua.
+- Chụp bằng Chrome headless: trang thật dự án "a" có dòng Unassigned 1/1; mock `?data=normal` có dòng Unassigned 0/1 (WPE-15).
+
+**Sự cố khi sửa (đã khắc phục)**
+- Script cắt ghép `TeamTable.tsx` tính vị trí trước khi chèn component nên ghép sai, file hỏng (14 lỗi kiểu, chỉ ở file này). Hook chặn `git checkout`; người dùng đồng ý, đã ghi đè cả file bằng nội dung đúng.

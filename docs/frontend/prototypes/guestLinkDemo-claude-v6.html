@@ -1216,19 +1216,24 @@ function DeadlineAudit({ m, people, onGraph, onComment }) {
 function TeamTable({ ds, people }) {
   const LIMIT = 6;
   const [all, setAll] = useState(false);
-  const rows = ds.members.map((mb) => {
-    const ts = ds.tasks.filter((t) => t.who === mb.id);
+  // One row from a set of tasks: a member's tasks, or (same as the real page, G39) every task with no assignee.
+  const rowOf = (p, ts) => {
     const done = ts.filter((t) => t.status === 'DONE');
     const late = done.filter(isLateDone);
     const overdue = ts.filter(isOverdue).length;
     const onTime = done.length - late.length;
     const base = done.length + overdue;
-    return { p: people[mb.id], total: ts.length, done: done.length, onTime, late: late.length, worst: late.reduce((w, t) => (!w || lateBy(t) > lateBy(w) ? t : w), null), overdue, active: ts.filter((t) => ['IN_PROGRESS', 'REVIEW'].includes(t.status)).length, todo: ts.filter((t) => t.status === 'TODO').length, waiting: ts.filter((t) => t.status === 'LOCKED').length, pct: base ? Math.round((onTime / base) * 100) : null };
-  }).sort((a, b) => b.done - a.done || (b.pct ?? -1) - (a.pct ?? -1));
-  const unassigned = ds.tasks.filter((t) => !t.who && t.status !== 'DONE');
+    return { p, total: ts.length, done: done.length, onTime, late: late.length, worst: late.reduce((w, t) => (!w || lateBy(t) > lateBy(w) ? t : w), null), overdue, active: ts.filter((t) => ['IN_PROGRESS', 'REVIEW'].includes(t.status)).length, todo: ts.filter((t) => t.status === 'TODO').length, waiting: ts.filter((t) => t.status === 'LOCKED').length, pct: base ? Math.round((onTime / base) * 100) : null };
+  };
+  const rows = ds.members.map((mb) => rowOf(people[mb.id], ds.tasks.filter((t) => t.who === mb.id)))
+    .sort((a, b) => b.done - a.done || (b.pct ?? -1) - (a.pct ?? -1));
+  // Unassigned row: counted like a member (done ones too), always last and never hidden by "Show top"
+  const noOwner = ds.tasks.filter((t) => !t.who);
+  const unassignedRow = noOwner.length ? rowOf({ id: '__unassigned__', label: 'Unassigned', role: 'No assignee' }, noOwner) : null;
+  const shown = [...rows.map((r, i) => [r, all || i < LIMIT ? '' : 'hidden print-row']), ...(unassignedRow ? [[unassignedRow, 'bg-slate-50/70']] : [])];
   const pctCls = (p) => (p === null ? 'text-slate-400' : p >= 80 ? 'bg-emerald-50 text-emerald-700' : p >= 60 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700');
   return (
-    <Card className="h-full" title="Who did what" note={<Sub>Per member, from the tasks currently assigned to them. Sorted by tasks done, then on-time %.</Sub>}
+    <Card className="h-full" title="Who did what" note={<Sub>Per member, from the tasks currently assigned to them. Sorted by tasks done, then on-time %. Tasks with no assignee are grouped in the last row.</Sub>}
       right={<span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{ds.members.length} members</span>}>
       <div className="-mx-1 overflow-x-auto px-1">
         <table className="w-full min-w-[540px] text-left text-xs">
@@ -1244,11 +1249,11 @@ function TeamTable({ ds, people }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((r, i) => (
-              <tr key={r.p.id} className={all || i < LIMIT ? '' : 'hidden print-row'}>
+            {shown.map(([r, cls]) => (
+              <tr key={r.p.id} className={cls}>
                 <td className="py-2 pr-2">
                   <div className="flex items-center gap-2">
-                    <Avatar p={r.p} size="h-7 w-7 text-[10px]" />
+                    <Avatar p={r === unassignedRow ? null : r.p} size="h-7 w-7 text-[10px]" />
                     <div className="min-w-0">
                       <div className="truncate font-semibold text-slate-900">{r.p.label}</div>
                       <div className="text-[10.5px] text-slate-400">{[r.p.role, r.todo && `${r.todo} to do`, r.waiting && `${r.waiting} waiting`].filter(Boolean).join(' · ')}</div>
@@ -1271,13 +1276,6 @@ function TeamTable({ ds, people }) {
                 <td className="py-2 text-right">{r.pct === null ? <span className="text-slate-400">{r.total ? '—' : 'no task'}</span> : <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${pctCls(r.pct)}`}>{r.pct}%</span>}</td>
               </tr>
             ))}
-            {unassigned.length > 0 && (
-              <tr className="bg-slate-50/70">
-                <td className="py-2 pr-2" colSpan={7}>
-                  <div className="flex items-center gap-2 text-slate-600"><Avatar p={null} size="h-7 w-7 text-[10px]" /> <b>{unassigned.length}</b> open {unassigned.length === 1 ? 'task has' : 'tasks have'} no assignee</div>
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
