@@ -5,6 +5,7 @@ import type { TaskStatus, UserSummary } from '../../types/kanban.types'
 import { findMember } from '../../utils/memberLookup'
 import { isUnlockSatisfied, type Prerequisite } from '../../utils/taskPrerequisites'
 import { dueDateError, minDueDateInput } from '../../utils/dueDate'
+import { dueDateLockReason } from '../../utils/dueDateLock'
 import { GRAPH_READ_ONLY_MESSAGE } from '../../store/useWorkflowStore'
 
 const INPUT =
@@ -78,8 +79,9 @@ export function NodePropertiesModal({
   const doneCount = prerequisites.length - unfinished.length
   const satisfied = isUnlockSatisfied(prerequisites, join === 'ANY' ? 'ANY_COMPLETED' : 'ALL_COMPLETED')
   const isAssignee = Boolean(viewerId && currentAssignee?.id === viewerId)
+  const dueLockReason = dueDateLockReason(node)
   // G21: hạn chót không sớm hơn ngày tạo task (chỉ kiểm khi đổi ngày, ngày cũ đã lưu thì để nguyên)
-  const dueError = due !== (node.due ?? '') ? dueDateError(due, node.createdAt) : null
+  const dueError = !dueLockReason && due !== (node.due ?? '') ? dueDateError(due, node.createdAt) : null
 
   const handleSave = () => {
     if (dueError) return
@@ -292,6 +294,8 @@ export function NodePropertiesModal({
                 aria-label="Due date"
                 min={minDueDateInput(node.createdAt)}
                 value={due}
+                disabled={Boolean(dueLockReason)}
+                title={dueLockReason ?? undefined}
                 onChange={(event) => setDue(event.target.value)}
                 className={INPUT}
               />

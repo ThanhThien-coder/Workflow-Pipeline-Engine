@@ -367,6 +367,25 @@ export class MockWorkflowService implements IWorkflowService {
     this.mockArtifacts.set(projectId, list.filter((a) => a.id !== artifactId))
   }
 
+  async setArtifactGuestVisibility(
+    projectId: string,
+    artifactId: string,
+    visible: boolean,
+  ): Promise<ProjectArtifactItem> {
+    const list = await this.getProjectArtifacts(projectId)
+    let updated: ProjectArtifactItem | undefined
+    const next = list.map((a) => {
+      if (String(a.id) !== String(artifactId)) return a
+      updated = { ...a, isPublicForGuest: visible }
+      return updated
+    })
+    this.mockArtifacts.set(projectId, next)
+    if (!updated) {
+      throw new Error(`Artifact ${artifactId} not found`)
+    }
+    return structuredClone(updated)
+  }
+
   /* Dev & Simulation capabilities */
   async resetMockData(): Promise<void> {
     this.taskApi.reset()

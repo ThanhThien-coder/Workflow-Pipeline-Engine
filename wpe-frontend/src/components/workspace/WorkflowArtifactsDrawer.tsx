@@ -11,8 +11,10 @@ import {
   BookOpen,
   FolderOpen,
   Link2,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
-import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
 import type { ProjectArtifact } from '../../types/artifact.types'
 import { normalizeText } from '../../utils/searchProject'
 
@@ -142,6 +144,8 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const loadArtifacts = useWorkflowStore((state) => state.artifacts.loadArtifacts)
   const addArtifact = useWorkflowStore((state) => state.artifacts.addArtifact)
   const removeArtifact = useWorkflowStore((state) => state.artifacts.removeArtifact)
+  const setGuestVisibility = useWorkflowStore((state) => state.artifacts.setGuestVisibility)
+  const canManageGuestVisibility = useWorkflowStore(selectCanEditGraph)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
 
   const isOpen = propIsOpen !== undefined ? propIsOpen : storeIsOpen
@@ -178,6 +182,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(() => new Set())
   // Ô tìm: theo tên, link, loại (không phân biệt hoa thường và dấu)
   const [searchQuery, setSearchQuery] = useState('')
   const normalizedSearch = normalizeText(searchQuery)
@@ -238,6 +243,24 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
       showToast('Resource link removed.')
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to delete resource.')
+    }
+  }
+
+  const handleToggleGuestVisibility = async (artifact: ProjectArtifact) => {
+    const id = String(artifact.id)
+    const nextVisible = !(artifact.isPublicForGuest !== false)
+    setTogglingIds((prev) => new Set(prev).add(id))
+    try {
+      await setGuestVisibility(projectId, id, nextVisible)
+      showToast(nextVisible ? 'Visible to guests.' : 'Hidden from guests.')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to update guest visibility.')
+    } finally {
+      setTogglingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
     }
   }
 
@@ -437,6 +460,8 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   const meta = getDomainMeta(artifact.url)
                   const IconComponent = meta.icon
                   const isCopied = copiedId === artifact.id
+                  const isPublicForGuest = artifact.isPublicForGuest !== false
+                  const isToggling = togglingIds.has(String(artifact.id))
 
                   return (
                     <div
@@ -473,6 +498,25 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
                       {/* Right Action Toolbar */}
                       <div className="flex items-center gap-1 shrink-0">
+                        {/* Visible to guests (Owner / Manager only) */}
+                        {canManageGuestVisibility && (
+                          <button
+                            type="button"
+                            disabled={isToggling}
+                            aria-pressed={isPublicForGuest}
+                            aria-label={`Visible to guests: ${artifact.name || artifact.title}`}
+                            title={isPublicForGuest ? 'Visible to guests — click to hide' : 'Hidden from guests — click to show'}
+                            onClick={() => void handleToggleGuestVisibility(artifact)}
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 ${
+                              isPublicForGuest
+                                ? 'text-mp-purple-600 bg-mp-purple-50 hover:bg-mp-purple-100'
+                                : 'text-mp-n-400 hover:text-mp-n-600 hover:bg-mp-n-100'
+                            }`}
+                          >
+                            {isPublicForGuest ? <Eye size={14} /> : <EyeOff size={14} />}
+                          </button>
+                        )}
+
                         {/* Copy Link */}
                         <button
                           type="button"

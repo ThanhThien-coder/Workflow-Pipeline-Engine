@@ -21,6 +21,7 @@ import { ReopenTaskModal } from './ReopenTaskModal'
 import { ARTIFACT_TYPE_OPTIONS, artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
 import { fmtDueDate } from '../../utils/date'
 import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput } from '../../utils/dueDate'
+import { dueDateLockReason, friendlyLockMessage } from '../../utils/dueDateLock'
 import { useDismiss } from '../../hooks/useDismiss'
 import { getSavedAvatar } from '../../utils/avatarUtils'
 import { navigate } from '../../router/useRouter'
@@ -140,31 +141,37 @@ export function TaskDetailModal({
   const [assignedUserId, setAssignedUserId] = useState(task.assignedUserId ?? '')
   const [dueDateInput, setDueDateInput] = useState(toDateInput(task.dueDate))
   const [isSavingAssignment, setIsSavingAssignment] = useState(false)
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
 
   useEffect(() => {
     setAssignedUserId(task.assignedUserId ?? '')
     setDueDateInput(toDateInput(task.dueDate))
+    setAssignmentError(null)
   }, [task.id, task.assignedUserId, task.dueDate])
 
   const initialDateStr = toDateInput(task.dueDate)
   const isAssigneeChanged = assignedUserId !== (task.assignedUserId ?? '')
   const isDueDateChanged = dueDateInput !== initialDateStr
   const hasAssignmentChanges = isAssigneeChanged || isDueDateChanged
+  const dueLockReason = dueDateLockReason(task)
   // G21: hạn chót không sớm hơn ngày tạo task (chỉ kiểm khi người dùng đổi ngày)
-  const dueError = isDueDateChanged ? dueDateError(dueDateInput, task.createdAt) : null
+  const dueError = !dueLockReason && isDueDateChanged ? dueDateError(dueDateInput, task.createdAt) : null
 
   const handleSaveAssignment = async () => {
     if (!onUpdateAssignment || !hasAssignmentChanges || dueError) return
     setIsSavingAssignment(true)
+    setAssignmentError(null)
     try {
       const cmd: { assignedUserId?: string; dueDate?: string } = {}
       if (isAssigneeChanged) {
         cmd.assignedUserId = assignedUserId
       }
-      if (isDueDateChanged) {
+      if (isDueDateChanged && !dueLockReason) {
         cmd.dueDate = dateInputToEndOfDayIso(dueDateInput)
       }
       await onUpdateAssignment(cmd)
+    } catch (err) {
+      setAssignmentError(friendlyLockMessage(err) || 'Unable to update assignment. Please try again.')
     } finally {
       setIsSavingAssignment(false)
     }
@@ -392,13 +399,15 @@ export function TaskDetailModal({
                     type="date"
                     min={minDueDateInput(task.createdAt)}
                     value={dueDateInput}
+                    disabled={Boolean(dueLockReason)}
+                    title={dueLockReason ?? undefined}
                     onChange={(e) => setDueDateInput(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </div>
               </div>
-              {dueError && (
-                <p role="alert" className="text-[11px] font-medium text-red-600">{dueError}</p>
+              {(dueError || assignmentError) && (
+                <p role="alert" className="text-[11px] font-medium text-red-600">{dueError || assignmentError}</p>
               )}
               <div className="flex justify-end pt-1">
                 <button

@@ -290,3 +290,39 @@ describe('HttpWorkflowService.createPhase: lưu vị trí thẻ phase khi tạo'
     expect([phase.x, phase.y]).toEqual([510, 280])
   })
 })
+
+describe('HttpWorkflowService.setArtifactGuestVisibility', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        id: 12,
+        projectId: 7,
+        name: 'Specs',
+        type: 'DOCS',
+        url: 'https://docs.example.com/1',
+        isInRepository: true,
+        isPublicForGuest: false,
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('gọi PATCH /projects/{projectId}/artifacts/{artifactId}/guest-visibility?visible=false', async () => {
+    const res = await new HttpWorkflowService().setArtifactGuestVisibility('7', '12', false)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://localhost:8080/api/v1/projects/7/artifacts/12/guest-visibility?visible=false')
+    expect(init.method).toBe('PATCH')
+    expect(res?.isPublicForGuest).toBe(false)
+  })
+})

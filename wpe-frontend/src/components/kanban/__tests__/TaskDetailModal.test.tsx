@@ -157,7 +157,12 @@ describe('TaskDetailModal Component', () => {
 
     render(
       <TaskDetailModal
-        task={{ ...mockTask, status: 'TODO' }}
+        task={{
+          ...mockTask,
+          status: 'TODO',
+          createdAt: '2026-10-01T00:00:00Z',
+          dueDate: '2099-10-15T23:59:59+07:00',
+        }}
         actor={ownerActor}
         members={mockMembers}
         onClose={vi.fn()}
@@ -170,15 +175,37 @@ describe('TaskDetailModal Component', () => {
     const saveButton = screen.getByRole('button', { name: /Save assignment/i })
 
     // Đổi ngày hạn chót
-    fireEvent.change(dueDateInput, { target: { value: '2026-11-20' } })
+    fireEvent.change(dueDateInput, { target: { value: '2099-11-20' } })
     expect((saveButton as HTMLButtonElement).disabled).toBe(false)
 
     fireEvent.click(saveButton)
     expect(handleUpdateAssignment).toHaveBeenCalledTimes(1)
     // Hạn chót là 23:59:59 theo giờ máy người dùng, gửi lên dạng ISO (UTC)
     expect(handleUpdateAssignment).toHaveBeenCalledWith({
-      dueDate: new Date(2026, 10, 20, 23, 59, 59).toISOString(),
+      dueDate: new Date(2099, 10, 20, 23, 59, 59).toISOString(),
     })
+  })
+
+  it('khóa ô hạn chót kèm title giải thích khi hạn đã qua', () => {
+    render(
+      <TaskDetailModal
+        task={{
+          ...mockTask,
+          status: 'IN_PROGRESS',
+          dueDate: '2026-10-15T23:59:59+07:00',
+        }}
+        actor={ownerActor}
+        members={mockMembers}
+        onClose={vi.fn()}
+        onMove={vi.fn()}
+        onUpdateAssignment={vi.fn().mockResolvedValue(true)}
+      />
+    )
+
+    const dueDateInput = screen.getByLabelText('Due date') as HTMLInputElement
+    expect(dueDateInput.disabled).toBe(true)
+    expect(dueDateInput.title).toBe('Due date passed — locked so the late record stays accurate')
+    expect((screen.getByLabelText('Assignee') as HTMLSelectElement).disabled).toBe(false)
   })
 
   it('actor COLLABORATOR không thấy khối "Phân công" kể cả khi có onUpdateAssignment', () => {
