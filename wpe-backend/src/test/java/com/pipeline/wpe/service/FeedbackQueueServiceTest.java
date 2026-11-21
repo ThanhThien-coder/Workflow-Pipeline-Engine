@@ -272,5 +272,36 @@ class FeedbackQueueServiceTest {
         verify(feedbackRepository, never()).findById(any());
         verify(feedbackRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("G2 Submit Guest Feedback - nodeId không tồn tại và nodeId dự án khác cho cùng lỗi INVALID_NODE")
+    void testSubmitGuestFeedback_InvalidNodeIdsReturnSameError() {
+        String token = "guest-token-123";
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token).build();
+        ProjectEntity project = ProjectEntity.builder().id(projectId).ownerId(ownerId).name("Core Banking").build();
+        when(guestGatewayService.validateAndGetActiveGuestLink(token)).thenReturn(link);
+        when(feedbackRepository.countByProjectIdAndCreatedAtAfter(eq(projectId), any(Instant.class))).thenReturn(0L);
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+
+        when(nodeRepository.findById(404L)).thenReturn(Optional.empty());
+        when(nodeRepository.findById(999L)).thenReturn(Optional.of(
+            NodeEntity.builder().id(999L).projectId(99L).code("OTH-1").build()
+        ));
+
+        CreateGuestFeedbackRequest missingNodeReq = new CreateGuestFeedbackRequest(
+            "Khách", ReviewerRole.GUEST, "Góp ý", 404L);
+        CreateGuestFeedbackRequest foreignNodeReq = new CreateGuestFeedbackRequest(
+            "Khách", ReviewerRole.GUEST, "Góp ý", 999L);
+
+        assertThatThrownBy(() -> feedbackQueueService.submitGuestFeedback(token, missingNodeReq))
+            .isExactlyInstanceOf(IllegalArgumentException.class)
+            .hasMessage("INVALID_NODE: The selected task is not part of this project.");
+
+        assertThatThrownBy(() -> feedbackQueueService.submitGuestFeedback(token, foreignNodeReq))
+            .isExactlyInstanceOf(IllegalArgumentException.class)
+            .hasMessage("INVALID_NODE: The selected task is not part of this project.");
+
+        verify(feedbackRepository, never()).save(any());
+    }
 }
 

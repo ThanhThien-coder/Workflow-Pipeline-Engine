@@ -1,5 +1,7 @@
 package com.pipeline.wpe.controller;
 
+import com.pipeline.wpe.common.enums.ArtifactType;
+import com.pipeline.wpe.dto.artifact.ArtifactResponse;
 import com.pipeline.wpe.exception.UnauthorizedException;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.ArtifactService;
@@ -134,5 +136,40 @@ class ArtifactControllerTest {
         mockMvc.perform(patch("/api/v1/projects/1/artifacts/7/repository").param("isInRepo", "true"))
             .andExpect(status().isUnauthorized());
         verify(artifactService, never()).toggleRepositoryVisibility(anyLong(), anyLong(), anyBoolean(), any());
+    }
+
+    @Test
+    @DisplayName("G2 PATCH guest-visibility=false/true trả 200 và cập nhật isPublicForGuest")
+    void toggleGuestVisibility_valid_200() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(3L);
+        ArtifactResponse hidden = new ArtifactResponse(7L, 1L, null, 3L, "Link", ArtifactType.PR,
+            "https://github.com/org/repo/pull/42", true, false, null);
+        ArtifactResponse shown = new ArtifactResponse(7L, 1L, null, 3L, "Link", ArtifactType.PR,
+            "https://github.com/org/repo/pull/42", true, true, null);
+        when(artifactService.toggleGuestVisibility(1L, 7L, false, 3L)).thenReturn(hidden);
+        when(artifactService.toggleGuestVisibility(1L, 7L, true, 3L)).thenReturn(shown);
+
+        mockMvc.perform(patch("/api/v1/projects/1/artifacts/7/guest-visibility").param("visible", "false"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.isPublicForGuest").value(false));
+
+        mockMvc.perform(patch("/api/v1/projects/1/artifacts/7/guest-visibility").param("visible", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.isPublicForGuest").value(true));
+
+        verify(artifactService).toggleGuestVisibility(1L, 7L, false, 3L);
+        verify(artifactService).toggleGuestVisibility(1L, 7L, true, 3L);
+    }
+
+    @Test
+    @DisplayName("G2 PATCH guest-visibility artifact thuộc project khác → 400")
+    void toggleGuestVisibility_wrongProject_400() throws Exception {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(3L);
+        when(artifactService.toggleGuestVisibility(1L, 7L, false, 3L))
+            .thenThrow(new IllegalArgumentException("The artifact does not belong to this project."));
+
+        mockMvc.perform(patch("/api/v1/projects/1/artifacts/7/guest-visibility").param("visible", "false"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("The artifact does not belong to this project."));
     }
 }

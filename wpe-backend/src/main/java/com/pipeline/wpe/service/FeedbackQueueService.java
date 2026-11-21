@@ -79,10 +79,8 @@ public class FeedbackQueueService {
         Long validNodeId = null;
         if (request.nodeId() != null) {
             NodeEntity node = nodeRepository.findById(request.nodeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + request.nodeId()));
-            if (!Objects.equals(node.getProjectId(), projectId)) {
-                throw new IllegalArgumentException("This task does not belong to the shared project.");
-            }
+                .filter(n -> Objects.equals(n.getProjectId(), projectId))
+                .orElseThrow(() -> new IllegalArgumentException("INVALID_NODE: The selected task is not part of this project."));
             validNodeId = node.getId();
         }
 

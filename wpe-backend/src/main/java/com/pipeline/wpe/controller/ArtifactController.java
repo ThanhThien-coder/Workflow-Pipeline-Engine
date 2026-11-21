@@ -89,4 +89,20 @@ public class ArtifactController {
         ArtifactResponse response = artifactService.toggleRepositoryVisibility(projectId, artifactId, isInRepo, currentUserId);
         return ResponseEntity.ok(response);
     }
+
+    @PatchMapping("/{artifactId}/guest-visibility")
+    @Operation(
+        summary = "6.5 Bật/tắt hiển thị tài nguyên cho khách",
+        description = "Bật/tắt trạng thái hiển thị tài nguyên trên trang dành cho khách (is_public_for_guest)."
+    )
+    public ResponseEntity<ArtifactResponse> toggleGuestVisibility(
+        @PathVariable Long projectId,
+        @PathVariable Long artifactId,
+        @Parameter(description = "Trạng thái hiển thị cho khách")
+        @RequestParam(required = false, defaultValue = "true") Boolean visible
+    ) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        ArtifactResponse response = artifactService.toggleGuestVisibility(projectId, artifactId, visible, currentUserId);
+        return ResponseEntity.ok(response);
+    }
 }

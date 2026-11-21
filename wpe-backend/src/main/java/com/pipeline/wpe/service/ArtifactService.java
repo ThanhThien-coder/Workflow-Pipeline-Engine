@@ -103,12 +103,7 @@ public class ArtifactService {
      */
     @Transactional
     public void deleteArtifact(Long projectId, Long artifactId, Long currentUserId) {
-        ArtifactEntity artifact = artifactRepository.findById(artifactId)
-                .orElseThrow(() -> new ResourceNotFoundException("Artifact not found with ID: " + artifactId));
-
-        if (!artifact.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("The artifact does not belong to this project.");
-        }
+        ArtifactEntity artifact = findArtifactInProject(projectId, artifactId);
 
         // C4: không còn "currentUserId == null thì bỏ qua kiểm quyền".
         if (currentUserId == null) {
@@ -142,18 +137,40 @@ public class ArtifactService {
     public ArtifactResponse toggleRepositoryVisibility(Long projectId, Long artifactId, boolean isInRepo, Long currentUserId) {
         requireWriter(projectId, currentUserId);
 
-        ArtifactEntity artifact = artifactRepository.findById(artifactId)
-                .orElseThrow(() -> new ResourceNotFoundException("Artifact not found with ID: " + artifactId));
-
-        if (!artifact.getProjectId().equals(projectId)) {
-            throw new IllegalArgumentException("The artifact does not belong to this project.");
-        }
+        ArtifactEntity artifact = findArtifactInProject(projectId, artifactId);
 
         artifact.setIsInRepository(isInRepo);
         ArtifactEntity updated = artifactRepository.save(artifact);
         log.info("[ArtifactService] Đã cập nhật isInRepository = {} cho artifact ID: {}", isInRepo, artifactId);
         projectRealtimeNotifier.notifyProjectChanged(projectId, "ARTIFACTS", "ARTIFACT_UPDATED", currentUserId, null, updated.getNodeId());
         return ArtifactResponse.from(updated);
+    }
+
+    /**
+     * Chuyển đổi cờ hiển thị tài nguyên trên trang dành cho khách (is_public_for_guest).
+     */
+    @Transactional
+    public ArtifactResponse toggleGuestVisibility(Long projectId, Long artifactId, boolean visible, Long currentUserId) {
+        // Chỉ owner hoặc manager được ẩn hiện minh chứng với khách (collaborator thì không).
+        projectAuthorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
+
+        ArtifactEntity artifact = findArtifactInProject(projectId, artifactId);
+
+        artifact.setIsPublicForGuest(visible);
+        ArtifactEntity updated = artifactRepository.save(artifact);
+        log.info("[ArtifactService] Đã cập nhật isPublicForGuest = {} cho artifact ID: {}", visible, artifactId);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "ARTIFACTS", "ARTIFACT_UPDATED", currentUserId, null, updated.getNodeId());
+        return ArtifactResponse.from(updated);
+    }
+
+    private ArtifactEntity findArtifactInProject(Long projectId, Long artifactId) {
+        ArtifactEntity artifact = artifactRepository.findById(artifactId)
+                .orElseThrow(() -> new ResourceNotFoundException("Artifact not found with ID: " + artifactId));
+
+        if (!artifact.getProjectId().equals(projectId)) {
+            throw new IllegalArgumentException("The artifact does not belong to this project.");
+        }
+        return artifact;
     }
 
     /**

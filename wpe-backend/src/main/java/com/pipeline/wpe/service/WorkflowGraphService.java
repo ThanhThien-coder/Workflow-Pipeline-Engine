@@ -215,6 +215,11 @@ public class WorkflowGraphService {
                     + codes + (more > 0 ? " and " + more + " more" : "") + ".");
         }
 
+        Instant now = Instant.now();
+        for (NodeEntity node : nodesInPhase) {
+            DueDateRules.requireNotOverdueForDelete(node.getDueDate(), node.getStatus(), now);
+        }
+
         // Mọi task trong phase đều LOCKED/TODO: xóa cạnh phụ thuộc liên quan, rồi xóa task
         Set<Long> deletedIds = nodesInPhase.stream().map(NodeEntity::getId).collect(Collectors.toSet());
         Map<String, NodeDependencyEntity> edgesToDelete = new LinkedHashMap<>();
@@ -535,9 +540,11 @@ public class WorkflowGraphService {
         if (request.description() != null) node.setDescription(request.description());
         if (request.estimatedHours() != null) node.setEstimatedHours(request.estimatedHours());
         if (request.shouldClearDueDate()) {
+            DueDateRules.requireDueDateChangeAllowed(node.getDueDate(), null, node.getStatus(), Instant.now());
             node.setDueDate(null);
             node.setIsOverdue(false);
         } else if (request.dueDate() != null) {
+            DueDateRules.requireDueDateChangeAllowed(node.getDueDate(), request.dueDate(), node.getStatus(), Instant.now());
             DueDateRules.requireNotBeforeCreation(request.dueDate(), node.getCreatedAt());
             node.setDueDate(request.dueDate());
             // Dời hạn sang tương lai thì công việc không còn quá hạn
@@ -583,6 +590,7 @@ public class WorkflowGraphService {
             throw new ConflictException("NODE_IN_USE",
                 "Task " + node.getCode() + " is " + node.getStatus() + " and can't be deleted.");
         }
+        DueDateRules.requireNotOverdueForDelete(node.getDueDate(), node.getStatus(), Instant.now());
 
         List<NodeDependencyEntity> outgoing = nodeDependencyRepository.findByParentNodeId(nodeId);
         nodeDependencyRepository.deleteAll(outgoing);

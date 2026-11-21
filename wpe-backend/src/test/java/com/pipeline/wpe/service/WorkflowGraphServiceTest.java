@@ -1173,4 +1173,78 @@ class WorkflowGraphServiceTest {
         assertEquals(1, graph.nodes().size());
         assertEquals(completedAt, graph.nodes().get(0).completedAt());
     }
+
+    @Test
+    @DisplayName("G2 updateNode: đổi hoặc xóa hạn đã qua bị chặn với DUE_DATE_LOCKED")
+    void testUpdateNodeRejectsChangingOrClearingPassedDueDate() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setDueDate(Instant.now().minusSeconds(172800)); // 2 ngày trước
+        n.setVersion(1L);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+
+        Instant future = Instant.now().plusSeconds(172800);
+        IllegalArgumentException changeEx = assertThrows(IllegalArgumentException.class,
+            () -> workflowGraphService.updateNode(100L,
+                new UpdateNodeRequest("WPE-100", null, null, null, null, future, null, 1L), 2L));
+        assertTrue(changeEx.getMessage().startsWith("DUE_DATE_LOCKED: This due date has passed"));
+
+        IllegalArgumentException clearEx = assertThrows(IllegalArgumentException.class,
+            () -> workflowGraphService.updateNode(100L,
+                new UpdateNodeRequest("WPE-100", null, null, null, null, null, null, 1L, false, true), 2L));
+        assertTrue(clearEx.getMessage().startsWith("DUE_DATE_LOCKED: This due date has passed"));
+
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("G2 updateNode: đổi hạn tương lai sang ngày tương lai khác được phép")
+    void testUpdateNodeAllowsChangingFutureDueDate() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setDueDate(Instant.now().plusSeconds(172800));
+        n.setVersion(1L);
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+        when(nodeRepository.saveAndFlush(any(NodeEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Instant nextWeek = Instant.now().plusSeconds(7 * 86400L);
+        var response = workflowGraphService.updateNode(100L,
+            new UpdateNodeRequest("WPE-100", null, null, null, null, nextWeek, null, 1L), 2L);
+
+        assertEquals(nextWeek, response.dueDate());
+        verify(nodeRepository).saveAndFlush(n);
+    }
+
+    @Test
+    @DisplayName("G2 deleteNode: task quá hạn bị chặn với OVERDUE_TASK_LOCKED, không xóa")
+    void testDeleteNodeRejectsOverdueTask() {
+        NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
+        n.setDueDate(Instant.now().minusSeconds(172800));
+        when(nodeRepository.findById(100L)).thenReturn(Optional.of(n));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> workflowGraphService.deleteNode(100L, 2L));
+
+        assertTrue(ex.getMessage().startsWith("OVERDUE_TASK_LOCKED: An overdue task cannot be deleted"));
+        verify(nodeRepository, never()).delete(any());
+        verify(nodeDependencyRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    @DisplayName("G2 deletePhase: phase có task quá hạn bị chặn với OVERDUE_TASK_LOCKED, không xóa")
+    void testDeletePhaseRejectsOverdueTask() {
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(10L).projectId(1L).name("Phase 10").build();
+        NodeEntity overdue = node(100L, "WPE-100", NodeStatus.LOCKED);
+        overdue.setPhaseId(10L);
+        overdue.setDueDate(Instant.now().minusSeconds(172800));
+
+        when(workPhaseRepository.findById(10L)).thenReturn(Optional.of(phase));
+        when(nodeRepository.findByPhaseId(10L)).thenReturn(List.of(overdue));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> workflowGraphService.deletePhase(1L, 10L, 2L));
+
+        assertTrue(ex.getMessage().startsWith("OVERDUE_TASK_LOCKED: An overdue task cannot be deleted"));
+        verify(nodeRepository, never()).deleteAll(any());
+        verify(nodeDependencyRepository, never()).deleteAll(any());
+        verify(workPhaseRepository, never()).delete(any());
+    }
 }
