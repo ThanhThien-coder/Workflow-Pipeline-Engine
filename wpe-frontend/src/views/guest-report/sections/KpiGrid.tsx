@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { AlertTriangle, Check, ChevronRight, Clock, Package } from 'lucide-react'
 import type { GuestReportModel } from '../../../domain/guestReport'
 import { plural } from '../ui'
-import { ARTIFACT_KINDS, ARTIFACT_LABELS } from './helpers'
+import { ARTIFACT_KINDS, ARTIFACT_LABELS, hasNoDueDates, onTimeEmptyText } from './helpers'
 
 function Ring({ pct, size = 48 }: { pct: number; size?: number }) {
   const r = size / 2 - 5
@@ -83,6 +83,8 @@ export function KpiGrid({ model, onOverdue }: KpiGridProps) {
   const m = model.metrics
   const arts = model.artifacts
   const otPct = m.onTimeBase > 0 ? Math.round((m.onTime / m.onTimeBase) * 100) : null
+  // G38: không có hạn chót nào thì không có gì để trễ, hiện "—" thay cho số 0 màu xanh
+  const noDueDates = m.missed === 0 && hasNoDueDates(model.tasks)
   const types = ARTIFACT_KINDS.map((kind) => ({
     kind,
     count: arts.filter((a) => a.kind === kind).length,
@@ -107,7 +109,7 @@ export function KpiGrid({ model, onOverdue }: KpiGridProps) {
         <div className="text-3xl font-bold text-slate-900">{otPct === null ? '—' : `${otPct}%`}</div>
         <div className="mt-0.5 text-xs text-slate-500">
           {otPct === null
-            ? 'No task has reached its due date yet'
+            ? onTimeEmptyText(model.tasks)
             : `${m.onTime} of ${m.onTimeBase} tasks that reached their due date were done in time`}
         </div>
         {otPct !== null && (
@@ -124,7 +126,13 @@ export function KpiGrid({ model, onOverdue }: KpiGridProps) {
         onClick={m.missed > 0 ? onOverdue : undefined}
         hint={m.missed > 0 ? 'See list' : undefined}
       >
-        <div className={`text-3xl font-bold ${m.missed > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{m.missed}</div>
+        <div
+          className={`text-3xl font-bold ${
+            m.missed > 0 ? 'text-rose-600' : noDueDates ? 'text-slate-900' : 'text-emerald-700'
+          }`}
+        >
+          {noDueDates ? '—' : m.missed}
+        </div>
         <div className="mt-0.5 text-xs text-slate-500">
           {m.missed > 0 ? (
             <>
@@ -138,6 +146,8 @@ export function KpiGrid({ model, onOverdue }: KpiGridProps) {
               )}
               <b className="text-orange-600">{m.lateDone.length} finished late</b>
             </>
+          ) : noDueDates ? (
+            'No due dates to check yet'
           ) : (
             'Every due date met so far'
           )}

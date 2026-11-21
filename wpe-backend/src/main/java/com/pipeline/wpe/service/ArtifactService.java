@@ -5,6 +5,7 @@ import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.artifact.ArtifactResponse;
 import com.pipeline.wpe.dto.artifact.CreateArtifactRequest;
+import com.pipeline.wpe.dto.artifact.UpdateArtifactRequest;
 import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
@@ -128,6 +129,45 @@ public class ArtifactService {
         artifactRepository.delete(artifact);
         log.info("[ArtifactService] Đã xóa artifact ID: {} khỏi Project: {}", artifactId, projectId);
         projectRealtimeNotifier.notifyProjectChanged(projectId, "ARTIFACTS", "ARTIFACT_REMOVED", currentUserId, null, artifact.getNodeId());
+    }
+
+    /**
+     * Sửa tên và link của artifact.
+     * Quyền: Owner / Manager sửa mọi artifact; Collaborator chỉ sửa artifact mình đăng; Viewer không sửa (403).
+     * Đổi link thì nhận lại loại theo link mới; giữ nguyên link thì giữ loại cũ.
+     */
+    @Transactional
+    public ArtifactResponse updateArtifact(Long projectId, Long artifactId, UpdateArtifactRequest req, Long currentUserId) {
+        requireWriter(projectId, currentUserId);
+        ArtifactEntity artifact = findArtifactInProject(projectId, artifactId);
+
+        if (!currentUserId.equals(artifact.getUploadedBy()) && !isOwnerOrManager(projectId, currentUserId)) {
+            throw new ForbiddenException("ACCESS_DENIED", "You can only edit artifacts you added.");
+        }
+
+        String name = req.name().trim();
+        String url = req.url().trim();
+        if (!url.equals(artifact.getUrl())) {
+            artifact.setType(detectArtifactType(url));
+        }
+        artifact.setName(name);
+        artifact.setUrl(url);
+
+        ArtifactEntity updated = artifactRepository.save(artifact);
+        log.info("[ArtifactService] Đã sửa artifact ID: {} của Project: {}", artifactId, projectId);
+        projectRealtimeNotifier.notifyProjectChanged(projectId, "ARTIFACTS", "ARTIFACT_UPDATED", currentUserId, null, updated.getNodeId());
+        return ArtifactResponse.from(updated);
+    }
+
+    /** Chủ dự án, hoặc thành viên có vai trò OWNER / MANAGER. */
+    private boolean isOwnerOrManager(Long projectId, Long userId) {
+        ProjectEntity project = projectAuthorizationService.getProjectOrThrow(projectId);
+        if (userId.equals(project.getOwnerId())) {
+            return true;
+        }
+        return projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, userId)
+                .map(m -> m.getRole() == ProjectRole.OWNER || m.getRole() == ProjectRole.MANAGER)
+                .orElse(false);
     }
 
     /**

@@ -1,7 +1,13 @@
 import { daysBetween, type GuestReportMetrics, type GuestReportModel } from '../../../domain/guestReport'
 import { fmtDay, plural } from '../ui'
+import { hasNoDueDates } from './helpers'
 
-export function HealthPill({ metrics }: { metrics: GuestReportMetrics }) {
+/**
+ * Nhãn sức khỏe dự án ở đầu trang.
+ * G38: chưa task nào có hạn chót thì không gọi là "On track" / "all on time" (không có mốc để so),
+ * dùng cùng luật với kết quả phase ("In progress" xanh dương, "Completed").
+ */
+export function HealthPill({ metrics, noDueDates = false }: { metrics: GuestReportMetrics; noDueDates?: boolean }) {
   let cls: string
   let dot: string
   let text: string
@@ -14,12 +20,16 @@ export function HealthPill({ metrics }: { metrics: GuestReportMetrics }) {
     } else {
       cls = 'border-emerald-200 bg-emerald-50 text-emerald-700'
       dot = 'bg-emerald-500'
-      text = 'Delivered · all on time'
+      text = noDueDates ? 'Delivered' : 'Delivered · all on time'
     }
   } else if (metrics.overdue.length > 0) {
     cls = 'border-rose-200 bg-rose-50 text-rose-700'
     dot = 'bg-rose-500'
     text = `At risk · ${metrics.overdue.length} overdue`
+  } else if (noDueDates) {
+    cls = 'border-blue-200 bg-blue-50 text-blue-700'
+    dot = 'bg-blue-500'
+    text = 'In progress'
   } else {
     cls = 'border-emerald-200 bg-emerald-50 text-emerald-700'
     dot = 'bg-emerald-500'
@@ -95,7 +105,7 @@ export function ProjectHeader({ model, lastUpdated }: ProjectHeaderProps) {
                 : `${plural(realPhaseCount, 'phase')}`}
           </span>
         )}
-        {!notStarted && <HealthPill metrics={m} />}
+        {!notStarted && <HealthPill metrics={m} noDueDates={hasNoDueDates(model.tasks)} />}
       </div>
 
       {project.description && (

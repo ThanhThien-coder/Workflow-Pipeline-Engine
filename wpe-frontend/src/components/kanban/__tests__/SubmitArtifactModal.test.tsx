@@ -45,14 +45,33 @@ describe('SubmitArtifactModal', () => {
     expect(preview.textContent).toContain('Google Sheets')
     expect(preview.querySelector('svg')).not.toBeNull()
 
-    const noteInput = screen.getByPlaceholderText(/Summary of completed deliverables/i)
-    fireEvent.change(noteInput, { target: { value: 'Ready for check' } })
+    const nameInput = screen.getByLabelText(/Deliverable name/i)
+    fireEvent.change(nameInput, { target: { value: '  Budget sheet ' } })
 
     fireEvent.click(screen.getByRole('button', { name: /Submit for Review/i }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onSubmit).toHaveBeenCalledWith({
       url: 'https://docs.google.com/spreadsheets/d/123',
-      note: 'Ready for check',
+      name: 'Budget sheet',
     })
+  })
+})
+
+describe('SubmitArtifactModal — tên minh chứng (G36)', () => {
+  afterEach(() => cleanup())
+
+  it('ô là tên một dòng tối đa 200 ký tự, khóa khi chưa có link; nộp không link thì không gửi tên', () => {
+    const onSubmit = vi.fn().mockResolvedValue(true)
+    render(<SubmitArtifactModal task={sampleTask} submitting={false} onClose={vi.fn()} onSubmit={onSubmit} />)
+
+    expect(screen.queryByText(/Handover Notes/i)).toBeNull()
+    const nameInput = screen.getByLabelText(/Deliverable name/i) as HTMLInputElement
+    expect(nameInput.tagName).toBe('INPUT')
+    expect(nameInput.maxLength).toBe(200)
+    expect(nameInput.disabled).toBe(true)
+    expect(screen.getByText(/Artifact WPE-010/)).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: /Submit for Review/i }))
+    expect(onSubmit).toHaveBeenCalledWith({ url: '', name: '' })
   })
 })

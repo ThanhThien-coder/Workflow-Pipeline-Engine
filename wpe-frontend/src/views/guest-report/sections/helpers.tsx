@@ -1,5 +1,5 @@
 import { SiteIcon } from '../../../components/common/SiteIcon'
-import type { GuestMember, GuestReportPhase } from '../../../domain/guestReport'
+import type { GuestMember, GuestReportPhase, GuestTask } from '../../../domain/guestReport'
 import type { GuestArtifactKind } from '../../../types/guest.types'
 import type { AvatarPerson } from '../ui'
 
@@ -56,4 +56,22 @@ export function buildAvatarMap(members: readonly GuestMember[]): Record<string, 
     }
   })
   return map
+}
+
+/**
+ * Câu ở thẻ On time khi chưa tính được %: task chưa có hạn chót thì không bao giờ đúng hạn hay trễ,
+ * nên phải nói rõ "chưa có hạn chót" thay vì "chưa tới hạn" (dễ hiểu nhầm khi có task đang làm).
+ */
+export function onTimeEmptyText(tasks: Pick<GuestTask, 'due'>[]): string {
+  if (tasks.length === 0) return 'No tasks yet'
+  if (hasNoDueDates(tasks)) return 'No task has a due date yet, so nothing is on time or late'
+  return 'No task has reached its due date yet'
+}
+
+/**
+ * G38: chưa task nào có hạn chót (kể cả dự án chưa có task). Khi đó không có gì để đúng hạn hay trễ,
+ * nên thẻ Missed deadlines và nhãn đầu trang không được báo "đạt hết" / "On track".
+ */
+export function hasNoDueDates(tasks: Pick<GuestTask, 'due'>[]): boolean {
+  return tasks.every((t) => t.due === null)
 }

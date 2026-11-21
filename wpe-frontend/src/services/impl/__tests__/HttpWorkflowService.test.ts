@@ -73,7 +73,7 @@ describe('HttpWorkflowService: không còn fallback ngầm sang mock', () => {
     const service = new HttpWorkflowService()
 
     await expect(
-      service.submitTaskArtifact({ taskId: '5', type: 'LINK', url: 'https://x.dev', note: '' } as never),
+      service.submitTaskArtifact({ taskId: '5', type: 'LINK', url: 'https://x.dev', name: '' } as never),
     ).rejects.toMatchObject({ status: 409, code: 'OPTIMISTIC_LOCK_CONFLICT' })
   })
 
@@ -326,6 +326,17 @@ describe('HttpWorkflowService.setArtifactGuestVisibility', () => {
     expect(init.method).toBe('PATCH')
     expect(res?.isPublicForGuest).toBe(false)
   })
+
+  it('updateArtifact gọi PUT /projects/{projectId}/artifacts/{artifactId} với body chỉ có name và url', async () => {
+    const res = await new HttpWorkflowService().updateArtifact('7', '12', { name: 'Specs', url: 'https://docs.example.com/1' })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://localhost:8080/api/v1/projects/7/artifacts/12')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body as string)).toEqual({ name: 'Specs', url: 'https://docs.example.com/1' })
+    expect(res.id).toBe('12')
+    expect(res.name).toBe('Specs')
+  })
 })
 
 describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockWorkflowService', () => {
@@ -368,7 +379,7 @@ describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockW
     await service.submitTaskArtifact({
       taskId: '5',
       url: 'https://github.com/org/repo/pull/9',
-      note: 'Done',
+      name: 'Done',
     })
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
@@ -377,7 +388,7 @@ describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockW
     expect(sent).toEqual({
       taskId: '5',
       url: 'https://github.com/org/repo/pull/9',
-      note: 'Done',
+      title: 'Done',
       version: 0,
     })
   })
@@ -392,7 +403,7 @@ describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockW
       return mock.submitTaskArtifact({
         taskId: target.id,
         url,
-        note: '',
+        name: '',
       })
     }
 

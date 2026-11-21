@@ -10,4 +10,7 @@ export function artifactLabel(artifact: ArtifactItem): string {
   return siteLabel(artifact.url)
 }
 
+/** Tên minh chứng tối đa 200 ký tự (cột artifacts.name). */
+export const DELIVERABLE_NAME_MAX = 200
+
 export const isValidArtifactUrl = (url: string): boolean => /^https?:\/\/\S+\.\S+/.test(url.trim())

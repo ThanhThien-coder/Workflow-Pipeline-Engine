@@ -156,6 +156,34 @@ class SubmitTaskArtifactTest {
     }
 
     @Test
+    @DisplayName("G36: title là tên artifact (đã cắt khoảng trắng); để trống thì tên 'Artifact <mã task>'")
+    void title_isArtifactName() {
+        stateMachineService.submitTaskArtifact(TASK_ID,
+            new SubmitTaskArtifactRequest("10", null, "https://www.figma.com/file/abc", null, "  Login screen  ", null, 0L), ASSIGNEE);
+        assertThat(savedArtifact().getName()).isEqualTo("Login screen");
+    }
+
+    @Test
+    @DisplayName("G36: title trống → tên 'Artifact WPE-010'")
+    void blankTitle_defaultName() {
+        stateMachineService.submitTaskArtifact(TASK_ID,
+            new SubmitTaskArtifactRequest("10", null, "https://www.figma.com/file/abc", null, "", null, 0L), ASSIGNEE);
+        assertThat(savedArtifact().getName()).isEqualTo("Artifact WPE-010");
+    }
+
+    @Test
+    @DisplayName("G36: tên quá 200 ký tự → 400, không lưu artifact, task không chuyển REVIEW")
+    void tooLongName_rejected() {
+        assertThatThrownBy(() -> stateMachineService.submitTaskArtifact(TASK_ID,
+                new SubmitTaskArtifactRequest("10", null, "https://www.figma.com/file/abc", null, "x".repeat(201), null, 0L), ASSIGNEE))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("200 characters");
+
+        verify(artifactRepository, never()).save(any());
+        assertThat(node.getStatus()).isEqualTo(NodeStatus.IN_PROGRESS);
+    }
+
+    @Test
     @DisplayName("Nộp bài không kèm link: hợp lệ, chuyển REVIEW, không tạo artifact")
     void withoutLink_ok() {
         stateMachineService.submitTaskArtifact(TASK_ID,

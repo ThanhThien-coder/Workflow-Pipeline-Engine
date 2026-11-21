@@ -23,9 +23,9 @@ export const ROLE_TITLES: Record<ProjectRole, string> = {
 /** Mô tả ngắn từng vai trò (dùng cho tooltip). */
 export const ROLE_DESCRIPTIONS: Record<ProjectRole, string> = {
   OWNER: 'Full control: edits the pipeline, manages members and settings, and can do everything a Manager does.',
-  MANAGER: 'Edits the pipeline, unlocks tasks early, approves or returns tasks, assigns people and due dates, and handles guest feedback. Cannot publish the pipeline or manage members and settings.',
-  COLLABORATOR: 'Works on assigned tasks (start, return, submit) and adds artifacts. Cannot edit the pipeline or review work.',
-  VIEWER: 'Read-only: can view the pipeline, tasks and artifacts, and run AI Diagnosis.',
+  MANAGER: 'Edits the pipeline, unlocks tasks early, approves or returns tasks, assigns people and due dates, handles guest feedback, and runs AI Diagnosis. Cannot publish the pipeline or manage members and settings.',
+  COLLABORATOR: 'Works on assigned tasks (start, return, submit) and adds artifacts. Can read the latest AI Diagnosis but cannot run it. Cannot edit the pipeline or review work.',
+  VIEWER: 'Read-only: can view the pipeline, tasks, artifacts and the latest AI Diagnosis.',
 }
 
 /** Một câu tóm tắt quyền, hiện ở SettingsHeader. */
@@ -54,7 +54,8 @@ const row = (
 /** Khớp kiểm quyền backend (ProjectAuthorizationService và các service gọi nó). */
 export const ROLE_PERMISSIONS: RolePermissionRow[] = [
   row('View pipeline graph, Kanban, Overview and artifacts', true, true, true, true),
-  row('Run AI Diagnosis', true, true, true, true),
+  row('Read the latest AI Diagnosis', true, true, true, true),
+  row('Run AI Diagnosis', true, true, false, false),
   row('Edit pipeline (phases, tasks, links, ghost nodes)', true, true, false, false),
   row('Publish pipeline', true, false, false, false),
   row('Unlock a task early', true, true, false, false),
@@ -72,6 +73,7 @@ export const ROLE_PERMISSIONS: RolePermissionRow[] = [
   row('Work on tasks while the project is not active (Draft, Paused, Completed)', true, true, false, false),
   row('Start, pause, complete or reopen the project (Workflow screen)', true, false, false, false),
   row('Add artifacts', true, true, true, false),
+  row('Edit an artifact (name, link)', true, true, 'Own uploads', false),
   row('Delete an artifact', true, 'Own uploads', 'Own uploads', 'Own uploads'),
 ]
 

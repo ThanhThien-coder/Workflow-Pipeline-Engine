@@ -26,7 +26,7 @@ import type {
   ProjectSummaryDto,
 } from '../../types/workspace.types'
 
-import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand } from '../../types/artifact.types'
+import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand, UpdateArtifactCommand } from '../../types/artifact.types'
 
 export type { MacroPhase } from '../../types/workflow.types'
 
@@ -113,6 +113,8 @@ export interface IWorkflowService {
   /* Artifacts Hub (Repository & Deliverables) */
   getProjectArtifacts(projectId: string): Promise<ProjectArtifactItem[]>
   createArtifact(projectId: string, payload: CreateArtifactCommand): Promise<ProjectArtifactItem>
+  /** PUT /projects/{projectId}/artifacts/{artifactId}: sửa tên và link. */
+  updateArtifact(projectId: string, artifactId: string, payload: UpdateArtifactCommand): Promise<ProjectArtifactItem>
   deleteArtifact(projectId: string, artifactId: string): Promise<void>
   setArtifactGuestVisibility(projectId: string, artifactId: string, visible: boolean): Promise<ProjectArtifactItem | void>
 

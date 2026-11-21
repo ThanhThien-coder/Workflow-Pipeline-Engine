@@ -11,6 +11,7 @@ export interface KanbanTask { id: string; code: string; title: string; descripti
 /** S04: một task con trong báo cáo ảnh hưởng khi mở lại task Done. willRelock = con đang To Do sẽ bị khóa lại. */
 export interface ReopenImpactChild { id: string; code: string; title: string; status: TaskStatus; willRelock: boolean }
 export interface ReopenImpact { taskCode: string; children: ReopenImpactChild[] }
-export interface SubmitArtifactDto { taskId: string; type?: ArtifactType; url: string; note: string }
+/** name: tên minh chứng hiện trong kho Artifacts (backend lưu vào cột name; để trống thì backend đặt "Artifact <mã task>"). */
+export interface SubmitArtifactDto { taskId: string; type?: ArtifactType; url: string; name: string }
 export interface KanbanFilterState { searchKeyword: string; selectedPhaseId: PhaseFilterId }
 export type TransitionDecision = { kind: 'allow' } | { kind: 'needs-artifact' } | { kind: 'deny'; message: string }

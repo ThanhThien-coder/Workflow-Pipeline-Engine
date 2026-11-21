@@ -2,6 +2,7 @@ package com.pipeline.wpe.controller;
 
 import com.pipeline.wpe.dto.artifact.ArtifactResponse;
 import com.pipeline.wpe.dto.artifact.CreateArtifactRequest;
+import com.pipeline.wpe.dto.artifact.UpdateArtifactRequest;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.ArtifactService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,6 +57,21 @@ public class ArtifactController {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
         ArtifactResponse response = artifactService.createArtifact(projectId, request, currentUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/{artifactId}")
+    @Operation(
+        summary = "6.6 Sửa tên và link của tài nguyên",
+        description = "Đổi tên và link. Đổi link thì loại được nhận lại theo link mới. Owner/Manager sửa mọi artifact, Collaborator chỉ sửa artifact mình đăng, Viewer bị chặn (403)."
+    )
+    public ResponseEntity<ArtifactResponse> updateArtifact(
+        @PathVariable Long projectId,
+        @PathVariable Long artifactId,
+        @Valid @RequestBody UpdateArtifactRequest request
+    ) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        ArtifactResponse response = artifactService.updateArtifact(projectId, artifactId, request, currentUserId);
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{artifactId}")

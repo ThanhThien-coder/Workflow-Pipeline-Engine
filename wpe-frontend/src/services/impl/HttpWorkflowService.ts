@@ -24,7 +24,7 @@ import type {
   TaskStatus,
   UserSummary,
 } from '../../types/kanban.types'
-import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand } from '../../types/artifact.types'
+import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand, UpdateArtifactCommand } from '../../types/artifact.types'
 import type {
   CloneTemplateCommand,
   CreateProjectCommand,
@@ -196,7 +196,8 @@ export class HttpWorkflowService implements IWorkflowService {
     const body: Record<string, unknown> = {
       taskId: dto.taskId,
       url: dto.url,
-      note: dto.note,
+      // Backend lấy title làm tên artifact (bảng artifacts không có cột ghi chú)
+      title: dto.name,
       version: currentVersion,
     }
     if (dto.type) {
@@ -213,7 +214,8 @@ export class HttpWorkflowService implements IWorkflowService {
       id: result.artifact?.id || `art-${Date.now()}`,
       type: (result.artifact?.type || dto.type || 'DOCS') as ArtifactType,
       url: result.artifact?.url || dto.url,
-      note: result.artifact?.note || dto.note,
+      note: result.artifact?.note || dto.name,
+      label: result.artifact?.label || dto.name || undefined,
       uploadedAt: result.artifact?.uploadedAt || new Date().toISOString(),
     }
 
@@ -255,6 +257,14 @@ export class HttpWorkflowService implements IWorkflowService {
         nodeId: payload.nodeId ? Number(payload.nodeId) : null,
         isInRepository: payload.isInRepository ?? true,
       },
+    })
+    return this.mapArtifact(item)
+  }
+
+  /** PUT /projects/{projectId}/artifacts/{artifactId} */
+  async updateArtifact(projectId: string, artifactId: string, payload: UpdateArtifactCommand): Promise<ProjectArtifactItem> {
+    const item = await apiRequest<any>('PUT', `/projects/${projectId}/artifacts/${artifactId}`, {
+      body: { name: payload.name, url: payload.url },
     })
     return this.mapArtifact(item)
   }

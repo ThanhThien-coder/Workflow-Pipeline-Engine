@@ -31,6 +31,11 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G31 | Nút Start project có icon tên lửa; Settings có thêm nút "Start project in Workflow" trùng với màn Workflow | FE | Đã sửa, chờ test tay |
 | G32 | Trang danh sách pipeline có emoji trên các ô số liệu và "(⌘K)" trong ô tìm, nhìn như AI làm | FE | Đã sửa, chờ test tay |
 | G33 | Dự án DRAFT tạo từ template: task đã TODO, thẻ phase xanh/xám lộn xộn, phase rỗng ghi TODO, mở khóa sớm được khi chưa Start | FE + BE + DB | Đã sửa, chờ test tay |
+| G35 | Artifact không sửa được tên/link; bảng quyền Settings ghi Collaborator và Viewer chạy được AI Diagnosis | FE + BE | Đã sửa, chờ test tay |
+| G36 | Nộp task: ô "Handover Notes" thực chất thành tên artifact | FE + BE | Đã sửa, chờ test tay |
+| G37 | Trang khách: thẻ On time ghi "chưa tới hạn" khi task không có hạn chót; bảng Schedule ở mock v6 khác trang thật | FE + mock | Đã sửa, chờ test tay |
+| G38 | Trang khách: không task nào có hạn chót mà Missed deadlines vẫn ghi "Every due date met", đầu trang ghi "On track" / "all on time" | FE + mock | Đã sửa, chờ test tay |
+| G39 | Trang khách: task không giao cho ai mà đã xong thì biến mất khỏi bảng Who did what | FE + mock | Đã sửa, chờ test tay |
 
 ---
 
@@ -924,3 +929,100 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 - DB dev: Flyway áp dụng V24 rồi V25 thành công. V24 đổi dự án PLANNING duy nhất (id 2) sang DRAFT; V25 không đổi dòng nào (DB dev không có dự án PAUSED). Hiện có ACTIVE 7, ARCHIVED 1, DRAFT 8.
 - API thật (alex.kim, dự án 30 "G33 kiem tra"): gửi `PAUSED` → 400 "Invalid project status: PAUSED"; `COMPLETED` → 400; ACTIVE → ARCHIVED 200; ARCHIVED → ACTIVE 200 (dự án 30 về lại ACTIVE như cũ).
 - Giao diện: chưa mở trình duyệt kiểm (máy không có Playwright); nút theo trạng thái kiểm qua `ProjectStatusControl.test.tsx`. Cần người dùng xem tay màn Workflow.
+
+## G35. Sửa artifact và quyền chạy AI Diagnosis
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề**
+- Artifact chỉ thêm, xóa, ẩn/hiện được; gõ sai tên hoặc link thì phải xóa rồi thêm lại.
+- Settings → Roles & permissions ghi cả 4 vai trò "Run AI Diagnosis", mô tả Viewer ghi "run AI Diagnosis". Thực tế BE (`AiDiagnosticService.triggerAiDiagnostics` gọi `verifyProjectOwnerOrManager`) và nút ở Overview (`canRun`) đã chỉ cho Owner/Manager. Chỉ có một đường gọi AI tốn token (`POST /projects/{id}/ai-diagnostics`); đọc kết quả đã lưu (`GET /ai-analysis`) không tốn token.
+
+**Đã làm, chờ kiểm**
+- BE: `PUT /api/projects/{id}/artifacts/{artifactId}` (`UpdateArtifactRequest`: name, url, cùng luật kiểm với thêm mới). Owner/Manager sửa mọi artifact, Collaborator chỉ artifact mình đăng, Viewer 403. Đổi link thì nhận lại loại theo link; phát realtime `ARTIFACT_UPDATED`.
+- FE: nút bút chì trong drawer Artifacts (màn Workflow), sửa tại chỗ, Esc/Cancel hủy. Ẩn nút theo cùng luật quyền (`utils/artifactPermissions.ts`). Thêm `updateArtifact` ở `IWorkflowService`, HTTP, mock, `artifactsSlice`.
+- FE: bảng quyền tách "Read the latest AI Diagnosis" (cả 4 vai trò) và "Run AI Diagnosis" (Owner, Manager); thêm dòng "Edit an artifact"; sửa câu mô tả vai trò.
+- Tài liệu: `FRONTEND_BACKEND_INTEGRATION_MAP.md` mục 6.6 và bảng realtime.
+- Không đổi: Settings → Project Resources chưa có nút sửa (màn đó chỉ để xem, có nút dẫn sang Workflow).
+
+**Kết quả kiểm**
+- BE: `ArtifactServiceTest` (thêm 7 ca sửa) và `ArtifactControllerTest` qua hết.
+- FE: `npm run typecheck` qua; `npx vitest run` 1076/1077 qua. Ca lỗi còn lại là `MacroWorkflow.states.test.tsx` (fit 2 lần), có sẵn trên main (đã ghi ở G33, chạy lại trên code gốc vẫn lỗi).
+- API thật (backend dev): `PUT` link sai và tên rỗng → 400 `VALIDATION_FAILED`; người ngoài dự án → 403. Chưa thử sửa thành công trên dữ liệu thật và chưa xem giao diện trên trình duyệt, cần người dùng xem tay.
+
+## G36. Nộp task: ô "Handover Notes" thực chất thành tên artifact
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề**
+- Form nộp bài (`SubmitArtifactModal`: "Handover Notes"; `TaskDetailModal`: "Notes / Comments") là ô ghi chú nhiều dòng, gửi `note`. Bảng `artifacts` không có cột ghi chú: `StateMachineService.submitTaskArtifact` lấy `note` làm `artifacts.name`. Người dùng gõ ghi chú, ra một artifact tên lạ.
+- Ở chi tiết task, tên đó hiện 2 lần (nhãn và dòng phụ, vì backend trả `note` = `label` = tên).
+- Tên dài hơn 200 ký tự (độ dài cột) không bị chặn trước khi lưu.
+
+**Đã làm, chờ kiểm**
+- FE: 2 form đổi thành ô một dòng "Deliverable name (Optional)", tối đa 200 ký tự, có dòng gợi ý "Leave blank to use "Artifact <mã task>"". Ở `SubmitArtifactModal` ô bị khóa khi chưa có link (không link thì không có artifact).
+- FE: `SubmitArtifactDto.note` → `name`; `HttpWorkflowService` gửi `title` (không gửi `note`). Mock và kết quả trả về gắn `label` = tên. Dòng phụ ở chi tiết task chỉ hiện khi khác nhãn.
+- BE: tên quá 200 ký tự → 400, kiểm trước khi chuyển REVIEW.
+- Tài liệu: `FRONTEND_BACKEND_INTEGRATION_MAP.md` mục 5.3.
+
+**Kết quả kiểm**
+- BE: `SubmitTaskArtifactTest` 14/14 (thêm 3 ca: title là tên, trống → "Artifact WPE-010", quá 200 → 400), `StateMachineServiceTest` 27/27.
+- FE: `npm run typecheck` qua; test kanban, store, service, utils 279/279.
+- Chưa xem giao diện trên trình duyệt, cần người dùng xem tay.
+
+## G37. Trang khách: thẻ On time khó hiểu, mock v6 lệch bảng Schedule
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề**
+- Dự án có 1 task đang làm, không có hạn chót: thẻ On time hiện "—" và "No task has reached its due date yet". Cách tính đúng (tỉ lệ = xong đúng hạn / (xong có hạn + quá hạn), task không có hạn chót không tính), nhưng câu làm người xem tưởng hệ thống bỏ sót task đang làm.
+- Mock `docs/frontend/prototypes/guestLinkDemo-claude-v6.html` vẫn vẽ bảng phase có mini-Gantt (cột Timeline), trong khi trang thật đã bỏ theo `de-xuat-dot-2-trang-khach.md` mục 3 (commit `cc16786`). Demo cho giáo viên không khớp trang thật.
+
+**Đã làm, chờ kiểm**
+- FE: `onTimeEmptyText` (`views/guest-report/sections/helpers.tsx`): chưa có task → "No tasks yet"; mọi task chưa có hạn chót → "No task has a due date yet, so nothing is on time or late"; còn lại giữ câu cũ. Không đổi cách tính.
+- Mock v6: `PhaseScorecard` chép theo bảng thật (Phase · Done · Late · Dates · Result, không thanh màu); thẻ On time dùng cùng câu với trang thật.
+
+**Kết quả kiểm**
+- FE: test `views/guest-report` và `domain` 93/93 (thêm 3 ca cho `onTimeEmptyText`); `npm run typecheck` qua.
+- Chụp màn hình bằng Chrome headless: mock `?data=normal` và `?data=new` hiện bảng mới, không lỗi; trang thật (dự án "a") hiện câu mới ở thẻ On time.
+
+## G38. Trang khách: không có hạn chót mà vẫn báo "đạt hết" / "On track"
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề** (cùng gốc với G37: task không có hạn chót thì không có gì để đúng hạn hay trễ)
+- Thẻ Missed deadlines hiện số 0 màu xanh và "Every due date met so far" như lời khen, mâu thuẫn với thẻ On time bên cạnh ("No task has a due date yet").
+- Nhãn đầu trang (`HealthPill`) chỉ xét "có task quá hạn không": không có hạn chót thì không bao giờ quá hạn nên luôn "On track"; dự án xong thì "Delivered · all on time". Mâu thuẫn với bảng Schedule, nơi phase không có hạn chót đã ghi "In progress".
+
+**Đã làm, chờ kiểm**
+- FE: `hasNoDueDates` (`sections/helpers.tsx`, dùng chung với `onTimeEmptyText`). Không task nào có hạn chót:
+  - Missed deadlines: "—" màu thường, câu "No due dates to check yet".
+  - Đầu trang: dự án đang chạy → "In progress" (xanh dương, cùng luật kết quả phase); đã xong → "Delivered".
+  - Có hạn chót thì giữ nguyên như cũ.
+- Mock v6: sửa giống trang thật (`hasNoDueDates`, `HealthPill`, thẻ Missed deadlines). Các bộ dữ liệu mock đều có hạn chót nên hiển thị mock không đổi.
+
+**Kết quả kiểm**
+- FE: test `views/guest-report` và `domain` 98/98 (thêm 5 ca ở `noDueDates.test.tsx`); `npm run typecheck` qua.
+- Chụp bằng Chrome headless: trang thật dự án "a" (đã xong, không hạn chót) hiện "Delivered" và Missed deadlines "—"; mock `?data=normal` không đổi.
+
+**Còn lại (chưa sửa)**
+- Dải trạng thái dưới 4 thẻ (`StatusRibbon`) xếp task xong mà không có hạn chót vào "Done on time".
+
+## G39. Trang khách: task chưa giao mà đã xong biến mất khỏi bảng Who did what
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề**
+- Bảng chỉ có dòng phụ "N open task has no assignee", đếm task **chưa xong** không có người làm (`team.unassignedTasks`). Task chưa giao mà đã xong không nằm ở dòng nào, người xem không biết ai (hay không ai) làm.
+
+**Đã làm, chờ kiểm**
+- FE `domain/guestReport.ts`: tách cách tính một dòng thành `buildTeamRow`; thêm `team.unassignedRow` (thành viên giả `UNASSIGNED_MEMBER`, gồm mọi task không có người làm, kể cả đã xong), `null` khi task nào cũng có người. Không nằm trong `team.rows` nên dữ liệu mẫu và sắp xếp thành viên không đổi. Giữ `team.unassignedTasks`.
+- FE `TeamTable.tsx`: tách component `TeamRow` dùng chung; dòng "Unassigned · No assignee" đủ cột như thành viên, luôn ở cuối, không bị "Show top 6" ẩn; bỏ dòng phụ cũ; số "N members" không đếm dòng này; thêm câu "Tasks with no assignee are grouped in the last row."
+- Mock v6 `TeamTable`: làm giống (hàm `rowOf`, dòng Unassigned, bỏ dòng phụ).
+
+**Kết quả kiểm**
+- FE: test `views/guest-report` và `domain` 102/102 (thêm 4 ca ở `TeamTableUnassigned.test.tsx`); `npm run typecheck` qua.
+- Chụp bằng Chrome headless: trang thật dự án "a" có dòng Unassigned 1/1; mock `?data=normal` có dòng Unassigned 0/1 (WPE-15).
+
+**Sự cố khi sửa (đã khắc phục)**
+- Script cắt ghép `TeamTable.tsx` tính vị trí trước khi chèn component nên ghép sai, file hỏng (14 lỗi kiểu, chỉ ở file này). Hook chặn `git checkout`; người dùng đồng ý, đã ghi đè cả file bằng nội dung đúng.

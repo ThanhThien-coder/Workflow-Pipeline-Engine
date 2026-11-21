@@ -75,7 +75,7 @@ describe('kanban — nộp minh chứng (G17)', () => {
     })
     const reload = vi.spyOn(workflowService, 'getProjectArtifacts').mockResolvedValue([])
 
-    const ok = await useWorkflowStore.getState().kanban.submitTaskArtifact('7', { type: 'PR', url: 'https://github.com/x/y/pull/1', note: 'PR' })
+    const ok = await useWorkflowStore.getState().kanban.submitTaskArtifact('7', { type: 'PR', url: 'https://github.com/x/y/pull/1', name: 'PR' })
 
     expect(ok).toBe(true)
     expect(reload).toHaveBeenCalledWith('26')
