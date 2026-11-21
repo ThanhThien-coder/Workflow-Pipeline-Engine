@@ -130,10 +130,9 @@ describe('auth.ts: login, register, logout, getStoredUser', () => {
     expect(callsTo(fetchMock, '/auth/refresh')).toHaveLength(0)
   })
 
-  it('register: gửi username lấy từ email, fullName; 409 EMAIL_TAKEN / USERNAME_TAKEN ném đúng code', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse(409, errorBody(409, 'EMAIL_TAKEN')))
-      .mockResolvedValueOnce(jsonResponse(409, errorBody(409, 'USERNAME_TAKEN')))
+  it('register: gửi username lấy từ email, fullName; 409 EMAIL_TAKEN ném ngay, USERNAME_TAKEN ném sau 4 lần thử', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(409, errorBody(409, 'EMAIL_TAKEN')))
+    for (let i = 0; i < 4; i++) fetchMock.mockResolvedValueOnce(jsonResponse(409, errorBody(409, 'USERNAME_TAKEN')))
     const cmd = { fullName: 'Marcus Liu', email: 'Marcus.Liu@pipeline.engine', password: 'password123' }
 
     await expect(register(cmd)).rejects.toMatchObject({ status: 409, code: 'EMAIL_TAKEN' })
@@ -149,6 +148,21 @@ describe('auth.ts: login, register, logout, getStoredUser', () => {
     })
   })
 
+  it('register: trùng username (cùng phần trước @, khác email) thì thử lại với hậu tố số và thành công', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(409, errorBody(409, 'USERNAME_TAKEN')))
+      .mockResolvedValueOnce(jsonResponse(201, authBody('jwt-2', 'rt_2')))
+
+    const res = await register({ fullName: 'Nhan', email: 'nhan@fpt.edu.vn', password: 'password123' })
+
+    expect(res.accessToken).toBe('jwt-2')
+    const calls = callsTo(fetchMock, '/auth/register')
+    expect(calls).toHaveLength(2)
+    expect(bodyOf(calls[0]).username).toBe('nhan')
+    expect(bodyOf(calls[1]).username).toMatch(/^nhan-[0-9]{4}$/)
+    expect(bodyOf(calls[1]).email).toBe('nhan@fpt.edu.vn')
+  })
+
   it('register thành công: 201 trả AuthResponseDto có refreshToken', async () => {
     fetchMock.mockResolvedValue(jsonResponse(201, authBody('jwt-new', 'rt_new')))
 
@@ -162,6 +176,12 @@ describe('auth.ts: login, register, logout, getStoredUser', () => {
     expect(usernameFromEmail('Alex.Kim@pipeline.engine')).toBe('alex.kim')
     expect(usernameFromEmail('a+b c@x.io')).toBe('abc')
     expect(usernameFromEmail(`${'x'.repeat(60)}@x.io`)).toHaveLength(50)
+  })
+
+  it('usernameFromEmail: phần trước @ ngắn hơn 3 ký tự thì thêm "user" (backend yêu cầu 3–50)', () => {
+    expect(usernameFromEmail('an@gmail.com')).toBe('anuser')
+    expect(usernameFromEmail('+@x.io')).toBe('user')
+    expect(usernameFromEmail('abc@x.io')).toBe('abc')
   })
 
   it('logout: POST /auth/logout gửi refreshToken đang lưu', async () => {
