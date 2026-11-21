@@ -69,7 +69,7 @@ public class AiDiagnosticService {
      */
     public Map<String, Object> triggerAiDiagnostics(Long projectId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        ProjectEntity project = authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        ProjectEntity project = authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId); // chỉ owner/manager được chạy AI (tốn token)
         Instant previousRequestedAt = project.getAiRequestedAt();
 
         // 1. Giữ chỗ nguyên tử (B3). Postgres lưu tới micro giây: PHẢI cắt now về MICROS,
