@@ -1,4 +1,4 @@
-import { Code2, FileText, GitPullRequest, Link2, PenTool } from 'lucide-react'
+import { SiteIcon } from '../../../components/common/SiteIcon'
 import type { GuestMember, GuestReportPhase } from '../../../domain/guestReport'
 import type { GuestArtifactKind } from '../../../types/guest.types'
 import type { AvatarPerson } from '../ui'
@@ -19,20 +19,16 @@ export const ARTIFACT_LABELS: Record<GuestArtifactKind, string> = {
   OTHER_LINK: 'Link',
 }
 
-export function ArtifactIcon({ kind, className = 'h-4 w-4' }: { kind: GuestArtifactKind; className?: string }) {
-  switch (kind) {
-    case 'PR':
-      return <GitPullRequest className={className} />
-    case 'DOCS':
-      return <FileText className={className} />
-    case 'FIGMA':
-      return <PenTool className={className} />
-    case 'SWAGGER':
-      return <Code2 className={className} />
-    case 'OTHER_LINK':
-    default:
-      return <Link2 className={className} />
-  }
+export function ArtifactIcon({
+  url,
+  size = 16,
+  className = '',
+}: {
+  url: string | null | undefined
+  size?: number
+  className?: string
+}) {
+  return <SiteIcon url={url} size={size} className={className} />
 }
 
 export function phaseLabel(phase: Pick<GuestReportPhase, 'index' | 'name'>): string {

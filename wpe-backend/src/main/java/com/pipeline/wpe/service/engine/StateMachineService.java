@@ -507,14 +507,8 @@ public class StateMachineService {
         // Lưu Artifact nếu có gửi kèm. Nộp bài không kèm link vẫn hợp lệ (artifactResponse = null).
         NodeArtifactResponse artifactResponse = null;
         if (hasArtifact) {
-            ArtifactType artifactType = ArtifactType.PR;
-            if (artifactTypeStr != null) {
-                try {
-                    artifactType = ArtifactType.valueOf(artifactTypeStr.toUpperCase());
-                } catch (IllegalArgumentException ignored) {
-                    artifactType = ArtifactType.OTHER_LINK;
-                }
-            }
+            // Người dùng chỉ dán link: không gửi loại thì nhận theo link (trước đây gán cứng PR).
+            ArtifactType artifactType = com.pipeline.wpe.service.ArtifactService.resolveType(artifactTypeStr, artifactUrl.trim());
 
             String artifactName = artifactTitle != null && !artifactTitle.isBlank()
                 ? artifactTitle.trim()

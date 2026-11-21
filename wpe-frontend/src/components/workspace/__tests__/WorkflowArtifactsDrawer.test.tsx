@@ -97,16 +97,19 @@ describe('WorkflowArtifactsDrawer — công tắc Visible to guests', () => {
 
     const toggleBtn = screen.getByRole('button', { name: /Visible to guests: Architecture Spec/i })
     expect(toggleBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(toggleBtn.textContent).toContain('Shown to guests')
 
     // Lần 1: tắt thành công
     fireEvent.click(toggleBtn)
     await waitFor(() => expect(spy).toHaveBeenCalledWith('7', 'art-1', false))
     await waitFor(() => expect(toggleBtn.getAttribute('aria-pressed')).toBe('false'))
+    expect(toggleBtn.textContent).toContain('Hidden from guests')
 
     // Lần 2: bật lại nhưng API lỗi -> hoàn tác về false và hiện toast lỗi
     fireEvent.click(toggleBtn)
     await waitFor(() => expect(spy).toHaveBeenCalledWith('7', 'art-1', true))
     await waitFor(() => expect(toggleBtn.getAttribute('aria-pressed')).toBe('false'))
+    expect(toggleBtn.textContent).toContain('Hidden from guests')
     expect(showToast).toHaveBeenCalledWith('Not allowed')
   })
 })

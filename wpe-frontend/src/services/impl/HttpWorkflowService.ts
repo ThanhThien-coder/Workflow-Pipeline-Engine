@@ -193,14 +193,17 @@ export class HttpWorkflowService implements IWorkflowService {
   /** POST /nodes/{taskId}/submit */
   async submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }> {
     const currentVersion = this.taskVersionCache.get(dto.taskId) ?? 0
+    const body: Record<string, unknown> = {
+      taskId: dto.taskId,
+      url: dto.url,
+      note: dto.note,
+      version: currentVersion,
+    }
+    if (dto.type) {
+      body.type = dto.type
+    }
     const result = await apiRequest<any>('POST', `/nodes/${dto.taskId}/submit`, {
-      body: {
-        taskId: dto.taskId,
-        type: dto.type,
-        url: dto.url,
-        note: dto.note,
-        version: currentVersion,
-      },
+      body,
     })
 
     const task = this.mapBackendTaskToKanban(result.task)
@@ -208,7 +211,7 @@ export class HttpWorkflowService implements IWorkflowService {
 
     const artifact: ArtifactItem = {
       id: result.artifact?.id || `art-${Date.now()}`,
-      type: (result.artifact?.type || dto.type) as ArtifactType,
+      type: (result.artifact?.type || dto.type || 'DOCS') as ArtifactType,
       url: result.artifact?.url || dto.url,
       note: result.artifact?.note || dto.note,
       uploadedAt: result.artifact?.uploadedAt || new Date().toISOString(),

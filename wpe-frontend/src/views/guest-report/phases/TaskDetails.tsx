@@ -1,6 +1,7 @@
+import { SiteIcon } from '../../../components/common/SiteIcon'
 import type { GuestArtifact, GuestTask } from '../../../domain/guestReport'
 import { StatusDot, fmtDay, plural, type AvatarPerson } from '../ui'
-import { ARTIFACT_ICON_PATHS, PHASE_ICON_PATHS, PhaseIcon } from './icons'
+import { PHASE_ICON_PATHS, PhaseIcon } from './icons'
 import { isSafeHttpUrl } from './taskHelpers'
 
 export interface TaskDetailsProps {
@@ -127,7 +128,6 @@ export function TaskDetails({
           <SectionLabel>Deliverables</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {artifacts.map((artifact) => {
-              const iconPaths = ARTIFACT_ICON_PATHS[artifact.kind] ?? ARTIFACT_ICON_PATHS.OTHER_LINK
               if (isSafeHttpUrl(artifact.url)) {
                 return (
                   <a
@@ -137,7 +137,7 @@ export function TaskDetails({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 rounded border border-indigo-200 bg-white px-1.5 py-0.5 text-indigo-700 hover:bg-indigo-50"
                   >
-                    <PhaseIcon paths={iconPaths} className="h-3 w-3 shrink-0" />
+                    <SiteIcon url={artifact.url} size={12} />
                     <span>{artifact.name}</span>
                   </a>
                 )
@@ -147,7 +147,7 @@ export function TaskDetails({
                   key={artifact.id}
                   className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600"
                 >
-                  <PhaseIcon paths={iconPaths} className="h-3 w-3 shrink-0" />
+                  <SiteIcon url={artifact.url} size={12} />
                   <span>{artifact.name}</span>
                 </span>
               )

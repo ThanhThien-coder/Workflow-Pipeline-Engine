@@ -303,4 +303,48 @@ describe('TaskDetailModal Component', () => {
       expect(screen.getByRole('button', { name: /Start Task/i })).toBeDefined()
     })
   })
+
+  it('khối Add Deliverable không có ô chọn loại, hiện SiteIcon + siteLabel khi dán link và nộp không gửi type', async () => {
+    const onSubmitArtifact = vi.fn().mockResolvedValue(true)
+    render(
+      <TaskDetailModal
+        task={{
+          ...mockTask,
+          status: 'IN_PROGRESS',
+          artifacts: [
+            {
+              id: 'a1',
+              type: 'FIGMA',
+              url: 'https://www.figma.com/file/abc',
+              note: 'Mockup',
+              uploadedAt: '2026-11-01T00:00:00Z',
+            },
+          ],
+        }}
+        actor={collabActor}
+        members={mockMembers}
+        onClose={vi.fn()}
+        onMove={vi.fn()}
+        onSubmitArtifact={onSubmitArtifact}
+      />
+    )
+
+    expect(screen.getByText('Figma', { selector: 'span' })).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: /\+ Add Deliverable/i }))
+    expect(screen.queryByText('Deliverable Type')).toBeNull()
+
+    const urlInput = screen.getByLabelText('Deliverable URL')
+    fireEvent.change(urlInput, { target: { value: 'https://github.com/team/repo/pull/15' } })
+
+    const preview = screen.getByTestId('task-detail-artifact-site-preview')
+    expect(preview.textContent).toContain('GitHub')
+    expect(preview.querySelector('svg')).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Save & Attach/i }))
+    expect(onSubmitArtifact).toHaveBeenCalledWith({
+      url: 'https://github.com/team/repo/pull/15',
+      note: '',
+    })
+  })
 })

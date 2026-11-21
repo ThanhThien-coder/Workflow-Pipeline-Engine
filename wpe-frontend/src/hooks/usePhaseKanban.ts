@@ -183,7 +183,7 @@ export function usePhaseKanban(phase: MacroPhase | null | undefined, projectId: 
   )
 
   const submitArtifact = useCallback(
-    async (taskId: string, form: { type: ArtifactType; url: string; note: string }): Promise<boolean> => {
+    async (taskId: string, form: { type?: ArtifactType; url: string; note: string }): Promise<boolean> => {
       const task = tasks.find((t) => t.id === taskId)
       if (!task) return false
 

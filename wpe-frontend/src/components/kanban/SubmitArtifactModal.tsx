@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { Upload, X } from 'lucide-react'
 import type { ArtifactType, KanbanTask } from '../../types/kanban.types'
-import { ARTIFACT_TYPE_OPTIONS, isValidArtifactUrl } from '../../utils/artifactLabel'
+import { isValidArtifactUrl } from '../../utils/artifactLabel'
 import { useDismiss } from '../../hooks/useDismiss'
+import { SiteIcon, hostOf, siteLabel } from '../common/SiteIcon'
 
 export function SubmitArtifactModal({
   task,
@@ -13,9 +14,8 @@ export function SubmitArtifactModal({
   task: KanbanTask
   submitting: boolean
   onClose: () => void
-  onSubmit: (form: { type: ArtifactType; url: string; note: string }) => Promise<boolean>
+  onSubmit: (form: { type?: ArtifactType; url: string; note: string }) => Promise<boolean>
 }) {
-  const [type, setType] = useState<ArtifactType>('PR')
   const [url, setUrl] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
@@ -23,13 +23,15 @@ export function SubmitArtifactModal({
   const close = useCallback(() => onClose(), [onClose])
   useDismiss(true, close, [ref])
 
+  const trimmedUrl = url.trim()
+  const showSitePreview = isValidArtifactUrl(trimmedUrl) && Boolean(hostOf(trimmedUrl))
+
   const submit = async () => {
-    const trimmed = url.trim()
-    if (trimmed && !isValidArtifactUrl(trimmed)) {
+    if (trimmedUrl && !isValidArtifactUrl(trimmedUrl)) {
       setError('Please enter a valid URL (starting with http:// or https://).')
       return
     }
-    await onSubmit({ type, url: trimmed, note })
+    await onSubmit({ url: trimmedUrl, note })
   }
 
   return (
@@ -59,32 +61,29 @@ export function SubmitArtifactModal({
         </header>
         <div className="flex-1 overflow-y-auto space-y-4 px-5 py-4">
           <label className="block text-sm font-medium text-slate-700">
-            Deliverable Type <span className="text-xs font-normal text-slate-400">(Optional)</span>
-            <select
-              value={type}
-              onChange={(event) => setType(event.target.value as ArtifactType)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
-            >
-              {ARTIFACT_TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
             Deliverable URL <span className="text-xs font-normal text-slate-400">(Optional)</span>
-            <input
-              value={url}
-              onChange={(event) => {
-                setUrl(event.target.value)
-                setError('')
-              }}
-              placeholder="https://github.com/repo/pull/128 (Optional)"
-              className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm text-slate-800 ${
-                error ? 'border-red-300 focus:ring-red-100' : 'border-slate-200'
-              }`}
-            />
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                value={url}
+                onChange={(event) => {
+                  setUrl(event.target.value)
+                  setError('')
+                }}
+                placeholder="https://github.com/repo/pull/128 (Optional)"
+                className={`min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm text-slate-800 ${
+                  error ? 'border-red-300 focus:ring-red-100' : 'border-slate-200'
+                }`}
+              />
+              {showSitePreview && (
+                <span
+                  data-testid="submit-artifact-site-preview"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-medium text-slate-700"
+                >
+                  <SiteIcon url={trimmedUrl} size={14} />
+                  <span>{siteLabel(trimmedUrl)}</span>
+                </span>
+              )}
+            </div>
             {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
           </label>
           <label className="block text-sm font-medium text-slate-700">

@@ -175,8 +175,9 @@ export function GuestAccessPopover({ state, onRevoke, onGenerate, notify: _notif
               )}
             </div>
           )}
-          <div className="border-t border-slate-100 px-5 py-3 text-[11px] text-slate-400">
-            Time-limited tokens can be instantly revoked and only expose public project resources.
+          <div className="space-y-1 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-400">
+            <p>Time-limited tokens can be instantly revoked and only expose public project resources.</p>
+            <p className="text-slate-500">Choose which artifacts guests can see in the Artifacts panel.</p>
           </div>
         </div>
       )}

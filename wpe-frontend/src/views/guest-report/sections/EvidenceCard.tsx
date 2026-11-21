@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ExternalLink } from 'lucide-react'
+import { siteLabel } from '../../../components/common/SiteIcon'
 import type { GuestReportModel } from '../../../domain/guestReport'
 import { Card, Sub, fmtDay } from '../ui'
 import { ARTIFACT_LABELS, ArtifactIcon } from './helpers'
@@ -19,7 +20,9 @@ export function EvidenceCard({ model, onGoTask }: EvidenceCardProps) {
   const trimmed = query.trim().toLowerCase()
   const filtered = trimmed
     ? artifacts.filter((a) =>
-        [a.name, a.taskCode, a.host, ARTIFACT_LABELS[a.kind]].some((s) => s.toLowerCase().includes(trimmed)),
+        [a.name, a.taskCode, a.host, siteLabel(a.url), ARTIFACT_LABELS[a.kind]].some((s) =>
+          s.toLowerCase().includes(trimmed),
+        ),
       )
     : artifacts
 
@@ -64,7 +67,7 @@ export function EvidenceCard({ model, onGoTask }: EvidenceCardProps) {
             }`}
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-              <ArtifactIcon kind={a.kind} />
+              <ArtifactIcon url={a.url} size={16} />
             </span>
 
             <span className="min-w-0 flex-1">

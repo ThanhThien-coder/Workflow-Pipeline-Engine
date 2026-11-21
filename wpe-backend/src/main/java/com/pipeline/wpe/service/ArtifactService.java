@@ -201,7 +201,8 @@ public class ArtifactService {
      * C4: type gửi lên là chuỗi. Rỗng/không gửi → nhận diện theo URL; đúng tên loại (không phân biệt hoa thường) → loại đó;
      * giá trị lạ → OTHER_LINK.
      */
-    private ArtifactType resolveType(String type, String url) {
+    /** Loại artifact: dùng loại gửi lên nếu có (sai tên → OTHER_LINK), không có thì nhận theo link. Dùng chung cho nộp minh chứng ở task. */
+    public static ArtifactType resolveType(String type, String url) {
         if (type == null || type.isBlank()) {
             return detectArtifactType(url);
         }
@@ -215,7 +216,7 @@ public class ArtifactService {
     /**
      * Tự động nhận diện loại tài nguyên từ đường dẫn URL.
      */
-    private ArtifactType detectArtifactType(String url) {
+    static ArtifactType detectArtifactType(String url) {
         if (url == null) return ArtifactType.OTHER_LINK;
         String lower = url.trim().toLowerCase();
 
