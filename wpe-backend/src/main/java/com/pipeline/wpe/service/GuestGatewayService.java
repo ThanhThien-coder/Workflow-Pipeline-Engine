@@ -443,12 +443,18 @@ public class GuestGatewayService {
             if (text != null) highlights.add(text);
         }
         List<String> risks = new ArrayList<>();
+        // Mỗi mã task chỉ một dòng rủi ro: bottleneck trước, taskTrap của task đã có thì bỏ (tránh WPE-005 hiện 2 lần).
+        java.util.Set<String> riskCodes = new java.util.HashSet<>();
         for (Map<String, Object> item : asMapList(analysis.get("bottlenecks"))) {
             if ("LOW".equalsIgnoreCase(str(item.get("severity")))) continue; // LOW = "đang ổn", không phải rủi ro
-            addRisk(risks, str(item.get("nodeCode")), str(item.get("reason")));
+            String code = str(item.get("nodeCode"));
+            if (code != null && !riskCodes.add(code)) continue;
+            addRisk(risks, code, str(item.get("reason")));
         }
         for (Map<String, Object> item : asMapList(analysis.get("taskTraps"))) {
-            addRisk(risks, str(item.get("nodeCode")), str(item.get("suggestion")));
+            String code = str(item.get("nodeCode"));
+            if (code != null && !riskCodes.add(code)) continue;
+            addRisk(risks, code, str(item.get("suggestion")));
         }
 
         return Optional.of(new GuestAiSummaryResponse(

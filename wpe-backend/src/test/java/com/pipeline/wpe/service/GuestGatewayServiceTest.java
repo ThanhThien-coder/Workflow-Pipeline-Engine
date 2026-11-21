@@ -605,6 +605,27 @@ class GuestGatewayServiceTest {
     }
 
     @Test
+    @DisplayName("ai-summary: moi ma task chi 1 dong rui ro, taskTrap trung ma voi bottleneck bi bo")
+    void testGetGuestAiSummary_dedupesRisksByTaskCode() {
+        String token = "example-guest-token-ai-dup";
+        java.util.Map<String, Object> analysis = new java.util.LinkedHashMap<>();
+        analysis.put("analyzedAt", "2026-11-19T01:00:00Z");
+        analysis.put("bottlenecks", List.of(java.util.Map.of("nodeCode", "WPE-5", "reason", "Past its due date", "severity", "HIGH")));
+        analysis.put("taskTraps", List.of(
+            java.util.Map.of("nodeCode", "WPE-5", "suggestion", "Split it"),
+            java.util.Map.of("nodeCode", "WPE-6", "suggestion", "Pair up")));
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId)
+            .status(ProjectStatus.ACTIVE).latestAiAnalysis(analysis).build();
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
+
+        var summary = guestGatewayService.getGuestAiSummary(token).orElseThrow();
+
+        assertThat(summary.risks()).containsExactly("WPE-5: Past its due date", "WPE-6: Pair up");
+    }
+
+    @Test
     @DisplayName("S08: ai-summary chua co phan tich -> Optional rong (controller tra 404)")
     void testGetGuestAiSummary_noAnalysis() {
         String token = "example-guest-token-noai";
