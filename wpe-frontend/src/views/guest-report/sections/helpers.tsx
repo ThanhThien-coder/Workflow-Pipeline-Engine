@@ -64,6 +64,14 @@ export function buildAvatarMap(members: readonly GuestMember[]): Record<string, 
  */
 export function onTimeEmptyText(tasks: Pick<GuestTask, 'due'>[]): string {
   if (tasks.length === 0) return 'No tasks yet'
-  if (tasks.every((t) => t.due === null)) return 'No task has a due date yet, so nothing is on time or late'
+  if (hasNoDueDates(tasks)) return 'No task has a due date yet, so nothing is on time or late'
   return 'No task has reached its due date yet'
+}
+
+/**
+ * G38: chưa task nào có hạn chót (kể cả dự án chưa có task). Khi đó không có gì để đúng hạn hay trễ,
+ * nên thẻ Missed deadlines và nhãn đầu trang không được báo "đạt hết" / "On track".
+ */
+export function hasNoDueDates(tasks: Pick<GuestTask, 'due'>[]): boolean {
+  return tasks.every((t) => t.due === null)
 }

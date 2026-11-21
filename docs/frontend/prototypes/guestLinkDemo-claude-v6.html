@@ -570,12 +570,20 @@ function TopBar({ onPrint, linkExpiresAt, onFeedback }) {
 }
 
 // One-word health, fixed rules (not AI): completed → clean or "N finished late"; active → at risk if anything is overdue
-function HealthPill({ m }) {
+// Same rule as the real page (sections/helpers.tsx hasNoDueDates): no task has a due date, so nothing can be on time or late.
+function hasNoDueDates(tasks) {
+  return tasks.every((t) => !t.due);
+}
+
+// Same as the real page (ProjectHeader.tsx HealthPill): without due dates do not claim "On track" / "all on time".
+function HealthPill({ m, noDue = false }) {
   let cls, dot, text;
   if (m.completed) {
-    [cls, dot, text] = m.lateDone.length ? ['border-orange-200 bg-orange-50 text-orange-800', 'bg-orange-500', `Delivered · ${m.lateDone.length} finished late`] : ['border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500', 'Delivered · all on time'];
+    [cls, dot, text] = m.lateDone.length ? ['border-orange-200 bg-orange-50 text-orange-800', 'bg-orange-500', `Delivered · ${m.lateDone.length} finished late`] : ['border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500', noDue ? 'Delivered' : 'Delivered · all on time'];
   } else if (m.overdue.length) {
     [cls, dot, text] = ['border-rose-200 bg-rose-50 text-rose-700', 'bg-rose-500', `At risk · ${m.overdue.length} overdue`];
+  } else if (noDue) {
+    [cls, dot, text] = ['border-blue-200 bg-blue-50 text-blue-700', 'bg-blue-500', 'In progress'];
   } else {
     [cls, dot, text] = ['border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500', 'On track'];
   }
@@ -601,7 +609,7 @@ function ProjectHeader({ ds, m }) {
         <span className="max-w-full truncate rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
           {m.completed ? `All ${m.realPhaseCount} phases completed` : `Phase ${m.current.index + 1} of ${m.realPhaseCount} · ${m.current.name}`}
         </span>
-        <HealthPill m={m} />
+        <HealthPill m={m} noDue={hasNoDueDates(ds.tasks)} />
       </div>
       <p className="mt-2 max-w-3xl text-sm text-slate-600">{P.description}</p>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -640,12 +648,13 @@ function Kpi({ icon, tone, label, children, note, onClick, hint }) {
 // Same text as the real page (sections/helpers.tsx onTimeEmptyText): a task without a due date is never on time or late.
 function onTimeEmptyText(tasks) {
   if (!tasks.length) return 'No tasks yet';
-  if (tasks.every((t) => !t.due)) return 'No task has a due date yet, so nothing is on time or late';
+  if (hasNoDueDates(tasks)) return 'No task has a due date yet, so nothing is on time or late';
   return 'No task has reached its due date yet';
 }
 
 function Kpis({ m, arts, onOverdue, tasks = [] }) {
   const otPct = m.onTimeBase ? Math.round((m.onTime / m.onTimeBase) * 100) : null;
+  const noDue = !m.missed && hasNoDueDates(tasks); // nothing to be late against: show "—", not a green 0
   const types = Object.keys(TYPE).map((k) => ({ k, n: arts.filter((a) => a.type === k).length })).filter((x) => x.n);
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -665,9 +674,9 @@ function Kpis({ m, arts, onOverdue, tasks = [] }) {
       </Kpi>
       <Kpi icon={I.alert} tone="text-rose-600 bg-rose-50" label="Missed deadlines" onClick={m.missed ? onOverdue : null} hint={m.missed ? 'See list' : null}
         note="Whole project, so it does not drop to 0 when the project is finished: tasks finished after their due date + open tasks already past it. Days = days late of finished tasks + days overdue so far. Stays honest because a due date that has passed can no longer be moved or cleared (new backend rule, no database change).">
-        <div className={`text-3xl font-bold ${m.missed ? 'text-rose-600' : 'text-emerald-700'}`}>{m.missed}</div>
+        <div className={`text-3xl font-bold ${m.missed ? 'text-rose-600' : noDue ? 'text-slate-900' : 'text-emerald-700'}`}>{noDue ? '—' : m.missed}</div>
         <div className="mt-0.5 text-xs text-slate-500">
-          {m.missed ? <>{!m.completed && <><b className={m.overdue.length ? 'text-rose-600' : 'text-slate-600'}>{m.overdue.length} overdue now</b> · </>}<b className="text-orange-600">{m.lateDone.length} finished late</b></> : 'Every due date met so far'}
+          {m.missed ? <>{!m.completed && <><b className={m.overdue.length ? 'text-rose-600' : 'text-slate-600'}>{m.overdue.length} overdue now</b> · </>}<b className="text-orange-600">{m.lateDone.length} finished late</b></> : noDue ? 'No due dates to check yet' : 'Every due date met so far'}
         </div>
         {m.overdue.length > 0 && m.holdUp > 0 && <div className="mt-1 text-[11px] text-slate-500">overdue tasks block <b className="text-rose-600">{plural(m.holdUp, 'later task')}</b></div>}
       </Kpi>

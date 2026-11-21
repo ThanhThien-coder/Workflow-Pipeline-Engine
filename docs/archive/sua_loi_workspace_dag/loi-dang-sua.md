@@ -34,6 +34,7 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G35 | Artifact không sửa được tên/link; bảng quyền Settings ghi Collaborator và Viewer chạy được AI Diagnosis | FE + BE | Đã sửa, chờ test tay |
 | G36 | Nộp task: ô "Handover Notes" thực chất thành tên artifact | FE + BE | Đã sửa, chờ test tay |
 | G37 | Trang khách: thẻ On time ghi "chưa tới hạn" khi task không có hạn chót; bảng Schedule ở mock v6 khác trang thật | FE + mock | Đã sửa, chờ test tay |
+| G38 | Trang khách: không task nào có hạn chót mà Missed deadlines vẫn ghi "Every due date met", đầu trang ghi "On track" / "all on time" | FE + mock | Đã sửa, chờ test tay |
 
 ---
 
@@ -983,3 +984,26 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 **Kết quả kiểm**
 - FE: test `views/guest-report` và `domain` 93/93 (thêm 3 ca cho `onTimeEmptyText`); `npm run typecheck` qua.
 - Chụp màn hình bằng Chrome headless: mock `?data=normal` và `?data=new` hiện bảng mới, không lỗi; trang thật (dự án "a") hiện câu mới ở thẻ On time.
+
+## G38. Trang khách: không có hạn chót mà vẫn báo "đạt hết" / "On track"
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề** (cùng gốc với G37: task không có hạn chót thì không có gì để đúng hạn hay trễ)
+- Thẻ Missed deadlines hiện số 0 màu xanh và "Every due date met so far" như lời khen, mâu thuẫn với thẻ On time bên cạnh ("No task has a due date yet").
+- Nhãn đầu trang (`HealthPill`) chỉ xét "có task quá hạn không": không có hạn chót thì không bao giờ quá hạn nên luôn "On track"; dự án xong thì "Delivered · all on time". Mâu thuẫn với bảng Schedule, nơi phase không có hạn chót đã ghi "In progress".
+
+**Đã làm, chờ kiểm**
+- FE: `hasNoDueDates` (`sections/helpers.tsx`, dùng chung với `onTimeEmptyText`). Không task nào có hạn chót:
+  - Missed deadlines: "—" màu thường, câu "No due dates to check yet".
+  - Đầu trang: dự án đang chạy → "In progress" (xanh dương, cùng luật kết quả phase); đã xong → "Delivered".
+  - Có hạn chót thì giữ nguyên như cũ.
+- Mock v6: sửa giống trang thật (`hasNoDueDates`, `HealthPill`, thẻ Missed deadlines). Các bộ dữ liệu mock đều có hạn chót nên hiển thị mock không đổi.
+
+**Kết quả kiểm**
+- FE: test `views/guest-report` và `domain` 98/98 (thêm 5 ca ở `noDueDates.test.tsx`); `npm run typecheck` qua.
+- Chụp bằng Chrome headless: trang thật dự án "a" (đã xong, không hạn chót) hiện "Delivered" và Missed deadlines "—"; mock `?data=normal` không đổi.
+
+**Còn lại (chưa sửa)**
+- Dải trạng thái dưới 4 thẻ (`StatusRibbon`) xếp task xong mà không có hạn chót vào "Done on time".
+
