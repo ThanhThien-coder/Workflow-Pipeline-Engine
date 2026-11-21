@@ -18,6 +18,8 @@ export interface ArtifactsSlice {
     isDrawerOpen: boolean
     loadArtifacts: (projectId: string) => Promise<void>
     addArtifact: (projectId: string, input: { name: string; url: string }) => Promise<ProjectArtifact>
+    /** Sửa tên và link. Ghi xong ở service mới thay bản trong danh sách. */
+    updateArtifact: (projectId: string, artifactId: string, input: { name: string; url: string }) => Promise<ProjectArtifact>
     removeArtifact: (projectId: string, artifactId: string) => Promise<void>
     setGuestVisibility: (projectId: string, artifactId: string, visible: boolean) => Promise<void>
     openDrawer: () => void
@@ -73,6 +75,19 @@ export const createArtifactsSlice = (
           patch({ items: [created, ...get().artifacts.items.filter((a) => String(a.id) !== String(created.id))] })
         }
         return created
+      },
+
+      updateArtifact: async (projectId, artifactId, input) => {
+        const updated = await service.updateArtifact(projectId, artifactId, {
+          name: input.name.trim(),
+          url: input.url.trim(),
+        })
+        if (isCurrent(projectId)) {
+          patch({
+            items: get().artifacts.items.map((a) => (String(a.id) === String(artifactId) ? updated : a)),
+          })
+        }
+        return updated
       },
 
       removeArtifact: async (projectId, artifactId) => {

@@ -326,6 +326,17 @@ describe('HttpWorkflowService.setArtifactGuestVisibility', () => {
     expect(init.method).toBe('PATCH')
     expect(res?.isPublicForGuest).toBe(false)
   })
+
+  it('updateArtifact gọi PUT /projects/{projectId}/artifacts/{artifactId} với body chỉ có name và url', async () => {
+    const res = await new HttpWorkflowService().updateArtifact('7', '12', { name: 'Specs', url: 'https://docs.example.com/1' })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://localhost:8080/api/v1/projects/7/artifacts/12')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body as string)).toEqual({ name: 'Specs', url: 'https://docs.example.com/1' })
+    expect(res.id).toBe('12')
+    expect(res.name).toBe('Specs')
+  })
 })
 
 describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockWorkflowService', () => {

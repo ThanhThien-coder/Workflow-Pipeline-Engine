@@ -10,11 +10,14 @@ import {
   FolderOpen,
   Eye,
   EyeOff,
+  Pencil,
 } from 'lucide-react'
 import { selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
+import { currentProjectInfo } from '../../store/projectInfo'
 import type { ProjectArtifact } from '../../types/artifact.types'
 import { normalizeText } from '../../utils/searchProject'
 import { SiteIcon, hostOf } from '../common/SiteIcon'
+import { canEditArtifact } from '../../utils/artifactPermissions'
 
 function isValidUrl(str: string): boolean {
   try {
@@ -23,6 +26,10 @@ function isValidUrl(str: string): boolean {
   } catch {
     return false
   }
+}
+
+function withScheme(url: string): string {
+  return url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`
 }
 
 export interface WorkflowArtifactsDrawerProps {
@@ -47,7 +54,10 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const addArtifact = useWorkflowStore((state) => state.artifacts.addArtifact)
   const removeArtifact = useWorkflowStore((state) => state.artifacts.removeArtifact)
   const setGuestVisibility = useWorkflowStore((state) => state.artifacts.setGuestVisibility)
+  const updateArtifact = useWorkflowStore((state) => state.artifacts.updateArtifact)
   const canManageGuestVisibility = useWorkflowStore(selectCanEditGraph)
+  const myRole = useWorkflowStore((state) => currentProjectInfo(state)?.myRole ?? null)
+  const currentUserId = useWorkflowStore((state) => state.auth.currentUser?.id ?? null)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
 
   const isOpen = propIsOpen !== undefined ? propIsOpen : storeIsOpen
@@ -85,6 +95,12 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const [submitting, setSubmitting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [togglingIds, setTogglingIds] = useState<Set<string>>(() => new Set())
+  // Sửa tại chỗ: mỗi lúc chỉ sửa một artifact
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editUrl, setEditUrl] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
   // Ô tìm: theo tên, link, loại (không phân biệt hoa thường và dấu)
   const [searchQuery, setSearchQuery] = useState('')
   const normalizedSearch = normalizeText(searchQuery)
@@ -136,6 +152,48 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
       showToast(msg)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const startEdit = (artifact: ProjectArtifact) => {
+    setEditingId(String(artifact.id))
+    setEditName(artifact.name || artifact.title || '')
+    setEditUrl(artifact.url)
+    setEditError(null)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditError(null)
+  }
+
+  const handleSaveEdit = async (e: React.FormEvent, artifact: ProjectArtifact) => {
+    e.preventDefault()
+    const trimmedName = editName.trim()
+    const trimmedUrl = editUrl.trim()
+    if (!trimmedName) {
+      setEditError('Enter a name for the link.')
+      return
+    }
+    if (!trimmedUrl || !isValidUrl(trimmedUrl)) {
+      setEditError('That URL isn\'t valid. Enter a link that starts with https://')
+      return
+    }
+    const normalizedUrl = withScheme(trimmedUrl)
+    if (trimmedName === (artifact.name || artifact.title) && normalizedUrl === artifact.url) {
+      cancelEdit()
+      return
+    }
+
+    setSavingEdit(true)
+    try {
+      await updateArtifact(projectId, String(artifact.id), { name: trimmedName, url: normalizedUrl })
+      showToast('Resource link updated.')
+      cancelEdit()
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Couldn\'t update the link.')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -363,6 +421,72 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   const isCopied = copiedId === artifact.id
                   const isPublicForGuest = artifact.isPublicForGuest !== false
                   const isToggling = togglingIds.has(String(artifact.id))
+                  const canEdit = canEditArtifact(myRole, currentUserId, artifact)
+                  const label = artifact.name || artifact.title
+
+                  if (editingId === String(artifact.id)) {
+                    return (
+                      <form
+                        key={artifact.id}
+                        onSubmit={(e) => void handleSaveEdit(e, artifact)}
+                        aria-label={`Edit ${label}`}
+                        className="rounded-2xl border border-mp-purple-300 bg-mp-purple-50/40 p-3 space-y-1.5"
+                        onKeyDown={(e) => {
+                          // Esc hủy sửa, không đóng cả drawer
+                          if (e.key === 'Escape') {
+                            e.stopPropagation()
+                            cancelEdit()
+                          }
+                        }}
+                      >
+                        <input
+                          type="text"
+                          autoFocus
+                          disabled={savingEdit}
+                          aria-label="Link name"
+                          className="w-full bg-white border border-mp-n-200 rounded-xl px-3 py-1.5 text-xs text-mp-ink focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 disabled:opacity-50"
+                          value={editName}
+                          onChange={(e) => {
+                            setEditName(e.target.value)
+                            if (editError) setEditError(null)
+                          }}
+                        />
+                        <input
+                          type="text"
+                          disabled={savingEdit}
+                          aria-label="Link URL"
+                          className="w-full bg-white border border-mp-n-200 rounded-xl px-3 py-1.5 text-xs text-mp-ink focus:outline-none focus:ring-2 focus:ring-mp-purple-400/50 focus:border-mp-purple-400 disabled:opacity-50"
+                          value={editUrl}
+                          onChange={(e) => {
+                            setEditUrl(e.target.value)
+                            if (editError) setEditError(null)
+                          }}
+                        />
+                        {editError && (
+                          <div className="text-[11px] font-medium text-red-600 px-1" role="alert">
+                            {editError}
+                          </div>
+                        )}
+                        <div className="flex justify-end gap-1.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={cancelEdit}
+                            disabled={savingEdit}
+                            className="rounded-lg border border-mp-n-200 bg-white px-3 py-1 text-xs font-semibold text-mp-n-600 hover:bg-mp-n-50 cursor-pointer disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={savingEdit || !editName.trim() || !editUrl.trim()}
+                            className="rounded-lg bg-mp-purple-600 px-3 py-1 text-xs font-semibold text-white hover:bg-mp-purple-700 cursor-pointer disabled:opacity-40"
+                          >
+                            {savingEdit ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </form>
+                    )
+                  }
 
                   return (
                     <div
@@ -445,6 +569,19 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                         >
                           <ExternalLink size={14} />
                         </a>
+
+                        {/* Edit (Owner / Manager: mọi link; Collaborator: link mình đăng) */}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(artifact)}
+                            className="p-1.5 rounded-lg text-mp-n-400 hover:text-mp-purple-600 hover:bg-mp-purple-50 transition-colors cursor-pointer"
+                            title="Edit name or link"
+                            aria-label={`Edit ${label}`}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
 
                         {/* Remove */}
                         <button

@@ -49,6 +49,7 @@ import type {
 import {
   type ArtifactItem as ProjectArtifactItem,
   type CreateArtifactCommand,
+  type UpdateArtifactCommand,
   INITIAL_PROJECT_ARTIFACTS,
 } from '../types/artifact.types'
 
@@ -369,6 +370,21 @@ export class MockWorkflowService implements IWorkflowService {
     list.unshift(newArt)
     this.mockArtifacts.set(projectId, list)
     return structuredClone(newArt)
+  }
+
+  async updateArtifact(projectId: string, artifactId: string, payload: UpdateArtifactCommand): Promise<ProjectArtifactItem> {
+    const list = await this.getProjectArtifacts(projectId)
+    let updated: ProjectArtifactItem | undefined
+    const next = list.map((a) => {
+      if (String(a.id) !== String(artifactId)) return a
+      updated = { ...a, name: payload.name, title: payload.name, url: payload.url }
+      return updated
+    })
+    if (!updated) {
+      throw new Error(`Artifact ${artifactId} not found`)
+    }
+    this.mockArtifacts.set(projectId, next)
+    return structuredClone(updated)
   }
 
   async deleteArtifact(projectId: string, artifactId: string): Promise<void> {

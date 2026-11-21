@@ -24,7 +24,7 @@ import type {
   TaskStatus,
   UserSummary,
 } from '../../types/kanban.types'
-import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand } from '../../types/artifact.types'
+import type { ArtifactItem as ProjectArtifactItem, CreateArtifactCommand, UpdateArtifactCommand } from '../../types/artifact.types'
 import type {
   CloneTemplateCommand,
   CreateProjectCommand,
@@ -261,6 +261,14 @@ export class HttpWorkflowService implements IWorkflowService {
 
   /** DELETE /projects/{projectId}/artifacts/{artifactId} — 404 coi như đã xóa (giữ hành vi cũ). */
   async deleteArtifact(projectId: string, artifactId: string): Promise<void> {
+  /** PUT /projects/{projectId}/artifacts/{artifactId} */
+  async updateArtifact(projectId: string, artifactId: string, payload: UpdateArtifactCommand): Promise<ProjectArtifactItem> {
+    const item = await apiRequest<any>('PUT', `/projects/${projectId}/artifacts/${artifactId}`, {
+      body: { name: payload.name, url: payload.url },
+    })
+    return this.mapArtifact(item)
+  }
+
     try {
       await apiRequest<void>('DELETE', `/projects/${projectId}/artifacts/${artifactId}`)
     } catch (error) {

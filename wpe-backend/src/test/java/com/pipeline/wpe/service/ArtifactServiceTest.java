@@ -4,6 +4,7 @@ import com.pipeline.wpe.common.enums.ArtifactType;
 import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.dto.artifact.ArtifactResponse;
 import com.pipeline.wpe.dto.artifact.CreateArtifactRequest;
+import com.pipeline.wpe.dto.artifact.UpdateArtifactRequest;
 import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
@@ -187,6 +188,94 @@ class ArtifactServiceTest {
             assertThatThrownBy(() -> artifactService.deleteArtifact(PROJECT_ID, 7L, null))
                 .isInstanceOf(ForbiddenException.class);
             verify(artifactRepository, never()).delete(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Sửa tên và link")
+    class Update {
+
+        private ArtifactEntity uploadedBy(Long userId) {
+            ArtifactEntity artifact = ArtifactEntity.builder().id(7L).projectId(PROJECT_ID).uploadedBy(userId)
+                .name("PR").type(ArtifactType.PR).url("https://github.com/org/repo/pull/42").build();
+            when(artifactRepository.findById(7L)).thenReturn(Optional.of(artifact));
+            return artifact;
+        }
+
+        @Test
+        @DisplayName("Người đăng sửa được; đổi link thì nhận lại loại, cắt khoảng trắng, báo realtime")
+        void uploader_canEdit_typeRedetected() {
+            ArtifactEntity artifact = uploadedBy(COLLABORATOR);
+
+            ArtifactResponse response = artifactService.updateArtifact(PROJECT_ID, 7L,
+                new UpdateArtifactRequest("  Figma login ", " https://www.figma.com/file/xyz "), COLLABORATOR);
+
+            assertThat(response.name()).isEqualTo("Figma login");
+            assertThat(response.url()).isEqualTo("https://www.figma.com/file/xyz");
+            assertThat(response.type()).isEqualTo(ArtifactType.FIGMA);
+            assertThat(artifact.getName()).isEqualTo("Figma login");
+            verify(projectRealtimeNotifier).notifyProjectChanged(eq(PROJECT_ID), eq("ARTIFACTS"), eq("ARTIFACT_UPDATED"), eq(COLLABORATOR), isNull(), any());
+        }
+
+        @Test
+        @DisplayName("Chỉ đổi tên, giữ link → giữ loại cũ")
+        void sameUrl_keepsType() {
+            ArtifactEntity artifact = uploadedBy(COLLABORATOR);
+            artifact.setType(ArtifactType.DOCS);
+
+            ArtifactResponse response = artifactService.updateArtifact(PROJECT_ID, 7L,
+                new UpdateArtifactRequest("Tên mới", "https://github.com/org/repo/pull/42"), COLLABORATOR);
+
+            assertThat(response.type()).isEqualTo(ArtifactType.DOCS);
+            assertThat(response.name()).isEqualTo("Tên mới");
+        }
+
+        @ParameterizedTest(name = "[{index}] user {0} sửa được link của người khác")
+        @CsvSource({"2", "5"})
+        @DisplayName("Owner và Manager sửa được link của người khác")
+        void ownerAndManager_canEditOthers(Long userId) {
+            uploadedBy(COLLABORATOR);
+
+            assertThatCode(() -> artifactService.updateArtifact(PROJECT_ID, 7L,
+                new UpdateArtifactRequest("Tên mới", "https://github.com/org/repo/pull/43"), userId))
+                .doesNotThrowAnyException();
+            verify(artifactRepository).save(any(ArtifactEntity.class));
+        }
+
+        @Test
+        @DisplayName("Collaborator khác sửa link không phải của mình → 403, không lưu")
+        void otherCollaborator_forbidden() {
+            ArtifactEntity artifact = uploadedBy(COLLABORATOR);
+
+            assertThatThrownBy(() -> artifactService.updateArtifact(PROJECT_ID, 7L,
+                new UpdateArtifactRequest("Tên mới", "https://github.com/org/repo/pull/43"), OTHER_COLLABORATOR))
+                .isInstanceOf(ForbiddenException.class);
+            assertThat(artifact.getName()).isEqualTo("PR");
+            verify(artifactRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Viewer kể cả là người đăng → 403, không lưu")
+        void viewer_forbidden() {
+            uploadedBy(VIEWER);
+
+            assertThatThrownBy(() -> artifactService.updateArtifact(PROJECT_ID, 7L,
+                new UpdateArtifactRequest("Tên mới", "https://github.com/org/repo/pull/43"), VIEWER))
+                .isInstanceOf(ForbiddenException.class);
+            verify(artifactRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Artifact thuộc project khác bị chặn, không lưu")
+        void wrongProject_rejected() {
+            ArtifactEntity foreign = ArtifactEntity.builder().id(7L).projectId(999L).uploadedBy(OWNER)
+                .name("PR").type(ArtifactType.PR).url("https://github.com/org/repo/pull/42").build();
+            when(artifactRepository.findById(7L)).thenReturn(Optional.of(foreign));
+
+            assertThatThrownBy(() -> artifactService.updateArtifact(PROJECT_ID, 7L,
+                new UpdateArtifactRequest("Tên mới", "https://github.com/org/repo/pull/43"), OWNER))
+                .isInstanceOf(IllegalArgumentException.class);
+            verify(artifactRepository, never()).save(any());
         }
     }
 

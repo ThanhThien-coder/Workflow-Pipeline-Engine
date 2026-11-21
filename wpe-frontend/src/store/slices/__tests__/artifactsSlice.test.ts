@@ -109,6 +109,21 @@ describe('artifactsSlice', () => {
     expect(store.getState().artifacts.items.map((a) => a.id)).toEqual(['2'])
   })
 
+  it('sửa: gọi service với tên/link đã cắt khoảng trắng, xong mới thay bản trong danh sách; lỗi thì giữ nguyên', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([artifact('1', 'A'), artifact('2', 'B')])
+    const update = vi.spyOn(service, 'updateArtifact')
+    await store.getState().artifacts.loadArtifacts('19')
+
+    update.mockRejectedValueOnce(new ApiError({ status: 403, code: 'ACCESS_DENIED', message: 'Không được sửa' }))
+    await expect(store.getState().artifacts.updateArtifact('19', '1', { name: 'A2', url: 'https://example.com/a2' })).rejects.toBeTruthy()
+    expect(store.getState().artifacts.items[0].name).toBe('A')
+
+    update.mockResolvedValueOnce({ ...artifact('1', 'A2'), url: 'https://example.com/a2' })
+    await store.getState().artifacts.updateArtifact('19', '1', { name: ' A2 ', url: ' https://example.com/a2 ' })
+    expect(update).toHaveBeenLastCalledWith('19', '1', { name: 'A2', url: 'https://example.com/a2' })
+    expect(store.getState().artifacts.items.map((a) => [a.id, a.name])).toEqual([['1', 'A2'], ['2', 'B']])
+  })
+
   it('không ghi localStorage', async () => {
     vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([])
     vi.spyOn(service, 'createArtifact').mockResolvedValue(artifact('99', 'Figma'))

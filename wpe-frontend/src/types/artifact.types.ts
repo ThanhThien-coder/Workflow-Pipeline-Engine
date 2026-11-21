@@ -24,6 +24,12 @@ export interface CreateArtifactCommand {
   isInRepository?: boolean;
 }
 
+/** Sửa artifact: chỉ tên và link. Backend nhận lại loại theo link mới. */
+export interface UpdateArtifactCommand {
+  name: string;
+  url: string;
+}
+
 export const INITIAL_PROJECT_ARTIFACTS: ArtifactItem[] = [
   { id: '1', projectId: '1', name: 'Figma Design System', title: 'Figma Design System', type: 'FIGMA', url: 'https://figma.com/file/123/design-system', isInRepository: true, isPublicForGuest: true, createdAt: 'Sep 12, 2026', uploadedBy: 'Alex Kim' },
   { id: '2', projectId: '1', name: 'API Documentation', title: 'API Documentation', type: 'SWAGGER', url: 'https://api.pipeline.engine/docs/v2', isInRepository: true, isPublicForGuest: true, createdAt: 'Sep 15, 2026', uploadedBy: 'Sarah Chen' },

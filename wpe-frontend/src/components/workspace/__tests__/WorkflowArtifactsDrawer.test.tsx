@@ -113,3 +113,91 @@ describe('WorkflowArtifactsDrawer — công tắc Visible to guests', () => {
     expect(showToast).toHaveBeenCalledWith('Not allowed')
   })
 })
+
+describe('WorkflowArtifactsDrawer — sửa tên và link', () => {
+  function seedUser(id: string) {
+    useWorkflowStore.setState((st) => ({
+      auth: { ...st.auth, currentUser: { ...(st.auth.currentUser ?? {}), id } as typeof st.auth.currentUser },
+    }))
+  }
+
+  beforeEach(() => {
+    const items = [makeArtifact({ uploadedBy: '3' }), makeArtifact({ id: 'art-2', name: 'Other PR', title: 'Other PR', uploadedBy: '9' })]
+    useWorkflowStore.setState((st) => ({
+      currentProjectId: '7',
+      artifacts: { ...st.artifacts, projectId: '7', items, status: 'ready', error: null },
+    }))
+    vi.spyOn(workflowService, 'getProjectArtifacts').mockResolvedValue(items)
+    seedUser('3')
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    useWorkflowStore.setState((st) => ({
+      project: { ...st.project, info: null },
+      auth: { ...st.auth, currentUser: null },
+    }))
+  })
+
+  it('OWNER/MANAGER sửa được mọi link; COLLABORATOR chỉ link mình đăng; VIEWER không sửa', () => {
+    seedRole('OWNER')
+    const { rerender } = render(<WorkflowArtifactsDrawer projectId="7" isOpen={true} onClose={vi.fn()} />)
+    expect(screen.getAllByRole('button', { name: /^Edit /i })).toHaveLength(2)
+
+    seedRole('MANAGER')
+    rerender(<WorkflowArtifactsDrawer projectId="7" isOpen={true} onClose={vi.fn()} />)
+    expect(screen.getAllByRole('button', { name: /^Edit /i })).toHaveLength(2)
+
+    seedRole('COLLABORATOR')
+    rerender(<WorkflowArtifactsDrawer projectId="7" isOpen={true} onClose={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Edit Architecture Spec' })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Edit Other PR' })).toBeNull()
+
+    seedRole('VIEWER')
+    rerender(<WorkflowArtifactsDrawer projectId="7" isOpen={true} onClose={vi.fn()} />)
+    expect(screen.queryAllByRole('button', { name: /^Edit /i })).toHaveLength(0)
+  })
+
+  it('lưu thì gọi API với tên đã cắt khoảng trắng và link có https, rồi thay bản trong danh sách', async () => {
+    seedRole('OWNER')
+    const spy = vi
+      .spyOn(workflowService, 'updateArtifact')
+      .mockResolvedValue(makeArtifact({ name: 'Spec v2', title: 'Spec v2', url: 'https://docs.example.com/v2', uploadedBy: '3' }))
+
+    render(<WorkflowArtifactsDrawer projectId="7" isOpen={true} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Architecture Spec' }))
+
+    fireEvent.change(screen.getByLabelText('Link name'), { target: { value: '  Spec v2 ' } })
+    fireEvent.change(screen.getByLabelText('Link URL'), { target: { value: 'docs.example.com/v2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('7', 'art-1', { name: 'Spec v2', url: 'https://docs.example.com/v2' }))
+    await waitFor(() => expect(screen.queryByLabelText('Link name')).toBeNull())
+    expect(screen.getByText('Spec v2')).toBeDefined()
+  })
+
+  it('link sai thì báo lỗi, không gọi API; API lỗi thì giữ form và hiện lỗi; Cancel thì bỏ sửa', async () => {
+    seedRole('OWNER')
+    const spy = vi
+      .spyOn(workflowService, 'updateArtifact')
+      .mockRejectedValue(new ApiError({ status: 403, code: 'ACCESS_DENIED', message: 'You can only edit artifacts you added.' }))
+
+    render(<WorkflowArtifactsDrawer projectId="7" isOpen={true} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Architecture Spec' }))
+
+    fireEvent.change(screen.getByLabelText('Link URL'), { target: { value: 'not a link' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByRole('alert').textContent).toContain("isn't valid")
+    expect(spy).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Link URL'), { target: { value: 'https://docs.example.com/v3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('You can only edit artifacts you added.'))
+    expect(screen.getByLabelText('Link name')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('Link name')).toBeNull()
+    expect(screen.getByText('Architecture Spec')).toBeDefined()
+  })
+})
