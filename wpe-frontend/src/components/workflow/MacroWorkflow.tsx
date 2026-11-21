@@ -249,7 +249,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Trạng thái dự án + nút Start / Pause / Resume / Complete / Reopen (chỉ chủ dự án) */}
+          {/* Trạng thái dự án + nút Start project (chỉ chủ dự án) */}
           <div data-pan-zoom-ignore>
             <ProjectStatusControl projectId={projectId} />
           </div>

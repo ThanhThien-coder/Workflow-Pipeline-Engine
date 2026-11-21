@@ -365,7 +365,7 @@ export class HttpWorkflowService implements IWorkflowService {
       id: String(item.id),
       name: item.name,
       description: item.description || '',
-      status: (item.status || 'PLANNING') as ProjectStatus,
+      status: (item.status || 'DRAFT') as ProjectStatus,
       ownerId: item.ownerId != null ? String(item.ownerId) : undefined,
       ownerName: item.ownerName || '',
       role: 'OWNER',

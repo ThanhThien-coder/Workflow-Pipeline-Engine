@@ -97,7 +97,7 @@ erDiagram
         bigint owner_id FK
         varchar name
         text description "nullable"
-        varchar status "DRAFT ACTIVE INACTIVE ARCHIVED"
+        varchar status "DRAFT ACTIVE ARCHIVED"
         jsonb latest_ai_analysis "nullable"
         timestamp ai_requested_at "nullable"
         timestamp created_at
@@ -286,7 +286,7 @@ Quản lý thông tin chung, trạng thái dự án và lưu đệm chẩn đoá
 | `owner_id` | `bigint` | FK (USERS.id), NOT NULL | | Chủ dự án (Project Owner). |
 | `name` | `varchar(150)` | NOT NULL | | Tên hiển thị của dự án. |
 | `description` | `text` | NULLABLE | | Mô tả chi tiết mục tiêu dự án. |
-| `status` | `varchar(30)` | NOT NULL | `'DRAFT'` | Trạng thái: `'DRAFT'`, `'ACTIVE'`, `'INACTIVE'`, `'ARCHIVED'`. |
+| `status` | `varchar(30)` | NOT NULL | `'DRAFT'` | Trạng thái: `'DRAFT'`, `'ACTIVE'`, `'ARCHIVED'` (G34, migration `V24`, `V25`). |
 | `latest_ai_analysis` | `jsonb` | NULLABLE | | Kết quả phân tích mới nhất từ AI Worker (metrics, anomalies, traps, cpm, advice). |
 | `ai_requested_at` | `timestamptz` | NULLABLE | `NULL` | Thời điểm bấm chạy AI gần nhất (V18). Giữ chỗ chống bấm trùng và tính cooldown 180 giây; chạy AI lỗi thì trả lại giá trị cũ. |
 | `created_at` | `timestamptz` | NOT NULL | `NOW()` | Thời điểm khởi tạo dự án. |
@@ -527,7 +527,7 @@ Dưới đây là 12 quyết định thiết kế CSDL đã thống nhất và c
 | 1 | `PROJECT.updated_at` | **GIỮ LẠI** | Hỗ trợ sort "Gần đây nhất" trên Dashboard, kiểm tra cache và khóa lạc quan dự án. |
 | 2 | `GUEST_ACCESS_LOG` | **XÓA BỎ HOÀN TOÀN** | Không cần theo dõi IP/lượt xem của khách ngoài; giảm tải rác DB. |
 | 3 | `NODE_DEPENDENCY` & Task Tự Do | **GIỮ QUAN HỆ DAG + CHO PHÉP TASK TỰ DO** | Giữ DAG cho lõi thuật toán Kahn; cho phép `phase_id = NULL` cho việc hành chính (họp, slide) với status khởi tạo là `TODO`. |
-| 4 | `PROJECT.completed_at` | **KHÔNG BỔ SUNG** | Giao diện chỉ quản lý 4 trạng thái (`DRAFT`, `ACTIVE`, `INACTIVE`, `ARCHIVED`) và tính `% hoàn thành` qua count node. |
+| 4 | `PROJECT.completed_at` | **KHÔNG BỔ SUNG** | Giao diện chỉ quản lý 3 trạng thái (`DRAFT`, `ACTIVE`, `ARCHIVED`) và tính `% hoàn thành` qua count node. |
 | 5 | `PROJECT_AI_ANALYSIS` | **CHUYỂN THÀNH CỘT JSONB `latest_ai_analysis`** | Giảm 1 bảng, bớt Entity/Repository/Service trong Spring Boot; lưu trữ trực tiếp kết quả quét mới nhất của AI Worker. |
 | 6 | `PROJECT_INVITATION` | **TÁI THIẾT LẬP BẢNG & LUỒNG MỜI BẤT ĐỒNG BỘ** | Tái lập bảng; bãi bỏ Direct Add không xác nhận; dùng luồng mời bất đồng bộ qua RabbitMQ/SSE, deep-link `/workspace?action=open-invite-modal&invitationId={id}` và popup modal xác nhận (Accept/Decline). |
 | 7 | `PROJECT_FEEDBACK` | **ĐỔI TÊN & PHẢN HỒI 1 CHIỀU** | Đổi từ `NODE_FEEDBACK`; cho phép `node_id = NULL`; bỏ cột `reply_content` (chỉ tiếp thu và chuyển `RESOLVED`). |

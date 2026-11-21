@@ -53,7 +53,7 @@ describe('B6: settingsSlice.publishProject', () => {
     const store = createWorkflowStore(service)
     await store.getState().settings.loadSettings('1')
     vi.spyOn(workflowService, 'publishPipeline').mockRejectedValue(
-      Object.assign(new Error('Chỉ xuất bản được dự án đang ở trạng thái DRAFT hoặc PLANNING. Trạng thái hiện tại: ACTIVE.'), {
+      Object.assign(new Error('Chỉ xuất bản được dự án đang ở trạng thái DRAFT. Trạng thái hiện tại: ACTIVE.'), {
         status: 409, code: 'INVALID_PROJECT_STATUS',
       }),
     )
@@ -61,7 +61,7 @@ describe('B6: settingsSlice.publishProject', () => {
     const ok = await store.getState().settings.publishProject()
 
     expect(ok).toBe(false)
-    expect(store.getState().settings.toast).toContain('DRAFT hoặc PLANNING')
+    expect(store.getState().settings.toast).toContain('trạng thái DRAFT')
     expect(store.getState().settings.settings?.status).toBe('DRAFT')
     expect(store.getState().settings.kahnCycleErrors).toBeNull()
   })
@@ -91,7 +91,6 @@ describe('B6: settingsSlice.publishProject', () => {
 
 function projectWith(status: string): ProjectSettingsDto {
   return {
-    // PLANNING chưa có trong ProjectStatus của settings.types nhưng backend có trả, nên ép kiểu
     id: '5', name: 'B6 thử', description: '', status: status as ProjectSettingsDto['status'], ownerId: '2', myRole: 'OWNER',
     createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z',
   }
@@ -100,7 +99,7 @@ function projectWith(status: string): ProjectSettingsDto {
 describe('Settings: không có nút bắt đầu dự án (chỉ bắt đầu ở tab Workflow)', () => {
   const noop = async () => true
 
-  it.each(['DRAFT', 'PLANNING', 'ACTIVE', 'ARCHIVED'] as const)('dự án %s: owner không thấy nút "Start project in Workflow" hay nút Publish', (status) => {
+  it.each(['DRAFT', 'ACTIVE', 'ARCHIVED'] as const)('dự án %s: owner không thấy nút "Start project in Workflow" hay nút Publish', (status) => {
     render(<GeneralSettingsSection settings={projectWith(status)} myRole="OWNER" onSave={noop} onPublish={noop} />)
     expect(screen.queryByRole('button', { name: /start project/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /publish pipeline/i })).toBeNull()

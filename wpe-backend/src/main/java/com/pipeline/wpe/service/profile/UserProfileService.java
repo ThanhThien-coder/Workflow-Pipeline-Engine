@@ -639,10 +639,6 @@ public class UserProfileService {
         }
         return switch (status) {
             case DRAFT -> "Draft";
-            case PLANNING -> "Planning";
-            case PAUSED -> "Paused";
-            case INACTIVE -> "Inactive";
-            case COMPLETED -> "Completed";
             case ARCHIVED -> "Archived";
             case ACTIVE -> {
                 if (rootPhases == null || rootPhases.isEmpty()) {

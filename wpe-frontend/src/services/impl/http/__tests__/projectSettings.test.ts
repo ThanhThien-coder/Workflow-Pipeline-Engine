@@ -12,9 +12,9 @@ function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }
 
-// Dự án 5 của alex (id 2), đang PLANNING; sarah (id 3) là COLLABORATOR
+// Dự án 5 của alex (id 2), đang DRAFT; sarah (id 3) là COLLABORATOR
 const DETAIL = {
-  id: 5, name: 'Core Banking v2', description: 'Mô tả thật', status: 'PLANNING', ownerId: 2, ownerName: 'Alex Kim',
+  id: 5, name: 'Core Banking v2', description: 'Mô tả thật', status: 'DRAFT', ownerId: 2, ownerName: 'Alex Kim',
   totalNodes: 4, completedNodes: 1, inProgressNodes: 1, progressPercentage: 25,
   createdAt: '2026-11-10T08:00:00Z', updatedAt: '2026-11-12T09:30:00Z', latestAiAnalysis: null, phases: [],
 }
@@ -61,7 +61,7 @@ describe('getProjectSettings gọi backend thật', () => {
     const s = await new HttpWorkflowService().getProjectSettings('5')
 
     expect(s).toEqual({
-      id: '5', name: 'Core Banking v2', description: 'Mô tả thật', status: 'PLANNING', ownerId: '2',
+      id: '5', name: 'Core Banking v2', description: 'Mô tả thật', status: 'DRAFT', ownerId: '2',
       myRole: 'OWNER', createdAt: '2026-11-10T08:00:00Z', updatedAt: '2026-11-12T09:30:00Z',
     })
     expect(urls.some((u) => u.endsWith('/projects/5'))).toBe(true)

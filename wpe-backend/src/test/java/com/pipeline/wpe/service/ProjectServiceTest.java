@@ -266,7 +266,7 @@ class ProjectServiceTest {
             .updatedAt(now)
             .build();
 
-        UpdateProjectStatusRequest req = new UpdateProjectStatusRequest("PAUSED");
+        UpdateProjectStatusRequest req = new UpdateProjectStatusRequest("ARCHIVED");
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -282,7 +282,7 @@ class ProjectServiceTest {
         ProjectSummaryResponse response = projectService.updateProjectStatus(projectId, req, userId);
 
         assertThat(response).isNotNull();
-        assertThat(response.status()).isEqualTo("PAUSED");
+        assertThat(response.status()).isEqualTo("ARCHIVED");
         assertThat(response.totalNodes()).isEqualTo(5);
         assertThat(response.completedNodes()).isEqualTo(2);
         assertThat(response.progressPercentage()).isEqualTo(40.0);
@@ -380,15 +380,9 @@ class ProjectServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "ACTIVE, PAUSED",
-        "PAUSED, ACTIVE",
         "ACTIVE, ARCHIVED",
         "DRAFT, ARCHIVED",
-        "PLANNING, ARCHIVED",
-        "COMPLETED, ARCHIVED",
-        "ARCHIVED, DRAFT",
-        "ACTIVE, COMPLETED",
-        "COMPLETED, ACTIVE"
+        "ARCHIVED, DRAFT"
     })
     @DisplayName("updateProjectStatus: Cho phép chuyển trạng thái hợp lệ")
     void shouldAllowValidStatusTransitions(ProjectStatus from, ProjectStatus to) {
@@ -506,17 +500,13 @@ class ProjectServiceTest {
         assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
     }
 
-    @ParameterizedTest
-    @CsvSource({
-        "DRAFT",
-        "PLANNING"
-    })
-    @DisplayName("updateProjectStatus: DRAFT/PLANNING -> ACTIVE ném ConflictException USE_PUBLISH")
-    void shouldThrowConflictExceptionWithUsePublish_whenActivatingDraftOrPlanning(ProjectStatus initialStatus) {
+    @Test
+    @DisplayName("updateProjectStatus: DRAFT -> ACTIVE ném ConflictException USE_PUBLISH")
+    void shouldThrowConflictExceptionWithUsePublish_whenActivatingDraft() {
         ProjectEntity project = ProjectEntity.builder()
             .id(projectId)
             .ownerId(userId)
-            .status(initialStatus)
+            .status(ProjectStatus.DRAFT)
             .build();
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
@@ -535,9 +525,10 @@ class ProjectServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "COMPLETED, PAUSED",
-        "ARCHIVED, PAUSED",
-        "ACTIVE, ACTIVE"
+        "DRAFT, DRAFT",
+        "ARCHIVED, ARCHIVED",
+        "ACTIVE, ACTIVE",
+        "ACTIVE, DRAFT"
     })
     @DisplayName("updateProjectStatus: Chuyển trạng thái không hợp lệ ném ConflictException INVALID_PROJECT_STATUS")
     void shouldThrowConflictExceptionWithInvalidStatus_whenTransitionNotAllowed(ProjectStatus from, ProjectStatus to) {
@@ -561,13 +552,40 @@ class ProjectServiceTest {
         verify(projectRepository, never()).save(any());
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "ACTIVE, COMPLETED",
+        "ACTIVE, PAUSED",
+        "DRAFT, PLANNING",
+        "ACTIVE, INACTIVE"
+    })
+    @DisplayName("G34: trạng thái đã bỏ (COMPLETED, PAUSED, PLANNING, INACTIVE) ném IllegalArgumentException (400), không lưu")
+    void shouldRejectRemovedStatuses(ProjectStatus from, String removedStatus) {
+        ProjectEntity project = ProjectEntity.builder()
+            .id(projectId)
+            .ownerId(userId)
+            .status(from)
+            .build();
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+        UpdateProjectStatusRequest req = new UpdateProjectStatusRequest(removedStatus);
+
+        assertThatThrownBy(() -> projectService.updateProjectStatus(projectId, req, userId))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Invalid project status: " + removedStatus);
+
+        assertThat(project.getStatus()).isEqualTo(from);
+        verify(projectRepository, never()).save(any());
+    }
+
     @Test
     @DisplayName("updateProjectStatus: Chặn quyền và ném Exception khi người gọi không phải OWNER")
     void shouldThrowAccessDeniedWhenNonOwnerTriesToUpdateStatus() {
         ProjectEntity project = ProjectEntity.builder()
             .id(projectId)
             .ownerId(userId) // Owner là userId = 2
-            .status(ProjectStatus.PLANNING)
+            .status(ProjectStatus.DRAFT)
             .build();
 
         UpdateProjectStatusRequest req = new UpdateProjectStatusRequest("ACTIVE");

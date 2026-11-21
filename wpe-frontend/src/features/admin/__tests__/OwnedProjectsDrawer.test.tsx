@@ -113,8 +113,8 @@ describe('OwnedProjectsDrawer Component', () => {
     expect(await screen.findByText("This user doesn't own any projects.")).toBeTruthy();
   });
 
-  it('dự án ARCHIVED hoặc COMPLETED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', async () => {
-    const closedProjects: OwnedProjectDto[] = [
+  it('dự án ARCHIVED không hiện select/nút chuyển chủ mà hiện câu "Archived projects can\'t be transferred."; dự án ACTIVE vẫn chuyển được', async () => {
+    const projects: OwnedProjectDto[] = [
       {
         projectId: '10',
         name: 'Archived Project',
@@ -124,14 +124,14 @@ describe('OwnedProjectsDrawer Component', () => {
       },
       {
         projectId: '20',
-        name: 'Completed Project',
-        status: 'COMPLETED',
+        name: 'Active Project',
+        status: 'ACTIVE',
         memberCount: 2,
         candidates: [{ userId: '6', name: 'Frank', username: 'frank' }],
       },
     ];
 
-    loadOwnedProjects.mockResolvedValue(closedProjects);
+    loadOwnedProjects.mockResolvedValue(projects);
 
     render(
       <OwnedProjectsDrawer
@@ -143,14 +143,12 @@ describe('OwnedProjectsDrawer Component', () => {
     );
 
     expect(await screen.findByText('Archived Project')).toBeTruthy();
-    expect(await screen.findByText('Completed Project')).toBeTruthy();
+    expect(await screen.findByText('Active Project')).toBeTruthy();
 
-    const closedMessages = screen.getAllByText(
-      "Archived or completed projects can't be transferred."
-    );
-    expect(closedMessages).toHaveLength(2);
+    const closedMessages = screen.getAllByText("Archived projects can't be transferred.");
+    expect(closedMessages).toHaveLength(1);
 
-    expect(screen.queryByLabelText('New owner')).toBeNull();
-    expect(screen.queryByText('Transfer ownership')).toBeNull();
+    // Chỉ dự án ACTIVE có ô chọn chủ mới
+    expect(screen.getAllByLabelText('New owner')).toHaveLength(1);
   });
 });

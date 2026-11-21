@@ -32,7 +32,6 @@ function mapToProjectSettingsDto(detail: BackendProjectDetail, myRole: ProjectRo
     id: String(detail.id),
     name: detail.name,
     description: detail.description ?? '',
-    // Backend có thể trả PLANNING, PAUSED, COMPLETED; ProjectStatus của settings.types chưa có các giá trị này (file của D)
     status: detail.status as ProjectStatus,
     ownerId: String(detail.ownerId),
     myRole,

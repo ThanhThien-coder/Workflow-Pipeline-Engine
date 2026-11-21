@@ -2,11 +2,7 @@ export type ISODateTime = string;
 export type ProjectRole = 'OWNER' | 'MANAGER' | 'COLLABORATOR' | 'VIEWER';
 export type ProjectStatus =
   | 'DRAFT'
-  | 'PLANNING'
   | 'ACTIVE'
-  | 'PAUSED'
-  | 'COMPLETED'
-  | 'INACTIVE'
   | 'ARCHIVED';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
 

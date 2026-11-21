@@ -85,10 +85,10 @@
 
 **Trạng thái dự án và quyền làm task (19/11/2026, Thiện chốt):**
 - Owner và Manager làm task (bảng trên) ở **mọi** trạng thái dự án, trừ `ARCHIVED` (mọi người chỉ xem, 409 `PROJECT_ARCHIVED`).
-- Collaborator chỉ đổi trạng thái task và nộp bài khi dự án `ACTIVE`. Dự án `DRAFT` / `PLANNING` / `PAUSED` / `COMPLETED` thì `PATCH /status` và `POST /submit` của Collaborator trả **409 `PROJECT_NOT_ACTIVE`** (`StateMachineService.ensureProjectRunningForMember`). Viewer luôn chỉ xem (403).
+- Collaborator chỉ đổi trạng thái task và nộp bài khi dự án `ACTIVE`. Dự án `DRAFT` (chưa Start) thì `PATCH /status` và `POST /submit` của Collaborator trả **409 `PROJECT_NOT_ACTIVE`** (`StateMachineService.ensureProjectRunningForMember`). Viewer luôn chỉ xem (403).
 - FE: `domain/projectWork.ts` (`isMemberWorkLocked`), `evaluateTransition(task, to, actor, projectStatus)` từ chối kèm câu báo; `TaskDetailModal` ẩn nút Start/Submit/Add Deliverable và hiện băng; Kanban phase và My Tasks hiện băng `ProjectNotActiveBanner`.
-- Đổi trạng thái dự án ở màn **Workflow** (`ProjectStatusControl`, chỉ Owner): `DRAFT`/`PLANNING` → Start project (publish, kiểm chu trình) · `ACTIVE` → Pause / Mark completed · `PAUSED` → Resume / Mark completed · `COMPLETED` → Reopen project (`COMPLETED → ACTIVE`, mới). Lưu trữ / khôi phục / xóa vẫn ở Settings.
-- Task tạo khi dự án đã publish (không `DRAFT`/`PLANNING`) là `TODO`; nối cha chưa xong thì tự về `LOCKED`.
+- Đổi trạng thái dự án ở màn **Workflow** (`ProjectStatusControl`, chỉ Owner): `DRAFT` → Start project (publish, kiểm chu trình); `ACTIVE` không có nút (không còn tạm dừng hay hoàn thành, G34, xem mục 5.1). Lưu trữ / khôi phục / xóa vẫn ở Settings.
+- Task tạo khi dự án đã publish (không `DRAFT`) là `TODO`; nối cha chưa xong thì tự về `LOCKED`.
 
 ### 2.2 Hàm Đánh giá Chuyển đổi Trạng thái (`evaluateTransition`)
 
@@ -349,14 +349,25 @@ File: `wpe-backend/src/main/java/com/pipeline/wpe/service/engine/KahnDagService.
 ## 5. Vòng đời Dự án & Kiểm soát Xung đột Đồng thời
 
 ### 5.1 Vòng đời Dự án (Project Lifecycle)
-1. **`DRAFT`**: Dự án đang trong giai đoạn phác thảo và vẽ đồ thị. Engine ngầm chưa tự động mở khóa.
-2. **`ACTIVE`**: Dự án đã vượt qua thuật toán Kahn và được kích hoạt. Các nút gốc (In-degree = 0) chuyển sang `TODO` và tự động đẩy vào My Tasks của người phụ trách.
-3. **`INACTIVE`**: Dự án không có tương tác nào trong 30 ngày; nhận cảnh báo trước khi chuyển lưu trữ.
-4. **`ARCHIVED`**: Dự án đóng băng chỉ đọc (Read-only); có thể được khôi phục bởi Chủ dự án trong thời hạn quy định.
+Dự án có đúng 3 trạng thái (rút gọn 21/11/2026, G34):
+* Bỏ `PLANNING` vì trùng `DRAFT`; bỏ `INACTIVE` vì không có đường chuyển vào.
+* Bỏ `COMPLETED`: dự án xong vẫn có thể làm tiếp, không dùng nữa thì lưu trữ.
+* Bỏ `PAUSED`: nó chỉ chặn cộng tác viên nộp minh chứng, trong khi việc thật vẫn chạy và hạn chót vẫn bị quét trễ hạn, nên chỉ làm dữ liệu tiến độ sai lệch. Muốn dừng hẳn thì lưu trữ.
+* Dữ liệu cũ: migration `V24` đổi `PLANNING → DRAFT`, `COMPLETED → ACTIVE`, `INACTIVE → ARCHIVED`; `V25` đổi `PAUSED → ACTIVE`.
+
+1. **`DRAFT`**: Dự án đang trong giai đoạn phác thảo và vẽ đồ thị. Mọi task `LOCKED`, chưa mở khóa sớm được. Cộng tác viên chỉ xem.
+2. **`ACTIVE`**: Dự án đã vượt qua thuật toán Kahn và được kích hoạt. Các nút gốc (In-degree = 0) chuyển sang `TODO` và tự động đẩy vào My Tasks của người phụ trách. Mọi task đã `DONE` thì dự án vẫn `ACTIVE`.
+3. **`ARCHIVED`**: Dự án đóng băng chỉ đọc (Read-only); có thể được khôi phục bởi Chủ dự án.
    * Mọi thao tác ghi trả 409 `PROJECT_ARCHIVED`: sửa đồ thị, phase, node, cạnh (B2, B3); đổi trạng thái task, duyệt hoặc từ chối bài, nộp bài, force unlock (C1). Đọc dữ liệu vẫn được.
 
-**Luật xuất bản `POST /projects/{id}/publish` (cập nhật 12/11/2026, task B4):**
-* Chỉ chuyển sang `ACTIVE` được từ `DRAFT` hoặc `PLANNING`. Dự án `ARCHIVED` trả 409 `PROJECT_ARCHIVED`; các trạng thái khác (`ACTIVE`, `PAUSED`, `COMPLETED`, `INACTIVE`) trả 409 `INVALID_PROJECT_STATUS`. Xuất bản lần 2 vì thế luôn bị từ chối, không mở khóa hay gửi sự kiện lặp lại.
+**Luật đổi trạng thái `PATCH /projects/{id}/status` (chỉ Owner hoặc Admin; dùng cho lưu trữ / khôi phục ở Settings):**
+* `DRAFT → ARCHIVED`; `DRAFT → ACTIVE` chỉ qua publish (đổi trực tiếp trả 409 `USE_PUBLISH`).
+* `ACTIVE → ARCHIVED`.
+* `ARCHIVED → ACTIVE | DRAFT`. Khôi phục sang `ACTIVE` mà dự án chưa từng Start (không có task nào khác `LOCKED`) thì về `DRAFT`.
+* Bước chuyển khác trả 409 `INVALID_PROJECT_STATUS`. Giá trị không thuộc 3 trạng thái (kể cả `PLANNING`, `PAUSED`, `COMPLETED`, `INACTIVE` cũ) trả 400.
+
+**Luật xuất bản `POST /projects/{id}/publish` (cập nhật 12/11/2026, task B4; 21/11/2026, G34):**
+* Chỉ chuyển sang `ACTIVE` được từ `DRAFT`. Dự án `ARCHIVED` trả 409 `PROJECT_ARCHIVED`; dự án `ACTIVE` trả 409 `INVALID_PROJECT_STATUS`. Xuất bản lần 2 vì thế luôn bị từ chối, không mở khóa hay gửi sự kiện lặp lại.
 * Thứ tự kiểm: quyền owner (403) → trạng thái dự án (409) → thuật toán Kahn toàn dự án (422 `CYCLE_DETECTED`, `cycleNodes` = `cycleNodeCodes`, xem mục 4.3).
 * Node gốc (in-degree = 0) đang `LOCKED` chuyển sang `TODO`. Mỗi node vừa mở khóa có người phụ trách sinh 1 SSE `TASK_UNLOCKED` và 1 thông báo `TASK_READY`, gửi **sau khi transaction commit**. Rollback thì không gửi.
 * Độ phức tạp: O(V + E) với V là số node, E là số cạnh của dự án (đọc node và cạnh 1 lần, Kahn O(V + E), duyệt node gốc O(V)).

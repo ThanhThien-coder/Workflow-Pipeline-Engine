@@ -101,7 +101,7 @@ class AdminStatsServiceTest {
         // 2. Projects: byStatus đủ mọi ProjectStatus
         assertThat(response.projects().total()).isEqualTo(2);
         assertThat(response.projects().byStatus()).containsOnlyKeys(
-            "DRAFT", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "INACTIVE", "ARCHIVED"
+            "DRAFT", "ACTIVE", "ARCHIVED"
         );
         assertThat(response.projects().byStatus().get("ACTIVE")).isEqualTo(1);
         assertThat(response.projects().byStatus().get("DRAFT")).isEqualTo(1);

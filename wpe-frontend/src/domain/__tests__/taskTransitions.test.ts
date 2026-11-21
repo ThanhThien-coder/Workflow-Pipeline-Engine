@@ -13,7 +13,7 @@ describe('Domain: evaluateTransition', () => {
   const task = (status: TaskStatus, assignedUserId = 'user-collab') => ({ status, assignedUserId })
 
   describe('trạng thái dự án: Cộng tác viên chỉ làm task khi ACTIVE; Owner và Manager luôn làm', () => {
-    it.each(['DRAFT', 'PLANNING', 'PAUSED', 'COMPLETED'])('dự án %s: Cộng tác viên bắt đầu task của mình -> deny kèm câu báo', (status) => {
+    it.each(['DRAFT'])('dự án %s: Cộng tác viên bắt đầu task của mình -> deny kèm câu báo', (status) => {
       const decision = evaluateTransition(task('TODO'), 'IN_PROGRESS', collaborator, status)
       expect(decision.kind).toBe('deny')
       expect(decision.kind === 'deny' && decision.message).toMatch(/Only the owner or a manager can work on tasks until it is active/)
@@ -21,8 +21,8 @@ describe('Domain: evaluateTransition', () => {
     it('dự án DRAFT: Manager bắt đầu task được giao -> allow', () => {
       expect(evaluateTransition(task('TODO', 'user-manager'), 'IN_PROGRESS', manager, 'DRAFT').kind).toBe('allow')
     })
-    it('dự án PAUSED: Owner duyệt task -> allow', () => {
-      expect(evaluateTransition(task('REVIEW'), 'DONE', owner, 'PAUSED').kind).toBe('allow')
+    it('dự án DRAFT: Owner duyệt task -> allow', () => {
+      expect(evaluateTransition(task('REVIEW'), 'DONE', owner, 'DRAFT').kind).toBe('allow')
     })
     it('dự án ACTIVE hoặc chưa biết trạng thái: Cộng tác viên làm task của mình như cũ', () => {
       expect(evaluateTransition(task('TODO'), 'IN_PROGRESS', collaborator, 'ACTIVE').kind).toBe('allow')

@@ -103,7 +103,7 @@ export class MockAdminService implements IAdminService {
       ownerId: 'usr_05TS16',
       ownerName: 'Diego Santos',
       ownerMaskedEmail: 'di***os@orbitlabs.co',
-      status: 'PLANNING',
+      status: 'DRAFT',
       memberCount: 3,
       phaseCount: 2,
       nodeCount: 12,
@@ -223,10 +223,7 @@ export class MockAdminService implements IAdminService {
 
     const projectByStatus: Record<string, number> = {
       DRAFT: 0,
-      PLANNING: 0,
       ACTIVE: 0,
-      PAUSED: 0,
-      COMPLETED: 0,
       ARCHIVED: 0,
     };
     for (const w of this.workspaces) {
