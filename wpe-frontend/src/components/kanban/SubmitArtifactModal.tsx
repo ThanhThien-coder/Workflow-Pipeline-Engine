@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Upload, X } from 'lucide-react'
 import type { ArtifactType, KanbanTask } from '../../types/kanban.types'
-import { isValidArtifactUrl } from '../../utils/artifactLabel'
+import { DELIVERABLE_NAME_MAX, isValidArtifactUrl } from '../../utils/artifactLabel'
 import { useDismiss } from '../../hooks/useDismiss'
 import { SiteIcon, hostOf, siteLabel } from '../common/SiteIcon'
 
@@ -14,10 +14,10 @@ export function SubmitArtifactModal({
   task: KanbanTask
   submitting: boolean
   onClose: () => void
-  onSubmit: (form: { type?: ArtifactType; url: string; note: string }) => Promise<boolean>
+  onSubmit: (form: { type?: ArtifactType; url: string; name: string }) => Promise<boolean>
 }) {
   const [url, setUrl] = useState('')
-  const [note, setNote] = useState('')
+  const [name, setName] = useState('')
   const [error, setError] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const close = useCallback(() => onClose(), [onClose])
@@ -31,7 +31,7 @@ export function SubmitArtifactModal({
       setError('Please enter a valid URL (starting with http:// or https://).')
       return
     }
-    await onSubmit({ url: trimmedUrl, note })
+    await onSubmit({ url: trimmedUrl, name: trimmedUrl ? name.trim() : '' })
   }
 
   return (
@@ -87,14 +87,18 @@ export function SubmitArtifactModal({
             {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Handover Notes
-            <textarea
-              rows={3}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Summary of completed deliverables and changes..."
-              className="mt-1 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
+            Deliverable name <span className="text-xs font-normal text-slate-400">(Optional)</span>
+            <input
+              value={name}
+              maxLength={DELIVERABLE_NAME_MAX}
+              disabled={!trimmedUrl}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={trimmedUrl ? 'e.g. Login screen design, API pull request' : 'Add a URL first'}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
             />
+            <span className="mt-1 block text-xs font-normal text-slate-400">
+              Shown in the Artifacts list. Leave blank to use &quot;Artifact {task.code}&quot;.
+            </span>
           </label>
         </div>
         <footer className="flex justify-end gap-2 rounded-b-2xl bg-slate-50/70 px-5 py-3">

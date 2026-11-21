@@ -345,7 +345,7 @@ describe('TaskDetailModal Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /Save & Attach/i }))
     expect(onSubmitArtifact).toHaveBeenCalledWith({
       url: 'https://github.com/team/repo/pull/15',
-      note: '',
+      name: '',
     })
   })
 })

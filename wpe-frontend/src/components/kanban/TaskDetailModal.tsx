@@ -17,7 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ArtifactType, KanbanTask, ReopenImpact, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { ReopenTaskModal } from './ReopenTaskModal'
-import { artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
+import { DELIVERABLE_NAME_MAX, artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
 import { SiteIcon, hostOf, siteLabel } from '../common/SiteIcon'
 import { fmtDueDate } from '../../utils/date'
 import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput } from '../../utils/dueDate'
@@ -76,7 +76,7 @@ export interface TaskDetailModalProps {
   pending?: boolean
   onClose: () => void
   onMove: (to: TaskStatus, rejectReason?: string) => void
-  onSubmitArtifact?: (form: { type?: ArtifactType; url: string; note: string }) => Promise<boolean>
+  onSubmitArtifact?: (form: { type?: ArtifactType; url: string; name: string }) => Promise<boolean>
   onUpdateAssignment?: (cmd: { assignedUserId?: string; dueDate?: string }) => Promise<boolean>
   /** S04: mở lại task Done (chỉ hiện nút khi có cả hai prop này và người xem là Owner/Manager). */
   onReopen?: (reason: string) => Promise<boolean>
@@ -110,7 +110,7 @@ export function TaskDetailModal({
 
   const [showAttachForm, setShowAttachForm] = useState(false)
   const [artUrl, setArtUrl] = useState('')
-  const [artNote, setArtNote] = useState('')
+  const [artName, setArtName] = useState('')
   const [artError, setArtError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -200,10 +200,10 @@ export function TaskDetailModal({
     setIsSubmitting(true)
     setArtError('')
     try {
-      const ok = await onSubmitArtifact({ url: trimmedArtUrl, note: artNote })
+      const ok = await onSubmitArtifact({ url: trimmedArtUrl, name: artName.trim() })
       if (ok) {
         setArtUrl('')
-        setArtNote('')
+        setArtName('')
         setShowAttachForm(false)
       }
     } finally {
@@ -488,7 +488,7 @@ export function TaskDetailModal({
                             </span>
                           )}
                         </span>
-                        {artifact.note && (
+                        {artifact.note && artifact.note !== artifactLabel(artifact) && (
                           <span className="block truncate text-[11px] text-slate-500">
                             {artifact.note}
                           </span>
@@ -554,16 +554,20 @@ export function TaskDetailModal({
                   {artError && <span className="mt-1 block text-[10px] text-red-600">{artError}</span>}
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Notes / Comments
+                  <label htmlFor="task-detail-artifact-name" className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Deliverable name <span className="font-normal text-slate-400">(Optional)</span>
                   </label>
-                  <textarea
-                    rows={2}
-                    value={artNote}
-                    onChange={(e) => setArtNote(e.target.value)}
-                    placeholder="Brief description or verification notes..."
-                    className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
+                  <input
+                    id="task-detail-artifact-name"
+                    value={artName}
+                    maxLength={DELIVERABLE_NAME_MAX}
+                    onChange={(e) => setArtName(e.target.value)}
+                    placeholder="e.g. Login screen design, API pull request"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
                   />
+                  <span className="mt-1 block text-[10px] text-slate-400">
+                    Shown in the Artifacts list. Leave blank to use &quot;Artifact {task.code}&quot;.
+                  </span>
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <button

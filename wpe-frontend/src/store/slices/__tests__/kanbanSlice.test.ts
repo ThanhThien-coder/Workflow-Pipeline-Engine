@@ -51,26 +51,26 @@ describe('kanbanSlice submit artifact without type', () => {
 
     const ok1 = await state.kanban.submitTaskArtifact('task-1', {
       url: 'https://figma.com/file/x',
-      note: 'Design link',
+      name: 'Design link',
     })
     expect(ok1).toBe(true)
     expect(spy).toHaveBeenCalledWith({
       taskId: 'task-1',
       url: 'https://figma.com/file/x',
-      note: 'Design link',
+      name: 'Design link',
     })
 
     state.kanban.tasks = [task]
     state.kanban.submittingTaskId = 'task-1'
     const ok2 = await state.kanban.submitArtifact({
       url: 'https://github.com/org/repo/pull/5',
-      note: 'PR link',
+      name: 'PR link',
     })
     expect(ok2).toBe(true)
     expect(spy).toHaveBeenLastCalledWith({
       taskId: 'task-1',
       url: 'https://github.com/org/repo/pull/5',
-      note: 'PR link',
+      name: 'PR link',
     })
   })
 })

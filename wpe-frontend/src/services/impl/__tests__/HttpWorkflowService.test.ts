@@ -73,7 +73,7 @@ describe('HttpWorkflowService: không còn fallback ngầm sang mock', () => {
     const service = new HttpWorkflowService()
 
     await expect(
-      service.submitTaskArtifact({ taskId: '5', type: 'LINK', url: 'https://x.dev', note: '' } as never),
+      service.submitTaskArtifact({ taskId: '5', type: 'LINK', url: 'https://x.dev', name: '' } as never),
     ).rejects.toMatchObject({ status: 409, code: 'OPTIMISTIC_LOCK_CONFLICT' })
   })
 
@@ -379,7 +379,7 @@ describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockW
     await service.submitTaskArtifact({
       taskId: '5',
       url: 'https://github.com/org/repo/pull/9',
-      note: 'Done',
+      name: 'Done',
     })
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
@@ -388,7 +388,7 @@ describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockW
     expect(sent).toEqual({
       taskId: '5',
       url: 'https://github.com/org/repo/pull/9',
-      note: 'Done',
+      title: 'Done',
       version: 0,
     })
   })
@@ -403,7 +403,7 @@ describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockW
       return mock.submitTaskArtifact({
         taskId: target.id,
         url,
-        note: '',
+        name: '',
       })
     }
 

@@ -196,7 +196,8 @@ export class HttpWorkflowService implements IWorkflowService {
     const body: Record<string, unknown> = {
       taskId: dto.taskId,
       url: dto.url,
-      note: dto.note,
+      // Backend lấy title làm tên artifact (bảng artifacts không có cột ghi chú)
+      title: dto.name,
       version: currentVersion,
     }
     if (dto.type) {
@@ -213,7 +214,8 @@ export class HttpWorkflowService implements IWorkflowService {
       id: result.artifact?.id || `art-${Date.now()}`,
       type: (result.artifact?.type || dto.type || 'DOCS') as ArtifactType,
       url: result.artifact?.url || dto.url,
-      note: result.artifact?.note || dto.note,
+      note: result.artifact?.note || dto.name,
+      label: result.artifact?.label || dto.name || undefined,
       uploadedAt: result.artifact?.uploadedAt || new Date().toISOString(),
     }
 
@@ -259,8 +261,6 @@ export class HttpWorkflowService implements IWorkflowService {
     return this.mapArtifact(item)
   }
 
-  /** DELETE /projects/{projectId}/artifacts/{artifactId} — 404 coi như đã xóa (giữ hành vi cũ). */
-  async deleteArtifact(projectId: string, artifactId: string): Promise<void> {
   /** PUT /projects/{projectId}/artifacts/{artifactId} */
   async updateArtifact(projectId: string, artifactId: string, payload: UpdateArtifactCommand): Promise<ProjectArtifactItem> {
     const item = await apiRequest<any>('PUT', `/projects/${projectId}/artifacts/${artifactId}`, {
@@ -269,6 +269,8 @@ export class HttpWorkflowService implements IWorkflowService {
     return this.mapArtifact(item)
   }
 
+  /** DELETE /projects/{projectId}/artifacts/{artifactId} — 404 coi như đã xóa (giữ hành vi cũ). */
+  async deleteArtifact(projectId: string, artifactId: string): Promise<void> {
     try {
       await apiRequest<void>('DELETE', `/projects/${projectId}/artifacts/${artifactId}`)
     } catch (error) {

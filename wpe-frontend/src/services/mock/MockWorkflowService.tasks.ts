@@ -186,7 +186,8 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'getPh
       id: `a${Date.now()}`,
       type: dto.type ?? 'DOCS', // MockWorkflowService đã đoán loại theo link trước khi gọi vào đây
       url: dto.url || '',
-      note: dto.note,
+      note: dto.name,
+      label: dto.name || undefined,
       uploadedAt: new Date().toISOString(),
     }
     if (dto.url && dto.url.trim()) {

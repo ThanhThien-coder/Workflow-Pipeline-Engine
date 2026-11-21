@@ -498,6 +498,10 @@ public class StateMachineService {
             throw new IllegalArgumentException(
                 "The artifact link must be a valid http:// or https:// URL (with a domain), up to 500 characters.");
         }
+        // G36: tên minh chứng lưu vào artifacts.name (tối đa 200). Trước đây tên dài làm lỗi lúc lưu DB.
+        if (hasArtifact && artifactTitle != null && artifactTitle.trim().length() > 200) {
+            throw new IllegalArgumentException("The deliverable name can't exceed 200 characters.");
+        }
 
         // Chuyển sang REVIEW
         node.setStatus(NodeStatus.REVIEW);
