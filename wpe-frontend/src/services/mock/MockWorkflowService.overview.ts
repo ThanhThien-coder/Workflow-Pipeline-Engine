@@ -88,11 +88,7 @@ export class MockOverviewApi implements Pick<IWorkflowService, 'getOverviewData'
     const labelMap: Record<ProjectStatus, string> = {
       DRAFT: 'Phase 2 · Draft',
       ACTIVE: 'Phase 2 · Published',
-      INACTIVE: 'Phase 2 · Paused',
       ARCHIVED: 'Phase 2 · Archived',
-      PLANNING: 'Phase 2 · Planning',
-      PAUSED: 'Phase 2 · Paused',
-      COMPLETED: 'Phase 2 · Completed',
     }
     this.data.project.phaseLabel = labelMap[status] || status
   }

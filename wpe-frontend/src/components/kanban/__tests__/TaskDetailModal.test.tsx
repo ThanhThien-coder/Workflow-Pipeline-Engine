@@ -268,8 +268,8 @@ describe('TaskDetailModal Component', () => {
       expect(screen.queryByRole('button', { name: /Add Deliverable/i })).toBeNull()
     })
 
-    it('Quản lý ở dự án PAUSED: không có băng báo, vẫn có nút Start', () => {
-      setProject('PAUSED', 'MANAGER')
+    it('Quản lý ở dự án DRAFT: không có băng báo, vẫn có nút Start', () => {
+      setProject('DRAFT', 'MANAGER')
       render(<TaskDetailModal task={{ ...mockTask, status: 'TODO', assignedUserId: '3' }} actor={managerActor} members={mockMembers} onClose={vi.fn()} onMove={vi.fn()} />)
 
       expect(screen.queryByTestId('project-not-active-banner')).toBeNull()

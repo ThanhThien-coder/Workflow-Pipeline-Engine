@@ -1,4 +1,4 @@
-export type ProjectStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'PLANNING' | 'PAUSED' | 'COMPLETED'
+export type ProjectStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
 export type ProjectRole = 'OWNER' | 'MANAGER' | 'COLLABORATOR' | 'VIEWER'
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED'
 

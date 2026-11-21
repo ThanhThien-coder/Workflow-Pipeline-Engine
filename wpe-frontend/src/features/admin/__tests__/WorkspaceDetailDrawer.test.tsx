@@ -74,11 +74,11 @@ describe('WorkspaceDetailDrawer Component', () => {
     ],
   };
 
-  const mockDetailCompleted: AdminWorkspaceDetailDto = {
+  const mockDetailDraft: AdminWorkspaceDetailDto = {
     ...mockDetailWithCandidates,
     id: '4',
-    name: 'Dự án Hoàn Thành',
-    status: 'COMPLETED',
+    name: 'Dự án Nháp',
+    status: 'DRAFT',
     ownerCandidates: [
       { userId: '20', name: 'Alex Kim', username: 'alex.kim' },
     ],
@@ -152,17 +152,17 @@ describe('WorkspaceDetailDrawer Component', () => {
     );
 
     expect(
-      screen.getByText("Archived or completed projects can't be transferred.")
+      screen.getByText("Archived projects can't be transferred.")
     ).toBeTruthy();
     expect(screen.queryByLabelText('New owner')).toBeNull();
     expect(screen.queryByText('Transfer')).toBeNull();
   });
 
-  it('dự án COMPLETED không hiện select/nút chuyển chủ mà hiện câu "Dự án đã lưu trữ hoặc đã hoàn thành, không chuyển chủ được."', () => {
+  it('dự án DRAFT vẫn hiện ô chọn chủ mới (G34: chỉ ARCHIVED bị chặn)', () => {
     render(
       <WorkspaceDetailDrawer
         projectId="4"
-        detail={mockDetailCompleted}
+        detail={mockDetailDraft}
         loading={false}
         onClose={onClose}
         onArchive={onArchive}
@@ -170,11 +170,8 @@ describe('WorkspaceDetailDrawer Component', () => {
       />
     );
 
-    expect(
-      screen.getByText("Archived or completed projects can't be transferred.")
-    ).toBeTruthy();
-    expect(screen.queryByLabelText('New owner')).toBeNull();
-    expect(screen.queryByText('Transfer')).toBeNull();
+    expect(screen.queryByText("Archived projects can't be transferred.")).toBeNull();
+    expect(screen.getByLabelText('New owner')).toBeTruthy();
   });
 
   it('chọn chủ mới và bấm Chuyển gọi onTransfer(projectId, newOwnerId)', async () => {

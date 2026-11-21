@@ -135,9 +135,9 @@ export const OwnedProjectsDrawer: FC<OwnedProjectsDrawerProps> = ({
 
                   {/* Transfer Controls */}
                   <div className="mt-4 pt-3 border-t border-slate-200/60">
-                    {proj.status === 'ARCHIVED' || proj.status === 'COMPLETED' ? (
+                    {proj.status === 'ARCHIVED' ? (
                       <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-200">
-                        Archived or completed projects can't be transferred.
+                        Archived projects can't be transferred.
                       </p>
                     ) : hasCandidates ? (
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

@@ -14,11 +14,7 @@ export interface WorkspaceDetailDrawerProps {
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
-  PLANNING: 'Planning',
   ACTIVE: 'Active',
-  PAUSED: 'Paused',
-  COMPLETED: 'Completed',
-  INACTIVE: 'Inactive',
   ARCHIVED: 'Archived',
 };
 
@@ -293,9 +289,9 @@ export const WorkspaceDetailDrawer: FC<WorkspaceDetailDrawerProps> = ({
                 {/* Chuyển chủ dự án */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5">
                   <h4 className="text-xs font-bold text-slate-800">Transfer ownership</h4>
-                  {detail.status === 'ARCHIVED' || detail.status === 'COMPLETED' ? (
+                  {detail.status === 'ARCHIVED' ? (
                     <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-200">
-                      Archived or completed projects can't be transferred.
+                      Archived projects can't be transferred.
                     </p>
                   ) : detail.ownerCandidates && detail.ownerCandidates.length > 0 ? (
                     <div className="space-y-2">

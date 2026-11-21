@@ -10,7 +10,6 @@ import { isMockMode } from '../../services/env'
 const STATUSES: { id: ProjectStatus; label: string; activeClass: string }[] = [
   { id: 'DRAFT', label: 'DRAFT', activeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/60' },
   { id: 'ACTIVE', label: 'ACTIVE', activeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60' },
-  { id: 'INACTIVE', label: 'INACTIVE', activeClass: 'bg-orange-500/20 text-orange-300 border-orange-500/60' },
   { id: 'ARCHIVED', label: 'ARCHIVED', activeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/60' },
 ]
 
@@ -96,8 +95,6 @@ export function DevToolbar() {
               ? 'text-emerald-400'
               : currentProjectStatus === 'DRAFT'
               ? 'text-amber-400'
-              : currentProjectStatus === 'INACTIVE'
-              ? 'text-orange-400'
               : 'text-rose-400'
           }`}
         >
