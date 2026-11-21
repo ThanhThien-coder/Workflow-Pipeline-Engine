@@ -637,7 +637,14 @@ function Kpi({ icon, tone, label, children, note, onClick, hint }) {
   );
 }
 
-function Kpis({ m, arts, onOverdue }) {
+// Same text as the real page (sections/helpers.tsx onTimeEmptyText): a task without a due date is never on time or late.
+function onTimeEmptyText(tasks) {
+  if (!tasks.length) return 'No tasks yet';
+  if (tasks.every((t) => !t.due)) return 'No task has a due date yet, so nothing is on time or late';
+  return 'No task has reached its due date yet';
+}
+
+function Kpis({ m, arts, onOverdue, tasks = [] }) {
   const otPct = m.onTimeBase ? Math.round((m.onTime / m.onTimeBase) * 100) : null;
   const types = Object.keys(TYPE).map((k) => ({ k, n: arts.filter((a) => a.type === k).length })).filter((x) => x.n);
   return (
@@ -653,7 +660,7 @@ function Kpis({ m, arts, onOverdue }) {
       </Kpi>
       <Kpi icon={I.clock} tone="text-emerald-600 bg-emerald-50" label="On time" note="Done on or before the due date / (done tasks + open tasks already past due). Open overdue tasks pull the rate down.">
         <div className="text-3xl font-bold text-slate-900">{otPct === null ? '—' : `${otPct}%`}</div>
-        <div className="mt-0.5 text-xs text-slate-500">{otPct === null ? 'No task has reached its due date yet' : `${m.onTime} of ${m.onTimeBase} tasks that reached their due date were done in time`}</div>
+        <div className="mt-0.5 text-xs text-slate-500">{otPct === null ? onTimeEmptyText(tasks) : `${m.onTime} of ${m.onTimeBase} tasks that reached their due date were done in time`}</div>
         {otPct !== null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rose-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${otPct}%` }} /></div>}
       </Kpi>
       <Kpi icon={I.alert} tone="text-rose-600 bg-rose-50" label="Missed deadlines" onClick={m.missed ? onOverdue : null} hint={m.missed ? 'See list' : null}
@@ -1746,59 +1753,55 @@ const TONE = {
   slate: ['bg-slate-50 text-slate-500 ring-slate-200', 'bg-slate-300'],
 };
 function PhaseScorecard({ ds, m, onOpen }) {
+  // Same as the real page (views/guest-report/sections/PhaseScorecard.tsx, proposal round 2 item 3):
+  // numbers and dates only, no mini-Gantt. One row per phase that has tasks.
   const phases = m.phases.filter((p) => p.tasks.length); // includes the "No phase" group when it exists
-  const t0 = startOfDay(new Date(Math.min(ds.project.startedAt.getTime(), ...ds.tasks.map((t) => t.created.getTime())))).getTime();
-  const t1 = (m.completed ? Math.max(m.deadline, m.finishedAt) : Math.max(m.deadline, TODAY)) + 2 * DAY;
-  const X = (d) => Math.max(0, Math.min(100, ((d - t0) / (t1 - t0)) * 100));
-  const todayX = X(TODAY.getTime());
-  const cols = 'sm:grid-cols-[minmax(0,1.25fr)_96px_minmax(0,2fr)_150px]';
+  if (!phases.length) return <Card><p className="text-sm text-slate-400">No phases or tasks yet.</p></Card>;
+  const hasDate = (d) => d instanceof Date && !isNaN(d.getTime());
   return (
     <Card>
-      <div className={`hidden gap-4 border-b border-slate-100 pb-2 text-[10.5px] font-bold uppercase tracking-wide text-slate-400 sm:grid ${cols}`}>
-        <span>Phase</span><span>Done</span>
-        <span className="flex justify-between"><span>{fmt(new Date(t0))}</span><span>Timeline</span><span>{fmt(new Date(t1 - 2 * DAY))}</span></span>
-        <span>Result</span>
+      <div className="-mx-1 overflow-x-auto px-1">
+        <table className="w-full min-w-[560px] text-left text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <th className="pb-2 pr-3 font-semibold">Phase</th>
+              <th className="pb-2 px-2 text-center font-semibold">Done</th>
+              <th className="pb-2 px-2 text-center font-semibold" title="Overdue now + finished late">Late</th>
+              <th className="pb-2 px-3 font-semibold">Dates</th>
+              <th className="pb-2 pl-2 font-semibold">Result</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {phases.map((ph) => {
+              const lateTotal = ph.lateN + ph.overdueN;
+              const workedText = ph.start ? `Worked ${fmt(ph.start)} → ${ph.end ? fmt(ph.end) : 'now'}` : 'Not started';
+              const plannedText = hasDate(ph.plannedEnd) ? `Planned end ${fmt(ph.plannedEnd)}` : 'No due dates';
+              return (
+                <tr key={ph.index} onClick={() => onOpen(ph)} className="group cursor-pointer hover:bg-slate-50">
+                  <td className="py-2.5 pr-3">
+                    <span className="block truncate text-sm font-semibold text-slate-900 group-hover:text-indigo-700">{phaseLabel(ph)}</span>
+                    <span className="block text-[11px] text-slate-500">{plural(ph.tasks.length, 'task')}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-center font-semibold text-slate-800">{ph.done}/{ph.tasks.length}</td>
+                  <td className={`whitespace-nowrap px-2 py-2.5 text-center ${lateTotal > 0 ? 'font-bold text-rose-600' : 'text-slate-400'}`} title="Overdue now + finished late">{lateTotal}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <span className="block text-xs font-medium text-slate-800">{workedText}</span>
+                    <span className="block text-[11px] text-slate-500">{plannedText}</span>
+                  </td>
+                  <td className="py-2.5 pl-2">
+                    <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${TONE[ph.verdict.tone][0]}`}>{ph.verdict.label}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      <div className="divide-y divide-slate-100">
-        {phases.map((ph) => {
-          const s = ph.start ? X(ph.start.getTime()) : null;
-          const e = X((ph.end || TODAY).getTime());
-          const p = X(ph.plannedEnd.getTime());
-          const overrun = s !== null && e > p;
-          return (
-            <button key={ph.index} onClick={() => onOpen(ph)} className={`group grid w-full grid-cols-1 items-center gap-x-4 gap-y-2 py-3 text-left hover:bg-slate-50 sm:py-2.5 ${cols}`}>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-slate-900 group-hover:text-indigo-700">{phaseLabel(ph)}</span>
-                <span className="text-[11px] text-slate-500">{plural(ph.tasks.length, 'task')}{ph.onTimePct !== null && <> · {ph.onTimePct}% on time</>}{ph.lateN + ph.overdueN > 0 && <> · <span className="font-semibold text-orange-600">{ph.lateN + ph.overdueN} late</span></>}</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="w-9 text-right text-xs font-bold text-slate-800">{ph.pct}%</span>
-                <span className="h-1.5 flex-1 rounded-full bg-slate-100"><span className={`block h-full rounded-full ${ph.end ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${ph.pct}%` }} /></span>
-              </span>
-              <span className="relative block h-6" title={`${ph.start ? 'Worked ' + fmt(ph.start) + ' → ' + (ph.end ? fmt(ph.end) : 'now') : 'Not started'} · planned end ${fmt(ph.plannedEnd)}`}>
-                <span className="absolute inset-x-0 top-1/2 h-px bg-slate-200" />
-                {s !== null && <span className={`absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full ${TONE[ph.verdict.tone][1]}`} style={{ left: `${s}%`, width: `${Math.max(1.2, Math.min(e, p) - s)}%` }} />}
-                {overrun && <span className={`absolute top-1/2 h-2.5 -translate-y-1/2 rounded-r-full ${ph.end ? 'bg-orange-500' : 'bg-rose-500'}`} style={{ left: `${Math.max(s, p)}%`, width: `${Math.max(1, e - Math.max(s, p))}%` }} />}
-                <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-slate-800" style={{ left: `${p}%` }} />
-                {!m.completed && <span className="absolute inset-y-0 w-px bg-indigo-400" style={{ left: `${todayX}%` }} />}
-              </span>
-              <span className="flex flex-col items-start gap-0.5">
-                <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${TONE[ph.verdict.tone][0]}`}>{ph.verdict.label}</span>
-                <span className="text-[10.5px] text-slate-500">{ph.end ? `done ${fmt(ph.end)} · ` : ''}plan {fmt(ph.plannedEnd)}</span>
-              </span>
-            </button>
-          );
-        })}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+        <span>Planned end = due date of the latest task in the phase. Late tasks are counted separately and listed in Deadlines.</span>
+        <span className="no-print">Click a phase to open its tasks</span>
       </div>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
-        <span className="flex items-center gap-1.5"><span className="h-2 w-5 rounded-full bg-emerald-400" />worked on, within plan</span>
-        <span className="flex items-center gap-1.5"><span className="h-2 w-5 rounded-full bg-orange-500" />past the planned end (finished)</span>
-        <span className="flex items-center gap-1.5"><span className="h-2 w-5 rounded-full bg-rose-500" />past the planned end (still open)</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rotate-45 bg-slate-800" />planned end</span>
-        {!m.completed && <span className="flex items-center gap-1.5"><span className="h-3 w-px bg-indigo-400" />today</span>}
-        <span className="no-print ml-auto">Click a phase to open its tasks</span>
-      </div>
-      <Note>A phase has no deadline column, so its planned end = the latest due date of its tasks. Bar = from the first task started (NodeEntity.startedAt) to the last task done (completedAt), or to today. Result: finished on time / finished N days late / behind (has overdue tasks) / on track / not started. "% on time" uses the same formula as the On time card. Tasks without a phase get their own row. If a phase has no startedAt (cleared when a task goes back to TODO, or old data), the bar starts at its first completedAt. No database change.</Note>
+      <Note>A phase has no deadline column, so its planned end = the latest due date of its tasks. Worked = from the first task started (NodeEntity.startedAt, or its first completedAt when startedAt is empty) to the last task done, or "now" while the phase is open. Late = tasks of the phase overdue now + tasks finished after their due date. Result: finished on time / finished N days late / behind (has overdue tasks) / on track / not started. Tasks without a phase get their own row. No database change.</Note>
     </Card>
   );
 }
@@ -1837,7 +1840,7 @@ function Page({ ds, demo, owner, setOwner }) {
         {/* 1. Overview: the whole picture in one screen */}
         <section id="s-overview" className={`${sec} space-y-4 pt-6`}>
           <ProjectHeader ds={ds} m={m} />
-          <Kpis m={m} arts={arts} onOverdue={() => scrollTo('s-schedule')} />
+          <Kpis m={m} arts={arts} tasks={ds.tasks} onOverdue={() => scrollTo('s-schedule')} />
           <StatusRibbon m={m} />
           <AiSummary ai={ds.ai} mode={demo.ai} />
         </section>

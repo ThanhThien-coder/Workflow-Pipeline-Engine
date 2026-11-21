@@ -33,6 +33,7 @@ Lỗi phát hiện khi test tay với backend thật (`VITE_USE_MOCK=false`). G�
 | G33 | Dự án DRAFT tạo từ template: task đã TODO, thẻ phase xanh/xám lộn xộn, phase rỗng ghi TODO, mở khóa sớm được khi chưa Start | FE + BE + DB | Đã sửa, chờ test tay |
 | G35 | Artifact không sửa được tên/link; bảng quyền Settings ghi Collaborator và Viewer chạy được AI Diagnosis | FE + BE | Đã sửa, chờ test tay |
 | G36 | Nộp task: ô "Handover Notes" thực chất thành tên artifact | FE + BE | Đã sửa, chờ test tay |
+| G37 | Trang khách: thẻ On time ghi "chưa tới hạn" khi task không có hạn chót; bảng Schedule ở mock v6 khác trang thật | FE + mock | Đã sửa, chờ test tay |
 
 ---
 
@@ -966,3 +967,19 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 - BE: `SubmitTaskArtifactTest` 14/14 (thêm 3 ca: title là tên, trống → "Artifact WPE-010", quá 200 → 400), `StateMachineServiceTest` 27/27.
 - FE: `npm run typecheck` qua; test kanban, store, service, utils 279/279.
 - Chưa xem giao diện trên trình duyệt, cần người dùng xem tay.
+
+## G37. Trang khách: thẻ On time khó hiểu, mock v6 lệch bảng Schedule
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `feat/sua-artifact-va-quyen-ai` · **Trạng thái:** chờ kiểm
+
+**Vấn đề**
+- Dự án có 1 task đang làm, không có hạn chót: thẻ On time hiện "—" và "No task has reached its due date yet". Cách tính đúng (tỉ lệ = xong đúng hạn / (xong có hạn + quá hạn), task không có hạn chót không tính), nhưng câu làm người xem tưởng hệ thống bỏ sót task đang làm.
+- Mock `docs/frontend/prototypes/guestLinkDemo-claude-v6.html` vẫn vẽ bảng phase có mini-Gantt (cột Timeline), trong khi trang thật đã bỏ theo `de-xuat-dot-2-trang-khach.md` mục 3 (commit `cc16786`). Demo cho giáo viên không khớp trang thật.
+
+**Đã làm, chờ kiểm**
+- FE: `onTimeEmptyText` (`views/guest-report/sections/helpers.tsx`): chưa có task → "No tasks yet"; mọi task chưa có hạn chót → "No task has a due date yet, so nothing is on time or late"; còn lại giữ câu cũ. Không đổi cách tính.
+- Mock v6: `PhaseScorecard` chép theo bảng thật (Phase · Done · Late · Dates · Result, không thanh màu); thẻ On time dùng cùng câu với trang thật.
+
+**Kết quả kiểm**
+- FE: test `views/guest-report` và `domain` 93/93 (thêm 3 ca cho `onTimeEmptyText`); `npm run typecheck` qua.
+- Chụp màn hình bằng Chrome headless: mock `?data=normal` và `?data=new` hiện bảng mới, không lỗi; trang thật (dự án "a") hiện câu mới ở thẻ On time.
