@@ -619,7 +619,9 @@ export function buildGuestReport(dto: GuestReportDto): GuestReportModel {
   const allDoneTimes = doneTasks.map((t) => t.done).filter((d): d is Date => d !== null).map((d) => d.getTime())
   const finishedAt = allDoneTimes.length > 0 ? new Date(Math.max(...allDoneTimes)) : null
 
-  const completed = dto.project?.status === 'COMPLETED' && tasks.every((t) => t.status === 'DONE')
+  // Từ G34 dự án không còn trạng thái COMPLETED (chỉ DRAFT, ACTIVE, ARCHIVED), nên "đã xong" tính theo task:
+  // có task và mọi task đều DONE. Thêm task mới thì tự trở lại đang làm.
+  const completed = tasks.length > 0 && tasks.every((t) => t.status === 'DONE')
   const attention: GuestAttentionItem[] = []
   if (!completed) {
     for (const t of tasks) {

@@ -534,6 +534,36 @@ describe('dự án COMPLETED còn task mở & artifact nodeId null', () => {
     expect(model.metrics.attention).toHaveLength(1)
   })
 
+  it('G34 bỏ trạng thái COMPLETED: dự án ACTIVE có mọi task DONE thì completed === true, chưa có task thì false', () => {
+    const project = {
+      name: 'All done',
+      description: '',
+      status: 'ACTIVE',
+      createdAt: '2026-11-01T05:00:00.000Z',
+      linkExpiresAt: null,
+    }
+    const done = {
+      id: '1',
+      phaseId: 'p1',
+      code: 'T-1',
+      title: 'Done on time',
+      status: 'DONE',
+      assignedUserId: 'u1',
+      dueDate: '2026-11-10T05:00:00.000Z',
+      createdAt: '2026-11-01T05:00:00.000Z',
+      completedAt: '2026-11-09T05:00:00.000Z',
+    }
+    const graph = (nodes: (typeof done)[]) => ({
+      phases: [{ id: 'p1', name: 'P1', orderIndex: 0 }],
+      phaseEdges: [],
+      nodes,
+      dependencies: [],
+    })
+
+    expect(buildGuestReport(makeBaseDto({ project, graph: graph([done]) })).metrics.completed).toBe(true)
+    expect(buildGuestReport(makeBaseDto({ project, graph: graph([]) })).metrics.completed).toBe(false)
+  })
+
   it('artifact có nodeId null giữ nguyên null chứ không ép thành chuỗi "null"', () => {
     const dto = makeBaseDto({
       artifacts: [
