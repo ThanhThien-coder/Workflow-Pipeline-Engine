@@ -1,0 +1,1908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="referrer" content="no-referrer" />
+<title>Guest Link Mock v6</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f8fafc; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .grid-bg {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; background-color: #f8fafc;
+    background-image: linear-gradient(to right, rgba(203,213,225,.4) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(203,213,225,.4) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .grad-text { background: linear-gradient(90deg,#4f46e5,#7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .btn-grad { background: linear-gradient(90deg,#4f46e5,#2563eb); box-shadow: 0 6px 16px -6px rgba(79,70,229,.5); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .rise { animation: rise .3s ease-out both; }
+  .print-only { display: none; }
+  @media print {
+    @page { margin: 12mm; }
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    .grid-bg { display: none; }
+    body { background: #fff; }
+    .card { break-inside: avoid; box-shadow: none !important; }
+    .card.print-break { break-inside: auto; }
+    .print-cols-1 { grid-template-columns: 1fr !important; }
+    .print-cols-1 > * { grid-column: auto !important; }
+    .print-expand { display: block !important; }
+    .print-hide { display: none !important; }
+    .print-flex { display: flex !important; }
+    .print-grid { display: grid !important; }
+    .print-block { display: block !important; }
+    .print-row { display: table-row !important; }
+    .sticky-nav { display: none !important; }
+    section { break-inside: auto; }
+    .print-full { max-height: none !important; overflow: visible !important; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body class="text-slate-800">
+<div class="grid-bg"></div>
+<div id="root" class="relative z-10"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* =====================================================================
+   Time helpers. "Today" is fixed so every number is reproducible.
+   ===================================================================== */
+const TODAY = new Date('2026-11-20T15:00:00+07:00');
+const D = (s) => new Date(s + 'T12:00:00+07:00');
+const DAY = 86400000;
+const startOfDay = (x) => { const y = new Date(x); y.setHours(0, 0, 0, 0); return y; };
+const fmt = (x) => x.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+const daysBetween = (a, b) => Math.round((startOfDay(b) - startOfDay(a)) / DAY);
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+/* Artifact types = backend enum ArtifactType */
+const TYPE = {
+  PR: { label: 'Code', icon: ['M6 3v12', 'M18 9a3 3 0 100-6 3 3 0 000 6z', 'M6 21a3 3 0 100-6 3 3 0 000 6z', 'M18 9a9 9 0 01-9 9'] },
+  DOCS: { label: 'Docs', icon: ['M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z', 'M14 3v6h6'] },
+  FIGMA: { label: 'Figma', icon: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z'] },
+  SWAGGER: { label: 'API spec', icon: ['M8 6l-6 6 6 6', 'M16 6l6 6-6 6'] },
+  OTHER_LINK: { label: 'Link', icon: ['M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1', 'M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1'] },
+};
+const COLORS = ['bg-indigo-500', 'bg-emerald-500', 'bg-rose-500', 'bg-amber-500', 'bg-sky-500', 'bg-violet-500', 'bg-teal-500', 'bg-orange-500', 'bg-fuchsia-500', 'bg-lime-600', 'bg-cyan-600', 'bg-slate-500'];
+
+// task builder: status DONE | REVIEW | IN_PROGRESS | TODO | LOCKED, phase = index or -1 (no phase)
+const T = (code, title, phase, who, due, status, est, created, x = {}) =>
+  ({ code, title, phase, who, due: D(due), status, est, created: D(created), deps: x.deps || [], desc: x.desc || '', reopened: !!x.reopened, done: x.done ? D(x.done) : null });
+
+/* =====================================================================
+   Dataset 1: a normal mid-semester project (20 tasks)
+   ===================================================================== */
+function makeNormal() {
+  const members = [
+    { id: 'an', name: 'An Nguyễn', role: 'Owner' },
+    { id: 'binh', name: 'Bình Trần', role: 'Manager' },
+    { id: 'chi', name: 'Chi Lê', role: 'Collaborator' },
+    { id: 'dung', name: 'Dũng Phạm', role: 'Collaborator' },
+    { id: 'em', name: 'Em Võ', role: 'Collaborator' },
+  ];
+  const tasks = [
+    T('WPE-01', 'Stakeholder interviews', 0, 'an', '2026-10-08', 'DONE', 6, '2026-10-03', { done: '2026-10-07', desc: 'Interview the librarian and two student users; record pain points with borrowing and fines.' }),
+    T('WPE-02', 'Use case diagram', 0, 'binh', '2026-10-12', 'DONE', 8, '2026-10-03', { done: '2026-10-11', deps: ['WPE-01'] }),
+    T('WPE-03', 'Requirements spec (SRS) v2', 0, 'chi', '2026-10-17', 'DONE', 12, '2026-10-03', { done: '2026-10-19', deps: ['WPE-01'], desc: 'Functional and non-functional requirements, updated after the first teacher review.' }),
+    T('WPE-04', 'Domain model', 0, 'an', '2026-10-20', 'DONE', 8, '2026-10-03', { done: '2026-10-20', deps: ['WPE-02'] }),
+    T('WPE-05', 'Class diagram', 1, 'binh', '2026-10-28', 'DONE', 10, '2026-10-03', { done: '2026-10-27', deps: ['WPE-04'] }),
+    T('WPE-06', 'Database schema (ERD)', 1, 'dung', '2026-11-01', 'DONE', 10, '2026-10-03', { done: '2026-10-31', deps: ['WPE-04'] }),
+    T('WPE-07', 'Sequence diagrams', 1, 'chi', '2026-11-08', 'DONE', 12, '2026-10-03', { done: '2026-11-12', deps: ['WPE-05'], reopened: true, desc: 'Borrow, return and fine payment flows. Re-opened once to add the renewal flow.' }),
+    T('WPE-08', 'UI wireframes', 1, 'an', '2026-11-10', 'DONE', 8, '2026-10-03', { done: '2026-11-09', deps: ['WPE-03'] }),
+    T('WPE-09', 'State diagrams', 1, 'chi', '2026-11-18', 'IN_PROGRESS', 6, '2026-10-03', { deps: ['WPE-05'], desc: 'State machines for a book copy and for a loan.' }),
+    T('WPE-10', 'REST API design', 1, 'dung', '2026-11-22', 'REVIEW', 8, '2026-10-03', { deps: ['WPE-06'] }),
+    T('WPE-11', 'Repository & CI setup', 2, 'dung', '2026-11-05', 'DONE', 4, '2026-10-20', { done: '2026-11-04', deps: ['WPE-06'] }),
+    T('WPE-12', 'Authentication module', 2, 'binh', '2026-11-15', 'DONE', 16, '2026-10-20', { done: '2026-11-14', deps: ['WPE-11'] }),
+    T('WPE-13', 'Book catalog CRUD', 2, 'an', '2026-11-20', 'REVIEW', 12, '2026-10-20', { deps: ['WPE-11', 'WPE-06'] }),
+    T('WPE-14', 'Borrow & return flow', 2, 'binh', '2026-11-26', 'IN_PROGRESS', 16, '2026-10-20', { deps: ['WPE-12'] }),
+    T('WPE-15', 'Email notifications', 2, null, '2026-11-26', 'TODO', 6, '2026-11-02', { deps: ['WPE-12'] }),
+    T('WPE-16', 'Monthly reports page', 2, 'em', '2026-11-19', 'IN_PROGRESS', 10, '2026-11-02', { deps: ['WPE-06'], desc: 'Loans per month, top books and unpaid fines, exportable to PDF.' }),
+    T('WPE-17', 'Integration tests', 3, 'em', '2026-12-05', 'LOCKED', 12, '2026-11-02', { deps: ['WPE-13', 'WPE-14', 'WPE-16'] }),
+    T('WPE-18', 'Deployment', 3, 'dung', '2026-12-08', 'LOCKED', 6, '2026-11-02', { deps: ['WPE-17'] }),
+    T('WPE-19', 'Final report', 3, 'chi', '2026-12-12', 'LOCKED', 10, '2026-11-02', { deps: ['WPE-18', 'WPE-09'] }),
+    T('WPE-20', 'Demo video', 3, 'an', '2026-12-15', 'LOCKED', 4, '2026-11-02', { deps: ['WPE-19'] }),
+  ];
+  const artifacts = [
+    { id: 'a2', task: 'WPE-02', name: 'Use case diagram (draw.io)', type: 'OTHER_LINK', at: D('2026-10-11') },
+    { id: 'a3', task: 'WPE-03', name: 'SRS v2', type: 'DOCS', at: D('2026-10-19') },
+    { id: 'a5', task: 'WPE-05', name: 'Class diagram', type: 'DOCS', at: D('2026-10-27') },
+    { id: 'a6', task: 'WPE-06', name: 'ERD v3', type: 'DOCS', at: D('2026-10-31') },
+    { id: 'a8', task: 'WPE-08', name: 'Wireframes', type: 'FIGMA', at: D('2026-11-09') },
+    { id: 'a11', task: 'WPE-11', name: 'PR #4: Repository & CI setup', type: 'PR', at: D('2026-11-04') },
+    { id: 'a12', task: 'WPE-12', name: 'PR #9: Authentication module', type: 'PR', at: D('2026-11-14') },
+    { id: 'a12b', task: 'WPE-12', name: 'Auth notes (draft, internal)', type: 'DOCS', at: D('2026-11-13'), defaultHidden: true },
+    { id: 'a10', task: 'WPE-10', name: 'REST API spec (Swagger)', type: 'SWAGGER', at: D('2026-11-18') },
+  ];
+  return {
+    project: {
+      name: 'Library Management System', team: 'OOAD Project · Group 3',
+      description: 'A web system for a university library: book catalog, borrowing and returns, overdue fines and monthly reports. Built with Spring Boot and React.',
+      startedAt: D('2026-10-03'), linkExpiresAt: D('2026-12-20'), lastActivityAt: new Date(TODAY - 2 * 3600000),
+    },
+    members, phases: ['Analysis', 'Design', 'Build', 'Testing & Delivery'], tasks, artifacts,
+    ai: { ago: 2, content: 'Project health: at risk. 4 tasks were completed in the last 7 days; 10 remain. The Build phase is behind plan while Design still has an open task.', highlights: ['Finish WPE-09 State diagrams first: it is the last open task of the Design phase.', 'Unblock WPE-16 Monthly reports: it holds up integration tests and everything after them.'], risks: ['WPE-16 is overdue and its assignee has no finished task yet.', 'WPE-15 Email notifications has no owner and is due next week.'] },
+    feedback: { resolved: 3, total: 4, sentThisHour: 0 },
+  };
+}
+
+/* =====================================================================
+   Dataset 2: a big messy project (10 phases, ~250 tasks, 12 members)
+   Generated with a fixed seed so it looks the same on every load.
+   ===================================================================== */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function makeLarge() {
+  const rnd = mulberry32(20261120);
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const start = D('2026-02-02');
+  const PH = 33; // days per phase
+  const phases = ['Kickoff', 'Requirements', 'a', 'a', 'New phase', 'Architecture & design', 'Backend services', 'Web frontend', 'Integration & testing', 'Release and final report'];
+  const fn = ['Lan', 'Minh', 'Hà', 'Quân', 'Trang', 'Phúc', 'Ngọc', 'Huy', 'Thảo', 'Khoa', 'Vy', 'Tuấn'];
+  const ln = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Võ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương'];
+  const members = fn.map((f, i) => ({ id: 'm' + i, name: `${f} ${ln[i]}`, role: i === 0 ? 'Owner' : i === 1 ? 'Manager' : 'Collaborator' }));
+  const weights = [6, 5, 5, 4, 3, 3, 2, 2, 2, 1, 1, 0]; // uneven load; the last member has no task at all
+  const wsum = weights.reduce((a, b) => a + b, 0);
+  const pickMember = () => { let r = rnd() * wsum; for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r < 0) return members[i].id; } return members[0].id; };
+  const verbs = ['Implement', 'Design', 'Write tests for', 'Review', 'Document', 'Refactor', 'Set up', 'Fix bugs in', 'Polish', 'Spec out'];
+  const objects = ['event list page', 'ticket checkout', 'QR check-in', 'organizer dashboard', 'campus SSO login', 'notification service', 'search API', 'room booking rules', 'payment webhook', 'admin roles', 'analytics export', 'seat map editor', 'mobile layout', 'email templates', 'audit log', 'CSV import', 'rate limiting', 'venue calendar', 'feedback survey', 'error pages'];
+  const longTitles = ['Refactor the notification service so overdue reminders are batched per member instead of one email per task', 'Investigate why ticket checkout occasionally charges twice when the payment provider times out'];
+
+  const tasks = [];
+  let k = 0;
+  const code = () => `CEP-${String(++k).padStart(3, '0')}`;
+  phases.forEach((_, p) => {
+    const n = 18 + Math.floor(rnd() * 14);
+    const ws = start.getTime() + p * PH * DAY;
+    for (let i = 0; i < n; i++) {
+      const due = new Date(startOfDay(new Date(ws + ((i + 1) / n) * PH * DAY)).getTime() + 12 * 3600000);
+      const created = new Date(Math.max(start.getTime(), ws - 18 * DAY + Math.floor(rnd() * 10) * DAY));
+      const ago = daysBetween(due, TODAY); // > 0: due date already passed
+      let status;
+      if (ago > 10) status = rnd() < 0.97 ? 'DONE' : 'IN_PROGRESS';
+      else if (ago > 0) status = rnd() < 0.55 ? 'DONE' : pick(['IN_PROGRESS', 'IN_PROGRESS', 'REVIEW']);
+      else if (ago > -14) status = pick(['DONE', 'IN_PROGRESS', 'IN_PROGRESS', 'REVIEW', 'TODO', 'LOCKED']);
+      else status = rnd() < 0.75 ? 'LOCKED' : 'TODO';
+      let done = null;
+      if (status === 'DONE') {
+        const off = rnd() < 0.72 ? -Math.floor(rnd() * 5) : 1 + Math.floor(rnd() * 6);
+        done = new Date(Math.min(TODAY.getTime() - 3600000, Math.max(created.getTime() + DAY, due.getTime() + off * DAY)));
+      }
+      const title = rnd() < 0.03 ? pick(longTitles) : `${pick(verbs)} ${pick(objects)}`;
+      tasks.push({ code: code(), title, phase: p, who: pickMember(), due, status, est: pick([2, 4, 4, 6, 8, 8, 12, 16]), created, deps: [], desc: rnd() < 0.5 ? `Acceptance criteria for "${title.toLowerCase()}" are in the phase document.` : '', reopened: status === 'DONE' && rnd() < 0.03, done });
+    }
+  });
+  // a few tasks never put into a phase (phaseId = null in the database)
+  [['Weekly meeting notes', 'DONE', '2026-11-14'], ['Update README', 'IN_PROGRESS', '2026-11-24'], ['Collect peer feedback', 'TODO', '2026-11-27'], ['Fix typo on landing page', 'DONE', '2026-11-10']].forEach(([title, status, due]) => {
+    tasks.push({ code: code(), title, phase: -1, who: pickMember(), due: D(due), status, est: 2, created: D('2026-11-01'), deps: [], desc: '', reopened: false, done: status === 'DONE' ? new Date(D(due).getTime() - DAY) : null });
+  });
+
+  // Dependencies only point to earlier tasks, and stay consistent with status:
+  // a started or finished task depends on finished tasks; a LOCKED task waits on at least one open task.
+  const sorted = [...tasks].sort((a, b) => a.due - b.due);
+  sorted.forEach((t, idx) => {
+    if (t.phase === -1) return;
+    const cand = sorted.slice(Math.max(0, idx - 40), idx).filter((c) => c.phase !== -1);
+    const doneC = cand.filter((c) => c.status === 'DONE'), openC = cand.filter((c) => c.status !== 'DONE');
+    const add = (c) => { if (c && !t.deps.includes(c.code)) t.deps.push(c.code); };
+    if (t.status === 'LOCKED') {
+      if (openC.length) { add(pick(openC)); if (rnd() < 0.4 && doneC.length) add(pick(doneC)); } else t.status = 'TODO';
+    } else {
+      const nd = rnd() < 0.25 ? 0 : rnd() < 0.6 ? 1 : 2;
+      for (let j = 0; j < nd && doneC.length; j++) add(pick(doneC));
+    }
+  });
+  tasks.forEach((t) => { if (t.status !== 'DONE' && rnd() < 0.07) t.who = null; });
+
+  const artifacts = [];
+  let pr = 100;
+  tasks.filter((t) => t.status === 'DONE').forEach((t) => {
+    if (rnd() >= 0.2) return;
+    const type = pick(['PR', 'PR', 'PR', 'DOCS', 'DOCS', 'FIGMA', 'SWAGGER', 'OTHER_LINK']);
+    const name = { PR: `PR #${++pr}: ${t.title}`, DOCS: `${t.title} (Google Docs)`, FIGMA: `${t.title} (Figma)`, SWAGGER: `${t.title} API (Swagger)`, OTHER_LINK: `${t.title} demo link` }[type];
+    artifacts.push({ id: 'x' + t.code, task: t.code, name, type, at: t.done, defaultHidden: rnd() < 0.08 });
+  });
+
+  return {
+    project: {
+      name: 'Campus Event Platform', team: 'Capstone · Team 7',
+      description: 'Ticketing and check-in for university events: organizers publish events, students book seats and check in with a QR code. A long project with many phases and members, used here to test how the page holds up with lots of data.',
+      startedAt: start, linkExpiresAt: D('2027-01-31'), lastActivityAt: new Date(TODAY - 40 * 60000),
+    },
+    members, phases, tasks, artifacts,
+    ai: { ago: 1, content: 'Project health: at risk. The first seven phases are essentially complete, but Integration & testing is slipping: a cluster of overdue tasks there holds up most of the release phase.', highlights: ['Clear the overdue integration tasks before starting new frontend work.', 'Give an owner to the unassigned tasks due next week.'], risks: ['Several overdue tasks sit on the path to the final release.', 'Three members hold most of the open work; the load is uneven.'] },
+    feedback: { resolved: 17, total: 21, sentThisHour: 8 },
+  };
+}
+
+/* =====================================================================
+   Dataset 3: a project created 4 days ago (empty states, daily chart)
+   ===================================================================== */
+function makeNew() {
+  return {
+    project: {
+      name: 'Thesis Tracker', team: 'OOAD Project · Group 9',
+      description: 'Helps students and supervisors track thesis milestones and meeting notes.',
+      startedAt: D('2026-11-16'), linkExpiresAt: D('2026-12-16'), lastActivityAt: new Date(TODAY - 5 * 3600000),
+    },
+    members: [
+      { id: 'h', name: 'Hoa Lý', role: 'Owner' },
+      { id: 'k', name: 'Khang Mai', role: 'Manager' },
+      { id: 'l', name: 'Long Tạ', role: 'Collaborator' },
+    ],
+    phases: ['Planning'],
+    tasks: [
+      T('TT-01', 'Project charter', 0, 'h', '2026-11-18', 'DONE', 4, '2026-11-16', { done: '2026-11-17' }),
+      T('TT-02', 'Collect requirements', 0, 'k', '2026-11-21', 'IN_PROGRESS', 8, '2026-11-16', { deps: ['TT-01'] }),
+      T('TT-03', 'Use case list', 0, 'l', '2026-11-24', 'LOCKED', 6, '2026-11-16', { deps: ['TT-02'] }),
+      T('TT-04', 'Tech stack decision', 0, null, '2026-11-25', 'TODO', 3, '2026-11-17', { deps: ['TT-01'] }),
+      T('TT-05', 'Plan review with supervisor', 0, 'h', '2026-11-27', 'LOCKED', 2, '2026-11-17', { deps: ['TT-03'] }),
+    ],
+    artifacts: [{ id: 'n1', task: 'TT-01', name: 'Project charter', type: 'DOCS', at: D('2026-11-17') }],
+    ai: null,
+    feedback: { resolved: 0, total: 0, sentThisHour: 0 },
+  };
+}
+
+/* =====================================================================
+   Dataset 4: a project that is already finished (status COMPLETED).
+   Nothing is overdue any more, but the late history must still be visible.
+   ===================================================================== */
+function makeDone() {
+  const tasks = [
+    T('OBS-01', 'Requirements interviews', 0, 'a', '2026-09-05', 'DONE', 6, '2026-09-01', { done: '2026-09-04' }),
+    T('OBS-02', 'Use case diagram', 0, 'b', '2026-09-09', 'DONE', 8, '2026-09-01', { done: '2026-09-09', deps: ['OBS-01'] }),
+    T('OBS-03', 'Requirements spec (SRS)', 0, 'c', '2026-09-14', 'DONE', 12, '2026-09-01', { done: '2026-09-16', deps: ['OBS-01'] }),
+    T('OBS-04', 'Domain model', 0, 'a', '2026-09-18', 'DONE', 8, '2026-09-01', { done: '2026-09-18', deps: ['OBS-02'] }),
+    T('OBS-05', 'Class diagram', 1, 'b', '2026-09-25', 'DONE', 10, '2026-09-01', { done: '2026-09-24', deps: ['OBS-04'] }),
+    T('OBS-06', 'Database schema (ERD)', 1, 'd', '2026-09-29', 'DONE', 10, '2026-09-01', { done: '2026-09-29', deps: ['OBS-04'] }),
+    T('OBS-07', 'Sequence diagrams', 1, 'c', '2026-10-05', 'DONE', 12, '2026-09-01', { done: '2026-10-10', deps: ['OBS-05'], reopened: true, desc: 'Checkout and refund flows. Sent back once by the manager, redone with the refund path.' }),
+    T('OBS-08', 'UI wireframes', 1, 'a', '2026-10-06', 'DONE', 8, '2026-09-01', { done: '2026-10-05', deps: ['OBS-03'] }),
+    T('OBS-09', 'REST API design', 1, 'd', '2026-10-10', 'DONE', 8, '2026-09-01', { done: '2026-10-11', deps: ['OBS-06'] }),
+    T('OBS-10', 'Repository & CI setup', 2, 'd', '2026-10-12', 'DONE', 4, '2026-09-20', { done: '2026-10-12', deps: ['OBS-06'] }),
+    T('OBS-11', 'Authentication module', 2, 'b', '2026-10-20', 'DONE', 16, '2026-09-20', { done: '2026-10-19', deps: ['OBS-10'] }),
+    T('OBS-12', 'Book catalog', 2, 'a', '2026-10-24', 'DONE', 12, '2026-09-20', { done: '2026-10-24', deps: ['OBS-10', 'OBS-09'] }),
+    T('OBS-13', 'Cart & checkout', 2, 'b', '2026-10-30', 'DONE', 16, '2026-09-20', { done: '2026-11-02', deps: ['OBS-11', 'OBS-12'] }),
+    T('OBS-14', 'Order history', 2, 'c', '2026-11-01', 'DONE', 6, '2026-09-20', { done: '2026-10-31', deps: ['OBS-12'] }),
+    T('OBS-15', 'Admin sales report', 2, 'd', '2026-11-03', 'DONE', 8, '2026-09-20', { done: '2026-11-03', deps: ['OBS-12'] }),
+    T('OBS-16', 'Integration tests', 3, 'c', '2026-11-05', 'DONE', 12, '2026-09-20', { done: '2026-11-08', deps: ['OBS-13', 'OBS-14', 'OBS-15'] }),
+    T('OBS-17', 'Deployment', 3, 'd', '2026-11-07', 'DONE', 6, '2026-09-20', { done: '2026-11-10', deps: ['OBS-16'] }),
+    T('OBS-18', 'Final report & demo video', 3, 'a', '2026-11-09', 'DONE', 10, '2026-09-20', { done: '2026-11-12', deps: ['OBS-17'] }),
+  ];
+  return {
+    project: {
+      name: 'Online Bookstore', team: 'OOAD Project · Group 5', status: 'COMPLETED',
+      description: 'An online bookstore with catalog, cart, checkout and an admin sales report. Finished and handed in; this link is shared for final grading.',
+      startedAt: D('2026-09-01'), linkExpiresAt: D('2026-12-31'), lastActivityAt: D('2026-11-12'),
+    },
+    members: [
+      { id: 'a', name: 'Mai Phan', role: 'Owner' },
+      { id: 'b', name: 'Nam Trịnh', role: 'Manager' },
+      { id: 'c', name: 'Oanh Lục', role: 'Collaborator' },
+      { id: 'd', name: 'Phát Kiều', role: 'Collaborator' },
+    ],
+    phases: ['Analysis', 'Design', 'Build', 'Testing & Delivery'], tasks,
+    artifacts: [
+      { id: 'd3', task: 'OBS-03', name: 'SRS v1', type: 'DOCS', at: D('2026-09-16') },
+      { id: 'd5', task: 'OBS-05', name: 'Class diagram', type: 'DOCS', at: D('2026-09-24') },
+      { id: 'd6', task: 'OBS-06', name: 'ERD', type: 'DOCS', at: D('2026-09-29') },
+      { id: 'd8', task: 'OBS-08', name: 'Wireframes', type: 'FIGMA', at: D('2026-10-05') },
+      { id: 'd9', task: 'OBS-09', name: 'Bookstore API (Swagger)', type: 'SWAGGER', at: D('2026-10-11') },
+      { id: 'd10', task: 'OBS-10', name: 'PR #3: Repository & CI setup', type: 'PR', at: D('2026-10-12') },
+      { id: 'd13', task: 'OBS-13', name: 'PR #12: Cart & checkout', type: 'PR', at: D('2026-11-02') },
+      { id: 'd18', task: 'OBS-18', name: 'Final report', type: 'DOCS', at: D('2026-11-12') },
+      { id: 'd18b', task: 'OBS-18', name: 'Demo video', type: 'OTHER_LINK', at: D('2026-11-12') },
+    ],
+    ai: { ago: 8, content: 'Project completed on 12 Nov, 3 days after the last planned due date. Analysis and early design were on schedule; most delays came in the last three weeks, from Cart & checkout through final delivery.', highlights: ['Every planned task was delivered and approved.', 'Design artifacts (class diagram, ERD, wireframes) were all on time.'], risks: ['7 of 18 tasks finished late; 4 of them in the final two weeks.', 'Late tasks chained: Cart & checkout slipped, which pushed integration tests, deployment and the final report.'] },
+    feedback: { resolved: 6, total: 6, sentThisHour: 0 },
+  };
+}
+
+/* Adds dependency facts to every task (what the backend would compute from node_dependency). */
+// Same rule as ArtifactService.detectArtifactType: the guest page derives the type from the link, not from the stored type
+function detectType(url) {
+  const u = (url || '').toLowerCase();
+  if (u.includes('figma.com')) return 'FIGMA';
+  if (u.includes('github.com') || u.includes('gitlab.com')) return 'PR';
+  if (u.includes('swagger') || u.includes('openapi') || u.includes('/api-docs')) return 'SWAGGER';
+  if (u.includes('docs.google.com') || u.includes('drive.google.com') || u.includes('notion.so') || u.includes('wiki')) return 'DOCS';
+  return 'OTHER_LINK';
+}
+const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'link'; } };
+// mock links; the real page gets ArtifactEntity.url
+const MOCK_URL = { PR: (i) => `https://github.com/team/repo/pull/${i}`, FIGMA: (i) => `https://figma.com/file/kit-${i}`, DOCS: (i) => `https://docs.google.com/document/d/doc-${i}`, SWAGGER: (i) => `https://api.team.dev/swagger-ui/${i}`, OTHER_LINK: (i) => `https://youtu.be/demo-${i}` };
+
+function prepare(ds, phaseDeps = []) {
+  ds.phaseDeps = phaseDeps; // phase_dependency rows: [parent phase index, child phase index]
+  ds.artifacts.forEach((a, i) => { a.url = a.url || MOCK_URL[a.type](i + 3); a.type = detectType(a.url); a.host = hostOf(a.url); });
+  const by = Object.fromEntries(ds.tasks.map((t) => [t.code, t]));
+  const dependents = Object.fromEntries(ds.tasks.map((t) => [t.code, []]));
+  ds.tasks.forEach((t) => t.deps.forEach((d) => dependents[d] && dependents[d].push(t.code)));
+  ds.tasks.forEach((t) => {
+    t.dependents = dependents[t.code];
+    t.waitingOn = t.deps.filter((d) => by[d].status !== 'DONE');
+    // every open task further down the chain: "if this slips, these slip too"
+    const seen = new Set(), stack = [...t.dependents];
+    while (stack.length) { const c = stack.pop(); if (seen.has(c)) continue; seen.add(c); stack.push(...dependents[c]); }
+    t.downstream = t.status === 'DONE' ? [] : [...seen].filter((c) => by[c].status !== 'DONE');
+    // mock stand-in for NodeEntity.startedAt (the real page reads the column)
+    const back = Math.max(1, Math.ceil(t.est / 4)) * DAY;
+    if (t.done) t.started = new Date(Math.max(t.created.getTime(), t.done.getTime() - back));
+    else if (['IN_PROGRESS', 'REVIEW'].includes(t.status)) t.started = new Date(Math.max(t.created.getTime(), Math.min(TODAY.getTime() - DAY, t.due.getTime() - back)));
+    else t.started = null;
+  });
+  ds.by = by;
+  return ds;
+}
+const DATASETS = {
+  new: prepare(makeNew()),
+  normal: prepare(makeNormal(), [[0, 1], [1, 2], [1, 3], [2, 3]]),
+  done: prepare(makeDone(), [[0, 1], [1, 2], [2, 3]]),
+  large: prepare(makeLarge(), [[0, 1], [1, 2], [1, 3], [2, 4], [3, 4], [4, 5], [5, 6], [5, 7], [6, 8], [7, 8], [8, 9]]),
+};
+
+/* =====================================================================
+   Metrics (formulas from the proposal, section 5)
+   ===================================================================== */
+const today0 = startOfDay(TODAY);
+const isOverdue = (t) => t.status !== 'DONE' && startOfDay(t.due) < today0;
+const isOnTime = (t) => t.status === 'DONE' && startOfDay(t.done) <= startOfDay(t.due);
+const lateBy = (t) => (t.status === 'DONE' ? daysBetween(t.due, t.done) : 0); // > 0: finished after its due date
+const isLateDone = (t) => lateBy(t) > 0;
+const phaseLabel = (ph) => (ph.index >= 0 ? `Phase ${ph.index + 1} · ${ph.name}` : 'No phase');
+
+function computeMetrics(ds) {
+  const tasks = ds.tasks;
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.status === 'DONE');
+  const overdue = tasks.filter(isOverdue).sort((a, b) => b.downstream.length - a.downstream.length || a.due - b.due);
+  const holdUp = new Set(overdue.flatMap((t) => t.downstream));
+  overdue.forEach((t) => holdUp.delete(t.code));
+  const onTime = done.filter(isOnTime).length;
+  const count = (s) => tasks.filter((t) => t.status === s).length;
+
+  const groups = ds.phases.map((name, i) => ({ name, index: i }));
+  if (tasks.some((t) => t.phase === -1)) groups.push({ name: 'No phase', index: -1 });
+  const phases = groups.map((g) => {
+    const ts = tasks.filter((t) => t.phase === g.index).sort((a, b) => a.due - b.due);
+    const d = ts.filter((t) => t.status === 'DONE').length;
+    let status = 'TODO';
+    if (ts.length && d === ts.length) status = 'COMPLETED';
+    else if (ts.length && ts.every((t) => t.status === 'LOCKED')) status = 'LOCKED';
+    else if (ts.some((t) => ['IN_PROGRESS', 'REVIEW', 'DONE'].includes(t.status))) status = 'IN_PROGRESS';
+    // Phase scorecard: the phase has no deadline column, so its planned end = latest task due date
+    const overdueN = ts.filter(isOverdue).length, lateN = ts.filter(isLateDone).length;
+    const plannedEnd = ts.length ? new Date(Math.max(...ts.map((t) => t.due))) : null;
+    // startedAt is cleared when a task goes back to TODO and may be empty in old data: fall back to completedAt
+    const starts = ts.map((t) => t.started || t.done).filter(Boolean).map((d) => d.getTime());
+    const start = starts.length ? new Date(Math.min(...starts)) : null;
+    const end = ts.length && d === ts.length ? new Date(Math.max(...ts.map((t) => t.done))) : null;
+    const onTimeN = ts.filter(isOnTime).length, base = d + overdueN;
+    let verdict;
+    if (!ts.length) verdict = { label: 'No tasks', tone: 'slate' };
+    else if (end) { const diff = daysBetween(plannedEnd, end); verdict = diff <= 0 ? { label: 'Finished on time', tone: 'emerald' } : { label: `Finished ${diff}d late`, tone: 'orange', diff }; }
+    else if (overdueN) verdict = { label: `Behind · ${overdueN} overdue`, tone: 'rose' };
+    else if (!start) verdict = { label: 'Not started', tone: 'slate' };
+    else verdict = { label: 'On track', tone: 'blue' };
+    return { ...g, tasks: ts, done: d, pct: ts.length ? Math.round((d / ts.length) * 100) : 0, status, overdueN, lateN, plannedEnd, start, end, verdict, onTimePct: base ? Math.round((onTimeN / base) * 100) : null };
+  });
+  const real = phases.filter((p) => p.index >= 0);
+  // "Current" = where the team is working now: the phase with the most tasks in progress or in review (later phase wins a tie).
+  // "First phase not completed" is wrong on real data: one forgotten task in phase 1 would pin the header to phase 1 forever.
+  const active = (p) => p.tasks.filter((t) => ['IN_PROGRESS', 'REVIEW'].includes(t.status)).length;
+  const busiest = real.reduce((best, p) => (active(p) >= active(best) ? p : best), real[0]);
+  const current = active(busiest) > 0 ? busiest : real.find((p) => p.status !== 'COMPLETED') || real[real.length - 1];
+
+  // Whole-project deadline record: survives after the project is finished (needs only dueDate + completedAt)
+  const completed = ds.project.status === 'COMPLETED';
+  const lateDone = done.filter(isLateDone).sort((a, b) => lateBy(b) - lateBy(a) || a.due - b.due);
+  const overdueDays = overdue.reduce((s, t) => s + daysBetween(t.due, TODAY), 0);
+  const lateDays = lateDone.reduce((s, t) => s + lateBy(t), 0);
+  const deadline = new Date(Math.max(...tasks.map((t) => t.due)));
+  const finishedAt = done.length ? new Date(Math.max(...done.map((t) => t.done))) : null;
+
+  // "Needs attention": fixed rules only, no AI. Nothing to act on once the project is completed.
+  const attention = [];
+  tasks.filter((t) => !completed && t.status !== 'DONE').forEach((t) => {
+    const left = daysBetween(TODAY, t.due);
+    if (isOverdue(t)) attention.push({ t, kind: 0, text: `Overdue ${-left}d${t.who ? '' : ' · no assignee'}` });
+    else if (left <= 2 && t.downstream.length) attention.push({ t, kind: 1, text: left === 0 ? 'Due today' : `Due in ${left}d` });
+    else if (!t.who && left <= 7) attention.push({ t, kind: 2, text: `No assignee · due in ${left}d` });
+  });
+  attention.sort((a, b) => a.kind - b.kind || b.t.downstream.length - a.t.downstream.length || a.t.due - b.t.due);
+
+  return {
+    total, done: done.length, pct: total ? Math.round((done.length / total) * 100) : 0,
+    overdue, holdUp: holdUp.size, onTime, onTimeBase: done.length + overdue.length,
+    breakdown: [
+      { key: 'DONE', label: 'Done on time', n: count('DONE') - lateDone.length, c: 'bg-emerald-500' },
+      { key: 'LATE', label: 'Done late', n: lateDone.length, c: 'bg-orange-400' },
+      { key: 'REVIEW', label: 'In review', n: count('REVIEW'), c: 'bg-amber-400' },
+      { key: 'IN_PROGRESS', label: 'In progress', n: count('IN_PROGRESS'), c: 'bg-blue-500' },
+      { key: 'TODO', label: 'To do', n: count('TODO'), c: 'bg-sky-300' },
+      { key: 'LOCKED', label: 'Waiting', n: count('LOCKED'), c: 'bg-slate-300' },
+    ],
+    phases, realPhaseCount: real.length, current, attention,
+    attentionSet: new Set(attention.map((a) => a.t.code)),
+    completed, lateDone, lateDays, overdueDays, deadline, finishedAt,
+    missed: lateDone.length + overdue.length,
+    reopenedN: tasks.filter((t) => t.reopened).length,
+  };
+}
+
+/* =====================================================================
+   Small UI pieces
+   ===================================================================== */
+const Icon = ({ d, className = 'w-4 h-4' }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    {[].concat(d).map((p, i) => <path key={i} d={p} />)}
+  </svg>
+);
+const I = {
+  eye: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z', 'M12 15a3 3 0 100-6 3 3 0 000 6z'],
+  print: ['M6 9V3h12v6', 'M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2', 'M6 14h12v7H6z'],
+  chev: 'M9 6l6 6-6 6',
+  clip: 'M21 12l-8.5 8.5a5 5 0 01-7-7L14 5a3.5 3.5 0 015 5l-8.5 8.5a2 2 0 01-3-3L15 8',
+  ext: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5'],
+  check: 'M5 12l5 5L20 7',
+  clock: ['M12 7v5l3 2', 'M12 21a9 9 0 100-18 9 9 0 000 18z'],
+  alert: ['M12 8v5', 'M12 16.5v.01', 'M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z'],
+  lock: ['M6 11h12v10H6z', 'M8 11V7a4 4 0 018 0v4'],
+  send: ['M22 2L11 13', 'M22 2l-7 20-4-9-9-4z'],
+  spark: 'M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z',
+  flag: ['M4 21V4', 'M4 4h12l-2 4 2 4H4'],
+  box: ['M21 8l-9-5-9 5 9 5 9-5z', 'M3 8v8l9 5 9-5V8', 'M12 13v8'],
+  msg: 'M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z',
+  user: ['M12 12a4 4 0 100-8 4 4 0 000 8z', 'M4 21a8 8 0 0116 0'],
+  link: TYPE.OTHER_LINK.icon,
+  graph: ['M3 4h6v5H3z', 'M15 3h6v5h-6z', 'M15 16h6v5h-6z', 'M9 6.5h3a2 2 0 012 2v0a2 2 0 002-2', 'M9 6.5h2a2 2 0 012 2v8a2 2 0 002 2'],
+  minus: 'M5 12h14',
+  plus: ['M12 5v14', 'M5 12h14'],
+  gear: ['M12 15a3 3 0 100-6 3 3 0 000 6z', 'M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z'],
+  x: 'M6 6l12 12M18 6L6 18',
+};
+
+function Card({ children, className = '', title, right, note, id }) {
+  return (
+    <section id={id} className={`card rise min-w-0 rounded-2xl border border-slate-200 bg-white p-5 ${className}`}>
+      {(title || right) && (
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+            {note}
+          </div>
+          {right}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+const Sub = ({ children }) => <p className="mt-0.5 text-xs text-slate-500">{children}</p>;
+
+// Annotation pin explaining where a number comes from (toggle "Explain numbers")
+const NotesCtx = React.createContext(false);
+function Note({ children }) {
+  const on = React.useContext(NotesCtx);
+  if (!on) return null;
+  return <div className="no-print mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] leading-snug text-amber-800">{children}</div>;
+}
+
+const STATUS_CHIP = {
+  DONE: ['Done', 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'bg-emerald-500'],
+  REVIEW: ['In review', 'bg-amber-50 text-amber-700 ring-amber-200', 'bg-amber-400'],
+  IN_PROGRESS: ['In progress', 'bg-blue-50 text-blue-700 ring-blue-200', 'bg-blue-500'],
+  TODO: ['To do', 'bg-sky-50 text-sky-700 ring-sky-200', 'bg-sky-300'],
+  LOCKED: ['Waiting', 'bg-slate-50 text-slate-500 ring-slate-200', 'bg-slate-300'],
+  COMPLETED: ['Completed', 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'bg-emerald-500'],
+};
+const Chip = ({ s }) => <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_CHIP[s][1]}`}>{STATUS_CHIP[s][0]}</span>;
+const Dot = ({ s }) => <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_CHIP[s][2]}`} />;
+
+function Ring({ pct, size = 48 }) {
+  const r = size / 2 - 5, c = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} className="-rotate-90 shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e0e7ff" strokeWidth="5" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#4f46e5" strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
+    </svg>
+  );
+}
+
+/* Member naming (decision 1 in the proposal): real names or "Member A, B, C" */
+function usePeople(members, showNames) {
+  return useMemo(() => {
+    const map = {};
+    members.forEach((m, i) => {
+      const label = showNames ? m.name : `Member ${String.fromCharCode(65 + i)}`;
+      const initials = showNames ? m.name.split(' ').map((w) => w[0]).join('').slice(0, 2) : String.fromCharCode(65 + i);
+      map[m.id] = { ...m, label, initials, color: COLORS[i % COLORS.length] };
+    });
+    return map;
+  }, [members, showNames]);
+}
+function Avatar({ p, size = 'h-6 w-6 text-[10px]' }) {
+  if (!p) return <span title="No assignee" className={`inline-flex ${size} shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400`}>?</span>;
+  return <span title={p.label} className={`inline-flex ${size} shrink-0 items-center justify-center rounded-full font-bold text-white ${p.color}`}>{p.initials}</span>;
+}
+const CodeBtn = ({ code, onJump, by }) => (
+  <button type="button" onClick={(e) => { e.stopPropagation(); onJump(code); }} title={by[code].title}
+    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 hover:border-indigo-300 hover:text-indigo-700">
+    <Dot s={by[code].status} /><span className="mono text-[10.5px]">{code}</span>
+  </button>
+);
+
+/* =====================================================================
+   Header + KPIs
+   ===================================================================== */
+function TopBar({ onPrint, linkExpiresAt, onFeedback }) {
+  return (
+    <header className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white"><Icon d={I.spark} /></div>
+          <span className="text-sm font-bold text-slate-900">Pipeline Engine</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="hidden items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 sm:flex">
+            <Icon d={I.eye} className="h-3.5 w-3.5" /> Read-only · link valid until {fmt(linkExpiresAt)}
+          </span>
+          <button onClick={onPrint} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <Icon d={I.print} className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Print / Save PDF</span>
+          </button>
+          <button onClick={onFeedback} className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+            <Icon d={I.msg} className="h-3.5 w-3.5" /> Give feedback
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// One-word health, fixed rules (not AI): completed → clean or "N finished late"; active → at risk if anything is overdue
+function HealthPill({ m }) {
+  let cls, dot, text;
+  if (m.completed) {
+    [cls, dot, text] = m.lateDone.length ? ['border-orange-200 bg-orange-50 text-orange-800', 'bg-orange-500', `Delivered · ${m.lateDone.length} finished late`] : ['border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500', 'Delivered · all on time'];
+  } else if (m.overdue.length) {
+    [cls, dot, text] = ['border-rose-200 bg-rose-50 text-rose-700', 'bg-rose-500', `At risk · ${m.overdue.length} overdue`];
+  } else {
+    [cls, dot, text] = ['border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500', 'On track'];
+  }
+  return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}><span className={`h-1.5 w-1.5 rounded-full ${dot}`} />{text}</span>;
+}
+
+function ProjectHeader({ ds, m }) {
+  const P = ds.project;
+  const left = daysBetween(TODAY, m.deadline);
+  const mins = Math.round((TODAY - P.lastActivityAt) / 60000);
+  const ago = mins < 60 ? `${mins} minutes ago` : mins < 48 * 60 ? `${Math.round(mins / 60)} hours ago` : `${Math.round(mins / 1440)} days ago`;
+  return (
+    <div className="rise">
+      <div className="print-only mb-3 border-b border-slate-300 pb-2 text-xs text-slate-500">
+        Progress snapshot · {TODAY.toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'medium', timeStyle: 'short' })} (Vietnam time) · Pipeline Engine guest view
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">{P.team}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{P.name}</h1>
+        {m.completed
+          ? <span className="rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-semibold text-white">Completed</span>
+          : <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">Active</span>}
+        <span className="max-w-full truncate rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
+          {m.completed ? `All ${m.realPhaseCount} phases completed` : `Phase ${m.current.index + 1} of ${m.realPhaseCount} · ${m.current.name}`}
+        </span>
+        <HealthPill m={m} />
+      </div>
+      <p className="mt-2 max-w-3xl text-sm text-slate-600">{P.description}</p>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span>Started <b className="text-slate-700">{fmt(P.startedAt)}</b></span>
+        {m.completed ? (() => {
+          const diff = daysBetween(m.deadline, m.finishedAt);
+          return <span>Finished <b className="text-slate-700">{fmt(m.finishedAt)}</b>{' '}
+            {diff > 0 ? <b className="text-orange-600">({plural(diff, 'day')} after the planned end, {fmt(m.deadline)})</b>
+              : <span className="text-emerald-700">({diff === 0 ? 'on' : `${plural(-diff, 'day')} before`} the planned end)</span>}</span>;
+        })() : left >= 0
+          ? <span>Target deadline <b className="text-slate-700">{fmt(m.deadline)}</b> ({plural(left, 'day')} left)</span>
+          : <span>Target deadline <b className="text-slate-700">{fmt(m.deadline)}</b> <b className="text-rose-600">({plural(-left, 'day')} past)</b></span>}
+        <span><b className="text-slate-700">{ds.members.length}</b> members</span>
+        <span>Last activity <b className="text-slate-700">{ago}</b></span>
+      </div>
+      <Note>"Phase X of N" = the phase with the most tasks in progress or in review, i.e. where the team is working now (the backend currently always shows phase 1; "first unfinished phase" is also wrong, since one forgotten old task would pin it). The phase number is always shown next to its name, because teams leave names like "a" or "New phase". Target deadline = latest task due date (the project has no deadline column). Completed project: finished = last completedAt, compared with that planned end.</Note>
+    </div>
+  );
+}
+
+function Kpi({ icon, tone, label, children, note, onClick, hint }) {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag onClick={onClick} className={`card rise flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left ${onClick ? 'transition hover:border-rose-300 hover:shadow-sm' : ''}`}>
+      <div className="flex w-full items-center gap-2.5">
+        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tone}`}><Icon d={icon} /></span>
+        <span className="text-sm font-medium text-slate-600">{label}</span>
+        {hint && <span className="no-print ml-auto text-rose-500" title={hint}><Icon d={I.chev} className="h-4 w-4" /></span>}
+      </div>
+      <div className="mt-3 w-full">{children}</div>
+      <Note>{note}</Note>
+    </Tag>
+  );
+}
+
+function Kpis({ m, arts, onOverdue }) {
+  const otPct = m.onTimeBase ? Math.round((m.onTime / m.onTimeBase) * 100) : null;
+  const types = Object.keys(TYPE).map((k) => ({ k, n: arts.filter((a) => a.type === k).length })).filter((x) => x.n);
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Kpi icon={I.check} tone="text-indigo-600 bg-indigo-50" label="Completion" note="Done tasks / all tasks. The bar splits every task by status.">
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <div className="text-3xl font-bold text-slate-900">{m.done}<span className="text-lg font-semibold text-slate-400">/{m.total}</span></div>
+            <div className="mt-0.5 text-xs text-slate-500">{m.pct}% of tasks done</div>
+          </div>
+          <Ring pct={m.pct} />
+        </div>
+      </Kpi>
+      <Kpi icon={I.clock} tone="text-emerald-600 bg-emerald-50" label="On time" note="Done on or before the due date / (done tasks + open tasks already past due). Open overdue tasks pull the rate down.">
+        <div className="text-3xl font-bold text-slate-900">{otPct === null ? '—' : `${otPct}%`}</div>
+        <div className="mt-0.5 text-xs text-slate-500">{otPct === null ? 'No task has reached its due date yet' : `${m.onTime} of ${m.onTimeBase} tasks that reached their due date were done in time`}</div>
+        {otPct !== null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rose-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${otPct}%` }} /></div>}
+      </Kpi>
+      <Kpi icon={I.alert} tone="text-rose-600 bg-rose-50" label="Missed deadlines" onClick={m.missed ? onOverdue : null} hint={m.missed ? 'See list' : null}
+        note="Whole project, so it does not drop to 0 when the project is finished: tasks finished after their due date + open tasks already past it. Days = days late of finished tasks + days overdue so far. Stays honest because a due date that has passed can no longer be moved or cleared (new backend rule, no database change).">
+        <div className={`text-3xl font-bold ${m.missed ? 'text-rose-600' : 'text-emerald-700'}`}>{m.missed}</div>
+        <div className="mt-0.5 text-xs text-slate-500">
+          {m.missed ? <>{!m.completed && <><b className={m.overdue.length ? 'text-rose-600' : 'text-slate-600'}>{m.overdue.length} overdue now</b> · </>}<b className="text-orange-600">{m.lateDone.length} finished late</b></> : 'Every due date met so far'}
+        </div>
+        {m.overdue.length > 0 && m.holdUp > 0 && <div className="mt-1 text-[11px] text-slate-500">overdue tasks block <b className="text-rose-600">{plural(m.holdUp, 'later task')}</b></div>}
+      </Kpi>
+      <Kpi icon={I.box} tone="text-violet-600 bg-violet-50" label="Deliverables" note="Files and links the team made visible on this page, counted by type (backend ArtifactType).">
+        <div className="text-3xl font-bold text-slate-900">{arts.length}</div>
+        <div className="mt-0.5 text-xs text-slate-500">{arts.length ? 'shared with reviewers' : 'Nothing shared yet'}</div>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {types.map((x) => <span key={x.k} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-600">{x.n} {TYPE[x.k].label}</span>)}
+        </div>
+      </Kpi>
+    </div>
+  );
+}
+
+/* =====================================================================
+   Row 1: Needs attention + AI summary
+   ===================================================================== */
+function AiSummary({ ai, mode }) {
+  const head = <span className="flex items-center gap-2"><Icon d={I.spark} className="h-4 w-4 text-indigo-500" /><span className="grad-text">AI summary</span></span>;
+  if (mode === 'none' || !ai) {
+    return (
+      <Card title={head}>
+        <p className="text-sm text-slate-500">The team has not run an AI analysis yet.</p>
+        <Note>Guests can never start an AI run, so this page costs no AI tokens.</Note>
+      </Card>
+    );
+  }
+  const ago = mode === 'stale' ? 9 : ai.ago;
+  return <AiBody ai={ai} ago={ago} stale={mode === 'stale'} head={head} />;
+}
+function AiBody({ ai, ago, stale, head }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card className="border-indigo-200" title={head}
+      right={<span className={`shrink-0 text-right text-[11px] ${stale ? 'font-semibold text-amber-700' : 'text-slate-400'}`}>Generated {plural(ago, 'day')} ago{stale && ' · may be outdated'}</span>}>
+      <p className="text-sm text-slate-700">{ai.content}</p>
+      <button onClick={() => setOpen(!open)} className="no-print mt-2 flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline">
+        <Icon d={I.chev} className={`h-3 w-3 transition-transform ${open ? 'rotate-90' : ''}`} /> {open ? 'Hide' : 'Show'} suggested next steps & risks
+      </button>
+      <div className={`mt-3 grid gap-2 text-xs sm:grid-cols-2 ${open ? '' : 'hidden'} print-grid`}>
+        <ul className="space-y-1 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-emerald-800">
+          <li className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Suggested next steps</li>
+          {ai.highlights.map((h) => <li key={h}>✓ {h}</li>)}
+        </ul>
+        <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-amber-800">
+          <li className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Risks</li>
+          {ai.risks.map((r) => <li key={r}>! {r}</li>)}
+        </ul>
+      </div>
+      <p className="mt-2.5 text-[11px] text-slate-400">AI-generated from project data and may be inaccurate.</p>
+      <Note>Reads the analysis a team member already ran (project.latest_ai_analysis). No "Generate" button for guests. Shows "may be outdated" when older than 7 days.</Note>
+    </Card>
+  );
+}
+
+/* =====================================================================
+   Row 2: Burn-up + Team contribution
+   ===================================================================== */
+function niceStep(raw) {
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+  return [1, 2, 5, 10].find((s) => s * mag >= raw) * mag;
+}
+function BurnUp({ ds, m }) {
+  const [hover, setHover] = useState(null);
+  const { unit, buckets } = useMemo(() => {
+    const tasks = ds.tasks;
+    const first = startOfDay(new Date(Math.min(ds.project.startedAt.getTime(), ...tasks.map((t) => t.created.getTime()))));
+    // run to the later of the plan and reality: a late project must show the days after its planned end
+    const end = m.completed ? new Date(Math.max(m.deadline, m.finishedAt)) : new Date(Math.max(m.deadline, TODAY));
+    const span = daysBetween(first, end);
+    const unit = span < 14 ? 'day' : span <= 26 * 7 ? 'week' : 'month';
+    const cur = new Date(first);
+    if (unit === 'week') cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));
+    if (unit === 'month') cur.setDate(1);
+    const next = (d) => { const n = new Date(d); if (unit === 'day') n.setDate(n.getDate() + 1); else if (unit === 'week') n.setDate(n.getDate() + 7); else n.setMonth(n.getMonth() + 1); return n; };
+    const out = [];
+    for (let c = cur; c <= end; c = next(c)) {
+      const end = new Date(next(c).getTime() - 1);
+      const past = c <= TODAY, cut = end < TODAY ? end : TODAY;
+      const fin = past ? tasks.filter((t) => t.done && t.done >= c && t.done <= cut) : [];
+      out.push({ start: c, scope: tasks.filter((t) => t.created <= end).length, done: past ? tasks.filter((t) => t.done && t.done <= cut).length : null, fin, future: !past });
+    }
+    return { unit, buckets: out };
+  }, [ds, m.deadline]);
+
+  // Draw at the container's real width so text stays 10px on phones instead of shrinking with the whole picture
+  const boxRef = useRef(null);
+  const [W, setW] = useState(680);
+  useEffect(() => {
+    const el = boxRef.current; if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
+  const n = buckets.length;
+  const H = W < 480 ? 190 : 230, P = { l: 36, r: 14, t: 16, b: 28 };
+  const iw = W - P.l - P.r, ih = H - P.t - P.b;
+  const step = niceStep(Math.max(...buckets.map((b) => b.scope)) / 4);
+  const maxY = Math.ceil(Math.max(...buckets.map((b) => b.scope)) / step) * step;
+  const x = (i) => P.l + (n > 1 ? (iw * i) / (n - 1) : iw / 2);
+  const y = (v) => P.t + ih - (ih * v) / maxY;
+  const past = buckets.map((b, i) => (b.done !== null ? i : -1)).filter((i) => i >= 0);
+  const scopePath = buckets.map((b, i) => `${i ? 'L' : 'M'}${x(i)},${y(b.scope)}`).join(' ');
+  const donePath = past.map((i, k) => `${k ? 'L' : 'M'}${x(i)},${y(buckets[i].done)}`).join(' ');
+  const doneArea = `${donePath} L${x(past[past.length - 1])},${y(0)} L${x(0)},${y(0)} Z`;
+  const todayX = x(past[past.length - 1]);
+  const dIdx = buckets.reduce((k, b, i) => (b.start <= m.deadline ? i : k), 0);
+  const labelEvery = Math.ceil(n / Math.min(8, Math.max(3, Math.floor(iw / 70))));
+  const lab = (d) => (unit === 'month' ? d.toLocaleDateString('en-GB', { month: 'short' }) : fmt(d));
+  const h = hover !== null ? buckets[hover] : null;
+  const ticks = []; for (let v = 0; v <= maxY; v += step) ticks.push(v);
+  const unitWord = { day: 'day by day', week: 'week by week', month: 'month by month' }[unit];
+  const headOf = (b) => (unit === 'day' ? fmt(b.start) : unit === 'week' ? `Week of ${fmt(b.start)}` : b.start.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }));
+
+  return (
+    <Card title="Progress over time" note={<Sub>Tasks finished (cumulative) against total scope, {unitWord}. A flat line followed by a jump means work was crammed.</Sub>}
+      right={<div className="flex shrink-0 gap-3 text-[11px] text-slate-500"><span className="flex items-center gap-1"><span className="h-0.5 w-4 bg-indigo-500" />Done</span><span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-slate-400" />Scope</span></div>}>
+      <div ref={boxRef} className="relative">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} className="block" onMouseLeave={() => setHover(null)}>
+          <defs><linearGradient id="doneFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#6366f1" stopOpacity=".25" /><stop offset="1" stopColor="#6366f1" stopOpacity="0" /></linearGradient></defs>
+          {ticks.map((v) => (
+            <g key={v}>
+              <line x1={P.l} x2={W - P.r} y1={y(v)} y2={y(v)} stroke="#e2e8f0" />
+              <text x={P.l - 8} y={y(v) + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{v}</text>
+            </g>
+          ))}
+          {buckets.map((b, i) => i % labelEvery === 0 && (
+            <text key={i} x={x(i)} y={H - 8} textAnchor={i === 0 ? 'start' : x(i) > W - P.r - 24 ? 'end' : 'middle'} fontSize="10" fill="#94a3b8">{lab(b.start)}</text>
+          ))}
+          <rect x={todayX} y={P.t} width={Math.max(0, W - P.r - todayX)} height={ih} fill="#f8fafc" />
+          <path d={scopePath} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />
+          <path d={doneArea} fill="url(#doneFill)" />
+          <path d={donePath} fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinejoin="round" />
+          {n <= 40 && past.map((i) => <circle key={i} cx={x(i)} cy={y(buckets[i].done)} r={hover === i ? 5 : 3} fill="#4f46e5" stroke="#fff" strokeWidth="1.5" />)}
+          {!m.completed && <>
+            <line x1={todayX} x2={todayX} y1={P.t} y2={P.t + ih} stroke="#4f46e5" strokeDasharray="3 3" />
+            <text x={todayX + 4} y={P.t + 10} fontSize="10" fill="#4f46e5" fontWeight="600">Today</text>
+          </>}
+          <line x1={x(dIdx)} x2={x(dIdx)} y1={P.t} y2={P.t + ih} stroke="#e11d48" strokeDasharray="3 3" />
+          <text x={x(dIdx) - 4} y={P.t + ih - 6} fontSize="10" fill="#e11d48" fontWeight="600" textAnchor="end">Planned end</text>
+          {buckets.map((b, i) => (
+            <rect key={i} x={x(i) - iw / Math.max(n - 1, 1) / 2} y={P.t} width={iw / Math.max(n - 1, 1)} height={ih} fill="transparent" onMouseEnter={() => setHover(i)} />
+          ))}
+        </svg>
+        {h && (
+          <div className="pointer-events-none absolute top-2 max-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg" style={{ left: `${Math.min(62, (x(hover) / W) * 100)}%` }}>
+            <div className="font-semibold text-slate-800">{headOf(h)}</div>
+            <div className="text-slate-600">Scope: {h.scope} tasks</div>
+            {h.future ? <div className="text-slate-400">Not reached yet</div> : <>
+              <div className="text-indigo-700">Done so far: {h.done}</div>
+              <div className="text-slate-500">Finished in this period: {h.fin.length ? h.fin.slice(0, 5).map((t) => t.code).join(', ') + (h.fin.length > 5 ? ` +${h.fin.length - 5}` : '') : 'none'}</div>
+            </>}
+          </div>
+        )}
+      </div>
+      <Note>Bucket size follows project length: daily under 14 days, weekly up to 26 weeks, monthly beyond, so the chart never gets crowded. Labels thin out to at most 8. Done time = completedAt (falls back to updatedAt for old data). Scope = tasks counted by creation date.</Note>
+    </Card>
+  );
+}
+
+/* =====================================================================
+   Row 3: Phases & tasks (replaces the DAG map)
+   ===================================================================== */
+function TaskDetails({ t, by, people, arts, onJump, onComment, flush }) {
+  const L = ({ children }) => <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{children}</p>;
+  const Codes = ({ codes, empty }) => codes.length
+    ? <div className="flex flex-wrap gap-1">{codes.slice(0, 8).map((c) => <CodeBtn key={c} code={c} by={by} onJump={onJump} />)}{codes.length > 8 && <span className="self-center text-[11px] text-slate-400">+{codes.length - 8}</span>}</div>
+    : <span className="text-slate-400">{empty}</span>;
+  const p = t.who ? people[t.who] : null;
+  return (
+    <div className={`rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 ${flush ? '' : 'mb-2.5 sm:ml-[68px]'}`} onClick={(e) => e.stopPropagation()}>
+      <p className="text-slate-700">{t.desc || <span className="text-slate-400">No description.</span>}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div>
+          <L>Assignee & dates</L>
+          <p>{p ? p.label : <span className="text-amber-700">No assignee</span>} · est. {t.est}h</p>
+          <p className="text-slate-500">Due {fmt(t.due)}{t.done && ` · done ${fmt(t.done)}`}</p>
+        </div>
+        <div><L>Depends on</L><Codes codes={t.deps} empty="Nothing, could start any time" /></div>
+        <div>
+          <L>Unlocks next</L><Codes codes={t.dependents} empty="Nothing" />
+          {t.downstream.length > t.dependents.length && <p className="mt-1 text-[11px] text-slate-500">{plural(t.downstream.length, 'open task')} further down the chain</p>}
+        </div>
+      </div>
+      {arts.length > 0 && (
+        <div className="mt-3">
+          <L>Deliverables</L>
+          <div className="flex flex-wrap gap-1.5">
+            {arts.map((a) => <a key={a.id} href="#" onClick={(e) => e.preventDefault()} rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded border border-indigo-200 bg-white px-1.5 py-0.5 text-indigo-700 hover:bg-indigo-50"><Icon d={TYPE[a.type].icon} className="h-3 w-3" />{a.name}</a>)}
+          </div>
+        </div>
+      )}
+      <button type="button" onClick={onComment} className="no-print mt-3 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-700">
+        <Icon d={I.msg} className="h-3.5 w-3.5" /> Comment on this task
+      </button>
+    </div>
+  );
+}
+
+function TaskRow({ t, by, people, arts, open, flash, onToggle, onJump, onComment }) {
+  const p = t.who ? people[t.who] : null;
+  let badge = null;
+  if (t.status === 'DONE') {
+    const late = daysBetween(t.due, t.done);
+    badge = late <= 0
+      ? <span className="whitespace-nowrap text-[11px] font-semibold text-emerald-600">on time · {fmt(t.done)}</span>
+      : <span className="whitespace-nowrap rounded bg-orange-50 px-1.5 py-0.5 text-[11px] font-semibold text-orange-700" title={`Due ${fmt(t.due)}, done ${fmt(t.done)}`}>+{late}d late · {fmt(t.done)}</span>;
+  } else if (isOverdue(t)) {
+    badge = <span className="whitespace-nowrap rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-semibold text-rose-700">Overdue {daysBetween(t.due, TODAY)}d</span>;
+  }
+  const tags = [];
+  if (t.downstream.length) tags.push(<span key="h" className={`rounded px-1.5 py-px text-[10px] font-semibold ${isOverdue(t) ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`} title={`Waiting on this task, directly or further down the chain: ${t.downstream.join(', ')}`}>Blocks {plural(t.downstream.length, 'task')}</span>);
+  if (t.status === 'LOCKED' && t.waitingOn.length) tags.push(<span key="w" className="flex items-center gap-1 text-[10.5px] text-slate-500"><Icon d={I.lock} className="h-3 w-3" />Waiting on <span className="mono">{t.waitingOn[0]}</span>{t.waitingOn.length > 1 && ` +${t.waitingOn.length - 1}`}</span>);
+  if (t.reopened) tags.push(<span key="r" className="rounded bg-violet-50 px-1.5 py-px text-[10px] font-semibold text-violet-700" title="Re-opened after approval and redone">Reopened</span>);
+  return (
+    <div id={`task-${t.code}`} className={`border-t border-slate-100 transition-colors duration-700 ${flash ? 'bg-indigo-100/70' : ''}`}>
+      <div role="button" tabIndex={0} aria-expanded={open} onClick={onToggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
+        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-1 py-2.5 hover:bg-slate-50 sm:grid sm:grid-cols-[56px_1fr_86px_70px_124px_14px]">
+        <span className="mono w-12 shrink-0 text-[11px] text-slate-500 sm:w-auto">{t.code}</span>
+        <div className="flex min-w-0 flex-1 basis-[65%] items-start gap-2 sm:basis-auto">
+          <Avatar p={p} />
+          <div className="min-w-0">
+            <span className="line-clamp-2 text-sm leading-snug text-slate-800" title={t.title}>{t.title}</span>
+            {tags.length > 0 && <div className="mt-1 flex flex-wrap items-center gap-1.5">{tags}</div>}
+          </div>
+        </div>
+        <div className="ml-[60px] sm:ml-0"><Chip s={t.status} /></div>
+        <div className="whitespace-nowrap text-[11px] text-slate-500">Due {fmt(t.due)}</div>
+        <div className="ml-auto flex items-center justify-end gap-2 sm:ml-0">
+          {badge}
+          {arts.length > 0 && <span className="flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600" title={arts.map((a) => a.name).join('\n')}><Icon d={I.clip} className="h-3.5 w-3.5" />{arts.length}</span>}
+        </div>
+        <span className="no-print hidden text-slate-400 sm:block"><Icon d={I.chev} className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} /></span>
+      </div>
+      {open && <TaskDetails t={t} by={by} people={people} arts={arts} onJump={onJump} onComment={onComment} />}
+    </div>
+  );
+}
+
+/* =====================================================================
+   Phase graph (read-only). Simplified stand-in for the app's MindmapTree:
+   columns by dependency depth, tasks from other phases drawn as dashed "ghost" cards
+   on the left (needed first) and on the right (unlocked next).
+   ===================================================================== */
+const STATUS_BAR = { DONE: 'border-l-emerald-500', REVIEW: 'border-l-amber-400', IN_PROGRESS: 'border-l-blue-500', TODO: 'border-l-sky-300', LOCKED: 'border-l-slate-300' };
+const ROW_LIMIT = 10;
+/* =====================================================================
+   Right column of row 3: Deliverables + Feedback
+   ===================================================================== */
+const FEEDBACK_LIMIT = 10; // per project per hour (backend MAX_FEEDBACK_PER_HOUR)
+function Feedback({ ds, m, task, setTask, focusKey }) {
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('TEACHER');
+  const [msg, setMsg] = useState('');
+  const [sent, setSent] = useState([]);
+  const [err, setErr] = useState('');
+  const boxRef = useRef(null), areaRef = useRef(null);
+  useEffect(() => {
+    if (!focusKey) return;
+    boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => areaRef.current?.focus({ preventScroll: true }), 350);
+    return () => clearTimeout(t);
+  }, [focusKey]);
+  const left = FEEDBACK_LIMIT - ds.feedback.sentThisHour - sent.length;
+  const [ok, setOk] = useState(false);
+  const submit = (e) => {
+    e.preventDefault();
+    setOk(false);
+    if (!name.trim()) { setErr('Please enter your name so the team knows who wrote this.'); return; }
+    if (!msg.trim()) return;
+    // the backend enforces MAX_FEEDBACK_PER_HOUR; the page only shows its error, no counter
+    if (left <= 0) { setErr('This project has received too many feedback items in the last hour. Please try again later.'); return; }
+    setSent([...sent, Date.now()]);
+    setMsg(''); setErr(''); setOk(true);
+  };
+  // scope: '' = whole project, 'p:<index>' = a phase (sent as content prefix, no nodeId), otherwise a task code (sent as nodeId)
+  const isPhase = task.startsWith('p:');
+  const ph = isPhase ? m.phases.find((p) => p.index === +task.slice(2)) : null;
+  const t = !isPhase && task ? ds.by[task] : null;
+  const st = ds.feedback;
+  return (
+    <Card id="feedback" title="Send feedback" note={<Sub>One-way: the team reads and resolves it. There is no reply thread.</Sub>}>
+      <div className="mb-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Icon d={I.check} className="h-3 w-3" /></span>
+        {st.total ? <span>The team has resolved <b className="text-slate-800">{st.resolved} of {st.total}</b> feedback items so far.</span> : <span>No feedback received yet. Yours would be the first.</span>}
+      </div>
+      <form ref={boxRef} onSubmit={submit} className="no-print space-y-2.5">
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Your name, e.g. Dr. Tran" className="min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+          <div className="flex rounded-lg border border-slate-200 p-0.5 text-xs font-semibold">
+            {['TEACHER', 'GUEST'].map((r) => (
+              <button type="button" key={r} onClick={() => setRole(r)} className={`rounded-md px-2.5 py-1.5 ${role === r ? 'bg-indigo-600 text-white' : 'text-slate-600'}`}>{r === 'TEACHER' ? 'Teacher' : 'Guest'}</button>
+            ))}
+          </div>
+        </div>
+        <select value={task} onChange={(e) => setTask(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-400">
+          <option value="">About the whole project</option>
+          <optgroup label="A whole phase">
+            {m.phases.filter((p) => p.index >= 0).map((p) => <option key={'p' + p.index} value={'p:' + p.index}>{phaseLabel(p)}</option>)}
+          </optgroup>
+          {m.phases.map((p) => (
+            <optgroup key={p.index} label={`Tasks · ${phaseLabel(p)}`}>
+              {p.tasks.map((x) => <option key={x.code} value={x.code}>{x.code} · {x.title.length > 48 ? x.title.slice(0, 47) + '…' : x.title}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        {t && <p className="-mt-1 text-[11px] text-slate-500">Commenting on <span className="mono">{t.code}</span>, status <b>{STATUS_CHIP[t.status][0].toLowerCase()}</b>.</p>}
+                <textarea ref={areaRef} value={msg} onChange={(e) => setMsg(e.target.value)} rows={3} maxLength={2000} placeholder={t ? `Your comments on "${t.title}"…` : ph ? `Your evaluation of ${phaseLabel(ph)}…` : 'Your comments for the team…'} className="w-full resize-none rounded-lg border border-slate-200 p-3 text-sm outline-none focus:border-indigo-400" />
+        {err && <p className="text-xs text-rose-600">{err}</p>}
+        {ok && <p className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-2 text-xs text-emerald-800"><Icon d={I.check} className="h-3.5 w-3.5" /> Sent. The team will see it in their feedback list.</p>}
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-slate-400">{msg.length}/2000</span>
+          <button disabled={!msg.trim()} className="btn-grad flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50"><Icon d={I.send} className="h-3.5 w-3.5" /> Send</button>
+        </div>
+      </form>
+      <Note>Three scopes, all on the existing endpoint: whole project (nodeId empty), a phase (nodeId empty, content prefixed with "[Phase N · name]", no new column), a task (nodeId). reviewerName is required by the backend (@NotBlank), so there is no anonymous option.</Note>
+      <Note>Uses the existing endpoint only (reviewerName, reviewerRole TEACHER/GUEST, nodeId, content). After sending, the page just confirms; nothing else is listed, and other reviewers' comments are never shown. The hourly limit is enforced by the backend and its error is shown as is (try sending 3 times on the Large data). "Comment on this task" in the task list pre-selects the task here.</Note>
+    </Card>
+  );
+}
+
+/* =====================================================================
+   Owner side (share dialog) and demo controls
+   ===================================================================== */
+/* Owner's task editor: the new backend rule in DueDateRules (no database change).
+   A due date that has already passed, or the due date of a DONE task, can no longer be moved or cleared. */
+function DueLockDemo({ ds }) {
+  const pickable = useMemo(() => {
+    const past = ds.tasks.filter((t) => startOfDay(t.due) < today0).sort((a, b) => (isOverdue(b) - isOverdue(a)) || b.due - a.due);
+    const future = ds.tasks.filter((t) => startOfDay(t.due) >= today0 && t.status !== 'DONE');
+    return [...past.slice(0, 6), ...future.slice(0, 3)];
+  }, [ds]);
+  const [code, setCode] = useState(pickable[0]?.code || '');
+  const [res, setRes] = useState(null);
+  const t = ds.by[code];
+  const iso = (d) => new Date(d.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  const [val, setVal] = useState('');
+  useEffect(() => { if (t) setVal(iso(new Date(Math.max(t.due.getTime(), TODAY.getTime()) + 7 * DAY))); setRes(null); }, [code]);
+  if (!t) return null;
+  const save = (clear) => {
+    const passed = startOfDay(t.due) < today0;
+    if (t.status === 'DONE') setRes({ ok: false, code: 'DUE_DATE_LOCKED', msg: 'This task is already done, so its due date is part of the record and cannot be changed.' });
+    else if (passed) setRes({ ok: false, code: 'DUE_DATE_LOCKED', msg: `This due date (${fmt(t.due)}) has already passed, so it can no longer be ${clear ? 'cleared' : 'moved'}. The task keeps counting as late until it is done.` });
+    else setRes({ ok: true, msg: clear ? 'Due date cleared.' : `Due date moved to ${fmt(new Date(val + 'T12:00:00+07:00'))}. Allowed: the old date had not passed yet.` });
+  };
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 p-3">
+      <p className="text-xs font-semibold text-slate-700">Try it: change a due date <span className="font-normal text-slate-400">(task editor, shown here for the demo)</span></p>
+      <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+        <select value={code} onChange={(e) => setCode(e.target.value)} className="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
+          {pickable.map((x) => <option key={x.code} value={x.code}>{x.code} · due {fmt(x.due)} · {STATUS_CHIP[x.status][0]}{isOverdue(x) ? ' · overdue' : ''}</option>)}
+        </select>
+        <input type="date" value={val} onChange={(e) => setVal(e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs" />
+      </div>
+      <div className="mt-2 flex gap-2">
+        <button onClick={() => save(false)} className="btn-grad rounded-md px-3 py-1.5 text-xs font-semibold text-white">Save due date</button>
+        <button onClick={() => save(true)} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Clear due date</button>
+      </div>
+      {res && (
+        <div className={`mt-2 rounded-md px-2.5 py-2 text-xs ${res.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
+          {res.code && <span className="mono mr-1 font-semibold">{res.code}</span>}{res.msg}
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-slate-400">Moving a date that is still ahead stays allowed (that is re-planning). Once a date has passed, the slip is a fact and stays on record. No database change is needed.</p>
+    </div>
+  );
+}
+
+function OwnerPanel({ ds, onClose, visible, setVisible }) {
+  const [expiry, setExpiry] = useState(30);
+  const toggle = (id) => setVisible((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  return (
+    <div className="no-print fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-600">Owner view · Overview page</p>
+            <h3 className="text-lg font-bold text-slate-900">Share with a guest</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><Icon d={I.x} className="h-5 w-5" /></button>
+        </div>
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <Icon d={I.link} className="h-4 w-4 text-slate-400" />
+          <span className="mono flex-1 truncate text-xs text-slate-600">https://wpe.app/guest?token=••••••••••••</span>
+          <button className="btn-grad rounded-md px-2.5 py-1 text-xs font-semibold text-white">Copy link</button>
+        </div>
+        <div className="mt-4">
+          <p className="text-xs font-semibold text-slate-700">Link expires after</p>
+          <div className="mt-1.5 flex gap-2">
+            {[7, 30, 90].map((d) => (
+              <button key={d} onClick={() => setExpiry(d)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold ${expiry === d ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>{d} days</button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-slate-400">Changing this creates a new link; the old one stops working.</p>
+        </div>
+        <div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <Icon d={I.alert} className="h-4 w-4 shrink-0" />
+          <span>Anyone with this link can see task names, member names, deliverables you mark as visible, and the latest AI summary. No email addresses are shown.</span>
+        </div>
+        <div className="mt-4">
+          <p className="text-xs font-semibold text-slate-700">Deliverables visible on the guest page <span className="font-normal text-slate-400">({visible.size} of {ds.artifacts.length})</span></p>
+          <div className="mt-1.5 max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
+            {ds.artifacts.map((a) => {
+              const on = visible.has(a.id);
+              return (
+                <div key={a.id} className="flex items-center gap-3 px-3 py-2">
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm text-slate-800">{a.name}</span><span className="mono text-[11px] text-slate-400">{a.task} · {TYPE[a.type].label}</span></span>
+                  <button type="button" onClick={() => toggle(a.id)} aria-pressed={on} className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                    <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <DueLockDemo ds={ds} />
+        <div className="mt-5 flex gap-2">
+          <button onClick={onClose} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Icon d={I.eye} /> Preview as guest</button>
+          <button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">Revoke</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoPanel({ s, set, onOwner }) {
+  const [open, setOpen] = useState(() => window.innerWidth >= 640);
+  const Row = ({ label, children }) => <div className="flex items-center justify-between gap-3"><span className="text-slate-300">{label}</span><div className="flex gap-1">{children}</div></div>;
+  const Opt = ({ k, v, children }) => <button onClick={() => set({ ...s, [k]: v })} className={`rounded px-2 py-0.5 ${s[k] === v ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{children}</button>;
+  return (
+    <div className="no-print fixed bottom-4 right-4 z-30 w-72 rounded-xl bg-slate-900 text-[11px] text-white shadow-2xl">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between px-3 py-2 font-semibold">
+        <span className="flex items-center gap-1.5"><Icon d={I.gear} className="h-3.5 w-3.5" /> Mock controls</span><span>{open ? '–' : '+'}</span>
+      </button>
+      {open && (
+        <div className="space-y-2 border-t border-slate-700 px-3 py-3">
+          <Row label="Data"><Opt k="size" v="new">New</Opt><Opt k="size" v="normal">Normal</Opt><Opt k="size" v="done">Finished</Opt><Opt k="size" v="large">Large</Opt></Row>
+          <Row label="AI summary"><Opt k="ai" v="fresh">Fresh</Opt><Opt k="ai" v="stale">Stale</Opt><Opt k="ai" v="none">None</Opt></Row>
+          <Row label="Explain numbers"><Opt k="notes" v={true}>On</Opt><Opt k="notes" v={false}>Off</Opt></Row>
+          <button onClick={onOwner} className="mt-1 w-full rounded-lg bg-indigo-600 py-1.5 font-semibold hover:bg-indigo-500">Owner: share settings</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =====================================================================
+   Page
+   Order of reading: overview → where it is stuck → trend and people → evidence → act
+   ===================================================================== */
+/* =====================================================================
+   v6 · Band 2: deadline audit (tabs + summary numbers, idea from the Neon mock)
+   ===================================================================== */
+const AUDIT_TONE = {
+  0: ['bg-rose-600', 'border-rose-200 bg-rose-50/50', 'bg-rose-100 text-rose-700'],
+  1: ['bg-amber-500', 'border-amber-200 bg-amber-50/50', 'bg-amber-100 text-amber-800'],
+  2: ['bg-amber-500', 'border-amber-200 bg-amber-50/50', 'bg-amber-100 text-amber-800'],
+  3: ['bg-orange-600', 'border-orange-200 bg-orange-50/40', 'bg-orange-100 text-orange-800'],
+};
+function DeadlineAudit({ m, people, onGraph, onComment }) {
+  const LIMIT = 4;
+  const tabs = [...(m.completed ? [] : [['now', 'Needs attention', m.attention.length]]), ['late', 'Finished late', m.lateDone.length]];
+  const [tab, setTab] = useState(tabs[0][0]);
+  const [all, setAll] = useState(false);
+  const nowItems = m.attention.map(({ t, kind, text }) => {
+    const left = daysBetween(TODAY, t.due);
+    return { t, kind, badge: kind === 0 ? `+${-left}d now` : kind === 1 ? (left === 0 ? 'due today' : `due in ${left}d`) : 'no owner', line: kind === 2 ? `Due ${fmt(t.due)}` : text };
+  });
+  const lateItems = m.lateDone.map((t) => ({ t, kind: 3, badge: `+${lateBy(t)}d late`, line: `Due ${fmt(t.due)} → done ${fmt(t.done)}` }));
+  const slips = [...m.overdue.map((t) => daysBetween(t.due, TODAY)), ...m.lateDone.map(lateBy)];
+  const avg = slips.length ? (slips.reduce((a, b) => a + b, 0) / slips.length).toFixed(1) : '0';
+  const worst = slips.length ? Math.max(...slips) : 0;
+
+  const Item = ({ it }) => {
+    const [chip, box, badge] = AUDIT_TONE[it.kind];
+    return (
+      <div className={`rounded-xl border p-2.5 ${box}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className={`mono shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ${chip}`}>{it.t.code}</span>
+            <span className="truncate text-xs font-semibold text-slate-900" title={it.t.title}>{it.t.title}</span>
+          </div>
+          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${badge}`}>{it.badge}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] text-slate-600">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2">
+            <span>{it.line}</span>
+            {it.kind !== 3 && it.t.downstream.length > 0 && <span className="font-semibold text-rose-700">blocks → <span className="mono">{it.t.downstream.slice(0, 2).join(', ')}</span>{it.t.downstream.length > 2 && ` +${it.t.downstream.length - 2}`}</span>}
+            {it.t.who && <span className="text-slate-400">{people[it.t.who].label}</span>}
+            {it.t.reopened && <span className="rounded bg-violet-100 px-1 text-[9.5px] font-semibold text-violet-700">Reopened</span>}
+          </span>
+          <span className="no-print flex shrink-0 gap-2 font-semibold">
+            <button onClick={() => onGraph(it.t.code)} className="text-indigo-700 hover:underline">Graph</button>
+            <button onClick={() => onComment(it.t.code)} className="text-slate-700 hover:underline">Comment</button>
+          </span>
+        </div>
+      </div>
+    );
+  };
+  const List = ({ items, active }) => (
+    <div className={active ? '' : 'hidden print-block'}>
+      {!active && <p className="mb-1.5 mt-3 hidden text-[11px] font-bold uppercase tracking-wide text-slate-500 print-block">{tabs.find((x) => x[0] !== tab)?.[1]}</p>}
+      {items.length === 0
+        ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs font-semibold text-emerald-700">{tab === 'now' ? 'Nothing needs action right now.' : 'Clean record: no task was delivered after its due date.'}</p>
+        : <div className="space-y-2">{items.map((it, i) => <div key={it.t.code} className={all || i < LIMIT ? '' : 'hidden print-block'}><Item it={it} /></div>)}</div>}
+      {active && items.length > LIMIT && (
+        <button onClick={() => setAll(!all)} className="no-print mt-2 w-full rounded-lg border border-dashed border-slate-300 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-700">
+          {all ? 'Show fewer' : `Show all ${items.length}`}
+        </button>
+      )}
+    </div>
+  );
+  return (
+    <Card className="h-full">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-slate-900">Deadlines</h3>
+        <div className="no-print flex gap-1 text-[11px]">
+          {tabs.map(([k, label, n]) => (
+            <button key={k} onClick={() => { setTab(k); setAll(false); }} className={`rounded-md px-2 py-0.5 font-semibold ${tab === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{label} ({n})</button>
+          ))}
+        </div>
+      </div>
+      <div className="mb-3 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+        <div><span className="block text-[10px] font-semibold uppercase text-slate-400">Avg slip · {slips.length} tasks</span><b className="text-slate-900">+{avg}d</b></div>
+        <div><span className="block text-[10px] font-semibold uppercase text-slate-400">Worst slip</span><b className={worst ? 'text-rose-600' : 'text-slate-900'}>+{worst}d</b></div>
+        <div><span className="block text-[10px] font-semibold uppercase text-slate-400">Reopened</span><b className="text-slate-900">{m.reopenedN}</b></div>
+      </div>
+      {!m.completed && <List items={nowItems} active={tab === 'now'} />}
+      <List items={lateItems} active={tab === 'late'} />
+      <Note>Two tabs on one card: "Needs attention" (rules: past due; due within 2 days while others wait; no assignee and due within 7 days) is hidden once the project is COMPLETED; "Finished late" keeps the history. Avg slip and worst slip are over the tasks that missed their date (finished late, plus overdue ones counted up to today); tasks due soon or without an owner are not in them. Reopened = tasks with reopenedAt. Print shows both lists in full.</Note>
+    </Card>
+  );
+}
+
+/* =====================================================================
+   v6 · Band 3: team table (layout from the Neon mock, numbers from the real formulas)
+   ===================================================================== */
+function TeamTable({ ds, people }) {
+  const LIMIT = 6;
+  const [all, setAll] = useState(false);
+  const rows = ds.members.map((mb) => {
+    const ts = ds.tasks.filter((t) => t.who === mb.id);
+    const done = ts.filter((t) => t.status === 'DONE');
+    const late = done.filter(isLateDone);
+    const overdue = ts.filter(isOverdue).length;
+    const onTime = done.length - late.length;
+    const base = done.length + overdue;
+    return { p: people[mb.id], total: ts.length, done: done.length, onTime, late: late.length, worst: late.reduce((w, t) => (!w || lateBy(t) > lateBy(w) ? t : w), null), overdue, active: ts.filter((t) => ['IN_PROGRESS', 'REVIEW'].includes(t.status)).length, todo: ts.filter((t) => t.status === 'TODO').length, waiting: ts.filter((t) => t.status === 'LOCKED').length, pct: base ? Math.round((onTime / base) * 100) : null };
+  }).sort((a, b) => b.done - a.done || (b.pct ?? -1) - (a.pct ?? -1));
+  const unassigned = ds.tasks.filter((t) => !t.who && t.status !== 'DONE');
+  const pctCls = (p) => (p === null ? 'text-slate-400' : p >= 80 ? 'bg-emerald-50 text-emerald-700' : p >= 60 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700');
+  return (
+    <Card className="h-full" title="Who did what" note={<Sub>Per member, from the tasks currently assigned to them. Sorted by tasks done, then on-time %.</Sub>}
+      right={<span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{ds.members.length} members</span>}>
+      <div className="-mx-1 overflow-x-auto px-1">
+        <table className="w-full min-w-[540px] text-left text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 text-[11px] text-slate-500">
+              <th className="pb-2 font-semibold">Member</th>
+              <th className="pb-2 text-center font-semibold">On time</th>
+              <th className="pb-2 text-center font-semibold" title="Tasks finished after their due date">Done late</th>
+              <th className="pb-2 text-center font-semibold">Overdue</th>
+              <th className="pb-2 text-center font-semibold">Active</th>
+              <th className="pb-2 font-semibold">Done</th>
+              <th className="pb-2 text-right font-semibold">On-time %</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((r, i) => (
+              <tr key={r.p.id} className={all || i < LIMIT ? '' : 'hidden print-row'}>
+                <td className="py-2 pr-2">
+                  <div className="flex items-center gap-2">
+                    <Avatar p={r.p} size="h-7 w-7 text-[10px]" />
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-900">{r.p.label}</div>
+                      <div className="text-[10.5px] text-slate-400">{[r.p.role, r.todo && `${r.todo} to do`, r.waiting && `${r.waiting} waiting`].filter(Boolean).join(' · ')}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-2 text-center font-semibold text-emerald-700">{r.onTime}</td>
+                <td className={`py-2 text-center font-semibold ${r.late ? 'text-orange-700' : 'text-slate-300'}`} title={r.worst ? `Most late: ${r.worst.code}, done ${lateBy(r.worst)} days after its due date` : ''}>{r.late}{r.worst && <span className="block whitespace-nowrap text-[10px] font-normal text-orange-500">worst +{lateBy(r.worst)}d</span>}</td>
+                <td className={`py-2 text-center font-semibold ${r.overdue ? 'text-rose-600' : 'text-slate-300'}`}>{r.overdue}</td>
+                <td className="py-2 text-center text-slate-600">{r.active}</td>
+                <td className="w-28 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full bg-emerald-500" style={{ width: `${r.total ? (r.onTime / r.total) * 100 : 0}%` }} />
+                      <div className="h-full bg-orange-400" style={{ width: `${r.total ? (r.late / r.total) * 100 : 0}%` }} />
+                    </div>
+                    <span className="w-9 text-right text-[11px] font-semibold text-slate-700">{r.done}/{r.total}</span>
+                  </div>
+                </td>
+                <td className="py-2 text-right">{r.pct === null ? <span className="text-slate-400">{r.total ? '—' : 'no task'}</span> : <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${pctCls(r.pct)}`}>{r.pct}%</span>}</td>
+              </tr>
+            ))}
+            {unassigned.length > 0 && (
+              <tr className="bg-slate-50/70">
+                <td className="py-2 pr-2" colSpan={7}>
+                  <div className="flex items-center gap-2 text-slate-600"><Avatar p={null} size="h-7 w-7 text-[10px]" /> <b>{unassigned.length}</b> open {unassigned.length === 1 ? 'task has' : 'tasks have'} no assignee</div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > LIMIT && (
+        <button onClick={() => setAll(!all)} className="no-print mt-2 w-full rounded-lg border border-dashed border-slate-300 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-700">{all ? `Show top ${LIMIT}` : `Show all ${rows.length} members`}</button>
+      )}
+      <Note>On-time % per member uses the same formula as the On time card (done on time / (done + open overdue)). "Done late" = tasks finished after their due date, with the single worst slip under it (a summed total would make one task 12 days late look the same as 12 tasks 1 day late). Members with no task are still listed. The table scrolls sideways on phones instead of squeezing.</Note>
+    </Card>
+  );
+}
+
+function Evidence({ arts, onGoTask }) {
+  const LIMIT = 6;
+  const [q, setQ] = useState('');
+  const [all, setAll] = useState(false);
+  const sorted = [...arts].sort((a, b) => b.at - a.at);
+  const list = sorted.filter((a) => !q || [a.name, a.task, a.host, TYPE[a.type].label].some((s) => s.toLowerCase().includes(q.toLowerCase())));
+  const shown = all ? list : list.slice(0, LIMIT);
+  return (
+    <Card className="h-full" title="Deliverables" note={<Sub>Links the team made visible on this page, newest first.</Sub>}
+      right={<span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{arts.length}</span>}>
+      {arts.length > LIMIT && (
+        <input value={q} onChange={(e) => { setQ(e.target.value); setAll(false); }} placeholder="Search by name, task code or site…"
+          className="no-print mb-2 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-1.5 text-xs outline-none focus:border-indigo-400 focus:bg-white" />
+      )}
+      {arts.length === 0 && <p className="text-sm text-slate-400">No public deliverables yet.</p>}
+      {arts.length > 0 && list.length === 0 && <p className="py-3 text-center text-xs text-slate-400">Nothing matches “{q}”.</p>}
+      <div className={`space-y-0.5 ${all ? 'print-full max-h-80 overflow-y-auto pr-1' : ''}`}>
+        {shown.map((a, i) => (
+          <div key={a.id} className={`group flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50 ${i >= LIMIT ? 'print-hide' : ''}`}>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Icon d={TYPE[a.type].icon} /></span>
+            <span className="min-w-0 flex-1">
+              <a href={a.url} onClick={(e) => e.preventDefault()} rel="noopener noreferrer" target="_blank" className="block truncate text-sm font-medium text-slate-800 hover:text-indigo-700" title={a.url}>{a.name}</a>
+              <span className="block truncate text-[11px] text-slate-500">
+                <button onClick={() => onGoTask(a.task)} className="mono hover:text-indigo-700 hover:underline">{a.task}</button> · {a.host} · {fmt(a.at)}
+              </span>
+            </span>
+            <span className="no-print text-slate-300 group-hover:text-indigo-500"><Icon d={I.ext} /></span>
+          </div>
+        ))}
+      </div>
+      {list.length > LIMIT && (
+        <button onClick={() => setAll(!all)} className="no-print mt-2 w-full rounded-lg border border-dashed border-slate-300 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-700">{all ? 'Show fewer' : `Show all ${list.length}`}</button>
+      )}
+      {arts.length > LIMIT && <p className="print-only mt-1 text-[11px] text-slate-500">…and {arts.length - LIMIT} more on the page.</p>}
+      <Note>The site name comes from the link (idea from the Neon mock); the type icon uses the backend's own detectArtifactType rule, not the stored type. Search appears only when there are more than 6. The owner hides items in the share dialog (isPublicForGuest). Links open with rel="noopener noreferrer".</Note>
+    </Card>
+  );
+}
+
+/* =====================================================================
+   v6 · Band 4: phase map (phase_dependency) → selected phase → its tasks
+   Real page: reuse PhaseCard + WorkflowEdge for the map and MindmapTree (readOnly) for the task graph.
+   ===================================================================== */
+const TONE_BAR = { emerald: 'bg-emerald-400', orange: 'bg-orange-400', rose: 'bg-rose-400', blue: 'bg-blue-400', slate: 'bg-slate-300' };
+/* Pan and zoom for a scrollable graph box (stands in for hooks/usePanZoom + ZoomControls in the app).
+   Mouse drag on the box moves the view; Ctrl + wheel zooms around the cursor; plain wheel and touch keep
+   scrolling the page, so a long guest page never gets stuck on a graph. */
+const ZMIN = 0.3, ZMAX = 1.6;
+const clampZ = (v) => Math.min(ZMAX, Math.max(ZMIN, +v.toFixed(2)));
+function useDragZoom(fitOf) {
+  const ref = useRef(null);
+  const [box, setBox] = useState({ w: 900, h: 400 });
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const ro = new ResizeObserver(([e]) => setBox({ w: e.contentRect.width, h: e.contentRect.height })); ro.observe(el); return () => ro.disconnect();
+  }, []);
+  const [zoom, setZoom] = useState(null);
+  const fit = fitOf(box);
+  const z = zoom ?? fit.start;
+  const zRef = useRef(z); zRef.current = z;
+  // zoom keeping the point at (px, py) of the box still
+  const zoomAt = (nz, px, py) => {
+    const el = ref.current, k = nz / zRef.current;
+    const cx = el ? el.scrollLeft + px : 0, cy = el ? el.scrollTop + py : 0;
+    setZoom(nz);
+    requestAnimationFrame(() => { if (el) { el.scrollLeft = cx * k - px; el.scrollTop = cy * k - py; } });
+  };
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      zoomAt(clampZ(zRef.current * (e.deltaY < 0 ? 1.12 : 1 / 1.12)), e.clientX - r.left, e.clientY - r.top);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+  const drag = useRef(null), dragged = useRef(false);
+  const [dragging, setDragging] = useState(false);
+  const bind = {
+    onPointerDown: (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      const el = ref.current;
+      drag.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop, id: e.pointerId };
+      dragged.current = false;
+    },
+    onPointerMove: (e) => {
+      const d = drag.current, el = ref.current; if (!d) return;
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (!dragged.current) {
+        if (Math.hypot(dx, dy) < 5) return; // a small wobble is still a click on a card
+        dragged.current = true; setDragging(true);
+        try { el.setPointerCapture(d.id); } catch { /* pointer already gone */ }
+      }
+      el.scrollLeft = d.sl - dx; el.scrollTop = d.st - dy;
+    },
+    onPointerUp: () => { drag.current = null; setDragging(false); },
+    onPointerCancel: () => { drag.current = null; setDragging(false); },
+    // after a drag, swallow the click so the card under the mouse is not opened
+    onClickCapture: (e) => { if (dragged.current) { e.stopPropagation(); e.preventDefault(); dragged.current = false; } },
+  };
+  const center = () => { const el = ref.current; return el ? [el.clientWidth / 2, el.clientHeight / 2] : [0, 0]; };
+  return {
+    ref, z, bind, dragging,
+    zoomIn: () => zoomAt(clampZ(z + 0.15), ...center()),
+    zoomOut: () => zoomAt(clampZ(z - 0.15), ...center()),
+    fitAll: () => { setZoom(fit.all); requestAnimationFrame(() => ref.current && ref.current.scrollTo({ left: 0, top: 0 })); },
+    reset: () => setZoom(null),
+  };
+}
+
+function ZoomBar({ pz, className = '' }) {
+  const b = 'rounded border border-slate-200 bg-white hover:bg-slate-50';
+  return (
+    <span className={`print-hide flex items-center gap-1 text-[11px] ${className}`}>
+      <button onClick={pz.zoomOut} className={`${b} p-1`} title="Zoom out (or Ctrl + scroll)"><Icon d={I.minus} className="h-3 w-3" /></button>
+      <span className="w-9 text-center font-semibold text-slate-600">{Math.round(pz.z * 100)}%</span>
+      <button onClick={pz.zoomIn} className={`${b} p-1`} title="Zoom in (or Ctrl + scroll)"><Icon d={I.plus} className="h-3 w-3" /></button>
+      <button onClick={pz.fitAll} className={`${b} px-1.5 py-0.5 font-semibold`} title="Show the whole graph">Fit</button>
+    </span>
+  );
+}
+
+const PAN_HINT = 'Drag to move · Ctrl + scroll to zoom';
+
+function PhaseMap({ ds, m, sel, onSelect, artsByTask }) {
+  const phases = m.phases.filter((p) => p.index >= 0);
+  const CW = 196, CH = 104, GX = 52, GY = 14, PAD = 14;
+  const [hover, setHover] = useState(null);
+  const L = useMemo(() => {
+    const col = Object.fromEntries(phases.map((p) => [p.index, 0]));
+    for (let r = 0; r < phases.length; r++) ds.phaseDeps.forEach(([a, b]) => { if (col[a] !== undefined && col[b] !== undefined) col[b] = Math.max(col[b], col[a] + 1); });
+    const maxC = Math.max(0, ...Object.values(col));
+    const pos = {}; let rows = 1;
+    for (let c = 0; c <= maxC; c++) {
+      const inCol = phases.filter((p) => col[p.index] === c);
+      rows = Math.max(rows, inCol.length);
+      inCol.forEach((p, i) => (pos[p.index] = { x: PAD + c * (CW + GX), y: PAD + i * (CH + GY) }));
+    }
+    const skip = ds.phaseDeps.some(([a, b]) => col[b] - col[a] > 1);
+    const body = PAD * 2 + rows * CH + (rows - 1) * GY;
+    // edges that skip a column run along a lane under the cards instead of passing behind them
+    return { pos, col, w: PAD * 2 + (maxC + 1) * CW + maxC * GX, h: body + (skip ? 26 : 0), lane: body + 8 };
+  }, [ds, m]);
+  const focus = hover ?? sel;
+  const MAXH = 340;
+  // start at the size that shows everything, but never so small that the cards cannot be read
+  const pz = useDragZoom(({ w }) => {
+    const all = Math.min(1, (w - 4) / L.w, (MAXH - 4) / L.h);
+    return { start: Math.min(1, Math.max(0.7, all)), all: Math.max(ZMIN, all) };
+  });
+  const z = pz.z;
+  // keep the selected phase in view when the map is bigger than the box
+  useEffect(() => {
+    const el = pz.ref.current, p = L.pos[sel]; if (!el || !p) return;
+    const x = p.x * z, y = p.y * z, w = CW * z, h = CH * z;
+    const out = x < el.scrollLeft || x + w > el.scrollLeft + el.clientWidth || y < el.scrollTop || y + h > el.scrollTop + el.clientHeight;
+    if (out) el.scrollTo({ left: Math.max(0, x - 40), top: Math.max(0, y - 20), behavior: 'smooth' });
+  }, [sel, L]);
+  return (
+    <div className="border-b border-slate-200">
+      <div className="print-hide flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-500">
+        <span>Arrows go from a phase to the phases that start after it. Click a phase to open its tasks below. <span className="hidden text-slate-400 sm:inline">{PAN_HINT}.</span></span>
+        <ZoomBar pz={pz} />
+      </div>
+      <div ref={pz.ref} {...pz.bind} className={`print-full overflow-auto ${pz.dragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`} style={{ maxHeight: MAXH, backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '20px 20px', backgroundColor: '#f8fafc' }}>
+      <div style={{ width: L.w * z, height: L.h * z, minWidth: '100%' }}>
+      <div className="relative" style={{ width: L.w, height: L.h, transform: `scale(${z})`, transformOrigin: '0 0' }}>
+        <svg width={L.w} height={L.h} className="absolute inset-0">
+          <defs><marker id="pm" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#94a3b8" /></marker>
+            <marker id="pmOn" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#4f46e5" /></marker></defs>
+          {ds.phaseDeps.map(([a, b]) => {
+            const p = L.pos[a], q = L.pos[b]; if (!p || !q) return null;
+            const x1 = p.x + CW, y1 = p.y + CH / 2, x2 = q.x - 2, y2 = q.y + CH / 2;
+            const on = focus === a || focus === b;
+            const ly = L.lane, h = GX / 2;
+            const d = L.col[b] - L.col[a] > 1
+              ? `M${x1},${y1} C${x1 + h},${y1} ${x1 + h},${ly} ${x1 + h + 12},${ly} L${x2 - h - 12},${ly} C${x2 - h},${ly} ${x2 - h},${y2} ${x2},${y2}`
+              : `M${x1},${y1} C${x1 + GX * 0.6},${y1} ${x2 - GX * 0.6},${y2} ${x2},${y2}`;
+            return <path key={a + '-' + b} d={d} fill="none" stroke={on ? '#4f46e5' : '#94a3b8'} strokeWidth={on ? 2 : 1.3} strokeDasharray={on ? '' : '4 4'} opacity={focus !== null && !on ? 0.4 : 1} markerEnd={`url(#${on ? 'pmOn' : 'pm'})`} />;
+          })}
+        </svg>
+        {phases.map((p) => {
+          const pos = L.pos[p.index], isSel = p.index === sel;
+          return (
+            <button key={p.index} onClick={() => onSelect(p.index)} onMouseEnter={() => setHover(p.index)} onMouseLeave={() => setHover(null)}
+              className={`absolute flex flex-col overflow-hidden rounded-xl border bg-white text-left shadow-sm transition ${isSel ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}
+              style={{ left: pos.x, top: pos.y, width: CW, height: CH }}>
+              <span className={`h-1.5 w-full shrink-0 ${TONE_BAR[p.verdict.tone]}`} />
+              <span className="flex flex-1 flex-col justify-between px-3 py-2">
+                <span>
+                  <span className="flex items-center justify-between text-[10px] font-semibold text-slate-400"><span>Phase {p.index + 1}</span>{isSel && <span className="text-indigo-600">Viewing</span>}</span>
+                  <span className="line-clamp-1 text-xs font-bold text-slate-900" title={p.name}>{p.name}</span>
+                </span>
+                <span className={`inline-flex w-fit items-center whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 ${TONE[p.verdict.tone][0]}`}>{p.verdict.label}</span>
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><span className={`block h-full ${p.end ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${p.pct}%` }} /></span>
+                  <span className="text-[10px] font-semibold text-slate-500">{p.done}/{p.tasks.length}{(() => { const n = p.tasks.reduce((s2, x) => s2 + (artsByTask[x.code] || []).length, 0); return n ? ` · 📎${n}` : ''; })()}</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+function layoutTaskGraph(ph, ds, showGhosts, D) {
+  const { NW, NH, CG, RG, PAD } = D;
+  const inSet = new Set(ph.tasks.map((t) => t.code));
+  const ups = new Map(), downs = new Map();
+  if (showGhosts) ph.tasks.forEach((t) => {
+    t.deps.forEach((d) => { if (!inSet.has(d)) ups.set(d, { id: 'u:' + d, ref: ds.by[d], dir: 'up' }); });
+    t.dependents.forEach((c) => { if (!inSet.has(c)) downs.set(c, { id: 'd:' + c, ref: ds.by[c], dir: 'down' }); });
+  });
+  const base = ups.size ? 1 : 0;
+  const level = {};
+  const lv = (t) => {
+    if (level[t.code] !== undefined) return level[t.code];
+    level[t.code] = base;
+    let L = base;
+    t.deps.forEach((d) => { L = Math.max(L, inSet.has(d) ? lv(ds.by[d]) + 1 : base); });
+    return (level[t.code] = L);
+  };
+  ph.tasks.forEach(lv);
+  const maxL = Math.max(base, ...ph.tasks.map((t) => level[t.code]));
+  const cols = [];
+  const push = (L, n) => (cols[L] = cols[L] || []).push(n);
+  [...ups.values()].forEach((n) => push(0, n));
+  ph.tasks.forEach((t) => push(level[t.code], { id: t.code, ref: t, dir: null }));
+  [...downs.values()].forEach((n) => push(maxL + 1, n));
+  const parentsOf = (n) => n.dir === 'up' ? [] : n.dir === 'down' ? n.ref.deps.filter((d) => inSet.has(d)) : n.ref.deps.map((d) => (inSet.has(d) ? d : 'u:' + d)).filter((d) => !d.startsWith('u:') || showGhosts);
+  const pos = {};
+  cols.forEach((col, L) => {
+    if (!col) return;
+    if (L > 0) {
+      const bary = (n) => { const ps = parentsOf(n).filter((p) => pos[p]); return ps.length ? ps.reduce((s, p) => s + pos[p].y, 0) / ps.length : 1e9; };
+      col.sort((a, b) => bary(a) - bary(b));
+    }
+    col.forEach((n, i) => (pos[n.id] = { x: PAD + L * (NW + CG), y: PAD + i * (NH + RG) }));
+  });
+  const nodes = cols.flat().filter(Boolean);
+  const edges = [];
+  nodes.forEach((n) => parentsOf(n).forEach((p) => pos[p] && edges.push({ from: p, to: n.id })));
+  const rows = Math.max(1, ...cols.filter(Boolean).map((c) => c.length));
+  return { nodes, pos, edges, w: PAD * 2 + cols.length * (NW + CG) - CG, h: PAD * 2 + rows * (NH + RG) - RG, ups: ups.size, downs: downs.size };
+}
+
+function TaskGraph({ ph, ds, people, selected, onPick }) {
+  const D = { NW: 190, NH: 70, CG: 60, RG: 14, PAD: 18 };
+  const ghostCount = useMemo(() => {
+    const inSet = new Set(ph.tasks.map((t) => t.code));
+    return new Set(ph.tasks.flatMap((t) => [...t.deps, ...t.dependents]).filter((c) => !inSet.has(c))).size;
+  }, [ph]);
+  const [showGhosts, setShowGhosts] = useState(ghostCount <= 10);
+  const g = useMemo(() => layoutTaskGraph(ph, ds, showGhosts, D), [ph, ds, showGhosts]);
+  const MAXH = 440;
+  // start fitted to the width (cards stay readable); Fit shows the whole graph
+  const pz = useDragZoom(({ w }) => ({
+    start: Math.max(0.5, Math.min(1, (w - 8) / g.w)),
+    all: Math.max(ZMIN, Math.min(1, (w - 8) / g.w, (MAXH - 8) / g.h)),
+  }));
+  const z = pz.z;
+  const [hover, setHover] = useState(null);
+  const focus = hover || selected;
+  // hover dims unrelated cards; a selected task only highlights its own links
+  const refOf = Object.fromEntries(g.nodes.map((n) => [n.id, n.ref]));
+  const near = hover ? new Set([hover, ...g.edges.filter((e) => e.from === hover || e.to === hover).flatMap((e) => [e.from, e.to])]) : null;
+  const phaseOf = (t) => (t.phase >= 0 ? `Phase ${t.phase + 1}` : 'No phase');
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500">
+        <span>Arrows go from a task to the tasks waiting for it. Click a card for its detail. <span className="hidden text-slate-400 sm:inline">{PAN_HINT}.</span></span>
+        <span className="flex items-center gap-1.5">
+          {ghostCount > 0 && (
+            <label className="mr-1 flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-2 py-0.5 font-semibold text-slate-600">
+              <input type="checkbox" checked={showGhosts} onChange={(e) => { setShowGhosts(e.target.checked); pz.reset(); }} className="accent-indigo-600" /> Other phases ({ghostCount})
+            </label>
+          )}
+          <ZoomBar pz={pz} />
+        </span>
+      </div>
+      <div ref={pz.ref} {...pz.bind} className={`overflow-auto ${pz.dragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`} style={{ maxHeight: MAXH, backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '20px 20px', backgroundColor: '#f8fafc' }}>
+        <div style={{ width: g.w * z, height: g.h * z }}>
+          <div className="relative" style={{ width: g.w, height: g.h, transform: `scale(${z})`, transformOrigin: '0 0' }}>
+            <svg width={g.w} height={g.h} className="absolute inset-0">
+              <defs>
+                <marker id="ta" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#94a3b8" /></marker>
+                <marker id="taOn" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#4f46e5" /></marker>
+                <marker id="taBl" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#e11d48" /></marker>
+              </defs>
+              {g.edges.map((e) => {
+                const a = g.pos[e.from], b = g.pos[e.to];
+                const x1 = a.x + D.NW, y1 = a.y + D.NH / 2, x2 = b.x - 2, y2 = b.y + D.NH / 2;
+                const on = !!focus && (e.from === focus || e.to === focus);
+                // a waiting task held by an unfinished one: the bottleneck the reviewer should see
+                const blocking = refOf[e.to].status === 'LOCKED' && refOf[e.from].status !== 'DONE';
+                return <path key={e.from + '>' + e.to} d={`M${x1},${y1} C${x1 + D.CG / 2},${y1} ${x2 - D.CG / 2},${y2} ${x2},${y2}`} fill="none"
+                  stroke={on ? '#4f46e5' : blocking ? '#e11d48' : '#94a3b8'} strokeWidth={on || blocking ? 2 : 1.4} strokeDasharray={blocking && !on ? '5 4' : ''} opacity={near && !on ? 0.25 : 1} markerEnd={`url(#${on ? 'taOn' : blocking ? 'taBl' : 'ta'})`} />;
+              })}
+            </svg>
+            {g.nodes.map((n) => {
+              const t = n.ref, p = g.pos[n.id], ghost = !!n.dir;
+              const isSel = !ghost && t.code === selected;
+              const dim = near && !near.has(n.id);
+              return (
+                <button key={n.id} onClick={() => onPick(t.code)} onMouseEnter={() => setHover(n.id)} onMouseLeave={() => setHover(null)} title={`${t.code} · ${t.title}`}
+                  className={`absolute flex flex-col justify-start gap-0.5 overflow-hidden rounded-lg border-l-4 px-2.5 py-1.5 text-left shadow-sm transition ${STATUS_BAR[t.status]} ${ghost ? 'border border-dashed border-slate-300 bg-white/70' : isSel ? 'border border-indigo-400 bg-white ring-2 ring-indigo-200' : 'border border-slate-200 bg-white hover:border-indigo-300'} ${dim ? 'opacity-30' : ''}`}
+                  style={{ left: p.x, top: p.y, width: D.NW, height: D.NH }}>
+                  {ghost && <span className="text-[9.5px] font-semibold uppercase tracking-wide text-slate-400">{n.dir === 'up' ? 'Needed from' : 'Unlocks in'} {phaseOf(t)}</span>}
+                  <span className="flex items-center gap-1.5">
+                    <span className="mono text-[10px] text-slate-400">{t.code}</span>
+                    {isOverdue(t) && <span className="rounded bg-rose-50 px-1 text-[9.5px] font-semibold text-rose-700">overdue</span>}
+                    {isLateDone(t) && <span className="rounded bg-orange-50 px-1 text-[9.5px] font-semibold text-orange-700">+{lateBy(t)}d</span>}
+                    {!ghost && <span className="ml-auto"><Avatar p={t.who ? people[t.who] : null} size="h-4 w-4 text-[8px]" /></span>}
+                  </span>
+                  <span className={`${ghost ? 'line-clamp-1' : 'line-clamp-2'} text-[11.5px] font-medium leading-tight text-slate-800`}>{t.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-200 bg-white px-3 py-1.5 text-[10.5px] text-slate-500">
+        {['DONE', 'REVIEW', 'IN_PROGRESS', 'TODO', 'LOCKED'].map((s) => <span key={s} className="flex items-center gap-1"><Dot s={s} />{STATUS_CHIP[s][0]}</span>)}
+        <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded border border-dashed border-slate-400" />task in another phase</span>
+        <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-rose-500" />blocking: waits on an unfinished task</span>
+      </div>
+    </div>
+  );
+}
+
+function PhaseInspector({ ds, m, people, artsByTask, ph, selTask, mode, setMode, goTask, onComment, onCommentPhase }) {
+  const [filter, setFilter] = useState('all');
+  const [rows, setRows] = useState(() => new Set());
+  const [more, setMore] = useState(false);
+  useEffect(() => { setFilter('all'); setMore(false); }, [ph.index]);
+  useEffect(() => { if (selTask) setRows((s) => new Set(s).add(selTask)); }, [selTask]);
+  const ups = ds.phaseDeps.filter(([, c]) => c === ph.index).map(([p]) => m.phases.find((x) => x.index === p)).filter(Boolean);
+  const t = selTask && ds.by[selTask] && ds.by[selTask].phase === ph.index ? ds.by[selTask] : null;
+  const match = (x) => filter === 'all' || (filter === 'late' && (isLateDone(x) || isOverdue(x))) || (filter === 'waiting' && x.status === 'LOCKED') || (filter === 'deliv' && (artsByTask[x.code] || []).length);
+  const list = ph.tasks.filter(match);
+  const shown = more ? list : list.slice(0, ROW_LIMIT);
+  const arts = ph.tasks.reduce((s, x) => s + (artsByTask[x.code] || []).length, 0);
+  const listView = (
+    <div>
+      <div className="no-print mb-2 flex flex-wrap gap-1.5">
+        {[['all', `All (${ph.tasks.length})`], ['late', 'Late or overdue'], ['waiting', 'Waiting'], ['deliv', 'Has deliverable']].map(([k, label]) => (
+          <button key={k} onClick={() => { setFilter(k); setMore(false); }} className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${filter === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{label}</button>
+        ))}
+      </div>
+      {list.length === 0 && <p className="py-4 text-center text-xs text-slate-400">No task in this phase matches the filter.</p>}
+      {list.map((x, i) => (
+        <div key={x.code} className={i < shown.length ? '' : 'hidden print-block'}>
+          <TaskRow t={x} by={ds.by} people={people} arts={artsByTask[x.code] || []} open={rows.has(x.code)} flash={x.code === selTask}
+            onToggle={() => setRows((s) => { const n = new Set(s); n.has(x.code) ? n.delete(x.code) : n.add(x.code); return n; })} onJump={goTask} onComment={() => onComment(x.code)} />
+        </div>
+      ))}
+      {list.length > shown.length && <button onClick={() => setMore(true)} className="no-print my-2 w-full rounded-lg border border-dashed border-slate-300 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-700">Show {list.length - shown.length} more</button>}
+    </div>
+  );
+  return (
+    <div id="inspector" className="scroll-mt-28 p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900">{phaseLabel(ph)}</h3>
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${TONE[ph.verdict.tone][0]}`}>{ph.verdict.label}</span>
+            <span className="text-xs text-slate-600"><b>{ph.done}/{ph.tasks.length}</b> done</span>
+            {ph.onTimePct !== null && <span className="text-xs text-slate-600">· {ph.onTimePct}% on time</span>}
+            {arts > 0 && <span className="text-xs text-slate-600">· {plural(arts, 'deliverable')}</span>}
+          </div>
+          <p className="text-[11px] text-slate-500">Planned end <b className="text-slate-700">{fmt(ph.plannedEnd)}</b>{ph.end && <> · finished <b className="text-slate-700">{fmt(ph.end)}</b></>} · comes after: <b className="text-slate-700">{ups.length ? ups.map((u) => `Phase ${u.index + 1}`).join(', ') : 'nothing (starting phase)'}</b></p>
+        </div>
+        <div className="no-print flex flex-wrap items-center gap-2">
+          <button onClick={() => onCommentPhase(ph.index)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">Comment on this phase</button>
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px]">
+            {[['graph', 'Task graph'], ['list', 'Task list']].map(([k, label]) => (
+              <button key={k} onClick={() => setMode(k)} className={`rounded-md px-2.5 py-1 font-semibold ${mode === k ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {mode === 'graph' ? (
+        <>
+          <div className="no-print">
+            <TaskGraph key={ph.index} ph={ph} ds={ds} people={people} selected={t ? t.code : null} onPick={goTask} />
+            {t ? (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="mono rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-white">{t.code}</span>
+                  <b className="text-sm text-slate-900">{t.title}</b>
+                  <Chip s={t.status} />
+                  {isOverdue(t) && <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-rose-700">Overdue {daysBetween(t.due, TODAY)}d</span>}
+                  {isLateDone(t) && <span className="rounded bg-orange-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-orange-700">+{lateBy(t)}d late</span>}
+                  {t.reopened && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-violet-700">Reopened</span>}
+                </div>
+                <TaskDetails flush t={t} by={ds.by} people={people} arts={artsByTask[t.code] || []} onJump={goTask} onComment={() => onComment(t.code)} />
+              </div>
+            ) : <p className="mt-3 text-center text-xs text-slate-400">Click a task in the graph to see its detail here.</p>}
+          </div>
+          <div className="hidden print-block">{listView}</div>
+        </>
+      ) : listView}
+    </div>
+  );
+}
+
+/* =====================================================================
+   Reading flow: section headings, sticky section nav, "at a glance", phase scorecard
+   ===================================================================== */
+const SECTIONS = [['s-overview', 'Overview'], ['s-schedule', 'Schedule & deadlines'], ['s-team', 'Team & proof'], ['s-deep', 'Phases & tasks'], ['s-feedback', 'Feedback']];
+
+function SectionNav() {
+  const [active, setActive] = useState('s-overview');
+  useEffect(() => {
+    const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && setActive(e.target.id)), { rootMargin: '-40% 0px -55% 0px' });
+    SECTIONS.forEach(([id]) => { const el = document.getElementById(id); if (el) io.observe(el); });
+    return () => io.disconnect();
+  }, []);
+  return (
+    <nav className="sticky-nav no-print sticky top-[57px] z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 sm:px-6">
+        {SECTIONS.map(([id, label], i) => (
+          <a key={id} href={'#' + id} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${active === id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <span className={active === id ? 'text-slate-400' : 'text-slate-400'}>{i + 1}</span> {label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+function SectionHead({ n, title, q }) {
+  return (
+    <div className="mb-4 mt-10 flex items-start gap-3 border-t border-slate-200 pt-7">
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{n}</span>
+      <div>
+        <h2 className="text-lg font-bold leading-tight text-slate-900">{title}</h2>
+        <p className="mt-0.5 text-sm text-slate-500">{q}</p>
+      </div>
+    </div>
+  );
+}
+
+// Full-width status split (idea from the Neon mock): finished work is split into on time and late
+function StatusRibbon({ m }) {
+  return (
+    <div className="card rise rounded-2xl border border-slate-200 bg-white px-5 py-3.5">
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+        {m.breakdown.map((s) => <div key={s.key} className={s.c} style={{ width: `${(s.n / m.total) * 100}%` }} title={`${s.label}: ${s.n}`} />)}
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-600">
+        {m.breakdown.filter((s) => s.n).map((s) => <span key={s.key} className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${s.c}`} />{s.label} <b className={s.key === 'LATE' ? 'text-orange-700' : 'text-slate-900'}>{s.n}</b></span>)}
+      </div>
+      <Note>Every task by status; finished tasks are split into on time and late, so a finished project still shows how it got there.</Note>
+    </div>
+  );
+}
+
+const TONE = {
+  emerald: ['bg-emerald-50 text-emerald-700 ring-emerald-200', 'bg-emerald-400'],
+  orange: ['bg-orange-50 text-orange-700 ring-orange-200', 'bg-emerald-400'],
+  rose: ['bg-rose-50 text-rose-700 ring-rose-200', 'bg-blue-400'],
+  blue: ['bg-blue-50 text-blue-700 ring-blue-200', 'bg-blue-400'],
+  slate: ['bg-slate-50 text-slate-500 ring-slate-200', 'bg-slate-300'],
+};
+function PhaseScorecard({ ds, m, onOpen }) {
+  const phases = m.phases.filter((p) => p.tasks.length); // includes the "No phase" group when it exists
+  const t0 = startOfDay(new Date(Math.min(ds.project.startedAt.getTime(), ...ds.tasks.map((t) => t.created.getTime())))).getTime();
+  const t1 = (m.completed ? Math.max(m.deadline, m.finishedAt) : Math.max(m.deadline, TODAY)) + 2 * DAY;
+  const X = (d) => Math.max(0, Math.min(100, ((d - t0) / (t1 - t0)) * 100));
+  const todayX = X(TODAY.getTime());
+  const cols = 'sm:grid-cols-[minmax(0,1.25fr)_96px_minmax(0,2fr)_150px]';
+  return (
+    <Card>
+      <div className={`hidden gap-4 border-b border-slate-100 pb-2 text-[10.5px] font-bold uppercase tracking-wide text-slate-400 sm:grid ${cols}`}>
+        <span>Phase</span><span>Done</span>
+        <span className="flex justify-between"><span>{fmt(new Date(t0))}</span><span>Timeline</span><span>{fmt(new Date(t1 - 2 * DAY))}</span></span>
+        <span>Result</span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {phases.map((ph) => {
+          const s = ph.start ? X(ph.start.getTime()) : null;
+          const e = X((ph.end || TODAY).getTime());
+          const p = X(ph.plannedEnd.getTime());
+          const overrun = s !== null && e > p;
+          return (
+            <button key={ph.index} onClick={() => onOpen(ph)} className={`group grid w-full grid-cols-1 items-center gap-x-4 gap-y-2 py-3 text-left hover:bg-slate-50 sm:py-2.5 ${cols}`}>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-slate-900 group-hover:text-indigo-700">{phaseLabel(ph)}</span>
+                <span className="text-[11px] text-slate-500">{plural(ph.tasks.length, 'task')}{ph.onTimePct !== null && <> · {ph.onTimePct}% on time</>}{ph.lateN + ph.overdueN > 0 && <> · <span className="font-semibold text-orange-600">{ph.lateN + ph.overdueN} late</span></>}</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="w-9 text-right text-xs font-bold text-slate-800">{ph.pct}%</span>
+                <span className="h-1.5 flex-1 rounded-full bg-slate-100"><span className={`block h-full rounded-full ${ph.end ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${ph.pct}%` }} /></span>
+              </span>
+              <span className="relative block h-6" title={`${ph.start ? 'Worked ' + fmt(ph.start) + ' → ' + (ph.end ? fmt(ph.end) : 'now') : 'Not started'} · planned end ${fmt(ph.plannedEnd)}`}>
+                <span className="absolute inset-x-0 top-1/2 h-px bg-slate-200" />
+                {s !== null && <span className={`absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full ${TONE[ph.verdict.tone][1]}`} style={{ left: `${s}%`, width: `${Math.max(1.2, Math.min(e, p) - s)}%` }} />}
+                {overrun && <span className={`absolute top-1/2 h-2.5 -translate-y-1/2 rounded-r-full ${ph.end ? 'bg-orange-500' : 'bg-rose-500'}`} style={{ left: `${Math.max(s, p)}%`, width: `${Math.max(1, e - Math.max(s, p))}%` }} />}
+                <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-slate-800" style={{ left: `${p}%` }} />
+                {!m.completed && <span className="absolute inset-y-0 w-px bg-indigo-400" style={{ left: `${todayX}%` }} />}
+              </span>
+              <span className="flex flex-col items-start gap-0.5">
+                <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${TONE[ph.verdict.tone][0]}`}>{ph.verdict.label}</span>
+                <span className="text-[10.5px] text-slate-500">{ph.end ? `done ${fmt(ph.end)} · ` : ''}plan {fmt(ph.plannedEnd)}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+        <span className="flex items-center gap-1.5"><span className="h-2 w-5 rounded-full bg-emerald-400" />worked on, within plan</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-5 rounded-full bg-orange-500" />past the planned end (finished)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-5 rounded-full bg-rose-500" />past the planned end (still open)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rotate-45 bg-slate-800" />planned end</span>
+        {!m.completed && <span className="flex items-center gap-1.5"><span className="h-3 w-px bg-indigo-400" />today</span>}
+        <span className="no-print ml-auto">Click a phase to open its tasks</span>
+      </div>
+      <Note>A phase has no deadline column, so its planned end = the latest due date of its tasks. Bar = from the first task started (NodeEntity.startedAt) to the last task done (completedAt), or to today. Result: finished on time / finished N days late / behind (has overdue tasks) / on track / not started. "% on time" uses the same formula as the On time card. Tasks without a phase get their own row. If a phase has no startedAt (cleared when a task goes back to TODO, or old data), the bar starts at its first completedAt. No database change.</Note>
+    </Card>
+  );
+}
+
+function Page({ ds, demo, owner, setOwner }) {
+  const m = useMemo(() => computeMetrics(ds), [ds]);
+  const people = usePeople(ds.members, demo.names);
+  const [visible, setVisible] = useState(() => new Set(ds.artifacts.filter((a) => !a.defaultHidden).map((a) => a.id)));
+  const [fbTask, setFbTask] = useState('');
+  const [fbFocus, setFbFocus] = useState(0);
+  const arts = ds.artifacts.filter((a) => visible.has(a.id));
+  const artsByTask = useMemo(() => { const o = {}; arts.forEach((a) => (o[a.task] = o[a.task] || []).push(a)); return o; }, [arts.length, visible]);
+  const scrollTo = (id) => setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  const print = () => window.print();
+  const sec = 'scroll-mt-28';
+
+  // Band 4 state: which phase is open in the inspector, which task is selected, graph or list
+  const firstPick = (ph) => (ph.tasks.find(isOverdue) || ph.tasks.find(isLateDone) || null)?.code || null;
+  const [selPhase, setSelPhase] = useState(() => {
+    if (!m.completed) return m.current.index;
+    const real = m.phases.filter((p) => p.index >= 0);
+    return real.reduce((b, p) => (p.lateN > b.lateN ? p : b), real[0]).index; // finished project: open the phase that slipped most
+  });
+  const [selTask, setSelTask] = useState(() => firstPick(m.phases.find((p) => p.index === selPhase)));
+  const [mode, setMode] = useState(() => (window.innerWidth < 640 ? 'list' : 'graph')); // phones start with the list
+  const ph = m.phases.find((p) => p.index === selPhase) || m.phases[0];
+  const goTask = (code) => { const t = ds.by[code]; setSelPhase(t.phase); setSelTask(code); scrollTo('inspector'); };
+  const openPhase = (idx) => { setSelPhase(idx); setSelTask(firstPick(m.phases.find((p) => p.index === idx))); };
+  const comment = (scope) => { setFbTask(scope); setFbFocus(Date.now()); };
+
+  return (
+    <>
+      <TopBar onPrint={print} linkExpiresAt={ds.project.linkExpiresAt} onFeedback={() => scrollTo('s-feedback')} />
+      <SectionNav />
+      <main className="mx-auto max-w-6xl px-4 pb-28 sm:px-6">
+        {/* 1. Overview: the whole picture in one screen */}
+        <section id="s-overview" className={`${sec} space-y-4 pt-6`}>
+          <ProjectHeader ds={ds} m={m} />
+          <Kpis m={m} arts={arts} onOverdue={() => scrollTo('s-schedule')} />
+          <StatusRibbon m={m} />
+          <AiSummary ai={ds.ai} mode={demo.ai} />
+        </section>
+
+        {/* 2. Schedule & deadlines: plan vs reality per phase, pace over time, what slipped */}
+        <section id="s-schedule" className={sec}>
+          <SectionHead n={2} title="Schedule & deadlines" q="Did each phase finish by its plan, did the team work steadily, and what slipped?" />
+          <PhaseScorecard ds={ds} m={m} onOpen={(p) => { openPhase(p.index); scrollTo('s-deep'); }} />
+          <div className="print-cols-1 mt-5 grid items-start gap-5 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-7"><BurnUp ds={ds} m={m} /></div>
+            <div className="min-w-0 lg:col-span-5"><DeadlineAudit m={m} people={people} onGraph={(code) => { setMode('graph'); goTask(code); }} onComment={comment} /></div>
+          </div>
+        </section>
+
+        {/* 3. Team & proof: who delivered what, and where the evidence is */}
+        <section id="s-team" className={sec}>
+          <SectionHead n={3} title="Team & proof" q="Who delivered what, and where is the evidence?" />
+          <div className="print-cols-1 grid items-start gap-5 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-7"><TeamTable ds={ds} people={people} /></div>
+            <div className="min-w-0 lg:col-span-5"><Evidence arts={arts} onGoTask={goTask} /></div>
+          </div>
+        </section>
+
+        {/* 4. Phases & tasks: phase map → one phase → its tasks (graph or list) */}
+        <section id="s-deep" className={sec}>
+          <SectionHead n={4} title="Phases & tasks" q="How the phases depend on each other. Pick a phase to see its tasks as a graph or a list." />
+          <div className="card print-break overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <PhaseMap ds={ds} m={m} sel={selPhase} onSelect={openPhase} artsByTask={artsByTask} />
+            {m.phases.some((p) => p.index === -1) && (
+              <div className="no-print border-b border-slate-100 bg-slate-50/60 px-4 py-2 text-xs text-slate-600">
+                <button onClick={() => openPhase(-1)} className={`font-semibold hover:underline ${selPhase === -1 ? 'text-indigo-700' : 'text-slate-700'}`}>Tasks without a phase ({m.phases.find((p) => p.index === -1).tasks.length})</button> <span className="text-slate-400">· not part of the phase map</span>
+              </div>
+            )}
+            <PhaseInspector ds={ds} m={m} people={people} artsByTask={artsByTask} ph={ph} selTask={selTask} mode={mode} setMode={setMode}
+              goTask={goTask} onComment={comment} onCommentPhase={(i) => comment('p:' + i)} />
+            <div className="border-t border-slate-100 px-5 pb-4"><Note>Phase map = phase_dependency (cards coloured by the phase result from section 2). The selected phase shows its tasks as a graph (MindmapTree readOnly in the real page, tasks from other phases as ghost cards) or as a list for phones and print. Clicking a task in another phase, a dependency chip, a deliverable's task code or "Graph" in Deadlines all open that task here. Both graphs pan by mouse drag and zoom with Ctrl + scroll or the buttons (usePanZoom + ZoomControls in the real page); plain scrolling and touch still scroll the page. "Blocks N tasks" on a task = every unfinished task further down its dependency chain, not only the direct arrows.</Note></div>
+          </div>
+        </section>
+
+        {/* 5. Act */}
+        <section id="s-feedback" className={sec}>
+          <SectionHead n={5} title="Feedback" q="Comment on the whole project, a phase or a task. It is one-way: there is no reply thread." />
+          <div className="max-w-2xl"><Feedback ds={ds} m={m} task={fbTask} setTask={setFbTask} focusKey={fbFocus} /></div>
+        </section>
+        <p className="pt-8 text-center text-[11px] text-slate-400">Shared read-only by the project owner · Pipeline Engine</p>
+      </main>
+      {owner && <OwnerPanel ds={ds} onClose={() => setOwner(false)} visible={visible} setVisible={setVisible} />}
+    </>
+  );
+}
+
+function App() {
+  // URL params for quick review: ?data=new|normal|done|large&ai=stale|none&notes=1&owner=1
+  const q = new URLSearchParams(location.search);
+  const [demo, setDemo] = useState({ size: DATASETS[q.get('data')] ? q.get('data') : 'normal', names: true /* decided: always real names */, ai: q.get('ai') || 'fresh', notes: q.get('notes') === '1' });
+  const [owner, setOwner] = useState(q.get('owner') === '1');
+  return (
+    <NotesCtx.Provider value={demo.notes}>
+      <Page key={demo.size} ds={DATASETS[demo.size]} demo={demo} owner={owner} setOwner={setOwner} />
+      <DemoPanel s={demo} set={setDemo} onOwner={() => setOwner(true)} />
+    </NotesCtx.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
