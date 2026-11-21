@@ -157,7 +157,8 @@ describe('TaskDetailModal Component', () => {
 
     render(
       <TaskDetailModal
-        task={{ ...mockTask, status: 'TODO' }}
+        // Ghi rõ ngày tạo: không có createdAt thì hạn chót nhỏ nhất là hôm nay, test sẽ hỏng khi 20/11 thành quá khứ
+        task={{ ...mockTask, status: 'TODO', createdAt: '2026-11-01T09:00:00+07:00' }}
         actor={ownerActor}
         members={mockMembers}
         onClose={vi.fn()}
