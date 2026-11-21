@@ -809,6 +809,8 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
    - Kiểm tra `NODE.status == 'IN_PROGRESS'` và `version`.
    - Cập nhật `NODE.status = 'REVIEW'`, `NODE.reject_reason = NULL`, tăng `version`.
    - Nếu có `artifact`: Chèn bản ghi mới vào bảng `ARTIFACTS`.
+   - Tên artifact (`ARTIFACTS.name`) lấy theo thứ tự `artifact.title` → `title` → `note`; trống thì `"Artifact <mã task>"`; quá 200 ký tự → `400`. Bảng `ARTIFACTS` không có cột ghi chú.
+   - FE gửi dạng phẳng `{ taskId, url, title, type?, version }`: `title` là ô "Deliverable name" ở `SubmitArtifactModal` / `TaskDetailModal` (G36, trước đây ô "Handover Notes" gửi `note` nhưng thực chất thành tên).
    - Tạo thông báo `NOTIFICATION` gửi cho Project Owner.
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `200 OK`. Body: `{ "task": KanbanTask, "artifact": ArtifactItem | null }`.
@@ -941,7 +943,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      | `GRAPH` | `PHASE_CREATED` / `PHASE_UPDATED` (đổi tên, kéo vị trí; phát mỗi lần gọi) / `PHASE_LINKED` / `PHASE_UNLINKED` | `WorkflowGraphService.createPhase` / `updatePhase` / `connectPhases` / `disconnectPhases` | Chủ dự án |
      | `MEMBERS` | `ROLE_CHANGED` / `MEMBER_REMOVED` / `MEMBER_JOINED` | `ProjectMemberService.updateRole` / `removeMember`, `ProjectInvitationService.acceptInvitation` | Chủ dự án / người nhận lời mời |
      | `PROJECT` | `PROJECT_UPDATED` / `STATUS_CHANGED` / `PROJECT_DELETED` | `ProjectService.updateProject` / `updateProjectStatus` / `deleteProject` (xóa: phát trước khi xóa để còn danh sách người nhận) | Chủ dự án (hoặc admin với đổi trạng thái) |
-     | `ARTIFACTS` | `ARTIFACT_ADDED` / `ARTIFACT_REMOVED` / `ARTIFACT_UPDATED` | `ArtifactService.createArtifact` / `deleteArtifact` / `toggleRepositoryVisibility`; `StateMachineService.submitTaskArtifact` (ARTIFACT_ADDED, ngoài `PROJECT_TASKS_CHANGED` SUBMITTED) | Người thao tác |
+     | `ARTIFACTS` | `ARTIFACT_ADDED` / `ARTIFACT_REMOVED` / `ARTIFACT_UPDATED` | `ArtifactService.createArtifact` / `deleteArtifact` / `toggleRepositoryVisibility`, `updateArtifact`, `toggleGuestVisibility`; `StateMachineService.submitTaskArtifact` (ARTIFACT_ADDED, ngoài `PROJECT_TASKS_CHANGED` SUBMITTED) | Người thao tác |
      | `FEEDBACK` | `FEEDBACK_CREATED` / `FEEDBACK_RESOLVED` | `FeedbackQueueService.submitGuestFeedback` (actor null) / `resolveFeedback` | null (khách) / người xử lý |
      | `AI` | `AI_ANALYZED` | `AiDiagnosticService.triggerAiDiagnostics`, sau khi lưu kết quả | Người bấm phân tích |
 
@@ -1002,6 +1004,28 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 5. **Response DTO & UI Mutation**:
    - **Status Code**: `201 Created`. Body: `ArtifactItem`.
    - **UI Mutation**: Nạp liên kết vào danh sách, hiển thị Toast xanh.
+
+---
+
+### 6.6 Sửa tên và link tài nguyên (`PUT /api/projects/{id}/artifacts/{artifactId}`)
+1. **Mục tiêu Nghiệp vụ**: Đổi tên hoặc link của artifact đã thêm (gõ sai link, đổi tên cho rõ).
+2. **Luồng Mã Nguồn**:
+   - `src/components/workspace/WorkflowArtifactsDrawer.tsx` (nút bút chì, sửa tại chỗ) -> `artifactsSlice.updateArtifact` -> `container.workflowService.updateArtifact(projectId, artifactId, { name, url })`.
+3. **Request DTO**:
+   - **Method & URL**: `PUT /api/projects/{id}/artifacts/{artifactId}`
+   - **Headers**: `Authorization: Bearer <jwt>`, `Content-Type: application/json`
+   - **Body JSON** (`UpdateArtifactRequest`, cùng luật kiểm tra với 6.2: tên bắt buộc tối đa 200 ký tự, link http/https có host tối đa 500 ký tự):
+     ```json
+     { "name": "Figma màn hình đăng nhập v2", "url": "https://www.figma.com/design/new-id" }
+     ```
+4. **Xử lý Backend & Bảng CSDL Tác động**:
+   - Bảng tác động: `ARTIFACTS`.
+   - Quyền: Owner / Manager sửa mọi artifact; Collaborator chỉ sửa artifact mình đăng (`uploaded_by`); Viewer bị chặn. Sai quyền trả `403 ACCESS_DENIED`.
+   - Đổi link thì nhận lại `type` theo link mới; giữ link thì giữ `type` cũ. Không đổi `is_in_repository`, `is_public_for_guest`, `node_id`.
+   - Phát realtime `ARTIFACTS` / `ARTIFACT_UPDATED`.
+5. **Response DTO & UI Mutation**:
+   - **Status Code**: `200 OK`. Body: `ArtifactItem`.
+   - **UI Mutation**: Thay bản trong danh sách drawer, hiển thị toast "Resource link updated.". Lỗi thì giữ form và hiện thông báo lỗi.
 
 ---
 
