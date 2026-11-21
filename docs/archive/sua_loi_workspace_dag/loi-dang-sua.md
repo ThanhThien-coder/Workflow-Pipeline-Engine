@@ -918,9 +918,9 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 **Kết quả kiểm (lần cuối, sau khi bỏ PAUSED)**
 - `grep` theo tiêu chí: không còn `PLANNING`/`INACTIVE`/`PAUSED` trong code BE và FE (trừ test và chữ `paused` của một CSS animation); `COMPLETED` ở FE chỉ còn của phase.
 - BE `./mvnw test`: 1113 test, 0 lỗi (ít hơn lần trước vì bỏ các ca PAUSED).
-- FE `npm run typecheck` qua. `npx vitest run`: 974/976 qua. 2 lỗi không do G34 (không đụng file liên quan):
+- FE `npm run typecheck` qua. `npx vitest run`: 975/976 qua. Lỗi còn lại không do G34:
   - `MacroWorkflow.states.test.tsx` (fit 2 lần): có sẵn trên main, đã ghi ở G33.
-  - `TaskDetailModal.test.tsx` "chỉ gửi dueDate khi chỉ đổi hạn chót": test ghi cứng ngày `2026-11-20`, nay (21/11) đã nhỏ hơn `min` của ô ngày nên nút Save bị khóa. Lỗi do ngày trong test, chưa sửa.
+  - `TaskDetailModal.test.tsx` "chỉ gửi dueDate khi chỉ đổi hạn chót": test ghi cứng hạn chót `2026-11-20` cho task không có `createdAt`, nên mốc nhỏ nhất là hôm nay; từ 21/11 ngày đó thành quá khứ và nút Save bị khóa. Đã sửa (cùng PR): cho task trong test `createdAt` cố định `2026-11-01`, chạy qua cả giờ máy và giờ UTC.
 - DB dev: Flyway áp dụng V24 rồi V25 thành công. V24 đổi dự án PLANNING duy nhất (id 2) sang DRAFT; V25 không đổi dòng nào (DB dev không có dự án PAUSED). Hiện có ACTIVE 7, ARCHIVED 1, DRAFT 8.
 - API thật (alex.kim, dự án 30 "G33 kiem tra"): gửi `PAUSED` → 400 "Invalid project status: PAUSED"; `COMPLETED` → 400; ACTIVE → ARCHIVED 200; ARCHIVED → ACTIVE 200 (dự án 30 về lại ACTIVE như cũ).
 - Giao diện: chưa mở trình duyệt kiểm (máy không có Playwright); nút theo trạng thái kiểm qua `ProjectStatusControl.test.tsx`. Cần người dùng xem tay màn Workflow.
