@@ -39,6 +39,25 @@ body.landing-mode {
   overflow-y: visible !important;
 }
 
+/* Trang khách mới (views/guest-report): mở cuộn cấp cửa sổ khi đang mở trang. */
+html.guest-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.guest-scroll {
+  overflow-x: hidden;
+  overflow-y: visible !important;
+}
+
+@media print {
+  html.guest-scroll,
+  body.guest-scroll {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
 /* ───────────────────────────────────────────────────────────
    Smooth Scroll & GPU Acceleration (Locomotive / Lenis)
    - Triệt tiêu hoàn toàn scroll-behavior: smooth để bảo toàn nội suy Lenis

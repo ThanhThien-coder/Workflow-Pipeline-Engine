@@ -55,6 +55,18 @@ export function GuestReportView({ token, overview }: GuestReportViewProps) {
   const [feedbackScope, setFeedbackScope] = useState<string>('')
   const [feedbackFocusKey, setFeedbackFocusKey] = useState<number>(0)
 
+  // body bị khóa cuộn cho toàn app (index.css); trang khách dài nên mở cuộn cấp cửa sổ khi đang mở trang,
+  // giống landing-mode. Không bọc khung h-screen để bản in và ảnh chụp toàn trang không bị cắt.
+  useEffect(() => {
+    const html = document.documentElement
+    html.classList.add('guest-scroll')
+    document.body.classList.add('guest-scroll')
+    return () => {
+      html.classList.remove('guest-scroll')
+      document.body.classList.remove('guest-scroll')
+    }
+  }, [])
+
   useEffect(() => {
     setSelectedPhaseId(pickDefaultPhaseId(model))
     setFocusTaskId(null)
