@@ -1,6 +1,7 @@
 package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.FeedbackStatus;
+import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.request.feedback.CreateGuestFeedbackRequest;
 import com.pipeline.wpe.dto.response.feedback.GuestFeedbackResponse;
@@ -13,6 +14,7 @@ import com.pipeline.wpe.entity.ProjectFeedbackEntity;
 import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
+import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.repository.ProjectFeedbackRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
 import com.pipeline.wpe.service.event.ProjectRealtimeNotifier;
@@ -45,6 +47,7 @@ public class FeedbackQueueService {
     private final WorkflowEventPublisher eventPublisher;
     private final CurrentUserProvider currentUserProvider;
     private final ProjectRealtimeNotifier projectRealtimeNotifier;
+    private final ProjectMemberRepository projectMemberRepository;
 
     /**
      * Khách hoặc Giáo viên gửi nhận xét 1 chiều vào dự án / task thông qua Guest Token.
@@ -77,13 +80,13 @@ public class FeedbackQueueService {
         ProjectEntity project = authorizationService.getProjectOrThrow(projectId);
 
         Long validNodeId = null;
+        String nodeCode = null;
         if (request.nodeId() != null) {
             NodeEntity node = nodeRepository.findById(request.nodeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + request.nodeId()));
-            if (!Objects.equals(node.getProjectId(), projectId)) {
-                throw new IllegalArgumentException("This task does not belong to the shared project.");
-            }
+                .filter(n -> Objects.equals(n.getProjectId(), projectId))
+                .orElseThrow(() -> new IllegalArgumentException("INVALID_NODE: The selected task is not part of this project."));
             validNodeId = node.getId();
+            nodeCode = node.getCode();
         }
 
         ProjectFeedbackEntity feedback = ProjectFeedbackEntity.builder()
@@ -104,16 +107,18 @@ public class FeedbackQueueService {
         // Bắn Notification Event bất đồng bộ cho Project Owner
         try {
             String targetUrl = "/project/" + projectId + "/overview";
-            String title = String.format("New feedback from %s (%s)", request.reviewerName(), request.reviewerRole());
-            eventPublisher.publishNotification(new NotificationEvent(
-                project.getOwnerId(),
-                projectId,
-                title,
-                request.content().trim(),
-                "FEEDBACK",
-                targetUrl,
-                Instant.now()
-            ));
+            String title = feedbackTitle(request.reviewerName().trim(), nodeCode, request.content().trim());
+            for (Long recipientId : feedbackRecipients(project)) {
+                eventPublisher.publishNotification(new NotificationEvent(
+                    recipientId,
+                    projectId,
+                    title,
+                    request.content().trim(),
+                    "FEEDBACK",
+                    targetUrl,
+                    Instant.now()
+                ));
+            }
         } catch (Exception e) {
             log.warn("Failed to publish feedback notification: {}", e.getMessage());
         }
@@ -194,5 +199,33 @@ public class FeedbackQueueService {
 
         return new ResolveFeedbackResponse(true, feedback.getId(), FeedbackStatus.RESOLVED);
     }
-}
 
+    /**
+     * Tiêu đề thông báo góp ý, luôn bắt đầu bằng "New feedback from" (frontend đoán loại thông báo theo chữ "feedback").
+     * Không ghi vai trò người góp ý (app dùng cho cả trường lẫn công ty); khách ẩn danh gửi tên "Anonymous".
+     * Phạm vi: mã task nếu góp ý cho task; "[Phase N · tên]" ở đầu nội dung nếu góp ý cho phase; còn lại là cả dự án.
+     */
+    static String feedbackTitle(String reviewerName, String nodeCode, String content) {
+        String scope;
+        if (nodeCode != null && !nodeCode.isBlank()) {
+            scope = nodeCode;
+        } else if (content != null && content.startsWith("[Phase ") && content.indexOf(']') > 1) {
+            scope = content.substring(1, content.indexOf(']'));
+        } else {
+            scope = "the project";
+        }
+        return String.format("New feedback from %s on %s", reviewerName, scope);
+    }
+
+    /** Người nhận thông báo góp ý: chủ dự án và các manager còn trong dự án, không trùng. */
+    private List<Long> feedbackRecipients(ProjectEntity project) {
+        java.util.LinkedHashSet<Long> ids = new java.util.LinkedHashSet<>();
+        ids.add(project.getOwnerId());
+        projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId()).stream()
+            .filter(m -> m.getRole() == ProjectRole.MANAGER)
+            .map(m -> m.getUserId())
+            .filter(Objects::nonNull)
+            .forEach(ids::add);
+        return List.copyOf(ids);
+    }
+}

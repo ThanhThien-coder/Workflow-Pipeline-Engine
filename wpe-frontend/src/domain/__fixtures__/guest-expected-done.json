@@ -1,0 +1,173 @@
+{
+  "total": 18,
+  "done": 18,
+  "pct": 100,
+  "overdueCodes": [],
+  "blockedByOverdue": 0,
+  "onTime": 11,
+  "onTimeBase": 18,
+  "breakdown": {
+    "DONE": 11,
+    "LATE": 7,
+    "REVIEW": 0,
+    "IN_PROGRESS": 0,
+    "TODO": 0,
+    "LOCKED": 0
+  },
+  "lateDone": [
+    {
+      "code": "OBS-07",
+      "lateBy": 5
+    },
+    {
+      "code": "OBS-13",
+      "lateBy": 3
+    },
+    {
+      "code": "OBS-16",
+      "lateBy": 3
+    },
+    {
+      "code": "OBS-17",
+      "lateBy": 3
+    },
+    {
+      "code": "OBS-18",
+      "lateBy": 3
+    },
+    {
+      "code": "OBS-03",
+      "lateBy": 2
+    },
+    {
+      "code": "OBS-09",
+      "lateBy": 1
+    }
+  ],
+  "lateDays": 20,
+  "overdueDays": 0,
+  "missed": 7,
+  "reopened": 1,
+  "completed": true,
+  "lastDueDate": "2026-11-09T05:00:00.000Z",
+  "finishedAt": "2026-11-12T05:00:00.000Z",
+  "currentPhase": "Testing & Delivery",
+  "attention": [],
+  "phases": [
+    {
+      "name": "Analysis",
+      "index": 0,
+      "tasks": 4,
+      "done": 4,
+      "pct": 100,
+      "overdue": 0,
+      "late": 1,
+      "plannedEnd": "2026-09-18T05:00:00.000Z",
+      "start": "2026-09-02T05:00:00.000Z",
+      "end": "2026-09-18T05:00:00.000Z",
+      "verdict": "Finished on time",
+      "onTimePct": 75
+    },
+    {
+      "name": "Design",
+      "index": 1,
+      "tasks": 5,
+      "done": 5,
+      "pct": 100,
+      "overdue": 0,
+      "late": 2,
+      "plannedEnd": "2026-10-10T05:00:00.000Z",
+      "start": "2026-09-21T05:00:00.000Z",
+      "end": "2026-10-11T05:00:00.000Z",
+      "verdict": "Finished 1d late",
+      "onTimePct": 60
+    },
+    {
+      "name": "Build",
+      "index": 2,
+      "tasks": 6,
+      "done": 6,
+      "pct": 100,
+      "overdue": 0,
+      "late": 1,
+      "plannedEnd": "2026-11-03T05:00:00.000Z",
+      "start": "2026-10-11T05:00:00.000Z",
+      "end": "2026-11-03T05:00:00.000Z",
+      "verdict": "Finished on time",
+      "onTimePct": 83
+    },
+    {
+      "name": "Testing & Delivery",
+      "index": 3,
+      "tasks": 3,
+      "done": 3,
+      "pct": 100,
+      "overdue": 0,
+      "late": 3,
+      "plannedEnd": "2026-11-09T05:00:00.000Z",
+      "start": "2026-11-05T05:00:00.000Z",
+      "end": "2026-11-12T05:00:00.000Z",
+      "verdict": "Finished 3d late",
+      "onTimePct": 0
+    }
+  ],
+  "team": [
+    {
+      "memberId": "11",
+      "total": 5,
+      "done": 5,
+      "onTime": 4,
+      "late": 1,
+      "worstCode": "OBS-18",
+      "worstDays": 3,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": 80
+    },
+    {
+      "memberId": "12",
+      "total": 4,
+      "done": 4,
+      "onTime": 3,
+      "late": 1,
+      "worstCode": "OBS-13",
+      "worstDays": 3,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": 75
+    },
+    {
+      "memberId": "13",
+      "total": 4,
+      "done": 4,
+      "onTime": 1,
+      "late": 3,
+      "worstCode": "OBS-07",
+      "worstDays": 5,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": 25
+    },
+    {
+      "memberId": "14",
+      "total": 5,
+      "done": 5,
+      "onTime": 3,
+      "late": 2,
+      "worstCode": "OBS-17",
+      "worstDays": 3,
+      "overdue": 0,
+      "active": 0,
+      "todo": 0,
+      "waiting": 0,
+      "onTimePct": 60
+    }
+  ],
+  "blocks": {}
+}

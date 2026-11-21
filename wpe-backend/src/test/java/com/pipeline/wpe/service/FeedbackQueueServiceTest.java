@@ -58,6 +58,8 @@ class FeedbackQueueServiceTest {
 
     @Mock private com.pipeline.wpe.service.event.ProjectRealtimeNotifier projectRealtimeNotifier;
 
+    @Mock private com.pipeline.wpe.repository.ProjectMemberRepository projectMemberRepository;
+
     @InjectMocks
     private FeedbackQueueService feedbackQueueService;
 
@@ -95,7 +97,46 @@ class FeedbackQueueServiceTest {
         assertThat(response.reviewerRole()).isEqualTo(ReviewerRole.TEACHER);
         assertThat(response.status()).isEqualTo(FeedbackStatus.OPEN);
 
-        verify(eventPublisher).publishNotification(any(NotificationEvent.class));
+        org.mockito.ArgumentCaptor<NotificationEvent> event = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(eventPublisher).publishNotification(event.capture());
+        assertThat(event.getValue().title()).isEqualTo("New feedback from TS. Nguyen Van A on the project");
+    }
+
+    @Test
+    @DisplayName("Thông báo góp ý gửi cho owner và manager còn trong dự án, tiêu đề ghi mã task")
+    void testSubmitGuestFeedback_NotifiesOwnerAndManagers() {
+        String token = "guest-token-123";
+        Long nodeId = 50L;
+        CreateGuestFeedbackRequest request = new CreateGuestFeedbackRequest("Dr. Tran", ReviewerRole.GUEST, "Looks good", nodeId);
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token).build();
+        ProjectEntity project = ProjectEntity.builder().id(projectId).ownerId(ownerId).name("Core Banking").build();
+        NodeEntity node = NodeEntity.builder().id(nodeId).projectId(projectId).code("WPE-005").build();
+
+        when(guestGatewayService.validateAndGetActiveGuestLink(token)).thenReturn(link);
+        when(feedbackRepository.countByProjectIdAndCreatedAtAfter(eq(projectId), any(Instant.class))).thenReturn(0L);
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
+        when(feedbackRepository.save(any(ProjectFeedbackEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId)).thenReturn(List.of(
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(projectId).userId(ownerId).role(com.pipeline.wpe.common.enums.ProjectRole.OWNER).build(),
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(projectId).userId(7L).role(com.pipeline.wpe.common.enums.ProjectRole.MANAGER).build(),
+            com.pipeline.wpe.entity.ProjectMemberEntity.builder().projectId(projectId).userId(8L).role(com.pipeline.wpe.common.enums.ProjectRole.COLLABORATOR).build()));
+
+        feedbackQueueService.submitGuestFeedback(token, request);
+
+        org.mockito.ArgumentCaptor<NotificationEvent> event = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(eventPublisher, times(2)).publishNotification(event.capture());
+        assertThat(event.getAllValues()).extracting(NotificationEvent::recipientUserId).containsExactly(ownerId, 7L);
+        assertThat(event.getValue().title()).isEqualTo("New feedback from Dr. Tran on WPE-005");
+    }
+
+    @Test
+    @DisplayName("Tiêu đề thông báo: góp ý cho phase lấy phạm vi từ tiền tố [Phase N · tên]")
+    void testFeedbackTitle_PhaseScope() {
+        assertThat(FeedbackQueueService.feedbackTitle("An", null, "[Phase 2 · Design] Missing ERD"))
+            .isEqualTo("New feedback from An on Phase 2 · Design");
+        assertThat(FeedbackQueueService.feedbackTitle("Anonymous", null, "General comment"))
+            .isEqualTo("New feedback from Anonymous on the project");
     }
 
     @Test
@@ -270,6 +311,37 @@ class FeedbackQueueServiceTest {
             .satisfies(ex -> assertThat(((ForbiddenException) ex).getErrorCode()).isEqualTo("ACCESS_DENIED"));
 
         verify(feedbackRepository, never()).findById(any());
+        verify(feedbackRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("G2 Submit Guest Feedback - nodeId không tồn tại và nodeId dự án khác cho cùng lỗi INVALID_NODE")
+    void testSubmitGuestFeedback_InvalidNodeIdsReturnSameError() {
+        String token = "guest-token-123";
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token).build();
+        ProjectEntity project = ProjectEntity.builder().id(projectId).ownerId(ownerId).name("Core Banking").build();
+        when(guestGatewayService.validateAndGetActiveGuestLink(token)).thenReturn(link);
+        when(feedbackRepository.countByProjectIdAndCreatedAtAfter(eq(projectId), any(Instant.class))).thenReturn(0L);
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+
+        when(nodeRepository.findById(404L)).thenReturn(Optional.empty());
+        when(nodeRepository.findById(999L)).thenReturn(Optional.of(
+            NodeEntity.builder().id(999L).projectId(99L).code("OTH-1").build()
+        ));
+
+        CreateGuestFeedbackRequest missingNodeReq = new CreateGuestFeedbackRequest(
+            "Khách", ReviewerRole.GUEST, "Góp ý", 404L);
+        CreateGuestFeedbackRequest foreignNodeReq = new CreateGuestFeedbackRequest(
+            "Khách", ReviewerRole.GUEST, "Góp ý", 999L);
+
+        assertThatThrownBy(() -> feedbackQueueService.submitGuestFeedback(token, missingNodeReq))
+            .isExactlyInstanceOf(IllegalArgumentException.class)
+            .hasMessage("INVALID_NODE: The selected task is not part of this project.");
+
+        assertThatThrownBy(() -> feedbackQueueService.submitGuestFeedback(token, foreignNodeReq))
+            .isExactlyInstanceOf(IllegalArgumentException.class)
+            .hasMessage("INVALID_NODE: The selected task is not part of this project.");
+
         verify(feedbackRepository, never()).save(any());
     }
 }

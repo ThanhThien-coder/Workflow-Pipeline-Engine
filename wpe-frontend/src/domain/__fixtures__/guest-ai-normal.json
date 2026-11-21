@@ -1,0 +1,12 @@
+{
+  "content": "Project health: at risk. 4 tasks were completed in the last 7 days; 10 remain. The Build phase is behind plan while Design still has an open task.",
+  "highlights": [
+    "Finish WPE-09 State diagrams first: it is the last open task of the Design phase.",
+    "Unblock WPE-16 Monthly reports: it holds up integration tests and everything after them."
+  ],
+  "risks": [
+    "WPE-16 is overdue and its assignee has no finished task yet.",
+    "WPE-15 Email notifications has no owner and is due next week."
+  ],
+  "generatedAt": "2026-11-18T08:00:00.000Z"
+}

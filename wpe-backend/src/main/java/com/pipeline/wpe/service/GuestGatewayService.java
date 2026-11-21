@@ -1,12 +1,19 @@
 package com.pipeline.wpe.service;
 
+import com.pipeline.wpe.common.enums.FeedbackStatus;
 import com.pipeline.wpe.common.enums.NodeStatus;
+import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.ProjectStatus;
+import com.pipeline.wpe.dto.response.graph.WorkflowGraphResponse;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
 import com.pipeline.wpe.dto.response.guest.GuestAiSummaryResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
+import com.pipeline.wpe.dto.response.guest.GuestReportResponse;
+import com.pipeline.wpe.entity.NodeDependencyEntity;
+import com.pipeline.wpe.entity.PhaseDependencyEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.entity.WorkPhaseEntity;
+import com.pipeline.wpe.repository.ProjectFeedbackRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
 import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.GuestLinkEntity;
@@ -34,6 +41,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -51,6 +59,8 @@ public class GuestGatewayService {
     private final UserRepository userRepository;
     private final NodeDependencyRepository nodeDependencyRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ProjectFeedbackRepository projectFeedbackRepository;
+    private final WorkflowGraphService workflowGraphService;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -145,13 +155,14 @@ public class GuestGatewayService {
         ProjectEntity project = authorizationService.getProjectOrThrow(guestLink.getProjectId());
 
         List<NodeEntity> nodes = nodeRepository.findByProjectId(project.getId());
+        List<NodeDependencyEntity> dependencies = nodeDependencyRepository.findByProjectId(project.getId());
         List<ArtifactEntity> publicArtifacts = artifactRepository.findByProjectIdAndIsPublicForGuestTrue(project.getId());
 
         int totalNodes = nodes.size();
         // Cùng định nghĩa đường găng với thẻ dự án và Overview.
         int criticalNodes = CriticalPathCalculator.compute(
             nodes.stream().map(NodeEntity::getId).toList(),
-            nodeDependencyRepository.findByProjectId(project.getId()));
+            dependencies);
         int completedNodes = (int) nodes.stream().filter(n -> n.getStatus() == NodeStatus.DONE).count();
         double completionPct = totalNodes > 0 ? Math.round(((double) completedNodes / totalNodes * 100.0) * 10.0) / 10.0 : 0.0;
         int overdueCount = (int) nodes.stream().filter(n -> Boolean.TRUE.equals(n.getIsOverdue())).count();
@@ -186,10 +197,28 @@ public class GuestGatewayService {
             ))
             .toList();
 
+        // Nạp phần còn lại cho report ở ngoài try để không đánh dấu rollback transaction khi có lỗi chuyển đổi DTO.
+        List<ProjectMemberEntity> activeMembers = projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId());
+        Map<Long, UserEntity> usersById = loadUsersForOverview(project, activeMembers, nodes);
+        long feedbackTotal = projectFeedbackRepository.countByProjectId(project.getId());
+        long feedbackResolved = projectFeedbackRepository.countByProjectIdAndStatus(project.getId(), FeedbackStatus.RESOLVED);
+        List<PhaseDependencyEntity> phaseDependencies = workflowGraphService.loadPhaseDependencies(project.getId());
+
         // G25: số liệu thật thay cho số giả. DB không lưu thời điểm DONE riêng nên dùng updatedAt của task DONE.
         Instant now = Instant.now();
         List<GuestOverviewResponse.GuestVelocityPointDto> velocity = buildVelocity(nodes, now);
-        List<GuestOverviewResponse.GuestActivityDto> recentActivities = buildRecentActivity(nodes, now);
+        List<GuestOverviewResponse.GuestActivityDto> recentActivities = buildRecentActivity(nodes, usersById, now);
+
+        GuestReportResponse report = null;
+        try {
+            report = buildReport(
+                guestLink, project, allPhases, phaseDependencies, nodes, dependencies,
+                activeMembers, usersById, publicArtifacts,
+                feedbackTotal, feedbackResolved, now
+            );
+        } catch (RuntimeException e) {
+            log.warn("Failed to build guest report for project {}: {}", project.getId(), e.getMessage(), e);
+        }
 
         return new GuestOverviewResponse(
             project.getName(),
@@ -207,8 +236,168 @@ public class GuestGatewayService {
             recentActivities,
             artifactDtos,
             buildPhases(allPhases, nodes),
-            countMembers(project)
+            countMembers(project, activeMembers),
+            report
         );
+    }
+
+    /** Chuyển dữ liệu đã nạp sẵn thành payload report (không gọi repository trực tiếp). */
+    private GuestReportResponse buildReport(
+        GuestLinkEntity guestLink,
+        ProjectEntity project,
+        List<WorkPhaseEntity> allPhases,
+        List<PhaseDependencyEntity> phaseDependencies,
+        List<NodeEntity> nodes,
+        List<NodeDependencyEntity> dependencies,
+        List<ProjectMemberEntity> activeMembers,
+        Map<Long, UserEntity> usersById,
+        List<ArtifactEntity> publicArtifacts,
+        long feedbackTotal,
+        long feedbackResolved,
+        Instant now
+    ) {
+        WorkflowGraphResponse graph = workflowGraphService.buildGraph(
+            project.getId(), allPhases, nodes, dependencies, phaseDependencies
+        );
+        if (graph == null) {
+            throw new IllegalStateException("buildGraph returned null");
+        }
+
+        LocalDate todayVn = now.atZone(VIETNAM_ZONE).toLocalDate();
+        List<GuestReportResponse.GuestNodeDto> reportNodes = nodes.stream()
+            .map(n -> {
+                boolean overdue = n.getDueDate() != null
+                    && n.getStatus() != NodeStatus.DONE
+                    && n.getDueDate().atZone(VIETNAM_ZONE).toLocalDate().isBefore(todayVn);
+                return new GuestReportResponse.GuestNodeDto(
+                    String.valueOf(n.getId()),
+                    n.getPhaseId() != null ? String.valueOf(n.getPhaseId()) : null,
+                    n.getCode(),
+                    n.getTitle(),
+                    n.getDescription(),
+                    n.getStatus() != null ? n.getStatus().name() : null,
+                    n.getJoinPolicy() != null ? n.getJoinPolicy().name() : null,
+                    n.getAssignedUserId() != null ? String.valueOf(n.getAssignedUserId()) : null,
+                    n.getDueDate(),
+                    n.getEstimatedHours(),
+                    n.getCreatedAt(),
+                    n.getCompletedAt(),
+                    n.getStartedAt(),
+                    n.getReopenedAt(),
+                    overdue
+                );
+            })
+            .toList();
+
+        Map<Long, String> roleByUserId = new LinkedHashMap<>();
+        if (project.getOwnerId() != null) {
+            roleByUserId.put(project.getOwnerId(), ProjectRole.OWNER.name());
+        }
+        for (ProjectMemberEntity m : activeMembers) {
+            if (m.getUserId() != null) {
+                roleByUserId.putIfAbsent(
+                    m.getUserId(),
+                    m.getRole() != null ? m.getRole().name() : ProjectRole.COLLABORATOR.name()
+                );
+            }
+        }
+        for (NodeEntity n : nodes) {
+            if (n.getAssignedUserId() != null) {
+                roleByUserId.putIfAbsent(n.getAssignedUserId(), "FORMER");
+            }
+        }
+        List<GuestReportResponse.GuestMemberDto> reportMembers = roleByUserId.entrySet().stream()
+            .map(e -> new GuestReportResponse.GuestMemberDto(
+                String.valueOf(e.getKey()),
+                resolveMemberName(usersById.get(e.getKey()), e.getKey()),
+                e.getValue()
+            ))
+            .toList();
+
+        List<GuestReportResponse.GuestArtifactDto> reportArtifacts = publicArtifacts.stream()
+            .filter(a -> !Boolean.FALSE.equals(a.getIsPublicForGuest()))
+            .filter(a -> isHttpUrl(a.getUrl()))
+            .map(a -> new GuestReportResponse.GuestArtifactDto(
+                String.valueOf(a.getId()),
+                a.getName(),
+                a.getType() != null ? a.getType().name() : "OTHER_LINK",
+                a.getUrl().trim(),
+                a.getNodeId() != null ? String.valueOf(a.getNodeId()) : null,
+                a.getCreatedAt()
+            ))
+            .toList();
+
+        return new GuestReportResponse(
+            now,
+            new GuestReportResponse.GuestProjectDto(
+                project.getName(),
+                project.getDescription(),
+                project.getStatus() != null ? project.getStatus().name() : null,
+                project.getCreatedAt(),
+                guestLink.getExpiresAt()
+            ),
+            new GuestReportResponse.GuestGraphDto(
+                graph.phases(),
+                graph.phaseEdges(),
+                reportNodes,
+                graph.dependencies()
+            ),
+            reportMembers,
+            reportArtifacts,
+            new GuestReportResponse.GuestFeedbackDto(feedbackTotal, feedbackResolved)
+        );
+    }
+
+    private Map<Long, UserEntity> loadUsersForOverview(
+        ProjectEntity project,
+        List<ProjectMemberEntity> activeMembers,
+        List<NodeEntity> nodes
+    ) {
+        Set<Long> userIds = new LinkedHashSet<>();
+        if (project.getOwnerId() != null) {
+            userIds.add(project.getOwnerId());
+        }
+        for (ProjectMemberEntity m : activeMembers) {
+            if (m.getUserId() != null) {
+                userIds.add(m.getUserId());
+            }
+        }
+        for (NodeEntity n : nodes) {
+            if (n.getAssignedUserId() != null) {
+                userIds.add(n.getAssignedUserId());
+            }
+        }
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, UserEntity> result = new HashMap<>();
+        for (UserEntity u : userRepository.findAllById(new ArrayList<>(userIds))) {
+            if (u.getId() != null) {
+                result.put(u.getId(), u);
+            }
+        }
+        return result;
+    }
+
+    private static String resolveMemberName(UserEntity user, Long userId) {
+        if (user == null) {
+            return "User #" + userId;
+        }
+        if (user.getFullName() != null && !user.getFullName().isBlank()) {
+            return user.getFullName().trim();
+        }
+        if (user.getUsername() != null && !user.getUsername().isBlank()) {
+            return user.getUsername().trim();
+        }
+        return "User #" + userId;
+    }
+
+    private static boolean isHttpUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        String lower = url.trim().toLowerCase(Locale.ROOT);
+        return lower.startsWith("http://") || lower.startsWith("https://");
     }
 
     /**
@@ -254,12 +443,18 @@ public class GuestGatewayService {
             if (text != null) highlights.add(text);
         }
         List<String> risks = new ArrayList<>();
+        // Mỗi mã task chỉ một dòng rủi ro: bottleneck trước, taskTrap của task đã có thì bỏ (tránh WPE-005 hiện 2 lần).
+        java.util.Set<String> riskCodes = new java.util.HashSet<>();
         for (Map<String, Object> item : asMapList(analysis.get("bottlenecks"))) {
             if ("LOW".equalsIgnoreCase(str(item.get("severity")))) continue; // LOW = "đang ổn", không phải rủi ro
-            addRisk(risks, str(item.get("nodeCode")), str(item.get("reason")));
+            String code = str(item.get("nodeCode"));
+            if (code != null && !riskCodes.add(code)) continue;
+            addRisk(risks, code, str(item.get("reason")));
         }
         for (Map<String, Object> item : asMapList(analysis.get("taskTraps"))) {
-            addRisk(risks, str(item.get("nodeCode")), str(item.get("suggestion")));
+            String code = str(item.get("nodeCode"));
+            if (code != null && !riskCodes.add(code)) continue;
+            addRisk(risks, code, str(item.get("suggestion")));
         }
 
         return Optional.of(new GuestAiSummaryResponse(
@@ -292,10 +487,10 @@ public class GuestGatewayService {
     }
 
     /** Chủ dự án + thành viên đang hoạt động, đếm theo userId để không đếm trùng chủ dự án. */
-    private int countMembers(ProjectEntity project) {
+    private int countMembers(ProjectEntity project, List<ProjectMemberEntity> activeMembers) {
         Set<Long> userIds = new HashSet<>();
         if (project.getOwnerId() != null) userIds.add(project.getOwnerId());
-        for (ProjectMemberEntity m : projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId())) {
+        for (ProjectMemberEntity m : activeMembers) {
             if (m.getUserId() != null) userIds.add(m.getUserId());
         }
         return userIds.size();
@@ -356,30 +551,28 @@ public class GuestGatewayService {
     }
 
     /** 5 task được cập nhật gần nhất (bỏ task chưa từng sửa sau khi tạo). */
-    private List<GuestOverviewResponse.GuestActivityDto> buildRecentActivity(List<NodeEntity> nodes, Instant now) {
+    private List<GuestOverviewResponse.GuestActivityDto> buildRecentActivity(
+        List<NodeEntity> nodes,
+        Map<Long, UserEntity> usersById,
+        Instant now
+    ) {
         List<NodeEntity> recent = nodes.stream()
             .filter(n -> n.getUpdatedAt() != null && n.getCreatedAt() != null && n.getUpdatedAt().isAfter(n.getCreatedAt()))
             .sorted(Comparator.comparing(NodeEntity::getUpdatedAt).reversed())
             .limit(5)
             .toList();
-        // Ảnh của người được giao task: nạp 1 lô cho tối đa 5 task.
-        Set<Long> assigneeIds = recent.stream().map(NodeEntity::getAssignedUserId)
-            .filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, String> avatarByUser = new HashMap<>();
-        if (!assigneeIds.isEmpty()) {
-            for (UserEntity u : userRepository.findAllById(new ArrayList<>(assigneeIds))) {
-                if (u.getAvatarUrl() != null) avatarByUser.put(u.getId(), u.getAvatarUrl());
-            }
-        }
         return recent.stream()
-            .map(n -> new GuestOverviewResponse.GuestActivityDto(
-                "node-" + n.getId(),
-                "WPE",
-                n.getCode(),
-                n.getTitle() + " is now " + n.getStatus().name().replace('_', ' '),
-                agoEn(n.getUpdatedAt(), now),
-                n.getAssignedUserId() != null ? avatarByUser.get(n.getAssignedUserId()) : null
-            ))
+            .map(n -> {
+                UserEntity assignee = n.getAssignedUserId() != null ? usersById.get(n.getAssignedUserId()) : null;
+                return new GuestOverviewResponse.GuestActivityDto(
+                    "node-" + n.getId(),
+                    "WPE",
+                    n.getCode(),
+                    n.getTitle() + " is now " + n.getStatus().name().replace('_', ' '),
+                    agoEn(n.getUpdatedAt(), now),
+                    assignee != null ? assignee.getAvatarUrl() : null
+                );
+            })
             .toList();
     }
 

@@ -242,6 +242,36 @@ class NodeAssignmentServiceTest {
     }
 
     @Test
+    @DisplayName("G2 updateAssignment: Đổi hạn của task DONE bị chặn")
+    void testUpdateAssignment_nodeDoneChangeDueDate_throwsException() {
+        mockNode.setStatus(NodeStatus.DONE);
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(mockNode));
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, managerId)).thenReturn(mockProject);
+
+        UpdateNodeAssignmentRequest request = new UpdateNodeAssignmentRequest(null, Instant.now().plusSeconds(86400), 1L);
+
+        assertThatThrownBy(() -> nodeAssignmentService.updateAssignment(nodeId, request, managerId))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("This task is done. The assignee and due date can't be changed.");
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("G2 updateAssignment: Đổi hạn đã qua bị chặn với DUE_DATE_LOCKED")
+    void testUpdateAssignment_passedDueDate_throwsDueDateLocked() {
+        mockNode.setDueDate(Instant.now().minusSeconds(172800));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(mockNode));
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, managerId)).thenReturn(mockProject);
+
+        UpdateNodeAssignmentRequest request = new UpdateNodeAssignmentRequest(null, Instant.now().plusSeconds(86400), 1L);
+
+        assertThatThrownBy(() -> nodeAssignmentService.updateAssignment(nodeId, request, managerId))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageStartingWith("DUE_DATE_LOCKED: This due date has passed");
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     @DisplayName("updateAssignment: Không tìm thấy node ném ResourceNotFoundException")
     void testUpdateAssignment_nodeNotFound_throwsException() {
         when(nodeRepository.findById(999L)).thenReturn(Optional.empty());

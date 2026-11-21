@@ -184,7 +184,7 @@ export class MockTaskApi implements Pick<IWorkflowService, 'getMyTasks' | 'getPh
     if (!task || task.status !== 'IN_PROGRESS') throw new Error('Only tasks in progress can be submitted.')
     const artifact: ArtifactItem = {
       id: `a${Date.now()}`,
-      type: dto.type,
+      type: dto.type ?? 'DOCS', // MockWorkflowService đã đoán loại theo link trước khi gọi vào đây
       url: dto.url || '',
       note: dto.note,
       uploadedAt: new Date().toISOString(),

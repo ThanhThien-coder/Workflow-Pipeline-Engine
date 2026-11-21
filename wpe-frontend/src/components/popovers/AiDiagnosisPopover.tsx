@@ -11,7 +11,11 @@ export interface AiDiagnosisPopoverProps {
   scanning?: boolean
   scanError?: string | null
   onRescan?: () => void
+  /** false: người xem không được chạy AI (chỉ owner/manager); nút chạy bị tắt kèm câu giải thích. */
+  canRun?: boolean
 }
+
+export const AI_RUN_OWNER_MANAGER_ONLY = 'Only the project owner or a manager can run an AI scan.'
 
 function pluralize(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`
@@ -86,6 +90,7 @@ export function AiDiagnosisPopover({
   scanning = false,
   scanError = null,
   onRescan,
+  canRun = true,
 }: AiDiagnosisPopoverProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -225,12 +230,15 @@ export function AiDiagnosisPopover({
               <p className="max-w-xl text-[11px] text-slate-400">
                 {scanning
                   ? 'Analysis in progress, this can take up to ~3 minutes on a slow network.'
-                  : 'Automated diagnosis evaluated against DAG topology and state machine transitions across all project nodes.'}
+                  : !canRun
+                    ? AI_RUN_OWNER_MANAGER_ONLY
+                    : 'Automated diagnosis evaluated against DAG topology and state machine transitions across all project nodes.'}
               </p>
               <button
                 type="button"
                 onClick={onRescan}
-                disabled={!onRescan || scanning}
+                disabled={!onRescan || scanning || !canRun}
+                title={!canRun ? AI_RUN_OWNER_MANAGER_ONLY : undefined}
                 className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-xs font-semibold text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 disabled:opacity-70"
               >
                 <RefreshCw size={14} className={scanning ? 'spin-360' : ''} />

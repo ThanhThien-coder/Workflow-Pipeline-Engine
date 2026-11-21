@@ -1,3 +1,5 @@
+import type { BackendGraphNodeDto, BackendGraphResponse } from './workflow.types'
+
 export type GuestLinkErrorCode = 'INVALID' | 'EXPIRED' | 'REVOKED'
 
 export class GuestLinkError extends Error {
@@ -58,6 +60,59 @@ export interface GuestOverviewDto {
   phases?: readonly GuestPhaseProgress[]
   /** S08: số thành viên (chủ dự án + thành viên đang hoạt động) */
   memberCount?: number
+  /** G3: dữ liệu thô để frontend tự tính bảng chấm điểm trang khách mới (null nếu backend cũ hoặc lỗi dựng) */
+  report?: GuestReportDto | null
+}
+
+export interface GuestReportNodeDto extends BackendGraphNodeDto {
+  completedAt?: string | null
+  reopenedAt?: string | null
+  startedAt?: string | null
+}
+
+export interface GuestReportGraphDto extends BackendGraphResponse {
+  nodes?: GuestReportNodeDto[] | null
+}
+
+export interface GuestReportProjectDto {
+  name: string
+  description?: string | null
+  status: string
+  createdAt: string
+  linkExpiresAt?: string | null
+}
+
+export type GuestMemberRole = 'OWNER' | 'MANAGER' | 'COLLABORATOR' | 'VIEWER' | 'FORMER'
+
+export interface GuestReportMemberDto {
+  id: string | number
+  name: string
+  role: GuestMemberRole | string
+}
+
+export type GuestArtifactKind = 'PR' | 'DOCS' | 'FIGMA' | 'SWAGGER' | 'OTHER_LINK'
+
+export interface GuestReportArtifactDto {
+  id: string | number
+  name: string
+  type?: GuestArtifactKind | string | null
+  url?: string | null
+  nodeId: string | number | null
+  createdAt: string
+}
+
+export interface GuestReportFeedbackDto {
+  total: number
+  resolved: number
+}
+
+export interface GuestReportDto {
+  serverNow: string
+  project: GuestReportProjectDto
+  graph: GuestReportGraphDto
+  members: GuestReportMemberDto[]
+  artifacts: GuestReportArtifactDto[]
+  feedback: GuestReportFeedbackDto
 }
 
 export type GuestPhaseStatus = 'COMPLETED' | 'IN_PROGRESS' | 'LOCKED' | 'TODO'

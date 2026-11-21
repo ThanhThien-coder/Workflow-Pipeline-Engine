@@ -5,7 +5,8 @@ import { computeSmartMacroPhasePosition } from '../utils/macroLayout'
 import { MockOverviewApi } from './mock/MockWorkflowService.overview'
 import { guestAccessStore } from './mock/guestAccessStore'
 import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../types/overview.types'
-import type { ArtifactItem, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../types/kanban.types'
+import type { ArtifactItem, ArtifactType, KanbanTask, SubmitArtifactDto, TaskStatus, UserSummary } from '../types/kanban.types'
+import { brandOf } from '../components/common/SiteIcon'
 import { MockTaskApi } from './mock/MockWorkflowService.tasks'
 import { MockSettingsApi } from './mock/MockWorkflowService.settings'
 import { MockAuthApi } from './mock/MockWorkflowService.auth'
@@ -282,7 +283,15 @@ export class MockWorkflowService implements IWorkflowService {
   getPhaseTasks(projectId: string, phaseId: string): Promise<KanbanTask[]> { return this.taskApi.getPhaseTasks(projectId, phaseId) }
   getReviewTasks(projectId: string): Promise<KanbanTask[]> { return this.taskApi.getReviewTasks(projectId) }
   updateTaskStatus(taskId: string, newStatus: TaskStatus, rejectReason?: string): Promise<KanbanTask> { return this.taskApi.updateTaskStatus(taskId, newStatus, rejectReason) }
-  submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }> { return this.taskApi.submitTaskArtifact(dto) }
+  submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }> {
+    const key = brandOf(dto.url)?.key
+    const inferredType: ArtifactType =
+      key === 'github' || key === 'gitlab' ? 'PR' : key === 'figma' ? 'FIGMA' : 'DOCS'
+    return this.taskApi.submitTaskArtifact({
+      ...dto,
+      type: dto.type ?? inferredType,
+    })
+  }
   updateTaskAssignment(taskId: string, cmd: { assignedUserId?: string; dueDate?: string; version: number }): Promise<Pick<KanbanTask, 'assignedUserId' | 'dueDate' | 'version'>> { return this.taskApi.updateTaskAssignment(taskId, cmd) }
   getProjectMembers(projectId: string): Promise<UserSummary[]> { return this.taskApi.getProjectMembers(projectId) }
 
@@ -365,6 +374,25 @@ export class MockWorkflowService implements IWorkflowService {
   async deleteArtifact(projectId: string, artifactId: string): Promise<void> {
     const list = await this.getProjectArtifacts(projectId)
     this.mockArtifacts.set(projectId, list.filter((a) => a.id !== artifactId))
+  }
+
+  async setArtifactGuestVisibility(
+    projectId: string,
+    artifactId: string,
+    visible: boolean,
+  ): Promise<ProjectArtifactItem> {
+    const list = await this.getProjectArtifacts(projectId)
+    let updated: ProjectArtifactItem | undefined
+    const next = list.map((a) => {
+      if (String(a.id) !== String(artifactId)) return a
+      updated = { ...a, isPublicForGuest: visible }
+      return updated
+    })
+    this.mockArtifacts.set(projectId, next)
+    if (!updated) {
+      throw new Error(`Artifact ${artifactId} not found`)
+    }
+    return structuredClone(updated)
   }
 
   /* Dev & Simulation capabilities */

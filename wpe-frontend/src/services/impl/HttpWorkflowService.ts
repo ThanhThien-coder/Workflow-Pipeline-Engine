@@ -14,7 +14,7 @@ import * as activityApi from './http/activity'
 import * as overviewApi from './http/overview'
 import * as aiApi from './http/ai'
 import { ghostIdOf, rootIdOf, toCreatedMacroPhase, toMacroPhases, toPhaseEdges, toPhaseTree, toBranch } from '../../mappers/graphMapper'
-import { dateInputToEndOfDayIso } from '../../utils/dueDate'
+import { dateInputToEndOfDayIso, isoToDateInput } from '../../utils/dueDate'
 import type {
   ArtifactItem,
   ArtifactType,
@@ -193,14 +193,17 @@ export class HttpWorkflowService implements IWorkflowService {
   /** POST /nodes/{taskId}/submit */
   async submitTaskArtifact(dto: SubmitArtifactDto): Promise<{ task: KanbanTask; artifact: ArtifactItem }> {
     const currentVersion = this.taskVersionCache.get(dto.taskId) ?? 0
+    const body: Record<string, unknown> = {
+      taskId: dto.taskId,
+      url: dto.url,
+      note: dto.note,
+      version: currentVersion,
+    }
+    if (dto.type) {
+      body.type = dto.type
+    }
     const result = await apiRequest<any>('POST', `/nodes/${dto.taskId}/submit`, {
-      body: {
-        taskId: dto.taskId,
-        type: dto.type,
-        url: dto.url,
-        note: dto.note,
-        version: currentVersion,
-      },
+      body,
     })
 
     const task = this.mapBackendTaskToKanban(result.task)
@@ -208,7 +211,7 @@ export class HttpWorkflowService implements IWorkflowService {
 
     const artifact: ArtifactItem = {
       id: result.artifact?.id || `art-${Date.now()}`,
-      type: (result.artifact?.type || dto.type) as ArtifactType,
+      type: (result.artifact?.type || dto.type || 'DOCS') as ArtifactType,
       url: result.artifact?.url || dto.url,
       note: result.artifact?.note || dto.note,
       uploadedAt: result.artifact?.uploadedAt || new Date().toISOString(),
@@ -263,6 +266,22 @@ export class HttpWorkflowService implements IWorkflowService {
     } catch (error) {
       if (isApiError(error) && error.status === 404) return
       throw error
+    }
+  }
+
+  /** PATCH /projects/{projectId}/artifacts/{artifactId}/guest-visibility?visible=true|false */
+  async setArtifactGuestVisibility(
+    projectId: string,
+    artifactId: string,
+    visible: boolean,
+  ): Promise<ProjectArtifactItem | void> {
+    const item = await apiRequest<any>(
+      'PATCH',
+      `/projects/${projectId}/artifacts/${artifactId}/guest-visibility`,
+      { query: { visible } },
+    )
+    if (item && typeof item === 'object' && item.id != null) {
+      return this.mapArtifact(item)
     }
   }
 
@@ -601,7 +620,7 @@ export class HttpWorkflowService implements IWorkflowService {
    * Cần vì contract chỉ truyền phaseId cho addRootTask/attachGhostNode, và PUT /phases bắt buộc có name.
    */
   private readonly phaseIndex = new Map<string, { projectId: string; name: string }>()
-  private readonly nodeIndex = new Map<string, { title: string; phaseId: string | null; status: string | null; version: number }>()
+  private readonly nodeIndex = new Map<string, { title: string; phaseId: string | null; status: string | null; version: number; dueDate?: string | null }>()
   private readonly schedulePhaseSave = graphApi.createKeyedDebounce(graphApi.PHASE_POSITION_DEBOUNCE_MS)
 
   private async loadGraph(projectId: string): Promise<BackendGraphResponse> {
@@ -615,6 +634,7 @@ export class HttpWorkflowService implements IWorkflowService {
         phaseId: n.phaseId != null ? String(n.phaseId) : null,
         status: n.status ?? null,
         version: n.version ?? 0,
+        dueDate: n.dueDate,
       })
     }
     return graph
@@ -801,6 +821,16 @@ export class HttpWorkflowService implements IWorkflowService {
     if (!known) {
       throw new ApiError({ status: 400, code: 'NODE_NOT_LOADED', message: `Task ${taskId} is not loaded. Reload the graph and try again.` })
     }
+    const rawPatchDue = patch.dueDate?.trim() || ''
+    const newDueDay = rawPatchDue
+      ? (/^\d{4}-\d{2}-\d{2}$/.test(rawPatchDue) ? rawPatchDue : isoToDateInput(rawPatchDue))
+      : ''
+    const hasKnownDue = known.dueDate !== undefined
+    const dueChanged = !hasKnownDue || newDueDay !== isoToDateInput(known.dueDate)
+    const duePayload = dueChanged
+      ? (rawPatchDue ? { dueDate: dateInputToEndOfDayIso(rawPatchDue) } : { clearDueDate: true })
+      : {}
+
     const updated = await graphApi.updateNode(nodeId, {
       title: patch.title.trim(),
       description: patch.description,
@@ -808,7 +838,7 @@ export class HttpWorkflowService implements IWorkflowService {
       version: known.version,
       ...(patch.assigneeId ? { assignedUserId: graphApi.toBackendId(patch.assigneeId, 'Assignee') } : { clearAssignee: true }),
       // G21: hạn chót là cuối ngày đã chọn (giờ máy), không phải 00:00 UTC (quá hạn từ 7h sáng ở VN)
-      ...(patch.dueDate ? { dueDate: dateInputToEndOfDayIso(patch.dueDate) } : { clearDueDate: true }),
+      ...duePayload,
     })
     this.rememberNode(updated, known.phaseId)
   }
@@ -832,6 +862,7 @@ export class HttpWorkflowService implements IWorkflowService {
       phaseId,
       status: node.status ?? null,
       version: node.version ?? 0,
+      dueDate: node.dueDate,
     })
   }
 

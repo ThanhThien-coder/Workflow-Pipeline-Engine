@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { HttpWorkflowService, METHODS_STILL_MOCKED } from '../HttpWorkflowService'
+import { MockWorkflowService } from '../../MockWorkflowService'
 
 /**
  * A2 — HttpWorkflowService không được tự chuyển sang dữ liệu giả khi backend lỗi.
@@ -288,5 +289,123 @@ describe('HttpWorkflowService.createPhase: lưu vị trí thẻ phase khi tạo'
     const init = fetchMock.mock.calls[0][1] as RequestInit
     expect(JSON.parse(init.body as string).uiMetadata).toEqual({ x: 510, y: 280, w: 380, h: 180 })
     expect([phase.x, phase.y]).toEqual([510, 280])
+  })
+})
+
+describe('HttpWorkflowService.setArtifactGuestVisibility', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        id: 12,
+        projectId: 7,
+        name: 'Specs',
+        type: 'DOCS',
+        url: 'https://docs.example.com/1',
+        isInRepository: true,
+        isPublicForGuest: false,
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('gọi PATCH /projects/{projectId}/artifacts/{artifactId}/guest-visibility?visible=false', async () => {
+    const res = await new HttpWorkflowService().setArtifactGuestVisibility('7', '12', false)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://localhost:8080/api/v1/projects/7/artifacts/12/guest-visibility?visible=false')
+    expect(init.method).toBe('PATCH')
+    expect(res?.isPublicForGuest).toBe(false)
+  })
+})
+
+describe('submitTaskArtifact: type tùy chọn ở HttpWorkflowService và MockWorkflowService', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        task: {
+          id: '5',
+          code: 'WPE-005',
+          title: 'Task',
+          status: 'REVIEW',
+          joinPolicy: 'ALL_COMPLETED',
+          isOverdue: false,
+          version: 2,
+          artifacts: [],
+        },
+        artifact: {
+          id: 'a1',
+          type: 'PR',
+          url: 'https://github.com/org/repo/pull/9',
+          note: 'Done',
+          uploadedAt: '2026-11-21T00:00:00Z',
+        },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('HttpWorkflowService.submitTaskArtifact không gửi trường type khi dto.type bị bỏ trống', async () => {
+    const service = new HttpWorkflowService()
+    await service.submitTaskArtifact({
+      taskId: '5',
+      url: 'https://github.com/org/repo/pull/9',
+      note: 'Done',
+    })
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const sent = JSON.parse(String(init.body)) as Record<string, unknown>
+    expect('type' in sent).toBe(false)
+    expect(sent).toEqual({
+      taskId: '5',
+      url: 'https://github.com/org/repo/pull/9',
+      note: 'Done',
+      version: 0,
+    })
+  })
+
+  it('MockWorkflowService.submitTaskArtifact tự đoán loại theo link khi thiếu type', async () => {
+    const mock = new MockWorkflowService()
+
+    const submitUrl = async (url: string) => {
+      await mock.resetMockData()
+      const tasks = await mock.getPhaseTasks('1', 'p2a')
+      const target = tasks.find((t) => t.status === 'IN_PROGRESS')!
+      return mock.submitTaskArtifact({
+        taskId: target.id,
+        url,
+        note: '',
+      })
+    }
+
+    const gh = await submitUrl('https://github.com/org/repo/pull/7')
+    expect(gh.artifact.type).toBe('PR')
+
+    const gl = await submitUrl('https://gitlab.com/org/repo/-/merge_requests/3')
+    expect(gl.artifact.type).toBe('PR')
+
+    const fg = await submitUrl('https://www.figma.com/file/xyz')
+    expect(fg.artifact.type).toBe('FIGMA')
+
+    const docs = await submitUrl('https://notion.so/spec')
+    expect(docs.artifact.type).toBe('DOCS')
   })
 })

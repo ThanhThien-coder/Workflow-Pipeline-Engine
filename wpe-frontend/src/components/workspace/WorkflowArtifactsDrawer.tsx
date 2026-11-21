@@ -7,110 +7,14 @@ import {
   Check,
   ExternalLink,
   Trash2,
-  FileText,
-  BookOpen,
   FolderOpen,
-  Link2,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
-import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
 import type { ProjectArtifact } from '../../types/artifact.types'
 import { normalizeText } from '../../utils/searchProject'
-
-// Brand Icons
-const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path
-      fillRule="evenodd"
-      clipRule="evenodd"
-      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-    />
-  </svg>
-)
-
-const FigmaIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z" />
-    <path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z" />
-    <path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z" />
-    <path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z" />
-    <path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z" />
-  </svg>
-)
-
-function getDomainMeta(url: string) {
-  try {
-    const raw = url.trim()
-    const parsed = new URL(raw.startsWith('http://') || raw.startsWith('https://') ? raw : `https://${raw}`)
-    const host = parsed.hostname.toLowerCase()
-    const cleanHost = host.replace(/^www\./, '')
-
-    // 1. GitHub / Code PR
-    if (cleanHost.includes('github.com') || cleanHost.includes('gitlab.com')) {
-      return {
-        icon: GithubIcon,
-        domain: cleanHost,
-        iconWrapperClass: 'bg-slate-900 text-white',
-      }
-    }
-
-    // 2. Figma / Design Specs
-    if (cleanHost.includes('figma.com')) {
-      return {
-        icon: FigmaIcon,
-        domain: cleanHost,
-        iconWrapperClass: 'bg-orange-50 text-orange-600 border border-orange-200/60',
-      }
-    }
-
-    // 3. Google Drive / Docs / Sheets
-    if (
-      cleanHost.includes('docs.google.com') ||
-      cleanHost.includes('drive.google.com') ||
-      cleanHost.includes('spreadsheets')
-    ) {
-      return {
-        icon: FileText,
-        domain: cleanHost,
-        iconWrapperClass: 'bg-emerald-50 text-emerald-600 border border-emerald-200/60',
-      }
-    }
-
-    // 4. Notion / Wiki / Research
-    if (cleanHost.includes('notion.so') || cleanHost.includes('notion.site') || cleanHost.includes('wiki')) {
-      return {
-        icon: BookOpen,
-        domain: cleanHost,
-        iconWrapperClass: 'bg-amber-50 text-amber-700 border border-amber-200/60',
-      }
-    }
-
-    // 5. API Docs / Swagger / Backend
-    if (
-      cleanHost.includes('api') ||
-      cleanHost.includes('swagger') ||
-      cleanHost.includes('backend') ||
-      (cleanHost.includes('docs.') && !cleanHost.includes('google'))
-    ) {
-      return {
-        icon: FileText,
-        domain: cleanHost,
-        iconWrapperClass: 'bg-purple-50 text-mp-purple-700 border border-purple-200/60',
-      }
-    }
-
-    return {
-      icon: ExternalLink,
-      domain: cleanHost,
-      iconWrapperClass: 'bg-mp-purple-50 text-mp-purple-700 border border-mp-purple-200/60',
-    }
-  } catch {
-    return {
-      icon: Link2,
-      domain: url,
-      iconWrapperClass: 'bg-mp-n-100 text-mp-n-600 border border-mp-n-200',
-    }
-  }
-}
+import { SiteIcon, hostOf } from '../common/SiteIcon'
 
 function isValidUrl(str: string): boolean {
   try {
@@ -142,6 +46,8 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const loadArtifacts = useWorkflowStore((state) => state.artifacts.loadArtifacts)
   const addArtifact = useWorkflowStore((state) => state.artifacts.addArtifact)
   const removeArtifact = useWorkflowStore((state) => state.artifacts.removeArtifact)
+  const setGuestVisibility = useWorkflowStore((state) => state.artifacts.setGuestVisibility)
+  const canManageGuestVisibility = useWorkflowStore(selectCanEditGraph)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
 
   const isOpen = propIsOpen !== undefined ? propIsOpen : storeIsOpen
@@ -178,6 +84,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(() => new Set())
   // Ô tìm: theo tên, link, loại (không phân biệt hoa thường và dấu)
   const [searchQuery, setSearchQuery] = useState('')
   const normalizedSearch = normalizeText(searchQuery)
@@ -241,6 +148,24 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
     }
   }
 
+  const handleToggleGuestVisibility = async (artifact: ProjectArtifact) => {
+    const id = String(artifact.id)
+    const nextVisible = !(artifact.isPublicForGuest !== false)
+    setTogglingIds((prev) => new Set(prev).add(id))
+    try {
+      await setGuestVisibility(projectId, id, nextVisible)
+      showToast(nextVisible ? 'Visible to guests.' : 'Hidden from guests.')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to update guest visibility.')
+    } finally {
+      setTogglingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
   const handleCopyLink = async (artifact: ProjectArtifact) => {
     try {
       await navigator.clipboard.writeText(artifact.url)
@@ -278,7 +203,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
             exit={{ opacity: 0, scale: 0.95, y: -8 }}
             style={{ transformOrigin: 'top right' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className={`absolute right-0 top-full z-50 mt-2 w-[380px] max-w-[calc(100vw-32px)] max-h-[70vh] flex flex-col rounded-3xl bg-white/95 backdrop-blur-xl border border-mp-n-200 shadow-2xl overflow-hidden select-text ${className}`}
+            className={`absolute right-0 top-full z-50 mt-2 w-[380px] sm:w-[440px] max-w-[calc(100vw-32px)] max-h-[70vh] flex flex-col rounded-3xl bg-white/95 backdrop-blur-xl border border-mp-n-200 shadow-2xl overflow-hidden select-text ${className}`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -434,21 +359,20 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                 </div>
               ) : (
                 visibleArtifacts.map((artifact) => {
-                  const meta = getDomainMeta(artifact.url)
-                  const IconComponent = meta.icon
+                  const domain = hostOf(artifact.url) ?? artifact.url
                   const isCopied = copiedId === artifact.id
+                  const isPublicForGuest = artifact.isPublicForGuest !== false
+                  const isToggling = togglingIds.has(String(artifact.id))
 
                   return (
                     <div
                       key={artifact.id}
-                      className="rounded-2xl border border-mp-n-200/80 bg-white hover:border-mp-purple-200 hover:shadow-mp-card transition-all p-3 flex items-center justify-between group"
+                      className="rounded-2xl border border-mp-n-200/80 bg-white hover:border-mp-purple-200 hover:shadow-mp-card transition-all p-3 flex items-center justify-between gap-2 group"
                     >
                       {/* Left Info */}
-                      <div className="flex items-center gap-3 min-w-0 pr-2">
-                        <div
-                          className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${meta.iconWrapperClass} transition-transform group-hover:scale-105 shadow-2xs`}
-                        >
-                          <IconComponent className="w-4 h-4" />
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 border border-slate-200/70 transition-transform group-hover:scale-105 shadow-2xs">
+                          <SiteIcon url={artifact.url} size={18} />
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -457,7 +381,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                           </div>
                           <div className="text-xs text-mp-n-400 flex items-center gap-1.5 mt-0.5">
                             <span className="truncate max-w-[160px]">
-                              {meta.domain}
+                              {domain}
                             </span>
                             {artifact.createdAt && (
                               <>
@@ -473,6 +397,28 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
                       {/* Right Action Toolbar */}
                       <div className="flex items-center gap-1 shrink-0">
+                        {/* Visible to guests (Owner / Manager only) */}
+                        {canManageGuestVisibility && (
+                          <button
+                            type="button"
+                            disabled={isToggling}
+                            aria-pressed={isPublicForGuest}
+                            aria-label={`Visible to guests: ${artifact.name || artifact.title}`}
+                            title={isPublicForGuest ? 'Visible to guests — click to hide' : 'Hidden from guests — click to show'}
+                            onClick={() => void handleToggleGuestVisibility(artifact)}
+                            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+                              isPublicForGuest
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {isPublicForGuest ? <Eye size={13} /> : <EyeOff size={13} />}
+                            <span className="hidden sm:inline">
+                              {isPublicForGuest ? 'Shown to guests' : 'Hidden from guests'}
+                            </span>
+                          </button>
+                        )}
+
                         {/* Copy Link */}
                         <button
                           type="button"

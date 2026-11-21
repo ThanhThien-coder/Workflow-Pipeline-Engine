@@ -8,6 +8,7 @@ import { useNotificationStore } from '../../store/useNotificationStore'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
 import type { NotificationDto, NotificationKind } from '../../types/notification.types'
 import { getSavedAvatar } from '../../utils/avatarUtils'
+import { notificationLines } from '../../utils/notificationLines'
 
 const AVATAR_BG = ['bg-indigo-500', 'bg-emerald-500', 'bg-blue-500', 'bg-rose-500', 'bg-violet-500']
 const KIND_ICON: Record<NotificationKind, { icon: typeof Bell; tone: string }> = {
@@ -204,10 +205,13 @@ export default function NotificationBell() {
                     className={clsx('flex w-full items-start gap-3 px-4 py-3 text-left transition-colors', n.isRead ? 'bg-white hover:bg-slate-50' : 'bg-indigo-50/70 hover:bg-indigo-50')}>
                     <NotificationSender n={n} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-snug text-slate-600">
+                      <p className="text-sm leading-snug text-slate-700">
                         {n.actorName && n.kind !== 'overdue' && <b className="font-semibold text-slate-900">{n.actorName} </b>}
-                        {n.text || n.message || n.title}
+                        {notificationLines(n).headline}
                       </p>
+                      {notificationLines(n).detail && (
+                        <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-500 [overflow-wrap:anywhere]">{notificationLines(n).detail}</p>
+                      )}
                       <p className="mt-0.5 text-[11px] text-slate-400">{formatNotificationTime(n.createdAt)}</p>
                     </div>
                     {!n.isRead && <span aria-label="Unread" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-600" />}

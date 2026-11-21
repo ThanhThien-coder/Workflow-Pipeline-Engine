@@ -14,6 +14,8 @@ public interface ProjectFeedbackRepository extends JpaRepository<ProjectFeedback
     List<ProjectFeedbackEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
     List<ProjectFeedbackEntity> findByProjectIdAndStatus(Long projectId, FeedbackStatus status);
     List<ProjectFeedbackEntity> findByNodeId(Long nodeId);
+    long countByProjectId(Long projectId);
+    long countByProjectIdAndStatus(Long projectId, FeedbackStatus status);
     long countByProjectIdAndCreatedAtAfter(Long projectId, Instant since);
     Optional<ProjectFeedbackEntity> findFirstByProjectIdAndCreatedAtAfterOrderByCreatedAtAsc(Long projectId, Instant since);
 }

@@ -19,6 +19,7 @@ export interface ArtifactsSlice {
     loadArtifacts: (projectId: string) => Promise<void>
     addArtifact: (projectId: string, input: { name: string; url: string }) => Promise<ProjectArtifact>
     removeArtifact: (projectId: string, artifactId: string) => Promise<void>
+    setGuestVisibility: (projectId: string, artifactId: string, visible: boolean) => Promise<void>
     openDrawer: () => void
     closeDrawer: () => void
     toggleDrawer: () => void
@@ -36,8 +37,9 @@ export const createArtifactsSlice = (
   get: () => ArtifactsSlice,
   service: IWorkflowService = workflowService,
 ): ArtifactsSlice => {
-  const patch = (changes: Partial<Omit<ArtifactsSlice['artifacts'], 'loadArtifacts' | 'addArtifact' | 'removeArtifact' | 'openDrawer' | 'closeDrawer' | 'toggleDrawer'>>) =>
-    set((state) => ({ artifacts: { ...state.artifacts, ...changes } }))
+  const patch = (
+    changes: Partial<Pick<ArtifactsSlice['artifacts'], 'projectId' | 'items' | 'status' | 'error' | 'isDrawerOpen'>>,
+  ) => set((state) => ({ artifacts: { ...state.artifacts, ...changes } }))
   const isCurrent = (projectId: string) => get().artifacts.projectId === projectId
 
   return {
@@ -77,6 +79,37 @@ export const createArtifactsSlice = (
         await service.deleteArtifact(projectId, artifactId)
         if (isCurrent(projectId)) {
           patch({ items: get().artifacts.items.filter((a) => String(a.id) !== String(artifactId)) })
+        }
+      },
+
+      setGuestVisibility: async (projectId, artifactId, visible) => {
+        const previous = get().artifacts.items.find((a) => String(a.id) === String(artifactId))
+        const prevVisible = previous?.isPublicForGuest
+        if (isCurrent(projectId) && previous) {
+          patch({
+            items: get().artifacts.items.map((a) =>
+              String(a.id) === String(artifactId) ? { ...a, isPublicForGuest: visible } : a,
+            ),
+          })
+        }
+        try {
+          const updated = await service.setArtifactGuestVisibility(projectId, artifactId, visible)
+          if (isCurrent(projectId) && updated) {
+            patch({
+              items: get().artifacts.items.map((a) =>
+                String(a.id) === String(artifactId) ? updated : a,
+              ),
+            })
+          }
+        } catch (error) {
+          if (isCurrent(projectId) && prevVisible !== undefined) {
+            patch({
+              items: get().artifacts.items.map((a) =>
+                String(a.id) === String(artifactId) ? { ...a, isPublicForGuest: prevVisible } : a,
+              ),
+            })
+          }
+          throw error
         }
       },
 

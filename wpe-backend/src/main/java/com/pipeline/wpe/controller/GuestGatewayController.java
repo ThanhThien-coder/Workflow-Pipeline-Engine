@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -58,7 +59,7 @@ public class GuestGatewayController {
                description = "Cho phép Giáo viên hoặc Khách ngoài xem tổng quan số liệu KPI, tiến độ DAG và minh chứng mà không cần đăng nhập.")
     public ResponseEntity<GuestOverviewResponse> getGuestOverview(@PathVariable("token") String token) {
         GuestOverviewResponse response = guestGatewayService.getGuestOverview(token);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(response);
     }
 
     @GetMapping({"/api/v1/guest/{token}/ai-summary", "/api/guest/{token}/ai-summary"})
@@ -66,7 +67,7 @@ public class GuestGatewayController {
                description = "Trả {content, highlights, risks, generatedAt} dựng từ kết quả phân tích AI gần nhất. Chưa có phân tích: 404 AI_SUMMARY_NOT_FOUND. Link hỏng/hết hạn/thu hồi: 403 REVOKED_GUEST như /overview.")
     public ResponseEntity<?> getGuestAiSummary(@PathVariable("token") String token, HttpServletRequest request) {
         return guestGatewayService.getGuestAiSummary(token)
-            .<ResponseEntity<?>>map(ResponseEntity::ok)
+            .<ResponseEntity<?>>map(body -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body))
             .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(
                 HttpStatus.NOT_FOUND.value(),
                 "AI_SUMMARY_NOT_FOUND",

@@ -24,6 +24,11 @@ function inferNotificationKind(raw: BackendNotificationResponse): NotificationKi
   if (link.includes('open-invite-modal') || link.includes('invitationid=') || title.includes('invitation')) {
     return 'invitation'
   }
+  // Góp ý của khách: tiêu đề backend luôn bắt đầu bằng "New feedback from ..." → icon tin nhắn.
+  // Đặt trước luật approval vì phạm vi góp ý có thể chứa chữ "review" (vd "on Phase 3 · Review").
+  if (title.startsWith('new feedback')) {
+    return 'comment'
+  }
   if (title.includes('overdue')) {
     return 'overdue'
   }

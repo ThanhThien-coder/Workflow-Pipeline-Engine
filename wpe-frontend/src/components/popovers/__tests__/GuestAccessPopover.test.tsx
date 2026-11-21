@@ -76,5 +76,6 @@ describe('GuestAccessPopover: 3 states', () => {
     mount({ ...base, isActive: true, token: 'b'.repeat(64), status: 'active', expiresLabel: '2026-12-01 (3 days left)' })
     fireEvent.click(screen.getByRole('button', { name: /Share Guest Link/ }))
     expect(screen.getByText(/Access Active/)).toBeDefined()
+    expect(screen.getByText('Choose which artifacts guests can see in the Artifacts panel.')).toBeDefined()
   })
 })

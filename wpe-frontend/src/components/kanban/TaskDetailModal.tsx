@@ -4,7 +4,6 @@ import {
   Check,
   Clock,
   ExternalLink,
-  FileText,
   Layers,
   Lock,
   Play,
@@ -18,9 +17,11 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ArtifactType, KanbanTask, ReopenImpact, TaskStatus, UserSummary } from '../../types/kanban.types'
 import { ReopenTaskModal } from './ReopenTaskModal'
-import { ARTIFACT_TYPE_OPTIONS, artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
+import { artifactLabel, isValidArtifactUrl } from '../../utils/artifactLabel'
+import { SiteIcon, hostOf, siteLabel } from '../common/SiteIcon'
 import { fmtDueDate } from '../../utils/date'
 import { dateInputToEndOfDayIso, dueDateError, isoToDateInput, minDueDateInput } from '../../utils/dueDate'
+import { dueDateLockReason, friendlyLockMessage } from '../../utils/dueDateLock'
 import { useDismiss } from '../../hooks/useDismiss'
 import { getSavedAvatar } from '../../utils/avatarUtils'
 import { navigate } from '../../router/useRouter'
@@ -75,7 +76,7 @@ export interface TaskDetailModalProps {
   pending?: boolean
   onClose: () => void
   onMove: (to: TaskStatus, rejectReason?: string) => void
-  onSubmitArtifact?: (form: { type: ArtifactType; url: string; note: string }) => Promise<boolean>
+  onSubmitArtifact?: (form: { type?: ArtifactType; url: string; note: string }) => Promise<boolean>
   onUpdateAssignment?: (cmd: { assignedUserId?: string; dueDate?: string }) => Promise<boolean>
   /** S04: mở lại task Done (chỉ hiện nút khi có cả hai prop này và người xem là Owner/Manager). */
   onReopen?: (reason: string) => Promise<boolean>
@@ -108,7 +109,6 @@ export function TaskDetailModal({
   useDismiss(!showRejectModal && !showReopenModal, close, [modalRef])
 
   const [showAttachForm, setShowAttachForm] = useState(false)
-  const [artType, setArtType] = useState<ArtifactType>('PR')
   const [artUrl, setArtUrl] = useState('')
   const [artNote, setArtNote] = useState('')
   const [artError, setArtError] = useState('')
@@ -140,31 +140,37 @@ export function TaskDetailModal({
   const [assignedUserId, setAssignedUserId] = useState(task.assignedUserId ?? '')
   const [dueDateInput, setDueDateInput] = useState(toDateInput(task.dueDate))
   const [isSavingAssignment, setIsSavingAssignment] = useState(false)
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
 
   useEffect(() => {
     setAssignedUserId(task.assignedUserId ?? '')
     setDueDateInput(toDateInput(task.dueDate))
+    setAssignmentError(null)
   }, [task.id, task.assignedUserId, task.dueDate])
 
   const initialDateStr = toDateInput(task.dueDate)
   const isAssigneeChanged = assignedUserId !== (task.assignedUserId ?? '')
   const isDueDateChanged = dueDateInput !== initialDateStr
   const hasAssignmentChanges = isAssigneeChanged || isDueDateChanged
+  const dueLockReason = dueDateLockReason(task)
   // G21: hạn chót không sớm hơn ngày tạo task (chỉ kiểm khi người dùng đổi ngày)
-  const dueError = isDueDateChanged ? dueDateError(dueDateInput, task.createdAt) : null
+  const dueError = !dueLockReason && isDueDateChanged ? dueDateError(dueDateInput, task.createdAt) : null
 
   const handleSaveAssignment = async () => {
     if (!onUpdateAssignment || !hasAssignmentChanges || dueError) return
     setIsSavingAssignment(true)
+    setAssignmentError(null)
     try {
       const cmd: { assignedUserId?: string; dueDate?: string } = {}
       if (isAssigneeChanged) {
         cmd.assignedUserId = assignedUserId
       }
-      if (isDueDateChanged) {
+      if (isDueDateChanged && !dueLockReason) {
         cmd.dueDate = dateInputToEndOfDayIso(dueDateInput)
       }
       await onUpdateAssignment(cmd)
+    } catch (err) {
+      setAssignmentError(friendlyLockMessage(err) || 'Unable to update assignment. Please try again.')
     } finally {
       setIsSavingAssignment(false)
     }
@@ -181,6 +187,9 @@ export function TaskDetailModal({
     onClose()
   }
 
+  const trimmedArtUrl = artUrl.trim()
+  const showArtSitePreview = isValidArtifactUrl(trimmedArtUrl) && Boolean(hostOf(trimmedArtUrl))
+
   const handleAttachSubmit = async () => {
     if (!isValidArtifactUrl(artUrl)) {
       setArtError('Please enter a valid URL starting with http:// or https://')
@@ -191,7 +200,7 @@ export function TaskDetailModal({
     setIsSubmitting(true)
     setArtError('')
     try {
-      const ok = await onSubmitArtifact({ type: artType, url: artUrl, note: artNote })
+      const ok = await onSubmitArtifact({ url: trimmedArtUrl, note: artNote })
       if (ok) {
         setArtUrl('')
         setArtNote('')
@@ -392,13 +401,15 @@ export function TaskDetailModal({
                     type="date"
                     min={minDueDateInput(task.createdAt)}
                     value={dueDateInput}
+                    disabled={Boolean(dueLockReason)}
+                    title={dueLockReason ?? undefined}
                     onChange={(e) => setDueDateInput(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </div>
               </div>
-              {dueError && (
-                <p role="alert" className="text-[11px] font-medium text-red-600">{dueError}</p>
+              {(dueError || assignmentError) && (
+                <p role="alert" className="text-[11px] font-medium text-red-600">{dueError || assignmentError}</p>
               )}
               <div className="flex justify-end pt-1">
                 <button
@@ -465,8 +476,8 @@ export function TaskDetailModal({
                     className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:border-slate-300"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                        <FileText size={15} />
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                        <SiteIcon url={artifact.url} size={16} />
                       </span>
                       <div className="min-w-0">
                         <span className="block truncate text-xs font-semibold text-slate-800">
@@ -512,38 +523,34 @@ export function TaskDetailModal({
                   </button>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Deliverable Type
-                  </label>
-                  <select
-                    value={artType}
-                    onChange={(e) => setArtType(e.target.value as ArtifactType)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
-                  >
-                    {ARTIFACT_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label htmlFor="task-detail-artifact-url" className="block text-[11px] font-semibold text-slate-600 mb-1">
                     Deliverable URL
                   </label>
-                  <input
-                    value={artUrl}
-                    onChange={(e) => {
-                      setArtUrl(e.target.value)
-                      setArtError('')
-                    }}
-                    placeholder="https://github.com/... or https://figma.com/..."
-                    className={`w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none ${
-                      artError
-                        ? 'border-red-300 focus:ring-1 focus:ring-red-200'
-                        : 'border-slate-200 focus:border-indigo-400'
-                    }`}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="task-detail-artifact-url"
+                      value={artUrl}
+                      onChange={(e) => {
+                        setArtUrl(e.target.value)
+                        setArtError('')
+                      }}
+                      placeholder="https://github.com/... or https://figma.com/..."
+                      className={`min-w-0 flex-1 rounded-lg border bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none ${
+                        artError
+                          ? 'border-red-300 focus:ring-1 focus:ring-red-200'
+                          : 'border-slate-200 focus:border-indigo-400'
+                      }`}
+                    />
+                    {showArtSitePreview && (
+                      <span
+                        data-testid="task-detail-artifact-site-preview"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700"
+                      >
+                        <SiteIcon url={trimmedArtUrl} size={14} />
+                        <span>{siteLabel(trimmedArtUrl)}</span>
+                      </span>
+                    )}
+                  </div>
                   {artError && <span className="mt-1 block text-[10px] text-red-600">{artError}</span>}
                 </div>
                 <div>

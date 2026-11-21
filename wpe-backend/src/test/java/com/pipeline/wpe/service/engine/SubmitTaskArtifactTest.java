@@ -108,6 +108,22 @@ class SubmitTaskArtifactTest {
     }
 
     @Test
+    @DisplayName("Không gửi loại (chỉ dán link): nhận loại theo link, Figma → FIGMA, link lạ → OTHER_LINK")
+    void withoutType_detectsFromUrl() {
+        stateMachineService.submitTaskArtifact(TASK_ID,
+            new SubmitTaskArtifactRequest("10", null, "https://www.figma.com/file/abc", "Design", null, null, 0L), ASSIGNEE);
+        assertThat(savedArtifact().getType()).isEqualTo(com.pipeline.wpe.common.enums.ArtifactType.FIGMA);
+    }
+
+    @Test
+    @DisplayName("Không gửi loại, link không thuộc trang đã biết → OTHER_LINK (trước đây gán cứng PR)")
+    void withoutType_unknownSite_otherLink() {
+        stateMachineService.submitTaskArtifact(TASK_ID,
+            new SubmitTaskArtifactRequest("10", null, "https://demo.team.dev/app", "Demo", null, null, 0L), ASSIGNEE);
+        assertThat(savedArtifact().getType()).isEqualTo(com.pipeline.wpe.common.enums.ArtifactType.OTHER_LINK);
+    }
+
+    @Test
     @DisplayName("Gửi isPublicForGuest = false: minh chứng không công khai cho khách")
     void respectsPrivateChoice() {
         stateMachineService.submitTaskArtifact(TASK_ID, withArtifact("https://github.com/org/repo/pull/42", false), ASSIGNEE);

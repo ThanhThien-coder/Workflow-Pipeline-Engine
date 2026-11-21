@@ -5,6 +5,7 @@ import type {
   GuestPhaseStatus,
   GuestFeedbackDto,
   GuestOverviewDto,
+  GuestReportDto,
   GuestStatusKey,
   SubmitGuestFeedbackCommand,
 } from '../../../types/guest.types'
@@ -78,6 +79,7 @@ export interface BackendGuestOverviewResponse {
   recentActivity?: BackendGuestActivity[]
   phases?: BackendGuestPhase[]
   memberCount?: number
+  report?: GuestReportDto | null
 }
 
 export interface BackendGuestPhase {
@@ -224,6 +226,7 @@ export function mapGuestOverviewResponse(data: BackendGuestOverviewResponse): Gu
       }
     }),
     ...(typeof data.memberCount === 'number' ? { memberCount: data.memberCount } : {}),
+    report: data.report ?? null,
   }
 }
 
@@ -290,13 +293,13 @@ export async function resolveFeedback(
 
 /** GET /guest/{token}/overview — khách xem tổng quan tiến độ read-only qua token */
 export async function fetchGuestOverview(token: string): Promise<GuestOverviewDto> {
-  const data = await apiRequest<BackendGuestOverviewResponse>('GET', `/guest/${token}/overview`)
+  const data = await apiRequest<BackendGuestOverviewResponse>('GET', `/guest/${encodeURIComponent(token)}/overview`, { skipAuth: true })
   return mapGuestOverviewResponse(data)
 }
 
 /** GET /guest/{token}/ai-summary — kết quả AI đã lưu (404 AI_SUMMARY_NOT_FOUND nếu chưa có phân tích) */
 export async function fetchGuestAiSummary(token: string): Promise<GuestAiSummaryDto> {
-  const data = await apiRequest<BackendGuestAiSummaryResponse>('GET', `/guest/${token}/ai-summary`)
+  const data = await apiRequest<BackendGuestAiSummaryResponse>('GET', `/guest/${encodeURIComponent(token)}/ai-summary`, { skipAuth: true })
   return mapGuestAiSummaryResponse(data)
 }
 
@@ -311,6 +314,6 @@ export async function submitGuestFeedback(
     content: cmd.content ?? cmd.message ?? '',
     nodeId: cmd.nodeId != null ? Number(cmd.nodeId) : null,
   }
-  const data = await apiRequest<any>('POST', `/guest/${token}/feedback`, { body })
+  const data = await apiRequest<any>('POST', `/guest/${encodeURIComponent(token)}/feedback`, { body, skipAuth: true })
   return mapGuestFeedbackResponse(data)
 }

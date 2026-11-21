@@ -2,10 +2,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   createOrRenewGuestToken,
+  fetchGuestAiSummary,
   fetchGuestOverview,
   getGuestAccess,
   listFeedbacks,
   mapGuestAccessResponse,
+  mapGuestOverviewResponse,
   resolveFeedback,
   revokeGuestToken,
   submitGuestFeedback,
@@ -327,6 +329,38 @@ describe('D5: guest & feedback HTTP API (impl/http/guest.ts)', () => {
     expect(data.statusBreakdown).toHaveLength(3)
     expect(data.statusBreakdown[2].key).toBe('locked') // G25: giữ 'locked' (giao diện khách có màu riêng)
     expect(data.velocity).toHaveLength(2)
+    expect(data.report).toBeNull()
+  })
+
+  it('mapGuestOverviewResponse chuyển nguyên report khi có và trả null khi thiếu', () => {
+    const sampleReport = {
+      serverNow: '2026-11-20T08:00:00.000Z',
+      project: { name: 'Demo', description: '', status: 'ACTIVE', createdAt: '2026-11-01T00:00:00Z', linkExpiresAt: null },
+      graph: { phases: [], phaseEdges: [], nodes: [], dependencies: [] },
+      members: [],
+      artifacts: [],
+      feedback: { total: 1, resolved: 0 },
+    }
+    const withReport = mapGuestOverviewResponse({ projectName: 'Demo', report: sampleReport })
+    expect(withReport.report).toBe(sampleReport)
+
+    const withoutReport = mapGuestOverviewResponse({ projectName: 'Demo' })
+    expect(withoutReport.report).toBeNull()
+  })
+
+  it('các hàm /guest/ gửi skipAuth (không đính kèm Authorization dù đang đăng nhập)', async () => {
+    localStorage.setItem('wpe_auth_token', 'owner-secret-token')
+    localStorage.setItem('wpe_auth_user', JSON.stringify({ id: 99 }))
+
+    await fetchGuestOverview('valid-token')
+    await submitGuestFeedback('token-123', { message: 'Ok' })
+    await expect(fetchGuestAiSummary('valid-token')).rejects.toMatchObject({ status: 404 })
+
+    for (const call of fetchMock.mock.calls) {
+      const headers = (call[1] as RequestInit).headers as Record<string, string>
+      expect(headers['Authorization']).toBeUndefined()
+      expect(headers['X-Debug-User-Id']).toBeUndefined()
+    }
   })
 
   it('HttpWorkflowService: toggleGuestAccess, generateGuestToken, resolveFeedback gọi API thật', async () => {

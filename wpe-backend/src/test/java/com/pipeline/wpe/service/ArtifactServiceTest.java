@@ -221,6 +221,59 @@ class ArtifactServiceTest {
     }
 
     @Nested
+    @DisplayName("G2: Bật/tắt hiển thị artifact cho khách")
+    class ToggleGuestVisibility {
+
+        @Test
+        @DisplayName("Owner/Manager ẩn/hiện được cho khách")
+        void managerCanToggle() {
+            ArtifactEntity artifact = ArtifactEntity.builder().id(7L).projectId(PROJECT_ID).uploadedBy(COLLABORATOR)
+                .name("PR").type(ArtifactType.PR).url("https://github.com/org/repo/pull/42").isPublicForGuest(true).build();
+            when(artifactRepository.findById(7L)).thenReturn(Optional.of(artifact));
+
+            ArtifactResponse hidden = artifactService.toggleGuestVisibility(PROJECT_ID, 7L, false, MANAGER);
+            assertThat(hidden.isPublicForGuest()).isFalse();
+            assertThat(artifact.getIsPublicForGuest()).isFalse();
+
+            ArtifactResponse shown = artifactService.toggleGuestVisibility(PROJECT_ID, 7L, true, MANAGER);
+            assertThat(shown.isPublicForGuest()).isTrue();
+            verify(projectAuthorizationService, org.mockito.Mockito.atLeastOnce()).verifyProjectOwnerOrManager(PROJECT_ID, MANAGER);
+        }
+
+        @Test
+        @DisplayName("Collaborator và Viewer → 403, không lưu (chỉ owner/manager được ẩn minh chứng)")
+        void collaboratorAndViewer_forbidden() {
+            ArtifactEntity artifact = ArtifactEntity.builder().id(7L).projectId(PROJECT_ID).uploadedBy(COLLABORATOR)
+                .name("PR").type(ArtifactType.PR).url("https://github.com/org/repo/pull/42").isPublicForGuest(true).build();
+            when(artifactRepository.findById(7L)).thenReturn(Optional.of(artifact));
+            when(projectAuthorizationService.verifyProjectOwnerOrManager(PROJECT_ID, COLLABORATOR))
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can do this."));
+            when(projectAuthorizationService.verifyProjectOwnerOrManager(PROJECT_ID, VIEWER))
+                .thenThrow(new ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can do this."));
+
+            assertThatThrownBy(() -> artifactService.toggleGuestVisibility(PROJECT_ID, 7L, false, COLLABORATOR))
+                .isInstanceOf(ForbiddenException.class);
+            assertThatThrownBy(() -> artifactService.toggleGuestVisibility(PROJECT_ID, 7L, false, VIEWER))
+                .isInstanceOf(ForbiddenException.class);
+            assertThat(artifact.getIsPublicForGuest()).isTrue();
+            verify(artifactRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Artifact thuộc project khác bị chặn, không lưu")
+        void wrongProject_rejected() {
+            ArtifactEntity foreignArtifact = ArtifactEntity.builder().id(7L).projectId(999L).uploadedBy(COLLABORATOR)
+                .name("PR").type(ArtifactType.PR).url("https://github.com/org/repo/pull/42").isPublicForGuest(true).build();
+            when(artifactRepository.findById(7L)).thenReturn(Optional.of(foreignArtifact));
+
+            assertThatThrownBy(() -> artifactService.toggleGuestVisibility(PROJECT_ID, 7L, false, OWNER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to this project");
+            verify(artifactRepository, never()).save(any());
+        }
+    }
+
+    @Nested
     @DisplayName("Xem danh sách (giữ hành vi hiện có)")
     class ListArtifacts {
 

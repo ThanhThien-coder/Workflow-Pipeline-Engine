@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { isApiError } from '../../services/http/ApiError'
 import { GRAPH_READ_ONLY_MESSAGE, useWorkflowStore } from '../../store/useWorkflowStore'
+import { friendlyLockMessage } from '../../utils/dueDateLock'
 
 /**
  * B5 — Câu báo cho người dùng theo ApiError.code khi thao tác đồ thị lỗi.
@@ -24,10 +25,10 @@ export function graphErrorMessage(error: unknown): string {
       case 'NODE_IN_USE':
         return error.message || 'This task has already started, so its prerequisites can\'t be changed.'
       default:
-        return error.message || 'Couldn\'t save your graph changes.'
+        return friendlyLockMessage(error) || 'Couldn\'t save your graph changes.'
     }
   }
-  return error instanceof Error && error.message ? error.message : 'Couldn\'t save your graph changes.'
+  return friendlyLockMessage(error) || 'Couldn\'t save your graph changes.'
 }
 
 /** Mã các node trên chu trình nếu lỗi là 422 CYCLE_DETECTED, ngược lại null. */

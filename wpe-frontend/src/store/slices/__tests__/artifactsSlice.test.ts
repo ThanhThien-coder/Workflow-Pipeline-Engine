@@ -127,4 +127,21 @@ describe('artifactsSlice', () => {
     store.getState().artifacts.toggleDrawer()
     expect(store.getState().artifacts.isDrawerOpen).toBe(true)
   })
+
+  it('bật/tắt hiển thị cho khách: gọi API và hoàn tác nếu lỗi', async () => {
+    vi.spyOn(service, 'getProjectArtifacts').mockResolvedValue([artifact('1', 'Spec')])
+    const toggle = vi.spyOn(service, 'setArtifactGuestVisibility')
+    await store.getState().artifacts.loadArtifacts('19')
+
+    toggle.mockResolvedValueOnce({ ...artifact('1', 'Spec'), isPublicForGuest: true })
+    await store.getState().artifacts.setGuestVisibility('19', '1', true)
+    expect(toggle).toHaveBeenCalledWith('19', '1', true)
+    expect(store.getState().artifacts.items[0].isPublicForGuest).toBe(true)
+
+    toggle.mockRejectedValueOnce(new ApiError({ status: 403, code: 'ACCESS_DENIED', message: 'Denied' }))
+    await expect(store.getState().artifacts.setGuestVisibility('19', '1', false)).rejects.toMatchObject({
+      status: 403,
+    })
+    expect(store.getState().artifacts.items[0].isPublicForGuest).toBe(true)
+  })
 })

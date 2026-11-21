@@ -154,11 +154,21 @@ export function toAuthResponseDto(data: BackendAuthResponse): AuthResponseDto {
 /**
  * Màn đăng ký không có ô username (không đổi giao diện), nên lấy phần trước @ của email:
  * viết thường, chỉ giữ a-z 0-9 . _ -, tối đa 50 ký tự (backend yêu cầu 3–50).
+ * Phần trước @ ngắn hơn 3 ký tự (vd "an@gmail.com") thì thêm "user" cho đủ, nếu không backend trả 400.
  */
 export function usernameFromEmail(email: string): string {
   const local = email.trim().split('@')[0] ?? ''
-  return local.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 50)
+  const base = local.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 50)
+  return base.length >= 3 ? base : `${base}user`
 }
+
+/** Username dự phòng khi bị trùng: thêm "-" và 4 chữ số ngẫu nhiên, vẫn trong 50 ký tự. */
+export function usernameWithSuffix(base: string): string {
+  const digits = String(Math.floor(1000 + Math.random() * 9000))
+  return `${base.slice(0, 45)}-${digits}`
+}
+
+const REGISTER_USERNAME_TRIES = 4
 
 /** POST /auth/login. Trường tên là username nhưng chỉ nhận email (G22: backend chỉ tìm theo email). */
 export async function login(credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
@@ -172,17 +182,29 @@ export async function login(credentials: AuthCredentialsDto): Promise<AuthRespon
   return toAuthResponseDto(data)
 }
 
-/** POST /auth/register → 201 AuthResponse. */
+/**
+ * POST /auth/register → 201 AuthResponse.
+ * Username chỉ là mã kỹ thuật (đăng nhập bằng email), nên hai email khác nhau có cùng phần trước @
+ * (vd nhan@gmail.com và nhan@fpt.edu.vn) không được chặn: gặp USERNAME_TAKEN thì thử lại với hậu tố số.
+ */
 export async function register(cmd: RegisterUserCommand): Promise<AuthResponseDto> {
-  const data = await apiRequest<BackendAuthResponse>('POST', '/auth/register', {
-    body: {
-      username: usernameFromEmail(cmd.email),
-      email: cmd.email.trim(),
-      password: cmd.password,
-      fullName: cmd.fullName.trim(),
-    },
-  })
-  return toAuthResponseDto(data)
+  const base = usernameFromEmail(cmd.email)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const data = await apiRequest<BackendAuthResponse>('POST', '/auth/register', {
+        body: {
+          username: attempt === 0 ? base : usernameWithSuffix(base),
+          email: cmd.email.trim(),
+          password: cmd.password,
+          fullName: cmd.fullName.trim(),
+        },
+      })
+      return toAuthResponseDto(data)
+    } catch (error) {
+      const retry = isApiError(error) && error.code === 'USERNAME_TAKEN' && attempt < REGISTER_USERNAME_TRIES - 1
+      if (!retry) throw error
+    }
+  }
 }
 
 /**

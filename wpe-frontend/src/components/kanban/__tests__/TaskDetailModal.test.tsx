@@ -157,8 +157,13 @@ describe('TaskDetailModal Component', () => {
 
     render(
       <TaskDetailModal
-        // Ghi rõ ngày tạo: không có createdAt thì hạn chót nhỏ nhất là hôm nay, test sẽ hỏng khi 20/11 thành quá khứ
-        task={{ ...mockTask, status: 'TODO', createdAt: '2026-11-01T09:00:00+07:00' }}
+        // Ghi rõ ngày tạo và hạn ở tương lai: hạn đã qua thì ô hạn bị khóa, test không phụ thuộc ngày chạy
+        task={{
+          ...mockTask,
+          status: 'TODO',
+          createdAt: '2026-10-01T00:00:00Z',
+          dueDate: '2099-10-15T23:59:59+07:00',
+        }}
         actor={ownerActor}
         members={mockMembers}
         onClose={vi.fn()}
@@ -171,15 +176,37 @@ describe('TaskDetailModal Component', () => {
     const saveButton = screen.getByRole('button', { name: /Save assignment/i })
 
     // Đổi ngày hạn chót
-    fireEvent.change(dueDateInput, { target: { value: '2026-11-20' } })
+    fireEvent.change(dueDateInput, { target: { value: '2099-11-20' } })
     expect((saveButton as HTMLButtonElement).disabled).toBe(false)
 
     fireEvent.click(saveButton)
     expect(handleUpdateAssignment).toHaveBeenCalledTimes(1)
     // Hạn chót là 23:59:59 theo giờ máy người dùng, gửi lên dạng ISO (UTC)
     expect(handleUpdateAssignment).toHaveBeenCalledWith({
-      dueDate: new Date(2026, 10, 20, 23, 59, 59).toISOString(),
+      dueDate: new Date(2099, 10, 20, 23, 59, 59).toISOString(),
     })
+  })
+
+  it('khóa ô hạn chót kèm title giải thích khi hạn đã qua', () => {
+    render(
+      <TaskDetailModal
+        task={{
+          ...mockTask,
+          status: 'IN_PROGRESS',
+          dueDate: '2026-10-15T23:59:59+07:00',
+        }}
+        actor={ownerActor}
+        members={mockMembers}
+        onClose={vi.fn()}
+        onMove={vi.fn()}
+        onUpdateAssignment={vi.fn().mockResolvedValue(true)}
+      />
+    )
+
+    const dueDateInput = screen.getByLabelText('Due date') as HTMLInputElement
+    expect(dueDateInput.disabled).toBe(true)
+    expect(dueDateInput.title).toBe('Due date passed — locked so the late record stays accurate')
+    expect((screen.getByLabelText('Assignee') as HTMLSelectElement).disabled).toBe(false)
   })
 
   it('actor COLLABORATOR không thấy khối "Phân công" kể cả khi có onUpdateAssignment', () => {
@@ -275,6 +302,50 @@ describe('TaskDetailModal Component', () => {
 
       expect(screen.queryByTestId('project-not-active-banner')).toBeNull()
       expect(screen.getByRole('button', { name: /Start Task/i })).toBeDefined()
+    })
+  })
+
+  it('khối Add Deliverable không có ô chọn loại, hiện SiteIcon + siteLabel khi dán link và nộp không gửi type', async () => {
+    const onSubmitArtifact = vi.fn().mockResolvedValue(true)
+    render(
+      <TaskDetailModal
+        task={{
+          ...mockTask,
+          status: 'IN_PROGRESS',
+          artifacts: [
+            {
+              id: 'a1',
+              type: 'FIGMA',
+              url: 'https://www.figma.com/file/abc',
+              note: 'Mockup',
+              uploadedAt: '2026-11-01T00:00:00Z',
+            },
+          ],
+        }}
+        actor={collabActor}
+        members={mockMembers}
+        onClose={vi.fn()}
+        onMove={vi.fn()}
+        onSubmitArtifact={onSubmitArtifact}
+      />
+    )
+
+    expect(screen.getByText('Figma', { selector: 'span' })).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: /\+ Add Deliverable/i }))
+    expect(screen.queryByText('Deliverable Type')).toBeNull()
+
+    const urlInput = screen.getByLabelText('Deliverable URL')
+    fireEvent.change(urlInput, { target: { value: 'https://github.com/team/repo/pull/15' } })
+
+    const preview = screen.getByTestId('task-detail-artifact-site-preview')
+    expect(preview.textContent).toContain('GitHub')
+    expect(preview.querySelector('svg')).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Save & Attach/i }))
+    expect(onSubmitArtifact).toHaveBeenCalledWith({
+      url: 'https://github.com/team/repo/pull/15',
+      note: '',
     })
   })
 })

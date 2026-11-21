@@ -1,0 +1,12 @@
+{
+  "content": "Project completed on 12 Nov, 3 days after the last planned due date. Analysis and early design were on schedule; most delays came in the last three weeks, from Cart & checkout through final delivery.",
+  "highlights": [
+    "Every planned task was delivered and approved.",
+    "Design artifacts (class diagram, ERD, wireframes) were all on time."
+  ],
+  "risks": [
+    "7 of 18 tasks finished late; 4 of them in the final two weeks.",
+    "Late tasks chained: Cart & checkout slipped, which pushed integration tests, deployment and the final report."
+  ],
+  "generatedAt": "2026-11-12T08:00:00.000Z"
+}

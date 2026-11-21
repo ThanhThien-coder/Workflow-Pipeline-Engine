@@ -114,6 +114,7 @@ export interface IWorkflowService {
   getProjectArtifacts(projectId: string): Promise<ProjectArtifactItem[]>
   createArtifact(projectId: string, payload: CreateArtifactCommand): Promise<ProjectArtifactItem>
   deleteArtifact(projectId: string, artifactId: string): Promise<void>
+  setArtifactGuestVisibility(projectId: string, artifactId: string, visible: boolean): Promise<ProjectArtifactItem | void>
 
   /* Project Governance & Settings */
   getProjectSettings(projectId: string): Promise<ProjectSettingsDto>

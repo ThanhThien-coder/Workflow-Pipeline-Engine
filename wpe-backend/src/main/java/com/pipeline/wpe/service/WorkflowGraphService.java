@@ -68,33 +68,57 @@ public class WorkflowGraphService {
         List<WorkPhaseEntity> phaseEntities = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId);
         List<NodeEntity> nodeEntities = nodeRepository.findByProjectId(projectId);
         List<NodeDependencyEntity> depEntities = nodeDependencyRepository.findByProjectId(projectId);
-        Map<Long, Set<Long>> parentsByPhase = loadPhaseParents(projectId, phaseEntities);
+        return buildGraph(projectId, phaseEntities, nodeEntities, depEntities);
+    }
 
-        List<PhaseResponse> phases = phaseEntities.stream()
+    /**
+     * Dựng đồ thị 2 tầng từ danh sách phase, node và dependency đã nạp sẵn.
+     * Hàm này KHÔNG kiểm quyền truy cập dự án; người gọi phải kiểm quyền trước khi gọi.
+     */
+    public WorkflowGraphResponse buildGraph(Long projectId, List<WorkPhaseEntity> phases,
+                                            List<NodeEntity> nodes, List<NodeDependencyEntity> deps) {
+        return buildGraph(projectId, phases, nodes, deps, loadPhaseDependencies(projectId));
+    }
+
+    /** Nạp cạnh phụ thuộc giữa các phase, để người gọi nạp trước rồi truyền vào buildGraph. */
+    public List<PhaseDependencyEntity> loadPhaseDependencies(Long projectId) {
+        return phaseDependencyRepository.findByProjectId(projectId);
+    }
+
+    /**
+     * Như bản 4 tham số nhưng nhận sẵn cạnh phụ thuộc phase, nên không gọi repository nào.
+     * Trang khách gọi bản này trong khối try để lỗi chuyển đổi không đánh dấu rollback transaction.
+     */
+    public WorkflowGraphResponse buildGraph(Long projectId, List<WorkPhaseEntity> phases,
+                                            List<NodeEntity> nodes, List<NodeDependencyEntity> deps,
+                                            List<PhaseDependencyEntity> phaseDeps) {
+        Map<Long, Set<Long>> parentsByPhase = phaseParents(phases, phaseDeps);
+
+        List<PhaseResponse> phaseResponses = phases.stream()
             .map(p -> mapToPhaseResponse(
                 p,
-                nodeEntities.stream().filter(n -> p.getId().equals(n.getPhaseId())).toList(),
+                nodes.stream().filter(n -> p.getId().equals(n.getPhaseId())).toList(),
                 parentsByPhase.getOrDefault(p.getId(), Set.of())
             ))
             .toList();
 
-        List<List<String>> phaseEdges = phaseEntities.stream()
+        List<List<String>> phaseEdges = phases.stream()
             .flatMap(p -> parentsByPhase.getOrDefault(p.getId(), Set.of()).stream()
                 .map(parentId -> List.of(String.valueOf(parentId), String.valueOf(p.getId()))))
             .toList();
 
-        List<GraphNodeResponse> nodes = nodeEntities.stream()
+        List<GraphNodeResponse> nodeResponses = nodes.stream()
             .map(this::mapToGraphNodeResponse)
             .toList();
 
-        List<DependencyResponse> dependencies = depEntities.stream()
+        List<DependencyResponse> dependencyResponses = deps.stream()
             .map(d -> new DependencyResponse(
                 String.valueOf(d.getParentNodeId()),
                 String.valueOf(d.getChildNodeId())
             ))
             .toList();
 
-        return new WorkflowGraphResponse(phases, phaseEdges, nodes, dependencies);
+        return new WorkflowGraphResponse(phaseResponses, phaseEdges, nodeResponses, dependencyResponses);
     }
 
     /**
@@ -213,6 +237,11 @@ public class WorkflowGraphService {
             throw new ConflictException("PHASE_HAS_ACTIVE_TASKS",
                 "Phase can't be deleted because it has tasks that are in progress, in review or done: "
                     + codes + (more > 0 ? " and " + more + " more" : "") + ".");
+        }
+
+        Instant now = Instant.now();
+        for (NodeEntity node : nodesInPhase) {
+            DueDateRules.requireNotOverdueForDelete(node.getDueDate(), node.getStatus(), now);
         }
 
         // Mọi task trong phase đều LOCKED/TODO: xóa cạnh phụ thuộc liên quan, rồi xóa task
@@ -534,9 +563,11 @@ public class WorkflowGraphService {
         if (request.description() != null) node.setDescription(request.description());
         if (request.estimatedHours() != null) node.setEstimatedHours(request.estimatedHours());
         if (request.shouldClearDueDate()) {
+            DueDateRules.requireDueDateChangeAllowed(node.getDueDate(), null, node.getStatus(), Instant.now());
             node.setDueDate(null);
             node.setIsOverdue(false);
         } else if (request.dueDate() != null) {
+            DueDateRules.requireDueDateChangeAllowed(node.getDueDate(), request.dueDate(), node.getStatus(), Instant.now());
             DueDateRules.requireNotBeforeCreation(request.dueDate(), node.getCreatedAt());
             node.setDueDate(request.dueDate());
             // Dời hạn sang tương lai thì công việc không còn quá hạn
@@ -582,6 +613,7 @@ public class WorkflowGraphService {
             throw new ConflictException("NODE_IN_USE",
                 "Task " + node.getCode() + " is " + node.getStatus() + " and can't be deleted.");
         }
+        DueDateRules.requireNotOverdueForDelete(node.getDueDate(), node.getStatus(), Instant.now());
 
         List<NodeDependencyEntity> outgoing = nodeDependencyRepository.findByParentNodeId(nodeId);
         nodeDependencyRepository.deleteAll(outgoing);
@@ -762,13 +794,17 @@ public class WorkflowGraphService {
      * Gom toàn bộ Phase cha của từng Phase: bảng phase_dependency (V6) + cột cũ parent_phase_id.
      */
     private Map<Long, Set<Long>> loadPhaseParents(Long projectId, List<WorkPhaseEntity> phases) {
+        return phaseParents(phases, phaseDependencyRepository.findByProjectId(projectId));
+    }
+
+    private static Map<Long, Set<Long>> phaseParents(List<WorkPhaseEntity> phases, List<PhaseDependencyEntity> phaseDeps) {
         Map<Long, Set<Long>> parents = new HashMap<>();
         for (WorkPhaseEntity p : phases) {
             if (p.getParentPhaseId() != null) {
                 parents.computeIfAbsent(p.getId(), k -> new LinkedHashSet<>()).add(p.getParentPhaseId());
             }
         }
-        for (PhaseDependencyEntity d : phaseDependencyRepository.findByProjectId(projectId)) {
+        for (PhaseDependencyEntity d : phaseDeps) {
             parents.computeIfAbsent(d.getChildPhaseId(), k -> new LinkedHashSet<>()).add(d.getParentPhaseId());
         }
         return parents;

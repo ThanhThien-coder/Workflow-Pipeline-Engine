@@ -239,4 +239,29 @@ describe('apiClient', () => {
     expect(error.code).toBe('BAD_CREDENTIALS')
     expect(handler).not.toHaveBeenCalled()
   })
+
+  it('skipAuth: true không gửi header Authorization và X-Debug-User-Id dù đang có token/user', async () => {
+    localStorage.setItem('wpe_auth_token', 'abc.def.ghi')
+    localStorage.setItem('wpe_auth_user', JSON.stringify({ id: 7 }))
+    fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }))
+
+    await apiRequest('GET', '/guest/tok/overview', { skipAuth: true })
+
+    const headers = sentHeaders(fetchMock)
+    expect(headers['Authorization']).toBeUndefined()
+    expect(headers['X-Debug-User-Id']).toBeUndefined()
+  })
+
+  it('skipAuth: true khi gặp 401 thì không gọi unauthorizedHandler', async () => {
+    localStorage.setItem('wpe_auth_token', 'abc.def.ghi')
+    fetchMock.mockResolvedValue(jsonResponse(401, { status: 401, error: 'UNAUTHORIZED', message: 'Denied' }))
+    const handler = vi.fn(() => true)
+    setUnauthorizedHandler(handler)
+
+    const error = await catchError(apiRequest('GET', '/guest/tok/overview', { skipAuth: true }))
+
+    expect(error.status).toBe(401)
+    expect(handler).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })

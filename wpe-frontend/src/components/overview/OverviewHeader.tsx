@@ -61,6 +61,7 @@ export function OverviewHeader({
             scanning={aiScanning}
             scanError={aiScanError}
             onRescan={onRescan}
+            canRun={project.role === 'OWNER' || project.role === 'MANAGER'}
           />
           <GuestAccessPopover
             state={guestAccess}

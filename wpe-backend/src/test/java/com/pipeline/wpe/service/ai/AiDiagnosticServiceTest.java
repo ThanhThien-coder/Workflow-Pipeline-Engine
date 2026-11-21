@@ -91,6 +91,19 @@ class AiDiagnosticServiceTest {
     }
 
     @Test
+    @DisplayName("9.2 Trigger AI Diagnostics - Viewer/Collaborator bị chặn 403, không giữ chỗ, không gọi AI")
+    void testTriggerAiDiagnostics_NotOwnerOrManager_Forbidden() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId))
+            .thenThrow(new com.pipeline.wpe.exception.ForbiddenException("ACCESS_DENIED", "Only the project owner or a manager can do this."));
+
+        assertThatThrownBy(() -> aiDiagnosticService.triggerAiDiagnostics(projectId))
+            .isInstanceOf(com.pipeline.wpe.exception.ForbiddenException.class);
+        verify(projectRepository, never()).claimAiDiagnosis(any(), any(), any());
+        verifyNoInteractions(aiServiceClient);
+    }
+
+    @Test
     @DisplayName("9.2 Trigger AI Diagnostics - 1. Thành công: giữ chỗ, gọi AI ngoài tx, lưu JSONB")
     void testTriggerAiDiagnostics_Success() {
         when(currentUserProvider.requireCurrentUserId()).thenReturn(userId);
@@ -99,7 +112,7 @@ class AiDiagnosticServiceTest {
             .id(projectId)
             .name("Core Banking")
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(1);
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
@@ -128,7 +141,7 @@ class AiDiagnosticServiceTest {
         ProjectEntity project = ProjectEntity.builder()
             .id(projectId)
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(1);
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
@@ -157,7 +170,7 @@ class AiDiagnosticServiceTest {
         ProjectEntity project = ProjectEntity.builder()
             .id(projectId)
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(0);
         when(projectRepository.findAiRequestedAt(projectId)).thenReturn(Optional.of(Instant.now().minusSeconds(30)));
 
@@ -180,7 +193,7 @@ class AiDiagnosticServiceTest {
         ProjectEntity project = ProjectEntity.builder()
             .id(projectId)
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(0);
         when(projectRepository.findAiRequestedAt(projectId)).thenReturn(Optional.empty());
 
@@ -205,7 +218,7 @@ class AiDiagnosticServiceTest {
             .id(projectId)
             .aiRequestedAt(t0)
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(1);
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
@@ -235,7 +248,7 @@ class AiDiagnosticServiceTest {
         ProjectEntity project = ProjectEntity.builder()
             .id(projectId)
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(1);
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
@@ -263,7 +276,7 @@ class AiDiagnosticServiceTest {
             .id(projectId)
             .aiRequestedAt(t0)
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(1);
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
@@ -289,7 +302,7 @@ class AiDiagnosticServiceTest {
         ProjectEntity project = ProjectEntity.builder()
             .id(projectId)
             .build();
-        when(authorizationService.verifyProjectMemberOrOwner(projectId, userId)).thenReturn(project);
+        when(authorizationService.verifyProjectOwnerOrManager(projectId, userId)).thenReturn(project);
         when(projectRepository.claimAiDiagnosis(eq(projectId), any(Instant.class), any(Instant.class))).thenReturn(1);
         when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of());
         when(feedbackRepository.findByProjectIdAndStatus(any(), any())).thenReturn(List.of());
