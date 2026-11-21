@@ -583,7 +583,7 @@ export function MindmapTree({
         }
       />
 
-      {phaseId && (
+      {phaseId && !readOnly && (
         <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
           <button
             type="button"
