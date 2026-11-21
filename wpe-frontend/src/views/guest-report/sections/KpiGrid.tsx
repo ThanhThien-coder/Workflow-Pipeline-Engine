@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { AlertTriangle, Check, ChevronRight, Clock, Package } from 'lucide-react'
 import type { GuestReportModel } from '../../../domain/guestReport'
 import { plural } from '../ui'
-import { ARTIFACT_KINDS, ARTIFACT_LABELS } from './helpers'
+import { ARTIFACT_KINDS, ARTIFACT_LABELS, onTimeEmptyText } from './helpers'
 
 function Ring({ pct, size = 48 }: { pct: number; size?: number }) {
   const r = size / 2 - 5
@@ -107,7 +107,7 @@ export function KpiGrid({ model, onOverdue }: KpiGridProps) {
         <div className="text-3xl font-bold text-slate-900">{otPct === null ? '—' : `${otPct}%`}</div>
         <div className="mt-0.5 text-xs text-slate-500">
           {otPct === null
-            ? 'No task has reached its due date yet'
+            ? onTimeEmptyText(model.tasks)
             : `${m.onTime} of ${m.onTimeBase} tasks that reached their due date were done in time`}
         </div>
         {otPct !== null && (
