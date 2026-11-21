@@ -126,7 +126,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
                 : 'Set up a deterministic workflow pipeline with DAG constraints.'}
             </p>
           </div>
-          <StatusBadge status={templateId ? 'PLANNING' : 'DRAFT'} />
+          <StatusBadge status="DRAFT" />
         </div>
 
         <div>
@@ -206,7 +206,7 @@ export const CreatePipelineModal: FC<CreatePipelineModalProps> = ({
         </div>
 
         <p className="text-[11px] text-slate-500">
-          New pipelines start as <b>{templateId ? 'PLANNING' : 'DRAFT'}</b> and are published after Kahn&apos;s cycle check passes.
+          New pipelines start as <b>DRAFT</b> and are published after Kahn&apos;s cycle check passes.
         </p>
 
         <div className="flex justify-end gap-2 pt-2">

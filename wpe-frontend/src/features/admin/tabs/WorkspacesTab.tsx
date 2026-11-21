@@ -13,11 +13,7 @@ interface WorkspacesTabProps {
 
 const STATUS_MAP: Record<string, { label: string; badgeClass: string }> = {
   DRAFT: { label: 'Draft', badgeClass: 'border-slate-200 bg-slate-50 text-slate-700' },
-  PLANNING: { label: 'Planning', badgeClass: 'border-blue-200 bg-blue-50 text-blue-700' },
   ACTIVE: { label: 'Active', badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-  PAUSED: { label: 'Paused', badgeClass: 'border-amber-200 bg-amber-50 text-amber-700' },
-  COMPLETED: { label: 'Completed', badgeClass: 'border-indigo-200 bg-indigo-50 text-indigo-700' },
-  INACTIVE: { label: 'Inactive', badgeClass: 'border-slate-200 bg-slate-100 text-slate-600' },
   ARCHIVED: { label: 'Archived', badgeClass: 'border-slate-200 bg-slate-100 text-slate-500' },
 };
 
@@ -121,7 +117,6 @@ export const WorkspacesTab: FC<WorkspacesTabProps> = ({
             <option value="ALL">All statuses</option>
             <option value="DRAFT">Draft</option>
             <option value="ACTIVE">Active</option>
-            <option value="PAUSED">Paused</option>
             <option value="ARCHIVED">Archived</option>
           </select>
         </div>

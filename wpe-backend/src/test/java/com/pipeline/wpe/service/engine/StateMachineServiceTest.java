@@ -128,7 +128,7 @@ class StateMachineServiceTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value = com.pipeline.wpe.common.enums.ProjectStatus.class, names = {"DRAFT", "PLANNING", "PAUSED", "COMPLETED"})
+    @org.junit.jupiter.params.provider.EnumSource(value = com.pipeline.wpe.common.enums.ProjectStatus.class, names = {"DRAFT"})
     @DisplayName("Dự án chưa chạy (không ACTIVE): Cộng tác viên không đổi trạng thái task -> 409 PROJECT_NOT_ACTIVE, không lưu")
     void testCollaboratorBlockedWhenProjectNotActive(com.pipeline.wpe.common.enums.ProjectStatus status) {
         mockProject.setStatus(status);
@@ -158,9 +158,9 @@ class StateMachineServiceTest {
     }
 
     @Test
-    @DisplayName("Dự án PAUSED: chủ dự án vẫn làm task bình thường")
-    void testOwnerWorksWhenProjectPaused() {
-        mockProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.PAUSED);
+    @DisplayName("Dự án DRAFT: chủ dự án vẫn làm task bình thường")
+    void testOwnerWorksWhenProjectDraft() {
+        mockProject.setStatus(com.pipeline.wpe.common.enums.ProjectStatus.DRAFT);
         mockNode.setAssignedUserId(ownerId);
         when(nodeRepository.findById(taskId)).thenReturn(Optional.of(mockNode));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
@@ -409,8 +409,8 @@ class StateMachineServiceTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value = com.pipeline.wpe.common.enums.ProjectStatus.class, names = {"DRAFT", "PLANNING"})
-    @DisplayName("Force Unlock: dự án chưa Start (DRAFT/PLANNING) thì báo PROJECT_NOT_STARTED, task vẫn LOCKED (G33)")
+    @org.junit.jupiter.params.provider.EnumSource(value = com.pipeline.wpe.common.enums.ProjectStatus.class, names = {"DRAFT"})
+    @DisplayName("Force Unlock: dự án chưa Start (DRAFT) thì báo PROJECT_NOT_STARTED, task vẫn LOCKED (G33)")
     void testForceUnlock_projectNotStarted_rejected(com.pipeline.wpe.common.enums.ProjectStatus status) {
         mockNode.setStatus(NodeStatus.LOCKED);
         mockProject.setStatus(status);

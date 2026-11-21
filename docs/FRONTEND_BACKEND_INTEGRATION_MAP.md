@@ -697,7 +697,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 4. **Xử lý Backend & Bảng CSDL Tác động**:
    - Bảng tác động: `PROJECT`, `NODE`, `NODE_DEPENDENCY`.
    - Kiểm tra quyền: Chỉ `OWNER` mới có quyền publish (người khác → 403 `ACCESS_DENIED`).
-   - **Kiểm tra trạng thái dự án (cập nhật 12/11/2026, task B4)**: chỉ xuất bản được từ `DRAFT` hoặc `PLANNING`. Dự án `ARCHIVED` → 409 `PROJECT_ARCHIVED`. Các trạng thái còn lại (`ACTIVE`, `PAUSED`, `COMPLETED`, `INACTIVE`) → 409 `INVALID_PROJECT_STATUS`. Bước này chạy trước thuật toán Kahn; trạng thái dự án và node không đổi.
+   - **Kiểm tra trạng thái dự án (cập nhật 12/11/2026, task B4)**: chỉ xuất bản được từ `DRAFT`. Dự án `ARCHIVED` → 409 `PROJECT_ARCHIVED`. Dự án `ACTIVE` → 409 `INVALID_PROJECT_STATUS`. Bước này chạy trước thuật toán Kahn; trạng thái dự án và node không đổi.
    - **Thuật toán Kahn**:
      1. Khởi tạo danh sách In-degree của tất cả các Node trong dự án.
      2. Đưa toàn bộ các Node có `in-degree == 0` vào hàng đợi `Queue`.
@@ -727,13 +727,13 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      }
      ```
      *UI Mutation*: Mở modal `KahnCycleModal.tsx`, hiển thị danh sách các mã Node vi phạm với hiệu ứng viền đỏ cảnh báo.
-   - **Thất bại do trạng thái dự án (409 Conflict)** (task B4): `error` là `INVALID_PROJECT_STATUS` (dự án không ở `DRAFT`/`PLANNING`, kể cả đã `ACTIVE`) hoặc `PROJECT_ARCHIVED` (dự án đã lưu trữ).
+   - **Thất bại do trạng thái dự án (409 Conflict)** (task B4): `error` là `INVALID_PROJECT_STATUS` (dự án không ở `DRAFT`, kể cả đã `ACTIVE`) hoặc `PROJECT_ARCHIVED` (dự án đã lưu trữ).
      ```json
      {
        "timestamp": "2026-11-12T02:30:38Z",
        "status": 409,
        "error": "INVALID_PROJECT_STATUS",
-       "message": "Chỉ xuất bản được dự án đang ở trạng thái DRAFT hoặc PLANNING. Trạng thái hiện tại: ACTIVE.",
+       "message": "Only projects in DRAFT status can be published. Current status: ACTIVE.",
        "path": "/api/v1/projects/4/publish"
      }
      ```
@@ -758,7 +758,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
 
 ---
 
-> **Trạng thái dự án (19/11/2026):** Collaborator gọi `PATCH /api/nodes/{taskId}/status` hoặc `POST /api/nodes/{taskId}/submit` khi dự án không `ACTIVE` (`DRAFT`, `PLANNING`, `PAUSED`, `COMPLETED`) -> **409 `PROJECT_NOT_ACTIVE`**. Owner và Manager không bị chặn. `PATCH /api/v1/projects/{id}/status` cho thêm `COMPLETED -> ACTIVE` (mở lại dự án). Nút đổi trạng thái dự án nằm ở màn Workflow (`ProjectStatusControl`).
+> **Trạng thái dự án (19/11/2026):** Collaborator gọi `PATCH /api/nodes/{taskId}/status` hoặc `POST /api/nodes/{taskId}/submit` khi dự án không `ACTIVE` (tức là `DRAFT`) -> **409 `PROJECT_NOT_ACTIVE`**. Owner và Manager không bị chặn. Từ 21/11/2026 (G34) dự án chỉ còn `DRAFT`, `ACTIVE`, `ARCHIVED`; bỏ `PAUSED` và `COMPLETED` nên không còn tạm dừng, hoàn thành hay mở lại dự án. Nút đổi trạng thái dự án nằm ở màn Workflow (`ProjectStatusControl`).
 
 ### 5.2 Bắt đầu task (`TODO` -> `IN_PROGRESS`) & Hủy làm (`IN_PROGRESS` -> `TODO`)
 1. **Mục tiêu Nghiệp vụ**: Người thực hiện bấm bắt đầu làm task hoặc hủy nhận làm task đưa về trạng thái chờ.
@@ -1241,7 +1241,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
    - Danh sách Workspaces:
      - **Method & URL**: `GET /api/v1/admin/workspaces?query=&status=`
      - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
-     - **Query Params**: `query` (lọc theo tên dự án hoặc họ tên/username của chủ sở hữu; KHÔNG lọc email), `status` (DRAFT, PLANNING, ACTIVE, PAUSED, COMPLETED, ARCHIVED).
+     - **Query Params**: `query` (lọc theo tên dự án hoặc họ tên/username của chủ sở hữu; KHÔNG lọc email), `status` (DRAFT, ACTIVE, ARCHIVED).
    - Chi tiết Workspace (Metadata Drawer):
      - **Method & URL**: `GET /api/v1/admin/workspaces/{id}`
      - **Headers**: `Authorization: Bearer <jwt>` (Role: ADMIN)
@@ -1362,7 +1362,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
    - Bảng tác động: `USERS`, `PROJECT`, `NODE`, `PIPELINE_TEMPLATE`, `PROJECT_MEMBER`.
    - `GET /api/v1/admin/stats`:
      - `users`: đếm tổng số user, số user active (`is_locked = FALSE`), số user suspended (`is_locked = TRUE`), số user mới tạo trong 7 ngày gần nhất.
-     - `projects`: đếm tổng số dự án, phân nhóm theo trạng thái `byStatus` (DRAFT, PLANNING, ACTIVE, PAUSED, COMPLETED, ARCHIVED), số dự án mới tạo trong 7 ngày gần nhất.
+     - `projects`: đếm tổng số dự án, phân nhóm theo trạng thái `byStatus` (DRAFT, ACTIVE, ARCHIVED), số dự án mới tạo trong 7 ngày gần nhất.
      - `tasks`: đếm tổng số node, phân nhóm theo trạng thái `byStatus` (LOCKED, TODO, IN_PROGRESS, REVIEW, DONE), số node trễ hạn `overdue` (`dueDate < NOW()` và `status != DONE`).
      - `templates`: đếm số template `PUBLIC`, số template `PRIVATE`, tổng lượt nhân bản `totalClones` (tổng cột `clone_count`).
      - `roles`: đếm số user theo vai trò hệ thống `systemRoles` (ADMIN, USER), đếm số thành viên active theo vai trò dự án `projectRoles` (OWNER, MANAGER, COLLABORATOR, VIEWER).
@@ -1374,7 +1374,7 @@ Cả 4 endpoint đều **không cần đăng nhập**, có ở cả `/api/v1/aut
      ```json
      {
        "users": { "total": 12, "active": 11, "suspended": 1, "newLast7Days": 3 },
-       "projects": { "total": 8, "byStatus": { "DRAFT": 1, "PLANNING": 1, "ACTIVE": 4, "PAUSED": 0, "COMPLETED": 1, "ARCHIVED": 1 }, "newLast7Days": 2 },
+       "projects": { "total": 8, "byStatus": { "DRAFT": 2, "ACTIVE": 5, "ARCHIVED": 1 }, "newLast7Days": 2 },
        "tasks": { "total": 45, "byStatus": { "LOCKED": 10, "TODO": 15, "IN_PROGRESS": 8, "REVIEW": 4, "DONE": 8 }, "overdue": 3 },
        "templates": { "publicCount": 4, "privateCount": 2, "totalClones": 14 },
        "roles": { "systemRoles": { "ADMIN": 2, "USER": 10 }, "projectRoles": { "OWNER": 8, "MANAGER": 4, "COLLABORATOR": 12, "VIEWER": 2 } }

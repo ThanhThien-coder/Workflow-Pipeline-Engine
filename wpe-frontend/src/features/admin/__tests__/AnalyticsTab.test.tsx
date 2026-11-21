@@ -26,8 +26,7 @@ describe('AnalyticsTab Component', () => {
       total: 35,
       byStatus: {
         ACTIVE: 18,
-        PLANNING: 7,
-        COMPLETED: 6,
+        DRAFT: 7,
         ARCHIVED: 4,
       },
       newLast7Days: 4,

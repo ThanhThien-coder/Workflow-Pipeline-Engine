@@ -284,9 +284,9 @@ class GuestGatewayServiceTest {
     }
 
     @Test
-    @DisplayName("G25: dự án DRAFT / PLANNING / PAUSED vẫn cho khách xem (chỉ chặn ARCHIVED)")
+    @DisplayName("G25: dự án DRAFT vẫn cho khách xem (chỉ chặn ARCHIVED)")
     void testGetGuestOverview_NonArchivedStatusesAllowed() {
-        for (ProjectStatus status : List.of(ProjectStatus.DRAFT, ProjectStatus.PLANNING, ProjectStatus.PAUSED)) {
+        for (ProjectStatus status : List.of(ProjectStatus.DRAFT)) {
             String token = "example-guest-token-" + status.name().toLowerCase();
             GuestLinkEntity link = GuestLinkEntity.builder()
                 .projectId(projectId)

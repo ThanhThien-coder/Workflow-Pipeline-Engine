@@ -472,11 +472,7 @@ export function mapProjectActivities(items: readonly ProjectActivityItem[]): Act
 export function formatPhaseLabel(status: string, phaseCount: number): string {
   const statusMap: Record<string, string> = {
     DRAFT: 'Draft',
-    PLANNING: 'Planning',
     ACTIVE: 'Published',
-    PAUSED: 'Paused',
-    INACTIVE: 'Paused',
-    COMPLETED: 'Completed',
     ARCHIVED: 'Archived',
   }
   const statusLabel = statusMap[status] || status || 'Active'

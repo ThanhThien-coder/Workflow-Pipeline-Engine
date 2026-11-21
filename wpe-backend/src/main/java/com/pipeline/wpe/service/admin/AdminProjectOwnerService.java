@@ -60,8 +60,8 @@ public class AdminProjectOwnerService {
         ProjectEntity project = projectRepository.findById(projectId)
             .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
 
-        if (project.getStatus() == ProjectStatus.ARCHIVED || project.getStatus() == ProjectStatus.COMPLETED) {
-            throw new ConflictException("PROJECT_CLOSED", "This project is archived or completed, so its owner can't be changed.");
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_CLOSED", "This project is archived, so its owner can't be changed.");
         }
 
         if (newOwnerId == null) {

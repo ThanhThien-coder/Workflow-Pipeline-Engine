@@ -408,7 +408,7 @@ public class StateMachineService {
 
     /**
      * Chủ dự án và Quản lý làm task ở mọi trạng thái dự án (trừ ARCHIVED, đã chặn trước đó).
-     * Cộng tác viên chỉ làm task khi dự án đang chạy (ACTIVE); DRAFT/PLANNING/PAUSED/COMPLETED thì chỉ xem.
+     * Cộng tác viên chỉ làm task khi dự án đã Start (ACTIVE); DRAFT thì chỉ xem.
      */
     private void ensureProjectRunningForMember(ProjectEntity project, Long userId) {
         if (project.getStatus() == ProjectStatus.ACTIVE || canReviewProject(project, userId)) {
@@ -608,7 +608,7 @@ public class StateMachineService {
         }
 
         // Dự án chưa Start thì mọi task đều khóa; Start project mới mở task gốc
-        if (project.getStatus() == ProjectStatus.DRAFT || project.getStatus() == ProjectStatus.PLANNING) {
+        if (project.getStatus() == ProjectStatus.DRAFT) {
             throw new ConflictException("PROJECT_NOT_STARTED",
                 "The project hasn't started yet. Start the project before unlocking tasks early.");
         }

@@ -344,13 +344,12 @@ public class WorkflowGraphService {
             }
         }
 
-        // Trạng thái ban đầu: dự án chưa publish (DRAFT/PLANNING) thì LOCKED, publish sẽ mở các task gốc.
+        // Trạng thái ban đầu: dự án chưa publish (DRAFT) thì LOCKED, publish sẽ mở các task gốc.
         // Dự án đã publish: task mới chưa có task trước nên TODO ngay (cùng luật publish mở task gốc);
         // nối cha chưa xong vào sau đó thì recomputeNodeStatus tự khóa lại.
         com.pipeline.wpe.common.enums.ProjectStatus projectStatus = project.getStatus();
         boolean published = projectStatus != null
-            && projectStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT
-            && projectStatus != com.pipeline.wpe.common.enums.ProjectStatus.PLANNING;
+            && projectStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT;
         NodeStatus initialStatus = published ? NodeStatus.TODO : NodeStatus.LOCKED;
         JoinPolicy joinPolicy = request.joinPolicy() != null ? request.joinPolicy() : JoinPolicy.ALL_COMPLETED;
         Map<String, Object> metadata = request.uiMetadata() != null ? request.uiMetadata() :
@@ -622,13 +621,12 @@ public class WorkflowGraphService {
     public PublishPipelineResponse publishPipeline(Long projectId, Long currentUserId) {
         ProjectEntity project = authorizationService.verifyProjectOwner(projectId, currentUserId);
 
-        // Chỉ xuất bản được từ DRAFT hoặc PLANNING. ARCHIVED -> 409 PROJECT_ARCHIVED, còn lại -> 409 INVALID_PROJECT_STATUS.
+        // Chỉ xuất bản được từ DRAFT. ARCHIVED -> 409 PROJECT_ARCHIVED, còn lại -> 409 INVALID_PROJECT_STATUS.
         ensureNotArchived(project);
         com.pipeline.wpe.common.enums.ProjectStatus currentStatus = project.getStatus();
-        if (currentStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT
-            && currentStatus != com.pipeline.wpe.common.enums.ProjectStatus.PLANNING) {
+        if (currentStatus != com.pipeline.wpe.common.enums.ProjectStatus.DRAFT) {
             throw new ConflictException("INVALID_PROJECT_STATUS",
-                "Only projects in DRAFT or PLANNING status can be published. Current status: " + currentStatus + ".");
+                "Only projects in DRAFT status can be published. Current status: " + currentStatus + ".");
         }
 
         List<NodeEntity> nodes = nodeRepository.findByProjectId(projectId);

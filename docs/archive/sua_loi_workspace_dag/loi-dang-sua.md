@@ -843,3 +843,84 @@ Chủ dự án được **mở khóa sớm** một task đang LOCKED dù các ta
 - FE: `PhaseStatus` thêm `NO_TASKS`; `phaseProgress.ts` phase rỗng ra `NO_TASKS` (track rỗng vẫn TODO); `PhaseCard` màu chỉ theo trạng thái (xám: LOCKED/NO_TASKS, xanh dương: TODO/IN_PROGRESS, xanh lá: COMPLETED), nhãn "NO TASKS"; phase mới tạo là `NO_TASKS`, không khóa; `PhaseDetailView` ẩn "Unlock early" khi dự án chưa Start (`isProjectStarted` trong `domain/projectWork.ts`).
 - Tài liệu: `FRONTEND_BACKEND_INTEGRATION_MAP.md` ghi các giá trị `status` của Phase.
 - Kiểm tra: BE `./mvnw test` qua hết. FE typecheck qua; `vitest run` 980/981 qua (lỗi duy nhất `MacroWorkflow.states.test.tsx` có sẵn trên main). Migration chạy trên DB dev: dự án 29 còn 0 task TODO. API thật (alex.kim, dự án test 30 tạo từ SDLC): sau khi tạo 7/7 task LOCKED, 4 phase LOCKED; Unlock early → 409 `PROJECT_NOT_STARTED`; Start → mở 4 task gốc, 4 phase TODO; Unlock early WPE-002 sau khi Start → 200.
+
+## G34. Rút trạng thái dự án từ 7 xuống 3
+
+**Ngày ghi:** 21/11/2026 · **Nhánh:** `fix/rut-trang-thai-du-an` · **Trạng thái:** chờ kiểm
+
+**Vấn đề**
+- BE có 7 trạng thái dự án: `DRAFT, PLANNING, ACTIVE, PAUSED, COMPLETED, INACTIVE, ARCHIVED`. DB dev lúc đầu có 7 DRAFT, 6 ACTIVE, 1 PLANNING, 1 ARCHIVED.
+- `PLANNING`: mọi chỗ kiểm đều là `DRAFT || PLANNING`, tức là y hệt DRAFT. FE `CreatePipelineModal` ghi "tạo từ template thì PLANNING" nhưng BE `TemplateCloneService` gán DRAFT.
+- `COMPLETED`: thừa về nghiệp vụ, vì dự án thật luôn cập nhật tiếp, không dùng nữa thì Archive (khôi phục được). Về kỹ thuật cũng trùng PAUSED (cả hai chỉ khóa cộng tác viên, cả hai quay về ACTIVE). Còn lệch: FE cho "Mark completed" khi PAUSED, nhưng BE chặn `PAUSED → COMPLETED` (409).
+- `INACTIVE`: không có đường chuyển vào, chỉ có trong DevToolbar. Code chết.
+- `PAUSED`: chỉ chặn cộng tác viên đổi trạng thái task và nộp minh chứng (409 `PROJECT_NOT_ACTIVE`); Owner/Manager vẫn làm bình thường. `TaskOverdueScanner` không xét trạng thái dự án, nên dự án đang PAUSED vẫn bị đánh trễ hạn trong khi cộng tác viên không được nộp. App để theo dõi tiến độ và minh chứng, việc thật vẫn chạy bên ngoài, nên chặn nộp chỉ làm dữ liệu sai lệch.
+
+**Người dùng đã chốt (21/11/2026)**
+- Còn 3 trạng thái: `DRAFT`, `ACTIVE`, `ARCHIVED` (lúc đầu chốt 4, giữ PAUSED; sau đó chốt bỏ luôn PAUSED).
+- Bỏ nút "Mark completed", "Pause", "Resume". KHÔNG làm gợi ý "tất cả task đã xong · Archive?": dự án 100% vẫn là ACTIVE, không hiện gì thêm.
+- Trạng thái `COMPLETED` của **phase** (suy ra từ task) không liên quan, giữ nguyên.
+
+### Đặc tả đã chốt
+- Luồng chuyển (BE `ProjectService.ALLOWED_TRANSITIONS`):
+  - `DRAFT → ARCHIVED`. `DRAFT → ACTIVE` chỉ qua Start project (publish), đổi trực tiếp vẫn trả 409 `USE_PUBLISH`.
+  - `ACTIVE → ARCHIVED`
+  - `ARCHIVED → ACTIVE | DRAFT` (giữ luật cũ: dự án chưa từng Start thì khôi phục về DRAFT).
+- Gửi giá trị đã bỏ (`PLANNING`, `PAUSED`, `COMPLETED`, `INACTIVE`) vào `PATCH /projects/{id}/status` → 400 "Invalid project status" (tự có vì `ProjectStatus.valueOf` lỗi). Lọc admin theo trạng thái đã bỏ cũng 400 như giá trị lạ khác.
+- Migration:
+  - `V24__drop_unused_project_status.sql`: `PLANNING → DRAFT`, `COMPLETED → ACTIVE`, `INACTIVE → ARCHIVED`.
+  - `V25__drop_paused_project_status.sql`: `PAUSED → ACTIVE`. Tách riêng vì V24 đã chạy trên DB dev trước khi chốt bỏ PAUSED; sửa V24 sẽ lệch checksum Flyway.
+  - Không đụng task (task của dự án PLANNING đã về LOCKED ở V23). Không sửa migration cũ vì Flyway kiểm checksum.
+- Luật quyền làm task: cộng tác viên chỉ làm task khi ACTIVE, DRAFT thì chỉ xem (409 `PROJECT_NOT_ACTIVE` giữ nguyên mã); Owner/Manager làm được mọi trạng thái trừ ARCHIVED.
+- Admin chuyển chủ dự án (`AdminProjectOwnerService`): chỉ chặn ARCHIVED (bỏ điều kiện COMPLETED).
+- FE `ProjectStatusControl`: DRAFT có nút Start project; ACTIVE và ARCHIVED không có nút. Lưu trữ / khôi phục vẫn ở Settings.
+- FE tạo dự án (`CreatePipelineModal`): luôn ghi DRAFT, kể cả tạo từ template.
+
+### Được đọc
+- `wpe-backend/src/**`, `wpe-frontend/src/**`, `docs/specs/workflow-engine.md`, `docs/specs/database-schema.md`, `docs/FRONTEND_BACKEND_INTEGRATION_MAP.md`
+
+### Được ghi
+> `BE/` = `wpe-backend/src/main/java/com/pipeline/wpe/`, `FE/` = `wpe-frontend/src/`
+- `wpe-backend/src/main/resources/db/migration/V24__drop_unused_project_status.sql`, `V25__drop_paused_project_status.sql` (MỚI)
+- `BE/common/enums/ProjectStatus.java`, `BE/service/ProjectService.java`, `BE/service/WorkflowGraphService.java`, `BE/service/engine/StateMachineService.java`, `BE/service/GuestGatewayService.java` (chỉ chú thích), `BE/service/profile/UserProfileService.java`, `BE/service/admin/AdminProjectOwnerService.java`
+- Test BE: `ProjectServiceTest`, `WorkflowGraphServiceTest`, `StateMachineServiceTest`, `GuestGatewayServiceTest`, `UserProfileServiceTest`, `AdminProjectOwnerServiceTest`, `AdminStatsServiceTest`
+- `FE/types/workspace.types.ts`, `FE/types/settings.types.ts`, `FE/components/workflow/ProjectStatusControl.tsx`, `FE/components/workflow/MacroWorkflow.tsx` (chú thích), `FE/components/common/StatusBadge.tsx`, `FE/components/workspace/CreatePipelineModal.tsx`, `FE/components/settings/GeneralSettingsSection.tsx`, `FE/components/dev/DevToolbar.tsx`, `FE/store/slices/devSlice.ts`, `FE/domain/projectWork.ts`, `FE/features/admin/components/WorkspaceDetailDrawer.tsx`, `FE/features/admin/components/OwnedProjectsDrawer.tsx`, `FE/features/admin/tabs/WorkspacesTab.tsx`, `FE/services/impl/HttpWorkflowService.ts`, `FE/services/impl/http/overview.ts`, `FE/services/impl/http/projectSettings.ts`, `FE/services/admin/MockAdminService.ts`, `FE/services/mock/MockWorkflowService*.ts`
+- Test FE có dùng trạng thái đã bỏ (`ProjectStatusControl.test.tsx`, `TaskDetailModal.test.tsx`, `projectWork.test.ts`, `taskTransitions.test.ts`, `AnalyticsTab.test.tsx`, `OwnedProjectsDrawer.test.tsx`, `WorkspaceDetailDrawer.test.tsx`, `projectSettings.test.ts`, `settingsPublish.test.tsx`, `workspaceSlice.test.ts`)
+- `docs/specs/workflow-engine.md`, `docs/specs/database-schema.md`, `docs/FRONTEND_BACKEND_INTEGRATION_MAP.md`, mục G34 này
+
+### Việc cần làm
+1. Migration rồi enum BE, sau đó sửa từng chỗ BE dùng trạng thái đã bỏ. Sửa test BE theo luật mới, thêm test: gửi trạng thái đã bỏ → 400, Admin chuyển chủ dự án DRAFT/ACTIVE được.
+2. FE: rút kiểu `ProjectStatus` còn 3 giá trị, để `typecheck` chỉ ra mọi chỗ còn dùng, sửa hết. Mặc định khi BE không trả status: `DRAFT` (thay `PLANNING`).
+3. Sửa test FE theo luật mới.
+4. Cập nhật tài liệu (spec, schema, integration map).
+5. Kiểm: BE `./mvnw test`, FE `npm run typecheck` và `npx vitest run`, chạy app thật kiểm trên API.
+6. Ghi kết quả vào mục này, đổi trạng thái thành "chờ kiểm". Commit nhỏ theo skill `commit-nho` khi người dùng bảo.
+
+### Tiêu chí xong
+- `grep -rn "PLANNING\|INACTIVE\|PAUSED" wpe-backend/src/main/java wpe-frontend/src` (trừ test) không còn kết quả. `ProjectStatus.COMPLETED` không còn ở BE; ở FE chỉ còn `COMPLETED` của phase.
+- BE `./mvnw test` qua hết. FE `npm run typecheck` qua; `npx vitest run` không có lỗi mới ngoài lỗi có sẵn.
+- DB dev sau khi chạy backend: `project.status` chỉ còn `DRAFT, ACTIVE, ARCHIVED`; Flyway ghi V24, V25 thành công.
+- API thật (Owner): gửi `PAUSED`, `COMPLETED` → 400; ACTIVE → ARCHIVED → khôi phục ACTIVE được.
+- Màn Workflow: dự án DRAFT chỉ có nút Start project; dự án ACTIVE không có nút trạng thái.
+
+### Đã làm (21/11/2026), chờ kiểm
+- DB: V24, V25.
+- BE: enum `ProjectStatus` còn `DRAFT, ACTIVE, ARCHIVED`; `ProjectService.ALLOWED_TRANSITIONS` theo đặc tả; bỏ nhánh `PLANNING` ở `WorkflowGraphService` (tạo node, publish; câu báo publish đổi thành "Only projects in DRAFT status can be published...") và `StateMachineService.forceUnlock`; `AdminProjectOwnerService` chỉ chặn ARCHIVED (câu báo "This project is archived, so its owner can't be changed."); `UserProfileService` bỏ 4 nhãn.
+- FE:
+  - 2 kiểu `ProjectStatus` còn 3 giá trị.
+  - `ProjectStatusControl` chỉ còn Start project; bỏ nhánh gọi `updateProjectStatus` (không còn nút nào khác dùng).
+  - `CreatePipelineModal` luôn DRAFT; `isProjectStarted` chỉ xét DRAFT; `NOT_RUNNING_LABEL` chỉ còn DRAFT.
+  - Badge/nhãn/bộ lọc bỏ 4 giá trị ở `StatusBadge`, `GeneralSettingsSection`, `DevToolbar`, admin (`WorkspacesTab` bỏ cả lựa chọn lọc "Paused", `WorkspaceDetailDrawer`, `OwnedProjectsDrawer`: câu "Archived projects can't be transferred."), `overview.ts`, mock, `devSlice`.
+  - `HttpWorkflowService` mặc định DRAFT.
+- Không đổi: tab Analytics của admin vẫn chỉ hiện DRAFT/ACTIVE/ARCHIVED (quyết định G28), nay khớp đúng 3 trạng thái.
+- Test: sửa test BE/FE theo luật mới; thêm test BE gửi `COMPLETED`/`PAUSED`/`PLANNING`/`INACTIVE` → 400, Admin chuyển chủ dự án DRAFT/ACTIVE được; FE: dự án ACTIVE không có nút, Admin drawer dự án DRAFT vẫn hiện ô chọn chủ mới. Bỏ test publish từ chối PAUSED (ACTIVE đã có test riêng).
+- Tài liệu: `specs/workflow-engine.md` (mục 5.1 viết lại kèm lý do bỏ từng trạng thái, luật đổi trạng thái, mục quyền làm task), `specs/database-schema.md`, `FRONTEND_BACKEND_INTEGRATION_MAP.md`.
+
+**Kết quả kiểm (lần cuối, sau khi bỏ PAUSED)**
+- `grep` theo tiêu chí: không còn `PLANNING`/`INACTIVE`/`PAUSED` trong code BE và FE (trừ test và chữ `paused` của một CSS animation); `COMPLETED` ở FE chỉ còn của phase.
+- BE `./mvnw test`: 1113 test, 0 lỗi (ít hơn lần trước vì bỏ các ca PAUSED).
+- FE `npm run typecheck` qua. `npx vitest run`: 975/976 qua. Lỗi còn lại không do G34:
+  - `MacroWorkflow.states.test.tsx` (fit 2 lần): có sẵn trên main, đã ghi ở G33.
+  - `TaskDetailModal.test.tsx` "chỉ gửi dueDate khi chỉ đổi hạn chót": test ghi cứng hạn chót `2026-11-20` cho task không có `createdAt`, nên mốc nhỏ nhất là hôm nay; từ 21/11 ngày đó thành quá khứ và nút Save bị khóa. Đã sửa (cùng PR): cho task trong test `createdAt` cố định `2026-11-01`, chạy qua cả giờ máy và giờ UTC.
+- DB dev: Flyway áp dụng V24 rồi V25 thành công. V24 đổi dự án PLANNING duy nhất (id 2) sang DRAFT; V25 không đổi dòng nào (DB dev không có dự án PAUSED). Hiện có ACTIVE 7, ARCHIVED 1, DRAFT 8.
+- API thật (alex.kim, dự án 30 "G33 kiem tra"): gửi `PAUSED` → 400 "Invalid project status: PAUSED"; `COMPLETED` → 400; ACTIVE → ARCHIVED 200; ARCHIVED → ACTIVE 200 (dự án 30 về lại ACTIVE như cũ).
+- Giao diện: chưa mở trình duyệt kiểm (máy không có Playwright); nút theo trạng thái kiểm qua `ProjectStatusControl.test.tsx`. Cần người dùng xem tay màn Workflow.

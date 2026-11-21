@@ -412,7 +412,7 @@ public class GuestGatewayService {
             throw new ForbiddenException("REVOKED_GUEST", "This share link has expired.");
         }
 
-        // G25: khách xem được mọi trạng thái (kể cả DRAFT/PLANNING) trừ dự án đã lưu trữ
+        // G25: khách xem được mọi trạng thái (kể cả DRAFT) trừ dự án đã lưu trữ
         ProjectEntity project = authorizationService.getProjectOrThrow(guestLink.getProjectId());
         if (project.getStatus() == ProjectStatus.ARCHIVED) {
             throw new ForbiddenException("REVOKED_GUEST", "This project has been archived and is no longer shared.");
