@@ -52,7 +52,10 @@ public record GuestOverviewResponse(
     List<GuestPhaseDto> phases,
 
     @Schema(description = "Số thành viên (chủ dự án + thành viên đang hoạt động)", example = "4")
-    int memberCount
+    int memberCount,
+
+    @Schema(description = "Dữ liệu thô cho trang báo cáo khách (null nếu dựng báo cáo lỗi)")
+    GuestReportResponse report
 ) {
     /** status: COMPLETED | IN_PROGRESS | LOCKED | TODO (suy ra từ task, khớp FE phaseProgress). */
     public record GuestPhaseDto(

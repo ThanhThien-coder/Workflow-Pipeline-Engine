@@ -78,7 +78,7 @@ class GuestGatewayControllerTest {
         GuestOverviewResponse response = new GuestOverviewResponse(
             "Test Project", "Phase 1", Instant.now(), 10, 2, 5, 50.0, 0, 1, 10,
             List.of(), List.of(), List.of(), List.of(),
-            List.of(new GuestOverviewResponse.GuestPhaseDto("Phase 1", "IN_PROGRESS", 50, 10, 5)), 3
+            List.of(new GuestOverviewResponse.GuestPhaseDto("Phase 1", "IN_PROGRESS", 50, 10, 5)), 3, null
         );
         when(guestGatewayService.getGuestOverview("valid-token")).thenReturn(response);
 
@@ -89,6 +89,20 @@ class GuestGatewayControllerTest {
             .andExpect(jsonPath("$.memberCount").value(3))
             .andExpect(jsonPath("$.phases[0].name").value("Phase 1"))
             .andExpect(jsonPath("$.phases[0].progressPct").value(50));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/guest/{token}/overview - Trả header Cache-Control: no-store")
+    void testGetGuestOverview_SetsCacheControlNoStore() throws Exception {
+        GuestOverviewResponse response = new GuestOverviewResponse(
+            "Test Project", "Phase 1", Instant.now(), 10, 2, 5, 50.0, 0, 1, 10,
+            List.of(), List.of(), List.of(), List.of(), List.of(), 1, null
+        );
+        when(guestGatewayService.getGuestOverview("valid-token")).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/guest/valid-token/overview"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Cache-Control", "no-store"));
     }
 
     @Test
@@ -177,7 +191,8 @@ class GuestGatewayControllerTest {
             .andExpect(jsonPath("$.content").value("Summary"))
             .andExpect(jsonPath("$.highlights[0]").value("h1"))
             .andExpect(jsonPath("$.risks[0]").value("WPE-1: slow"))
-            .andExpect(jsonPath("$.generatedAt").value("2026-11-19T01:00:00Z"));
+            .andExpect(jsonPath("$.generatedAt").value("2026-11-19T01:00:00Z"))
+            .andExpect(header().string("Cache-Control", "no-store"));
     }
 
     @Test

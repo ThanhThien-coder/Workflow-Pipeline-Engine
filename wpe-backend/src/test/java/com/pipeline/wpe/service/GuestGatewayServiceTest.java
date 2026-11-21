@@ -1,20 +1,31 @@
 package com.pipeline.wpe.service;
 
+import com.pipeline.wpe.common.enums.ArtifactType;
+import com.pipeline.wpe.common.enums.FeedbackStatus;
+import com.pipeline.wpe.common.enums.JoinPolicy;
 import com.pipeline.wpe.common.enums.NodeStatus;
+import com.pipeline.wpe.common.enums.ProjectRole;
 import com.pipeline.wpe.common.enums.ProjectStatus;
+import com.pipeline.wpe.dto.response.graph.DependencyResponse;
+import com.pipeline.wpe.dto.response.graph.PhaseResponse;
+import com.pipeline.wpe.dto.response.graph.WorkflowGraphResponse;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
+import com.pipeline.wpe.dto.response.guest.GuestReportResponse;
 import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
+import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.entity.WorkPhaseEntity;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.repository.ArtifactRepository;
 import com.pipeline.wpe.repository.GuestLinkRepository;
 import com.pipeline.wpe.repository.NodeDependencyRepository;
 import com.pipeline.wpe.entity.NodeDependencyEntity;
 import com.pipeline.wpe.repository.NodeRepository;
+import com.pipeline.wpe.repository.ProjectFeedbackRepository;
 import com.pipeline.wpe.repository.UserRepository;
 import com.pipeline.wpe.repository.WorkPhaseRepository;
 import com.pipeline.wpe.security.CurrentUserProvider;
@@ -28,8 +39,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,6 +81,12 @@ class GuestGatewayServiceTest {
 
     @Mock
     private com.pipeline.wpe.repository.ProjectMemberRepository projectMemberRepository;
+
+    @Mock
+    private ProjectFeedbackRepository projectFeedbackRepository;
+
+    @Mock
+    private WorkflowGraphService workflowGraphService;
 
     @InjectMocks
     private GuestGatewayService guestGatewayService;
@@ -606,5 +626,224 @@ class GuestGatewayServiceTest {
 
         assertThatThrownBy(() -> guestGatewayService.getGuestAiSummary(token))
             .isInstanceOfSatisfying(ForbiddenException.class, e -> assertThat(e.getErrorCode()).isEqualTo("REVOKED_GUEST"));
+    }
+
+    @Test
+    @DisplayName("G1 report: map đầy đủ thông tin node gồm startedAt, completedAt, reopenedAt")
+    void testGetGuestOverview_reportMapsNodeFields() {
+        String token = "example-guest-token-report-nodes";
+        Instant createdAt = Instant.parse("2026-10-03T05:00:00Z");
+        Instant startedAt = Instant.parse("2026-11-09T05:00:00Z");
+        Instant completedAt = Instant.parse("2026-11-12T05:00:00Z");
+        Instant reopenedAt = Instant.parse("2026-11-11T05:00:00Z");
+        Instant dueDate = Instant.parse("2026-11-30T05:00:00Z");
+
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("Report Project").description("Desc")
+            .ownerId(ownerId).status(ProjectStatus.ACTIVE).createdAt(createdAt).build();
+        WorkPhaseEntity phase = WorkPhaseEntity.builder().id(101L).projectId(projectId).name("Analysis").orderIndex(0).build();
+        NodeEntity node = NodeEntity.builder()
+            .id(5007L).projectId(projectId).phaseId(101L).code("WPE-07").title("Sequence diagrams")
+            .description("Borrow flow").status(NodeStatus.DONE).joinPolicy(JoinPolicy.ALL_COMPLETED)
+            .assignedUserId(13L).dueDate(dueDate).estimatedHours(12)
+            .createdAt(createdAt).startedAt(startedAt).completedAt(completedAt).reopenedAt(reopenedAt)
+            .build();
+        NodeDependencyEntity dep = NodeDependencyEntity.builder().projectId(projectId).parentNodeId(5006L).childNodeId(5007L).build();
+        PhaseResponse phaseDto = new PhaseResponse("101", "Analysis", null, "indigo", 0, List.of(), "COMPLETED", 100, 1, 1, Map.of());
+        WorkflowGraphResponse builtGraph = new WorkflowGraphResponse(
+            List.of(phaseDto),
+            List.of(List.of("100", "101")),
+            List.of(),
+            List.of(new DependencyResponse("5006", "5007"))
+        );
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(projectId)).thenReturn(List.of(phase));
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of(node));
+        when(nodeDependencyRepository.findByProjectId(projectId)).thenReturn(List.of(dep));
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList())).thenReturn(builtGraph);
+
+        GuestReportResponse report = guestGatewayService.getGuestOverview(token).report();
+
+        assertThat(report).isNotNull();
+        assertThat(report.graph().phases()).containsExactly(phaseDto);
+        assertThat(report.graph().phaseEdges()).containsExactly(List.of("100", "101"));
+        assertThat(report.graph().dependencies()).containsExactly(new DependencyResponse("5006", "5007"));
+        assertThat(report.graph().nodes()).hasSize(1);
+        GuestReportResponse.GuestNodeDto mapped = report.graph().nodes().get(0);
+        assertThat(mapped.id()).isEqualTo("5007");
+        assertThat(mapped.phaseId()).isEqualTo("101");
+        assertThat(mapped.code()).isEqualTo("WPE-07");
+        assertThat(mapped.title()).isEqualTo("Sequence diagrams");
+        assertThat(mapped.description()).isEqualTo("Borrow flow");
+        assertThat(mapped.status()).isEqualTo("DONE");
+        assertThat(mapped.joinPolicy()).isEqualTo("ALL_COMPLETED");
+        assertThat(mapped.assignedUserId()).isEqualTo("13");
+        assertThat(mapped.dueDate()).isEqualTo(dueDate);
+        assertThat(mapped.estimatedHours()).isEqualTo(12);
+        assertThat(mapped.createdAt()).isEqualTo(createdAt);
+        assertThat(mapped.startedAt()).isEqualTo(startedAt);
+        assertThat(mapped.completedAt()).isEqualTo(completedAt);
+        assertThat(mapped.reopenedAt()).isEqualTo(reopenedAt);
+    }
+
+    @Test
+    @DisplayName("G1 report: tính isOverdue đúng cho quá hạn, DONE, không có hạn và hạn hôm nay theo giờ VN")
+    void testGetGuestOverview_reportIsOverdueFourCases() {
+        String token = "example-guest-token-overdue";
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDate todayVn = LocalDate.now(vnZone);
+        Instant yesterdayVn = todayVn.minusDays(1).atTime(23, 59).atZone(vnZone).toInstant();
+        Instant todayEarlyVn = todayVn.atTime(0, 1).atZone(vnZone).toInstant();
+
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        NodeEntity overdueNode = NodeEntity.builder().id(1L).projectId(projectId).code("T-1").title("Overdue")
+            .status(NodeStatus.IN_PROGRESS).joinPolicy(JoinPolicy.ALL_COMPLETED).dueDate(yesterdayVn).isOverdue(false).build();
+        NodeEntity donePastDue = NodeEntity.builder().id(2L).projectId(projectId).code("T-2").title("Done")
+            .status(NodeStatus.DONE).joinPolicy(JoinPolicy.ALL_COMPLETED).dueDate(yesterdayVn).isOverdue(true).build();
+        NodeEntity noDueDate = NodeEntity.builder().id(3L).projectId(projectId).code("T-3").title("No due")
+            .status(NodeStatus.TODO).joinPolicy(JoinPolicy.ALL_COMPLETED).dueDate(null).isOverdue(true).build();
+        NodeEntity dueToday = NodeEntity.builder().id(4L).projectId(projectId).code("T-4").title("Today")
+            .status(NodeStatus.TODO).joinPolicy(JoinPolicy.ALL_COMPLETED).dueDate(todayEarlyVn).isOverdue(false).build();
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of(overdueNode, donePastDue, noDueDate, dueToday));
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList()))
+            .thenReturn(new WorkflowGraphResponse(List.of(), List.of(), List.of(), List.of()));
+
+        List<GuestReportResponse.GuestNodeDto> nodes = guestGatewayService.getGuestOverview(token).report().graph().nodes();
+
+        assertThat(nodes).extracting(GuestReportResponse.GuestNodeDto::id, GuestReportResponse.GuestNodeDto::isOverdue)
+            .containsExactly(
+                org.assertj.core.groups.Tuple.tuple("1", true),
+                org.assertj.core.groups.Tuple.tuple("2", false),
+                org.assertj.core.groups.Tuple.tuple("3", false),
+                org.assertj.core.groups.Tuple.tuple("4", false)
+            );
+    }
+
+    @Test
+    @DisplayName("G1 report: members gồm owner, thành viên (kể cả VIEWER), người đã rời (FORMER) và không lộ email")
+    void testGetGuestOverview_reportMembersAndNoEmail() {
+        String token = "example-guest-token-members";
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        ProjectMemberEntity activeViewer = ProjectMemberEntity.builder().projectId(projectId).userId(7L).role(ProjectRole.VIEWER).build();
+        ProjectMemberEntity activeManager = ProjectMemberEntity.builder().projectId(projectId).userId(8L).role(ProjectRole.MANAGER).build();
+        NodeEntity formerTask = NodeEntity.builder().id(1L).projectId(projectId).code("T-1").title("Task")
+            .status(NodeStatus.TODO).joinPolicy(JoinPolicy.ALL_COMPLETED).assignedUserId(9L).build();
+
+        UserEntity ownerUser = UserEntity.builder().id(ownerId).username("owner").fullName("An Nguyễn").email("owner@secret.dev").build();
+        UserEntity viewerUser = UserEntity.builder().id(7L).username("viewer_acc").fullName("  ").email("viewer@secret.dev").build();
+        UserEntity managerUser = UserEntity.builder().id(8L).username("mgr").fullName("Bình Trần").email("mgr@secret.dev").build();
+        UserEntity formerUser = UserEntity.builder().id(9L).username("former_acc").fullName("Chi Lê").email("former@secret.dev").build();
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(nodeRepository.findByProjectId(projectId)).thenReturn(List.of(formerTask));
+        when(projectMemberRepository.findByProjectIdAndRemovedAtIsNull(projectId)).thenReturn(List.of(activeViewer, activeManager));
+        when(userRepository.findAllById(any())).thenReturn(List.of(ownerUser, viewerUser, managerUser, formerUser));
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList()))
+            .thenReturn(new WorkflowGraphResponse(List.of(), List.of(), List.of(), List.of()));
+
+        GuestReportResponse report = guestGatewayService.getGuestOverview(token).report();
+
+        assertThat(report.members()).containsExactly(
+            new GuestReportResponse.GuestMemberDto("2", "An Nguyễn", "OWNER"),
+            new GuestReportResponse.GuestMemberDto("7", "viewer_acc", "VIEWER"),
+            new GuestReportResponse.GuestMemberDto("8", "Bình Trần", "MANAGER"),
+            new GuestReportResponse.GuestMemberDto("9", "Chi Lê", "FORMER")
+        );
+        assertThat(report.members().toString()).doesNotContain("secret.dev").doesNotContain("@");
+    }
+
+    @Test
+    @DisplayName("G1 report: bỏ artifact url javascript: và không chứa artifact ẩn")
+    void testGetGuestOverview_reportArtifactsFiltersUnsafeAndHidden() {
+        String token = "example-guest-token-artifacts";
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        Instant created = Instant.parse("2026-11-10T05:00:00Z");
+
+        ArtifactEntity validHttps = ArtifactEntity.builder().id(901L).projectId(projectId).nodeId(5002L)
+            .name("SRS").type(null).url("https://docs.google.com/doc").isPublicForGuest(true).createdAt(created).build();
+        ArtifactEntity validHttpUpper = ArtifactEntity.builder().id(902L).projectId(projectId).nodeId(null)
+            .name("Demo").type(ArtifactType.DOCS).url("HTTP://example.com/demo").isPublicForGuest(true).createdAt(created).build();
+        ArtifactEntity jsUrl = ArtifactEntity.builder().id(903L).projectId(projectId).nodeId(5003L)
+            .name("XSS").type(ArtifactType.OTHER_LINK).url("javascript:alert(1)").isPublicForGuest(true).createdAt(created).build();
+        ArtifactEntity hidden = ArtifactEntity.builder().id(904L).projectId(projectId).nodeId(5004L)
+            .name("Internal").type(ArtifactType.DOCS).url("https://internal.example.com").isPublicForGuest(false).createdAt(created).build();
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(artifactRepository.findByProjectIdAndIsPublicForGuestTrue(projectId))
+            .thenReturn(List.of(validHttps, validHttpUpper, jsUrl, hidden));
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList()))
+            .thenReturn(new WorkflowGraphResponse(List.of(), List.of(), List.of(), List.of()));
+
+        GuestReportResponse report = guestGatewayService.getGuestOverview(token).report();
+
+        assertThat(report.artifacts()).containsExactly(
+            new GuestReportResponse.GuestArtifactDto("901", "SRS", "OTHER_LINK", "https://docs.google.com/doc", "5002", created),
+            new GuestReportResponse.GuestArtifactDto("902", "Demo", "DOCS", "HTTP://example.com/demo", null, created)
+        );
+        verify(artifactRepository, never()).findByProjectId(any());
+    }
+
+    @Test
+    @DisplayName("G1 report: buildGraph ném RuntimeException thì report == null nhưng overview vẫn giữ projectName")
+    void testGetGuestOverview_reportNullWhenBuildGraphThrows() {
+        String token = "example-guest-token-buildgraph-fail";
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("Resilient Project")
+            .ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList()))
+            .thenThrow(new RuntimeException("unexpected graph error"));
+
+        GuestOverviewResponse overview = guestGatewayService.getGuestOverview(token);
+
+        assertThat(overview.projectName()).isEqualTo("Resilient Project");
+        assertThat(overview.report()).isNull();
+    }
+
+    @Test
+    @DisplayName("G1 report: linkExpiresAt lấy đúng từ GuestLinkEntity.expiresAt")
+    void testGetGuestOverview_reportLinkExpiresAt() {
+        String token = "example-guest-token-expiry";
+        Instant expiresAt = Instant.parse("2026-12-20T05:00:00Z");
+        Instant projectCreated = Instant.parse("2026-10-03T05:00:00Z");
+        GuestLinkEntity link = GuestLinkEntity.builder().projectId(projectId).token(token)
+            .isRevoked(false).expiresAt(expiresAt).build();
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("Expiry Project")
+            .description("Summary").ownerId(ownerId).status(ProjectStatus.ACTIVE).createdAt(projectCreated).build();
+
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(link));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList()))
+            .thenReturn(new WorkflowGraphResponse(List.of(), List.of(), List.of(), List.of()));
+
+        GuestReportResponse report = guestGatewayService.getGuestOverview(token).report();
+
+        assertThat(report.serverNow()).isNotNull();
+        assertThat(report.project()).isEqualTo(new GuestReportResponse.GuestProjectDto(
+            "Expiry Project", "Summary", "ACTIVE", projectCreated, expiresAt
+        ));
+    }
+
+    @Test
+    @DisplayName("G1 report: feedback đếm đúng total và resolved")
+    void testGetGuestOverview_reportFeedbackCounts() {
+        String token = "example-guest-token-feedback";
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("P").ownerId(ownerId).status(ProjectStatus.ACTIVE).build();
+        when(guestLinkRepository.findByToken(token)).thenReturn(Optional.of(activeLink(token)));
+        when(authorizationService.getProjectOrThrow(projectId)).thenReturn(project);
+        when(projectFeedbackRepository.countByProjectId(projectId)).thenReturn(4L);
+        when(projectFeedbackRepository.countByProjectIdAndStatus(projectId, FeedbackStatus.RESOLVED)).thenReturn(3L);
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList()))
+            .thenReturn(new WorkflowGraphResponse(List.of(), List.of(), List.of(), List.of()));
+
+        GuestReportResponse report = guestGatewayService.getGuestOverview(token).report();
+
+        assertThat(report.feedback()).isEqualTo(new GuestReportResponse.GuestFeedbackDto(4L, 3L));
     }
 }

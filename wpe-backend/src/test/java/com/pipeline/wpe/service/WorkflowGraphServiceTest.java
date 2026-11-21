@@ -1175,6 +1175,26 @@ class WorkflowGraphServiceTest {
     }
 
     @Test
+    @DisplayName("G1 buildGraph: dựng đồ thị từ dữ liệu đã nạp mà không gọi kiểm quyền")
+    void testBuildGraphDoesNotVerifyAuthorization() {
+        WorkPhaseEntity p1 = WorkPhaseEntity.builder().id(10L).projectId(1L).name("P1").orderIndex(0).build();
+        NodeEntity n1 = NodeEntity.builder()
+            .id(100L).projectId(1L).phaseId(10L).code("WPE-001").title("Task 1")
+            .status(NodeStatus.TODO).joinPolicy(JoinPolicy.ALL_COMPLETED).build();
+        NodeDependencyEntity dep = NodeDependencyEntity.builder()
+            .id(1L).projectId(1L).parentNodeId(100L).childNodeId(101L).build();
+        when(phaseDependencyRepository.findByProjectId(1L)).thenReturn(List.of());
+
+        WorkflowGraphResponse graph = workflowGraphService.buildGraph(1L, List.of(p1), List.of(n1), List.of(dep));
+
+        assertNotNull(graph);
+        assertEquals(1, graph.phases().size());
+        assertEquals(1, graph.nodes().size());
+        assertEquals(1, graph.dependencies().size());
+        verifyNoInteractions(authorizationService, workPhaseRepository, nodeRepository, nodeDependencyRepository);
+    }
+
+    @Test
     @DisplayName("G2 updateNode: đổi hoặc xóa hạn đã qua bị chặn với DUE_DATE_LOCKED")
     void testUpdateNodeRejectsChangingOrClearingPassedDueDate() {
         NodeEntity n = node(100L, "WPE-100", NodeStatus.TODO);
