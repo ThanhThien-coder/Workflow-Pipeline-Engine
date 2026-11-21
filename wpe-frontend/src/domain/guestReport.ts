@@ -538,11 +538,13 @@ export function buildGuestReport(dto: GuestReportDto): GuestReportModel {
           : { label: `Finished ${diff}d late`, tone: 'orange', diff }
     } else if (doneCount === ts.length) {
       // Phase đã DONE hết nhưng thiếu dueDate hoặc completedAt nên không tính được số ngày chênh lệch.
-      verdict = { label: 'Finished on time', tone: 'emerald' }
+      verdict = { label: 'Completed', tone: 'emerald' }
     } else if (overdueN > 0) {
       verdict = { label: `Behind · ${overdueN} overdue`, tone: 'rose' }
     } else if (!hasStarted) {
       verdict = { label: 'Not started', tone: 'slate' }
+    } else if (plannedEnd === null) {
+      verdict = { label: 'In progress', tone: 'blue' }
     } else {
       verdict = { label: 'On track', tone: 'blue' }
     }

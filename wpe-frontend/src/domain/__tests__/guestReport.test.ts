@@ -554,3 +554,85 @@ describe('dự án COMPLETED còn task mở & artifact nodeId null', () => {
     expect(model.artifacts[0].taskCode).toBe('')
   })
 })
+
+describe('verdict 2 ca biên khi thiếu dueDate hoặc completedAt', () => {
+  it('phase mọi task DONE nhưng thiếu plannedEnd (không task nào có dueDate) -> verdict Completed (emerald)', () => {
+    const dto = makeBaseDto({
+      graph: {
+        phases: [{ id: 'p1', name: 'P1', orderIndex: 0 }],
+        phaseEdges: [],
+        nodes: [
+          {
+            id: '1',
+            phaseId: 'p1',
+            code: 'T-1',
+            title: 'Done without due',
+            status: 'DONE',
+            dueDate: null,
+            createdAt: '2026-11-01T05:00:00.000Z',
+            startedAt: '2026-11-02T05:00:00.000Z',
+            completedAt: '2026-11-10T05:00:00.000Z',
+          },
+        ],
+        dependencies: [],
+      },
+    })
+
+    const model = buildGuestReport(dto)
+    expect(model.phases[0].plannedEnd).toBeNull()
+    expect(model.phases[0].verdict).toEqual({ label: 'Completed', tone: 'emerald' })
+  })
+
+  it('phase mọi task DONE nhưng thiếu end (thiếu completedAt) -> verdict Completed (emerald)', () => {
+    const dto = makeBaseDto({
+      graph: {
+        phases: [{ id: 'p1', name: 'P1', orderIndex: 0 }],
+        phaseEdges: [],
+        nodes: [
+          {
+            id: '1',
+            phaseId: 'p1',
+            code: 'T-1',
+            title: 'Done without completedAt',
+            status: 'DONE',
+            dueDate: '2026-11-10T05:00:00.000Z',
+            createdAt: '2026-11-01T05:00:00.000Z',
+            completedAt: null,
+          },
+        ],
+        dependencies: [],
+      },
+    })
+
+    const model = buildGuestReport(dto)
+    expect(model.phases[0].end).toBeNull()
+    expect(model.phases[0].verdict).toEqual({ label: 'Completed', tone: 'emerald' })
+  })
+
+  it('phase đang chạy, không quá hạn và plannedEnd === null -> verdict In progress (blue)', () => {
+    const dto = makeBaseDto({
+      graph: {
+        phases: [{ id: 'p1', name: 'P1', orderIndex: 0 }],
+        phaseEdges: [],
+        nodes: [
+          {
+            id: '1',
+            phaseId: 'p1',
+            code: 'T-1',
+            title: 'Active no due',
+            status: 'IN_PROGRESS',
+            dueDate: null,
+            createdAt: '2026-11-01T05:00:00.000Z',
+            startedAt: '2026-11-10T05:00:00.000Z',
+          },
+        ],
+        dependencies: [],
+      },
+    })
+
+    const model = buildGuestReport(dto)
+    expect(model.phases[0].plannedEnd).toBeNull()
+    expect(model.phases[0].overdue).toBe(0)
+    expect(model.phases[0].verdict).toEqual({ label: 'In progress', tone: 'blue' })
+  })
+})
