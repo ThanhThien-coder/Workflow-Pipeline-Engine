@@ -5,6 +5,7 @@ import {
   NODE_W,
   NODE_H,
   PAD,
+  GAP_Y,
 } from '../../../../lib/graph/treeLayout';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -141,15 +142,23 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
   onAddChild,
   onDeleteNode,
 }) => {
+  // Root của phase (level 0) chỉ giữ trong dữ liệu để neo các Track, không vẽ
+  // (giống canvas workflow của user): Track thành cột đầu tiên, không có dây từ root ra.
+  const rootNode = useMemo(() => nodes.find((n) => n && n.level === 0) ?? null, [nodes]);
+  const visibleNodes = useMemo(
+    () => (nodes || []).filter((n) => n && n.id && n.level !== 0),
+    [nodes]
+  );
+
   // Pure layout calculation - only recomputes when nodes change
   const layout = useMemo(() => {
-    return calculateTreeLayoutWithBounds(nodes);
-  }, [nodes]);
+    return calculateTreeLayoutWithBounds(visibleNodes);
+  }, [visibleNodes]);
 
   // Create child lookup for SVG connecting lines
   const childrenMap = useMemo(() => {
     const map = new Map<string, TemplateNodeDto[]>();
-    for (const n of nodes) {
+    for (const n of visibleNodes) {
       if (n.parentId) {
         if (!map.has(n.parentId)) {
           map.set(n.parentId, []);
@@ -158,10 +167,15 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
       }
     }
     return map;
-  }, [nodes]);
+  }, [visibleNodes]);
 
-  const canvasWidth = Math.max(400, (Number.isFinite(layout.width) ? layout.width : 600) + PAD * 2 + 100);
-  const canvasHeight = Math.max(300, (Number.isFinite(layout.height) ? layout.height : 400) + PAD * 2 + 60);
+  const hasVisible = visibleNodes.length > 0;
+  const layoutW = hasVisible && Number.isFinite(layout.width) ? layout.width : 0;
+  const layoutH = hasVisible && Number.isFinite(layout.height) ? layout.height : 0;
+  // Nút "+ Add Track" nằm ngay dưới cột Track (cột đầu tiên)
+  const addTrackTop = hasVisible ? layoutH + PAD + GAP_Y : PAD;
+  const canvasWidth = Math.max(400, layoutW + PAD * 2 + 100);
+  const canvasHeight = Math.max(300, addTrackTop + NODE_H + PAD);
 
   return (
     <div
@@ -177,7 +191,7 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
         height={canvasHeight}
         className="pointer-events-none absolute left-0 top-0 overflow-visible"
       >
-        {(nodes || []).map((parent) => {
+        {visibleNodes.map((parent) => {
           if (!parent || !parent.id) return null;
           const children = childrenMap.get(parent.id) || [];
           const parentPos = layout.positions.get(parent.id);
@@ -216,8 +230,7 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
       </svg>
 
       {/* Node Cards */}
-      {(nodes || []).map((node) => {
-        if (!node || !node.id) return null;
+      {visibleNodes.map((node) => {
         const pos = layout.positions.get(node.id);
         if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null;
 
@@ -235,6 +248,25 @@ export const TreeGraphView: React.FC<TreeGraphViewProps> = ({
           />
         );
       })}
+
+      {/* Thêm Track: thay cho nút + trên thẻ root đã ẩn */}
+      {rootNode && (
+        <button
+          type="button"
+          onClick={() => onAddChild(rootNode.id)}
+          title="Add track"
+          style={{
+            left: `${PAD}px`,
+            top: `${addTrackTop}px`,
+            width: `${NODE_W}px`,
+            height: `${NODE_H}px`,
+          }}
+          className="absolute flex items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-blue-300 text-xs font-bold text-blue-600 transition hover:border-blue-500 hover:bg-white"
+        >
+          <Plus className="h-3.5 w-3.5 stroke-[3]" />
+          <span>Add Track</span>
+        </button>
+      )}
     </div>
   );
 };
