@@ -6,7 +6,7 @@ import { findMember } from '../../utils/memberLookup'
 import { isUnlockSatisfied, type Prerequisite } from '../../utils/taskPrerequisites'
 import { dueDateError, minDueDateInput } from '../../utils/dueDate'
 import { dueDateLockReason } from '../../utils/dueDateLock'
-import { GRAPH_READ_ONLY_MESSAGE } from '../../store/useWorkflowStore'
+import { selectGraphReadOnlyMessage, useWorkflowStore } from '../../store/useWorkflowStore'
 
 const INPUT =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] text-slate-800 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed disabled:hover:border-slate-200'
@@ -61,6 +61,8 @@ export function NodePropertiesModal({
   onMoveStatus,
   readOnly = false,
 }: NodePropertiesModalProps) {
+  // Lý do chỉ xem: dự án ARCHIVED hay thiếu quyền owner/manager
+  const readOnlyMessage = useWorkflowStore(selectGraphReadOnlyMessage)
   const [title, setTitle] = useState(node.title)
   const memberList = members ?? []
   const currentAssignee = findMember(memberList, node.assignee)
@@ -146,7 +148,7 @@ export function NodePropertiesModal({
 
         {readOnly && (
           <div className="px-5 py-2 text-xs font-medium text-slate-600 bg-slate-50 border-b border-slate-100 shrink-0">
-            {GRAPH_READ_ONLY_MESSAGE}
+            {readOnlyMessage}
           </div>
         )}
 

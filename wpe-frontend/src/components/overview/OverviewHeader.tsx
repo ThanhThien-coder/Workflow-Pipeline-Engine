@@ -14,6 +14,8 @@ interface OverviewHeaderProps {
   aiScanning?: boolean
   aiScanError?: string | null
   onRescan?: () => void
+  /** Dự án ARCHIVED chỉ đọc: khóa chạy AI và tạo/thu hồi link khách (backend trả 409 PROJECT_ARCHIVED). */
+  archived?: boolean
 }
 
 export function OverviewHeader({
@@ -26,6 +28,7 @@ export function OverviewHeader({
   aiScanning,
   aiScanError,
   onRescan,
+  archived = false,
 }: OverviewHeaderProps) {
   const hasAiInsights = aiReport.hasAnalysis !== false && aiReport.insights.length > 0
   return (
@@ -61,7 +64,8 @@ export function OverviewHeader({
             scanning={aiScanning}
             scanError={aiScanError}
             onRescan={onRescan}
-            canRun={project.role === 'OWNER' || project.role === 'MANAGER'}
+            canRun={!archived && (project.role === 'OWNER' || project.role === 'MANAGER')}
+            lockedReason={archived ? "This project is archived. AI scans can't be run." : undefined}
           />
           <GuestAccessPopover
             state={guestAccess}
@@ -69,6 +73,7 @@ export function OverviewHeader({
             onGenerate={onGenerate}
             notify={notify}
             canManage={project.role === 'OWNER'}
+            archived={archived}
           />
         </div>
       </div>

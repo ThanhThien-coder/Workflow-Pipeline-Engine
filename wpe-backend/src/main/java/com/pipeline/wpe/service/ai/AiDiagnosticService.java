@@ -3,9 +3,11 @@ package com.pipeline.wpe.service.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pipeline.wpe.common.enums.FeedbackStatus;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectFeedbackEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectFeedbackRepository;
@@ -70,6 +72,10 @@ public class AiDiagnosticService {
     public Map<String, Object> triggerAiDiagnostics(Long projectId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
         ProjectEntity project = authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId); // chỉ owner/manager được chạy AI (tốn token)
+        // Dự án ARCHIVED là chỉ đọc: không chạy chẩn đoán mới (vẫn xem được kết quả cũ).
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. AI diagnosis can't be run.");
+        }
         Instant previousRequestedAt = project.getAiRequestedAt();
 
         // 1. Giữ chỗ nguyên tử (B3). Postgres lưu tới micro giây: PHẢI cắt now về MICROS,

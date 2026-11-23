@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectProjectStatus } from '../../store/projectInfo'
 import { OverviewHeader } from '../overview/OverviewHeader'
 import { MetricRibbon } from '../overview/MetricRibbon'
 import { WeeklyVelocityCard } from '../overview/WeeklyVelocityCard'
 import { StatusBreakdownCard } from '../overview/StatusBreakdownCard'
 import { FeedbackQueueCard } from '../overview/FeedbackQueueCard'
 import { RecentActivityCard } from '../overview/RecentActivityCard'
+import { DeadlinesCard } from '../overview/DeadlinesCard'
 
 export function OverviewView({ projectId }: { projectId: string }) {
   const loadedProjectId = useWorkflowStore((state) => state.overview.projectId)
@@ -21,6 +23,8 @@ export function OverviewView({ projectId }: { projectId: string }) {
   const aiScanning = useWorkflowStore((state) => state.overview.aiScanning)
   const aiScanError = useWorkflowStore((state) => state.overview.aiScanError)
   const runAiDiagnosis = useWorkflowStore((state) => state.overview.runAiDiagnosis)
+  // Dự án ARCHIVED chỉ đọc: khóa AI, link khách, resolve feedback (backend trả 409 PROJECT_ARCHIVED)
+  const archived = useWorkflowStore((state) => selectProjectStatus(state) === 'ARCHIVED')
 
   useEffect(() => {
     if (status === 'idle' || loadedProjectId !== projectId) {
@@ -65,6 +69,7 @@ export function OverviewView({ projectId }: { projectId: string }) {
         aiScanning={aiScanning}
         aiScanError={aiScanError}
         onRescan={() => void runAiDiagnosis(projectId)}
+        archived={archived}
       />
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-6 pb-16">
         <MetricRibbon metrics={data.metrics} />
@@ -84,9 +89,16 @@ export function OverviewView({ projectId }: { projectId: string }) {
               )}
               <StatusBreakdownCard breakdown={data.statusBreakdown} />
             </section>
+            <div className="mt-6">
+              <DeadlinesCard projectId={projectId} refreshKey={data.project.lastUpdatedAt} />
+            </div>
           </div>
           <aside className="col-span-12 space-y-6 lg:col-span-4">
-            <FeedbackQueueCard items={data.feedbackQueue} onResolve={(item) => void resolveFeedback(item.id, projectId)} />
+            <FeedbackQueueCard
+              items={data.feedbackQueue}
+              onResolve={(item) => void resolveFeedback(item.id, projectId)}
+              canResolve={archived ? false : undefined}
+            />
             <RecentActivityCard items={data.recentActivity} />
           </aside>
         </div>

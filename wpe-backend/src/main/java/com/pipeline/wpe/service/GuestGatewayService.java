@@ -20,6 +20,7 @@ import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ArtifactRepository;
@@ -74,7 +75,7 @@ public class GuestGatewayService {
     @Transactional
     public GuestAccessResponse generateOrRenewGuestToken(Long projectId, Integer expiryDays) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         int resolvedDays = (expiryDays != null && expiryDays > 0) ? expiryDays : 30;
         Instant expiresAt = Instant.now().plus(Duration.ofDays(resolvedDays));
@@ -102,6 +103,13 @@ public class GuestGatewayService {
         return toGuestAccessResponse(guestLink);
     }
 
+    /** Dự án ARCHIVED là chỉ đọc: không tạo, gia hạn hay thu hồi link khách (409 PROJECT_ARCHIVED). */
+    private void ensureNotArchived(ProjectEntity project) {
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. The guest link can't be changed.");
+        }
+    }
+
     /**
      * Thu hồi quyền truy cập công khai của khách đối với dự án.
      * Chỉ OWNER mới có quyền thực hiện.
@@ -109,7 +117,7 @@ public class GuestGatewayService {
     @Transactional
     public GuestAccessResponse revokeGuestToken(Long projectId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         Optional<GuestLinkEntity> existingOpt = guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId);
         if (existingOpt.isPresent()) {
@@ -212,7 +220,7 @@ public class GuestGatewayService {
         GuestReportResponse report = null;
         try {
             report = buildReport(
-                guestLink, project, allPhases, phaseDependencies, nodes, dependencies,
+                guestLink.getExpiresAt(), project, allPhases, phaseDependencies, nodes, dependencies,
                 activeMembers, usersById, publicArtifacts,
                 feedbackTotal, feedbackResolved, now
             );
@@ -241,9 +249,36 @@ public class GuestGatewayService {
         );
     }
 
+    /**
+     * Report cho thành viên dự án (khối Deadlines ở Overview): cùng dữ liệu với report của trang khách,
+     * dựng bằng cùng hàm buildReport. Không cần link khách; linkExpiresAt luôn null.
+     * Quyền: thành viên dự án hoặc chủ dự án (403 nếu không phải thành viên). Xem được cả khi dự án ARCHIVED.
+     */
+    @Transactional(readOnly = true)
+    public GuestReportResponse getMemberReport(Long projectId) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        ProjectEntity project = authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+
+        List<NodeEntity> nodes = nodeRepository.findByProjectId(project.getId());
+        List<NodeDependencyEntity> dependencies = nodeDependencyRepository.findByProjectId(project.getId());
+        List<ArtifactEntity> publicArtifacts = artifactRepository.findByProjectIdAndIsPublicForGuestTrue(project.getId());
+        List<WorkPhaseEntity> allPhases = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(project.getId());
+        List<ProjectMemberEntity> activeMembers = projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId());
+        Map<Long, UserEntity> usersById = loadUsersForOverview(project, activeMembers, nodes);
+        long feedbackTotal = projectFeedbackRepository.countByProjectId(project.getId());
+        long feedbackResolved = projectFeedbackRepository.countByProjectIdAndStatus(project.getId(), FeedbackStatus.RESOLVED);
+        List<PhaseDependencyEntity> phaseDependencies = workflowGraphService.loadPhaseDependencies(project.getId());
+
+        return buildReport(
+            null, project, allPhases, phaseDependencies, nodes, dependencies,
+            activeMembers, usersById, publicArtifacts,
+            feedbackTotal, feedbackResolved, Instant.now()
+        );
+    }
+
     /** Chuyển dữ liệu đã nạp sẵn thành payload report (không gọi repository trực tiếp). */
     private GuestReportResponse buildReport(
-        GuestLinkEntity guestLink,
+        Instant linkExpiresAt,
         ProjectEntity project,
         List<WorkPhaseEntity> allPhases,
         List<PhaseDependencyEntity> phaseDependencies,
@@ -334,7 +369,7 @@ public class GuestGatewayService {
                 project.getDescription(),
                 project.getStatus() != null ? project.getStatus().name() : null,
                 project.getCreatedAt(),
-                guestLink.getExpiresAt()
+                linkExpiresAt
             ),
             new GuestReportResponse.GuestGraphDto(
                 graph.phases(),

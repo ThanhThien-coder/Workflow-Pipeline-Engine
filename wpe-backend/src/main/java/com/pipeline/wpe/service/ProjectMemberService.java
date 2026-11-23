@@ -2,6 +2,7 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.NodeStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.response.project.ProjectMemberHistoryResponse;
 import com.pipeline.wpe.dto.response.project.ProjectMemberResponse;
@@ -10,6 +11,7 @@ import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
@@ -129,12 +131,20 @@ public class ProjectMemberService {
         }).toList();
     }
 
+    /** Dự án ARCHIVED là chỉ đọc: không đổi vai trò hay xóa thành viên (409 PROJECT_ARCHIVED). */
+    private void ensureNotArchived(ProjectEntity project) {
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. Members can't be changed.");
+        }
+    }
+
     /**
      * Cập nhật vai trò thành viên hoặc chuyển quyền sở hữu (Atomic Transaction).
      */
     @Transactional
     public ProjectMemberResponse updateRole(Long projectId, Long targetUserId, ProjectRole newRole, Long currentUserId) {
         ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(project);
 
         ProjectMemberEntity targetMember = projectMemberRepository
                 .findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, targetUserId)
@@ -205,6 +215,7 @@ public class ProjectMemberService {
     @Transactional
     public RemoveMemberResponse removeMember(Long projectId, Long targetUserId, Long currentUserId) {
         ProjectEntity project = projectAuthorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(project);
 
         if (targetUserId.equals(project.getOwnerId())) {
             throw new IllegalArgumentException("CANNOT_REMOVE_OWNER: The project owner can't be removed.");

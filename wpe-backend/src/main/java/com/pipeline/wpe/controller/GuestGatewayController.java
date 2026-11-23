@@ -5,6 +5,7 @@ import com.pipeline.wpe.dto.request.guest.GenerateGuestTokenRequest;
 import com.pipeline.wpe.dto.response.feedback.GuestFeedbackResponse;
 import com.pipeline.wpe.dto.response.guest.GuestAccessResponse;
 import com.pipeline.wpe.dto.response.guest.GuestOverviewResponse;
+import com.pipeline.wpe.dto.response.guest.GuestReportResponse;
 import com.pipeline.wpe.exception.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import com.pipeline.wpe.service.FeedbackQueueService;
@@ -52,6 +53,15 @@ public class GuestGatewayController {
     public ResponseEntity<GuestAccessResponse> getGuestTokenStatus(@PathVariable("id") Long id) {
         GuestAccessResponse response = guestGatewayService.getGuestAccessState(id);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping({"/api/v1/projects/{id}/report", "/api/projects/{id}/report"})
+    @Operation(summary = "7.4 Thành viên xem report dự án (cùng dữ liệu report của trang khách)",
+               description = "Trả GuestReportResponse (task kèm hạn, ngày xong, phụ thuộc, thành viên) để dựng khối Deadlines ở Overview. "
+                   + "Cần đăng nhập và là thành viên dự án (403 nếu không). Không cần link khách; project.linkExpiresAt luôn null.")
+    public ResponseEntity<GuestReportResponse> getMemberReport(@PathVariable("id") Long id) {
+        GuestReportResponse response = guestGatewayService.getMemberReport(id);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(response);
     }
 
     @GetMapping({"/api/v1/guest/{token}/overview", "/api/guest/{token}/overview"})

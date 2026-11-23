@@ -2,6 +2,7 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.InvitationStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.event.InvitationAcceptedEvent;
 import com.pipeline.wpe.dto.event.InvitationCreatedEvent;
@@ -65,6 +66,7 @@ public class ProjectInvitationService {
         if (!project.getOwnerId().equals(currentUserId)) {
             throw new ForbiddenException("ACCESS_DENIED", "Only the project owner can send invitations.");
         }
+        ensureNotArchived(project);
 
         if (request.role() == ProjectRole.OWNER) {
             throw new IllegalArgumentException("You cannot invite someone as OWNER. Use transfer ownership instead.");
@@ -215,6 +217,8 @@ public class ProjectInvitationService {
             throw new ConflictException("INVITATION_EXPIRED", "This invitation has expired.");
         }
 
+        projectRepository.findById(invitation.getProjectId()).ifPresent(this::ensureNotArchived);
+
         // Cập nhật trạng thái Lời mời sang ACCEPTED
         invitation.setStatus(InvitationStatus.ACCEPTED);
         invitation.setRespondedAt(Instant.now());
@@ -317,6 +321,7 @@ public class ProjectInvitationService {
         if (!isInviter && !isOwner && !isAdmin) {
             throw new ForbiddenException("ACCESS_DENIED", "Only the inviter or the project owner can revoke this invitation.");
         }
+        ensureNotArchived(project);
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
             throw new ConflictException("INVITATION_NOT_PENDING", "Only pending invitations can be revoked.");
@@ -326,6 +331,13 @@ public class ProjectInvitationService {
         invitation.setRespondedAt(Instant.now());
         projectInvitationRepository.save(invitation);
         log.info("User id={} revoked invitation id={} in project={}", currentUserId, invitationId, invitation.getProjectId());
+    }
+
+    /** Dự án ARCHIVED là chỉ đọc: không mời, nhận hay thu hồi lời mời (409 PROJECT_ARCHIVED). */
+    private void ensureNotArchived(ProjectEntity project) {
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. Invitations can't be changed.");
+        }
     }
 
     /**

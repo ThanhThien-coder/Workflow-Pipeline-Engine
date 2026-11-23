@@ -11,8 +11,10 @@ export function graphErrorMessage(error: unknown): string {
   if (isApiError(error)) {
     switch (error.code) {
       case 'ACCESS_DENIED':
-      case 'GRAPH_READ_ONLY':
         return `${GRAPH_READ_ONLY_MESSAGE}.`
+      case 'GRAPH_READ_ONLY':
+        // Store đã ghi đúng lý do (thiếu quyền hoặc dự án ARCHIVED)
+        return `${error.message || GRAPH_READ_ONLY_MESSAGE}.`
       case 'PROJECT_ARCHIVED':
         return 'This project is archived. The graph is read-only.'
       case 'NETWORK_ERROR':

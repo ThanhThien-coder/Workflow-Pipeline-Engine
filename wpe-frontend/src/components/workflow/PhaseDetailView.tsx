@@ -1,7 +1,7 @@
 import { ArrowLeft, Link2, Merge } from 'lucide-react'
 import { useMemo, useState, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { GRAPH_READ_ONLY_MESSAGE, selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectCanEditGraph, selectGraphReadOnlyMessage, useWorkflowStore } from '../../store/useWorkflowStore'
 import { MindmapTree } from '../mindmap/MindmapTree'
 import { NodePropertiesModal } from '../mindmap/NodePropertiesModal'
 import { AddGhostModal } from '../mindmap/AddGhostModal'
@@ -57,6 +57,7 @@ export function PhaseDetailView({ projectId, phaseId }: { projectId: string; pha
   )
   // B5: quyền sửa và các thao tác ghi đồ thị qua API (chế độ API thật)
   const canEdit = useWorkflowStore(selectCanEditGraph)
+  const readOnlyMessage = useWorkflowStore(selectGraphReadOnlyMessage)
   const graphWritesUseApi = useWorkflowStore((state) => state.graphWritesUseApi)
   const addRootTaskViaApi = useWorkflowStore((state) => state.addRootTask)
   const attachGhostViaApi = useWorkflowStore((state) => state.attachGhostNode)
@@ -409,7 +410,7 @@ export function PhaseDetailView({ projectId, phaseId }: { projectId: string; pha
                 setGhostAnchorTaskId(selectedNodeId ?? undefined)
                 setIsGhostModalOpen(true)
               }}
-              title={canEdit ? 'Attach Ghost Prerequisite' : GRAPH_READ_ONLY_MESSAGE}
+              title={canEdit ? 'Attach Ghost Prerequisite' : readOnlyMessage}
               aria-label="Add ghost node"
               className="rounded-lg p-1.5 text-indigo-500 transition-colors hover:bg-indigo-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             >

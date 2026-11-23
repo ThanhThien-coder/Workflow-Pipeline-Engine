@@ -212,10 +212,13 @@ describe('Admin Pipeline Template Studio - Full Integration Tests', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByTitle('Add child to Foundation')).toBeDefined();
+          expect(screen.getByTitle('Add track')).toBeDefined();
         },
         { timeout: 3000 }
       );
+      // Root của phase chỉ neo dữ liệu, không vẽ thẻ (giống canvas workflow của user)
+      expect(screen.queryByTitle('Add child to Foundation')).toBeNull();
+      expect(screen.getByTitle('Add child to Track A')).toBeDefined();
     });
 
     it('re-fetches catalog reactively upon wpe_template_updated event and restores template graph 100%', async () => {

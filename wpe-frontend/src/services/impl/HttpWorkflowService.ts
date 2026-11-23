@@ -46,6 +46,7 @@ import type {
 } from '../../types/settings.types'
 import type { AuthCredentialsDto, AuthResponseDto, RegisterUserCommand, UserDto } from '../../types/auth.types'
 import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
+import type { GuestReportDto } from '../../types/guest.types'
 import type { BackendGraphNodeDto, BranchGraphNode, BackendGraphResponse, GhostDependency, MacroPhase, PhaseNode, PhaseTreeData } from '../../types/workflow.types'
 // Kích thước thẻ phase lưu kèm vị trí: đúng kích thước canvas Macro đang vẽ
 import { MACRO_CARD_H as MACRO_PHASE_H, MACRO_CARD_W as MACRO_PHASE_W } from '../../utils/macroLayout'
@@ -425,6 +426,11 @@ export class HttpWorkflowService implements IWorkflowService {
   }
 
   // ───────────────────────── Overview, khách, góp ý (D5) ─────────────────────────
+
+  /** Report dự án cho thành viên: khối Deadlines ở Overview dựng lại bằng buildGuestReport. */
+  async getProjectReport(projectId: string): Promise<GuestReportDto> {
+    return apiRequest<GuestReportDto>('GET', `/projects/${projectId}/report`)
+  }
 
   async getOverviewData(projectId: string): Promise<OverviewData> {
     const [settings, graph, activities, feedbackQueue, aiRaw] = await Promise.all([

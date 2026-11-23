@@ -96,11 +96,17 @@ export function selectCanEditGraph(state: Pick<WorkflowState, 'settings' | 'proj
 }
 
 export const GRAPH_READ_ONLY_MESSAGE = 'Only the project owner or a manager can edit the graph'
+export const GRAPH_ARCHIVED_MESSAGE = 'This project is archived. Restore it to Active in Settings to edit the graph'
+
+/** Lý do đồ thị chỉ xem: dự án ARCHIVED thì báo archived, còn lại là thiếu quyền owner/manager. */
+export function selectGraphReadOnlyMessage(state: Pick<WorkflowState, 'settings' | 'project' | 'currentProjectId'>): string {
+  return currentProjectInfo(state)?.status === 'ARCHIVED' ? GRAPH_ARCHIVED_MESSAGE : GRAPH_READ_ONLY_MESSAGE
+}
 
 /** Lớp chặn cuối ở store: không phải owner/manager thì không gửi request ghi đồ thị nào. */
 function ensureCanEditGraph(state: WorkflowState): void {
   if (!selectCanEditGraph(state)) {
-    throw new ApiError({ status: 403, code: 'GRAPH_READ_ONLY', message: GRAPH_READ_ONLY_MESSAGE })
+    throw new ApiError({ status: 403, code: 'GRAPH_READ_ONLY', message: selectGraphReadOnlyMessage(state) })
   }
 }
 

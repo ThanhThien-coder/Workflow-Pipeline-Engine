@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AdminPortalTab } from '../../../hooks/useAdminPortal';
 import {
@@ -9,6 +9,8 @@ import {
   Workflow,
   Layers,
   ArrowLeft,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 
 import { useRouter } from '../../../router/useRouter';
@@ -32,13 +34,56 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'audit', label: 'Security & Audit Logs', icon: ShieldCheck },
 ];
 
+/** Khóa localStorage riêng cho sidebar admin (sidebar user dùng 'wpe_sidebar_collapsed'). */
+const ADMIN_SIDEBAR_COLLAPSED_KEY = 'wpe_admin_sidebar_collapsed';
+
 export const AdminSidebar: FC<AdminSidebarProps> = ({
   currentTab,
   onTabChange,
 }) => {
   const { navigate } = useRouter();
-  const [isHovered, setIsHovered] = useState(false);
+  // Thu/mở bằng nút như sidebar của user (CurvedCobaltSidebar), nhớ trạng thái bằng key riêng của admin
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(ADMIN_SIDEBAR_COLLAPSED_KEY);
+      return saved !== null ? JSON.parse(saved) === true : false;
+    } catch {
+      return false;
+    }
+  });
+  const isExpanded = !isCollapsed;
   const [hoveredNavId, setHoveredNavId] = useState<string | null>(null);
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(ADMIN_SIDEBAR_COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        // bỏ qua lỗi lưu trữ (chế độ ẩn danh...)
+      }
+      return next;
+    });
+  };
+
+  // Phím tắt Ctrl+B / Cmd+B hoặc '[' (bỏ qua khi đang gõ trong ô nhập)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        toggleSidebar();
+      } else if (e.key === '[' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <>
@@ -46,17 +91,34 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
       <motion.aside
         id="sidebar"
         initial={false}
-        animate={{ width: isHovered ? 260 : 80 }}
+        animate={{ width: isExpanded ? 260 : 80 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => {
-          setIsHovered(false);
-          setHoveredNavId(null);
-        }}
+        onMouseLeave={() => setHoveredNavId(null)}
         className="sticky top-0 z-30 hidden md:flex h-screen shrink-0 select-none flex-col justify-between overflow-visible bg-gradient-to-b from-blue-700 via-blue-600 to-indigo-800 p-3 text-white shadow-2xl shadow-blue-950/25 border-r border-blue-400/20"
         style={{ willChange: 'width' }}
         aria-label="Admin Navigation"
       >
+        {/* Nút mở ở mép phải (chỉ khi đang thu) */}
+        <AnimatePresence>
+          {isCollapsed && (
+            <motion.button
+              key="admin-expand-btn"
+              type="button"
+              initial={{ opacity: 0, scale: 0.4, rotate: -45 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0.4, rotate: -45 }}
+              transition={{ type: 'spring', stiffness: 450, damping: 28 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={toggleSidebar}
+              title="Expand menu (Ctrl+B)"
+              aria-label="Expand menu"
+              className="absolute -right-3.5 top-4 z-30 flex h-7 w-7 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-600 shadow-md transition-transform hover:scale-110 hover:shadow-lg cursor-pointer"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
         {/* Top: Brand Header */}
         <div className="space-y-4">
           <div
@@ -73,7 +135,7 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
             </motion.div>
 
             <AnimatePresence>
-              {isHovered && (
+              {isExpanded && (
                 <motion.div
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -88,6 +150,30 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
                     SUPER ADMIN
                   </span>
                 </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Nút thu lại (chỉ khi đang mở) */}
+            <AnimatePresence>
+              {isExpanded && (
+                <motion.button
+                  key="admin-collapse-btn"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSidebar();
+                  }}
+                  initial={{ opacity: 0, x: -6, scale: 0.9 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -6, scale: 0.9 }}
+                  transition={{ duration: 0.15 }}
+                  whileTap={{ scale: 0.92 }}
+                  title="Collapse menu (Ctrl+B)"
+                  aria-label="Collapse menu"
+                  className="ml-auto shrink-0 rounded-lg p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </motion.button>
               )}
             </AnimatePresence>
           </div>
@@ -138,7 +224,7 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
 
                     {/* Label */}
                     <AnimatePresence>
-                      {isHovered && (
+                      {isExpanded && (
                         <motion.span
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
@@ -155,7 +241,7 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
                   </motion.button>
 
                   {/* Floating Tooltip when Collapsed */}
-                  {!isHovered && hoveredNavId === item.id && (
+                  {isCollapsed && hoveredNavId === item.id && (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9, x: 10 }}
                       animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -185,7 +271,7 @@ export const AdminSidebar: FC<AdminSidebarProps> = ({
           >
             <ArrowLeft size={16} />
             <AnimatePresence>
-              {isHovered && (
+              {isExpanded && (
                 <motion.span
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}

@@ -10,6 +10,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectProjectStatus } from '../../store/projectInfo'
 import { useProjectArtifacts } from '../../hooks/useProjectArtifacts'
 import { useRouter } from '../../router/useRouter'
 import type { ProjectArtifact } from '../../types/artifact.types'
@@ -18,6 +19,8 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   const { artifacts, status, error, removeArtifact, openDrawer, loadArtifacts } = useProjectArtifacts(projectId)
   const setActiveTab = useWorkflowStore((state) => state.setActiveTab)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
+  // Dự án ARCHIVED chỉ đọc: ẩn nút xóa (backend trả 409 PROJECT_ARCHIVED)
+  const archived = useWorkflowStore((state) => selectProjectStatus(state) === 'ARCHIVED')
   const { navigate } = useRouter()
 
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -188,16 +191,18 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
                         <ExternalLink size={14} />
                       </a>
 
-                      {/* Remove */}
-                      <button
-                        type="button"
-                        onClick={(e) => openRemoveModal(res, e)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-red-600 shadow-2xs transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                        title="Remove resource"
-                      >
-                        <Trash2 size={13} />
-                        <span className="hidden sm:inline">Remove</span>
-                      </button>
+                      {/* Remove (khóa khi dự án ARCHIVED) */}
+                      {!archived && (
+                        <button
+                          type="button"
+                          onClick={(e) => openRemoveModal(res, e)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-red-600 shadow-2xs transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                          title="Remove resource"
+                        >
+                          <Trash2 size={13} />
+                          <span className="hidden sm:inline">Remove</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </li>

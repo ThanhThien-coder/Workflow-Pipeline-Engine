@@ -13,7 +13,7 @@ import { ZoomControls } from './ZoomControls'
 import { useConnectDrag } from '../../hooks/useConnectDrag'
 import { AddNodeToolbar } from './AddNodeToolbar'
 import { TaskNodeItem } from './TaskNodeItem'
-import { GRAPH_READ_ONLY_MESSAGE } from '../../store/useWorkflowStore'
+import { selectGraphReadOnlyMessage } from '../../store/useWorkflowStore'
 
 /**
  * Tìm cạnh mới mà một lần kéo-nối vừa thêm: so cây trước và sau, node nào có thêm cha.
@@ -153,6 +153,8 @@ export function MindmapTree({
   // Làm nổi task từ kết quả tìm kiếm: zoom tới node (≤ 100%), viền sáng ~2 giây, rồi xóa highlightNodeId
   const highlightNodeId = useWorkflowStore((state) => state.ui.highlightNodeId)
   const setHighlightNodeId = useWorkflowStore((state) => state.ui.setHighlightNodeId)
+  // Lý do chỉ xem: dự án ARCHIVED hay thiếu quyền owner/manager
+  const readOnlyMessage = useWorkflowStore(selectGraphReadOnlyMessage)
   const [litNodeId, setLitNodeId] = useState<string | null>(null)
   const litTimer = useRef<number | null>(null)
   useEffect(() => {
@@ -571,7 +573,7 @@ export function MindmapTree({
       )}
 
       <AddNodeToolbar
-        disabledReason={readOnly ? GRAPH_READ_ONLY_MESSAGE : undefined}
+        disabledReason={readOnly ? readOnlyMessage : undefined}
         hint={readOnly ? undefined : 'Drag ● to link tasks · Shift+click to select several'}
         onAddTrack={onAddRootTask || addTrack}
         onAddGhost={(pos) =>
