@@ -13,6 +13,8 @@ export interface AiDiagnosisPopoverProps {
   onRescan?: () => void
   /** false: người xem không được chạy AI (chỉ owner/manager); nút chạy bị tắt kèm câu giải thích. */
   canRun?: boolean
+  /** Câu giải thích khi canRun=false (mặc định: chỉ owner/manager được chạy). */
+  lockedReason?: string
 }
 
 export const AI_RUN_OWNER_MANAGER_ONLY = 'Only the project owner or a manager can run an AI scan.'
@@ -91,6 +93,7 @@ export function AiDiagnosisPopover({
   scanError = null,
   onRescan,
   canRun = true,
+  lockedReason = AI_RUN_OWNER_MANAGER_ONLY,
 }: AiDiagnosisPopoverProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -231,14 +234,14 @@ export function AiDiagnosisPopover({
                 {scanning
                   ? 'Analysis in progress, this can take up to ~3 minutes on a slow network.'
                   : !canRun
-                    ? AI_RUN_OWNER_MANAGER_ONLY
+                    ? lockedReason
                     : 'Automated diagnosis evaluated against DAG topology and state machine transitions across all project nodes.'}
               </p>
               <button
                 type="button"
                 onClick={onRescan}
                 disabled={!onRescan || scanning || !canRun}
-                title={!canRun ? AI_RUN_OWNER_MANAGER_ONLY : undefined}
+                title={!canRun ? lockedReason : undefined}
                 className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-xs font-semibold text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 disabled:opacity-70"
               >
                 <RefreshCw size={14} className={scanning ? 'spin-360' : ''} />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Plus, LayoutGrid, AlertTriangle } from 'lucide-react'
-import { GRAPH_READ_ONLY_MESSAGE, selectCanEditGraph, useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectCanEditGraph, selectGraphReadOnlyMessage, useWorkflowStore } from '../../store/useWorkflowStore'
 import type { MacroPhase } from '../../types/workflow.types'
 import { KahnCycleModal } from '../settings/KahnCycleModal'
 import { useGraphErrorHandler } from './useGraphErrorHandler'
@@ -40,6 +40,8 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
   const selectPhase = useWorkflowStore((state) => state.selectPhase)
   // B5: không phải owner (hoặc dự án ARCHIVED) thì canvas chỉ xem
   const canEdit = useWorkflowStore(selectCanEditGraph)
+  // Lý do chỉ xem: dự án ARCHIVED hay thiếu quyền owner/manager
+  const readOnlyMessage = useWorkflowStore(selectGraphReadOnlyMessage)
   const { handleError, cycleNodes, closeCycleModal } = useGraphErrorHandler()
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -244,7 +246,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
           <p className="text-xs text-slate-400 mt-0.5">
             {canEdit
               ? 'Macro Pipeline · Drag cards to reposition, scroll to zoom, connect from (+)'
-              : `Macro Pipeline · Read-only (${GRAPH_READ_ONLY_MESSAGE}) · Drag the canvas to pan, scroll to zoom`}
+              : `Macro Pipeline · Read-only (${readOnlyMessage}) · Drag the canvas to pan, scroll to zoom`}
           </p>
         </div>
 
@@ -261,7 +263,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
             disabled={!canEdit}
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-indigo-600 disabled:active:scale-100"
-            title={canEdit ? 'Add new phase to pipeline' : GRAPH_READ_ONLY_MESSAGE}
+            title={canEdit ? 'Add new phase to pipeline' : readOnlyMessage}
           >
             <Plus size={14} /> Add Phase
           </button>
@@ -272,7 +274,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
             disabled={!canEdit}
             onClick={handleAutoLayout}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
-            title={canEdit ? 'Auto-layout phases into a clean DAG' : GRAPH_READ_ONLY_MESSAGE}
+            title={canEdit ? 'Auto-layout phases into a clean DAG' : readOnlyMessage}
           >
             <LayoutGrid size={13} className="text-slate-500" /> Auto Layout
           </button>
@@ -345,7 +347,7 @@ export function MacroWorkflow({ projectId = '1', className = '' }: { projectId?:
                 if (target) setPhaseToDelete(target)
               }}
               readOnly={!canEdit}
-              readOnlyTitle={GRAPH_READ_ONLY_MESSAGE}
+              readOnlyTitle={readOnlyMessage}
               onRenameError={handleError}
               onHoverChange={(hovered) =>
                 setHoveredPhaseId((current) => (hovered ? phase.id : current === phase.id ? null : current))

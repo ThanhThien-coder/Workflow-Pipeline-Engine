@@ -57,6 +57,8 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
   const updateArtifact = useWorkflowStore((state) => state.artifacts.updateArtifact)
   const canManageGuestVisibility = useWorkflowStore(selectCanEditGraph)
   const myRole = useWorkflowStore((state) => currentProjectInfo(state)?.myRole ?? null)
+  // Dự án ARCHIVED chỉ đọc: không thêm, sửa, xóa artifact (backend trả 409 PROJECT_ARCHIVED)
+  const isArchived = useWorkflowStore((state) => currentProjectInfo(state)?.status === 'ARCHIVED')
   const currentUserId = useWorkflowStore((state) => state.auth.currentUser?.id ?? null)
   const showToast = useWorkflowStore((state) => state.ui.showToast)
 
@@ -287,6 +289,14 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
 
             {/* Tầng 2: Form Thêm Link (Không co, không giãn) */}
             <section className="flex-shrink-0 p-3 bg-gradient-to-b from-mp-n-50/80 to-white border-b border-mp-n-200/80">
+              {isArchived ? (
+                <div
+                  data-testid="artifacts-archived-note"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-600"
+                >
+                  This project is archived. Deliverables are read-only.
+                </div>
+              ) : (
               <form
                 onSubmit={handleAddLink}
                 className="space-y-2"
@@ -346,6 +356,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   )}
                 </button>
               </form>
+              )}
             </section>
 
             {/* Ô tìm deliverables (chỉ hiện khi đã có link) */}
@@ -421,7 +432,7 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                   const isCopied = copiedId === artifact.id
                   const isPublicForGuest = artifact.isPublicForGuest !== false
                   const isToggling = togglingIds.has(String(artifact.id))
-                  const canEdit = canEditArtifact(myRole, currentUserId, artifact)
+                  const canEdit = !isArchived && canEditArtifact(myRole, currentUserId, artifact)
                   const label = artifact.name || artifact.title
 
                   if (editingId === String(artifact.id)) {
@@ -583,16 +594,18 @@ export const WorkflowArtifactsDrawer: React.FC<WorkflowArtifactsDrawerProps> = (
                           </button>
                         )}
 
-                        {/* Remove */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLink(artifact)}
-                          className="p-1.5 rounded-lg text-mp-n-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
-                          title="Remove artifact"
-                          aria-label={`Remove ${artifact.name || artifact.title}`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {/* Remove (khóa khi dự án ARCHIVED) */}
+                        {!isArchived && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLink(artifact)}
+                            className="p-1.5 rounded-lg text-mp-n-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                            title="Remove artifact"
+                            aria-label={`Remove ${artifact.name || artifact.title}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   )

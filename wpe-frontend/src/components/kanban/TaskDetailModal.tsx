@@ -127,9 +127,10 @@ export function TaskDetailModal({
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [showRejectModal])
 
-  const canReview = actor.projectRole === 'OWNER' || actor.projectRole === 'MANAGER'
-  // Dự án chưa chạy (không ACTIVE): Cộng tác viên chỉ xem task (backend trả 409 PROJECT_NOT_ACTIVE)
+  // Dự án chưa chạy (không ACTIVE): Cộng tác viên chỉ xem task (backend trả 409 PROJECT_NOT_ACTIVE).
+  // Dự án ARCHIVED: mọi người chỉ xem, kể cả owner/manager (không duyệt, giao việc, mở lại task).
   const projectStatus = useWorkflowStore(selectProjectStatus)
+  const canReview = projectStatus !== 'ARCHIVED' && (actor.projectRole === 'OWNER' || actor.projectRole === 'MANAGER')
   const workLocked = isMemberWorkLocked(projectStatus, actor.projectRole)
   const assignee = members.find((member) => member.id === task.assignedUserId) || actor
   const assigneeAvatar = assignee.avatarUrl || getSavedAvatar(assignee.name || assignee.id)

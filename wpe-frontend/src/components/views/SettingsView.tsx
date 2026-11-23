@@ -126,6 +126,7 @@ export function SettingsView({ projectId = '1' }: SettingsViewProps) {
           onPromptDemote={setMemberPendingDemote}
           onPromptKick={setMemberPendingKick}
           onRevokeInvitation={revokeInvitation}
+          archived={isArchived}
         />
 
         <RolesPermissionsSection myRole={effectiveRole} />

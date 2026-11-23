@@ -19,6 +19,8 @@ interface WorkspaceMembersSectionProps {
   onPromptDemote: (member: ProjectMemberDetail) => void
   onPromptKick: (member: ProjectMemberDetail) => void
   onRevokeInvitation?: (invitationId: string) => void
+  /** Dự án ARCHIVED chỉ đọc: ẩn mời, đổi vai trò, xóa thành viên, thu hồi lời mời. */
+  archived?: boolean
 }
 
 const ROLE_BADGE: Record<string, string> = {
@@ -50,8 +52,10 @@ export function WorkspaceMembersSection({
   onPromptDemote,
   onPromptKick,
   onRevokeInvitation,
+  archived = false,
 }: WorkspaceMembersSectionProps) {
-  const isOwner = simulatedRole === 'OWNER'
+  // Chỉ chủ dự án quản lý thành viên, và dự án không ARCHIVED (backend trả 409 PROJECT_ARCHIVED)
+  const isOwner = simulatedRole === 'OWNER' && !archived
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
 
   const handleRoleSelect = (member: ProjectMemberDetail, targetRole: ProjectRole) => {

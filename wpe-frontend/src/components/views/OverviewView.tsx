@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useWorkflowStore } from '../../store/useWorkflowStore'
+import { selectProjectStatus } from '../../store/projectInfo'
 import { OverviewHeader } from '../overview/OverviewHeader'
 import { MetricRibbon } from '../overview/MetricRibbon'
 import { WeeklyVelocityCard } from '../overview/WeeklyVelocityCard'
@@ -22,6 +23,8 @@ export function OverviewView({ projectId }: { projectId: string }) {
   const aiScanError = useWorkflowStore((state) => state.overview.aiScanError)
   const runAiDiagnosis = useWorkflowStore((state) => state.overview.runAiDiagnosis)
 
+  // Dự án ARCHIVED chỉ đọc: khóa AI, link khách, resolve feedback (backend trả 409 PROJECT_ARCHIVED)
+  const archived = useWorkflowStore((state) => selectProjectStatus(state) === 'ARCHIVED')
   useEffect(() => {
     if (status === 'idle' || loadedProjectId !== projectId) {
       void load(projectId)
@@ -66,6 +69,7 @@ export function OverviewView({ projectId }: { projectId: string }) {
         aiScanError={aiScanError}
         onRescan={() => void runAiDiagnosis(projectId)}
       />
+        archived={archived}
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-6 pb-16">
         <MetricRibbon metrics={data.metrics} />
         <div className="grid grid-cols-12 gap-6">
@@ -86,7 +90,11 @@ export function OverviewView({ projectId }: { projectId: string }) {
             </section>
           </div>
           <aside className="col-span-12 space-y-6 lg:col-span-4">
-            <FeedbackQueueCard items={data.feedbackQueue} onResolve={(item) => void resolveFeedback(item.id, projectId)} />
+            <FeedbackQueueCard
+              items={data.feedbackQueue}
+              onResolve={(item) => void resolveFeedback(item.id, projectId)}
+              canResolve={archived ? false : undefined}
+            />
             <RecentActivityCard items={data.recentActivity} />
           </aside>
         </div>
