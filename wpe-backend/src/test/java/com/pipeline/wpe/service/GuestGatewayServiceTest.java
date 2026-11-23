@@ -852,6 +852,52 @@ class GuestGatewayServiceTest {
     }
 
     @Test
+    @DisplayName("Report cho thành viên: kiểm quyền thành viên, dùng chung buildReport, linkExpiresAt null")
+    void testGetMemberReport_memberGetsReportWithoutLink() {
+        Instant projectCreated = Instant.parse("2026-10-03T05:00:00Z");
+        ProjectEntity project = ProjectEntity.builder().id(projectId).name("Member Project")
+            .description("Summary").ownerId(ownerId).status(ProjectStatus.ARCHIVED).createdAt(projectCreated).build();
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, ownerId)).thenReturn(project);
+        when(workflowGraphService.buildGraph(eq(projectId), anyList(), anyList(), anyList(), anyList()))
+            .thenReturn(new WorkflowGraphResponse(List.of(), List.of(), List.of(), List.of()));
+
+        GuestReportResponse report = guestGatewayService.getMemberReport(projectId);
+
+        assertThat(report.serverNow()).isNotNull();
+        assertThat(report.project()).isEqualTo(new GuestReportResponse.GuestProjectDto(
+            "Member Project", "Summary", "ARCHIVED", projectCreated, null
+        ));
+        verify(guestLinkRepository, never()).findByToken(any());
+    }
+
+    @Test
+    @DisplayName("Report cho thành viên: không phải thành viên → 403 từ verifyProjectMemberOrOwner")
+    void testGetMemberReport_nonMemberForbidden() {
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(99L);
+        when(authorizationService.verifyProjectMemberOrOwner(projectId, 99L))
+            .thenThrow(new ForbiddenException("ACCESS_DENIED", "You are not a member of this project."));
+
+        assertThatThrownBy(() -> guestGatewayService.getMemberReport(projectId))
+            .isInstanceOf(ForbiddenException.class);
+        verify(workflowGraphService, never()).buildGraph(any(), anyList(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    @DisplayName("Dự án ARCHIVED: tạo hoặc thu hồi link khách → 409 PROJECT_ARCHIVED, không ghi")
+    void testGuestToken_archivedConflict() {
+        ProjectEntity archived = ProjectEntity.builder().id(projectId).ownerId(ownerId).status(ProjectStatus.ARCHIVED).build();
+        when(currentUserProvider.requireCurrentUserId()).thenReturn(ownerId);
+        when(authorizationService.verifyProjectOwner(projectId, ownerId)).thenReturn(archived);
+
+        assertThatThrownBy(() -> guestGatewayService.generateOrRenewGuestToken(projectId, 30))
+            .isInstanceOf(com.pipeline.wpe.exception.ConflictException.class);
+        assertThatThrownBy(() -> guestGatewayService.revokeGuestToken(projectId))
+            .isInstanceOf(com.pipeline.wpe.exception.ConflictException.class);
+        verify(guestLinkRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("G1 report: feedback đếm đúng total và resolved")
     void testGetGuestOverview_reportFeedbackCounts() {
         String token = "example-guest-token-feedback";

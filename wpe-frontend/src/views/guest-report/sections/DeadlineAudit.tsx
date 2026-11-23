@@ -23,7 +23,8 @@ const LIMIT = 4
 export interface DeadlineAuditProps {
   model: GuestReportModel
   onGraph: (taskId: string) => void
-  onComment: (taskId: string) => void
+  /** Không truyền thì ẩn nút Comment (Overview của thành viên không có góp ý kiểu khách). */
+  onComment?: (taskId: string) => void
 }
 
 export function DeadlineAudit({ model, onGraph, onComment }: DeadlineAuditProps) {
@@ -108,13 +109,15 @@ export function DeadlineAudit({ model, onGraph, onComment }: DeadlineAuditProps)
             >
               Graph
             </button>
-            <button
-              type="button"
-              onClick={() => onComment(it.task.id)}
-              className="text-slate-700 hover:underline"
-            >
-              Comment
-            </button>
+            {onComment && (
+              <button
+                type="button"
+                onClick={() => onComment(it.task.id)}
+                className="text-slate-700 hover:underline"
+              >
+                Comment
+              </button>
+            )}
           </span>
         </div>
       </div>

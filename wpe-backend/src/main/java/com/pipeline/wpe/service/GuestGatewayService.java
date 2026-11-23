@@ -220,7 +220,7 @@ public class GuestGatewayService {
         GuestReportResponse report = null;
         try {
             report = buildReport(
-                guestLink, project, allPhases, phaseDependencies, nodes, dependencies,
+                guestLink.getExpiresAt(), project, allPhases, phaseDependencies, nodes, dependencies,
                 activeMembers, usersById, publicArtifacts,
                 feedbackTotal, feedbackResolved, now
             );
@@ -249,9 +249,36 @@ public class GuestGatewayService {
         );
     }
 
+    /**
+     * Report cho thành viên dự án (khối Deadlines ở Overview): cùng dữ liệu với report của trang khách,
+     * dựng bằng cùng hàm buildReport. Không cần link khách; linkExpiresAt luôn null.
+     * Quyền: thành viên dự án hoặc chủ dự án (403 nếu không phải thành viên). Xem được cả khi dự án ARCHIVED.
+     */
+    @Transactional(readOnly = true)
+    public GuestReportResponse getMemberReport(Long projectId) {
+        Long currentUserId = currentUserProvider.requireCurrentUserId();
+        ProjectEntity project = authorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+
+        List<NodeEntity> nodes = nodeRepository.findByProjectId(project.getId());
+        List<NodeDependencyEntity> dependencies = nodeDependencyRepository.findByProjectId(project.getId());
+        List<ArtifactEntity> publicArtifacts = artifactRepository.findByProjectIdAndIsPublicForGuestTrue(project.getId());
+        List<WorkPhaseEntity> allPhases = workPhaseRepository.findByProjectIdOrderByOrderIndexAsc(project.getId());
+        List<ProjectMemberEntity> activeMembers = projectMemberRepository.findByProjectIdAndRemovedAtIsNull(project.getId());
+        Map<Long, UserEntity> usersById = loadUsersForOverview(project, activeMembers, nodes);
+        long feedbackTotal = projectFeedbackRepository.countByProjectId(project.getId());
+        long feedbackResolved = projectFeedbackRepository.countByProjectIdAndStatus(project.getId(), FeedbackStatus.RESOLVED);
+        List<PhaseDependencyEntity> phaseDependencies = workflowGraphService.loadPhaseDependencies(project.getId());
+
+        return buildReport(
+            null, project, allPhases, phaseDependencies, nodes, dependencies,
+            activeMembers, usersById, publicArtifacts,
+            feedbackTotal, feedbackResolved, Instant.now()
+        );
+    }
+
     /** Chuyển dữ liệu đã nạp sẵn thành payload report (không gọi repository trực tiếp). */
     private GuestReportResponse buildReport(
-        GuestLinkEntity guestLink,
+        Instant linkExpiresAt,
         ProjectEntity project,
         List<WorkPhaseEntity> allPhases,
         List<PhaseDependencyEntity> phaseDependencies,
@@ -342,7 +369,7 @@ public class GuestGatewayService {
                 project.getDescription(),
                 project.getStatus() != null ? project.getStatus().name() : null,
                 project.getCreatedAt(),
-                guestLink.getExpiresAt()
+                linkExpiresAt
             ),
             new GuestReportResponse.GuestGraphDto(
                 graph.phases(),

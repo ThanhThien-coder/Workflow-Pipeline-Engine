@@ -1,5 +1,6 @@
 import type { MacroPhase, PhaseTreeData, PhaseNode, GhostDependency, BranchGraphNode } from '../../types/workflow.types'
 import type { AiDiagnosticReport, GuestAccessState, OverviewData } from '../../types/overview.types'
+import type { GuestReportDto } from '../../types/guest.types'
 import type { ArtifactItem, KanbanTask, ReopenImpact, SubmitArtifactDto, TaskStatus, UserSummary } from '../../types/kanban.types'
 import type {
   ProjectSettingsDto,
@@ -91,6 +92,8 @@ export interface IWorkflowService {
   deletePhase(phaseId: string, projectId?: string): Promise<void>
   updatePhasePosition?(phaseId: string, pos: { x: number; y: number }, projectId?: string): Promise<void>
   getOverviewData(projectId: string): Promise<OverviewData>
+  /** Report dự án cho thành viên (GET /projects/{id}/report), cùng dạng report của trang khách. Chế độ mock không có. */
+  getProjectReport?(projectId: string): Promise<GuestReportDto>
   resolveFeedback(projectId: string, feedbackId: string): Promise<void>
   toggleGuestAccess(projectId: string, active: boolean): Promise<GuestAccessState>
   generateGuestToken(projectId: string): Promise<GuestAccessState>
