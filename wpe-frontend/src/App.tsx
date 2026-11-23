@@ -1,14 +1,15 @@
 import { useEffect, useState, useCallback, lazy, Suspense, type FC } from 'react'
-import { LandingView } from './components/landing/LandingView'
 import { AuthView } from './components/auth/AuthView'
-import { ResetPasswordView } from './components/auth/ResetPasswordView'
-import { WorkspaceView } from './components/workspace/WorkspaceView'
-import { ProjectWorkspaceView } from './views/ProjectWorkspaceView'
-import GuestRouteGate from './views/guest-report/GuestRouteGate' // NEW
-import { AdminPortalView } from './features/admin/AdminPortalView'
-import ProfileView from './views/ProfileView'
-import PublicProfileView from './views/PublicProfileView'
-import NotificationsView from './views/NotificationsView'
+// Tải từng màn khi cần (tách file JS) để lần đầu mở trang không phải tải cả ứng dụng 1,2 MB.
+const LandingView = lazy(() => import('./components/landing/LandingView').then((m) => ({ default: m.LandingView })))
+const ResetPasswordView = lazy(() => import('./components/auth/ResetPasswordView').then((m) => ({ default: m.ResetPasswordView })))
+const WorkspaceView = lazy(() => import('./components/workspace/WorkspaceView').then((m) => ({ default: m.WorkspaceView })))
+const ProjectWorkspaceView = lazy(() => import('./views/ProjectWorkspaceView').then((m) => ({ default: m.ProjectWorkspaceView })))
+const GuestRouteGate = lazy(() => import('./views/guest-report/GuestRouteGate'))
+const AdminPortalView = lazy(() => import('./features/admin/AdminPortalView').then((m) => ({ default: m.AdminPortalView })))
+const ProfileView = lazy(() => import('./views/ProfileView'))
+const PublicProfileView = lazy(() => import('./views/PublicProfileView'))
+const NotificationsView = lazy(() => import('./views/NotificationsView'))
 import { ToastHost } from './components/common/ToastHost'
 import { ProjectInviteAcceptModal } from './components/workspace/ProjectInviteAcceptModal'
 import { useWorkflowStore, type NavigationTab } from './store/useWorkflowStore'
@@ -174,7 +175,7 @@ export default function App() {
 
   return (
     <>
-      {renderScreen()}
+      <Suspense fallback={null}>{renderScreen()}</Suspense>
 
       {/* Global Project Invitation Acceptance Modal via Deep-Link */}
       <ProjectInviteAcceptModal
