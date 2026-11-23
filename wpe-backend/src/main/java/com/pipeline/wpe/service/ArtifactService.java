@@ -2,6 +2,7 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.ArtifactType;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.common.enums.SystemRole;
 import com.pipeline.wpe.dto.artifact.ArtifactResponse;
 import com.pipeline.wpe.dto.artifact.CreateArtifactRequest;
@@ -10,6 +11,7 @@ import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
 import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ArtifactRepository;
@@ -112,6 +114,7 @@ public class ArtifactService {
         }
         boolean isUploader = currentUserId.equals(artifact.getUploadedBy());
         ProjectEntity project = projectAuthorizationService.getProjectOrThrow(projectId);
+        ensureNotArchived(project);
         boolean isOwner = project.getOwnerId().equals(currentUserId);
 
         boolean isProjectOwnerMember = projectMemberRepository.findByProjectIdAndUserIdAndRemovedAtIsNull(projectId, currentUserId)
@@ -192,7 +195,7 @@ public class ArtifactService {
     @Transactional
     public ArtifactResponse toggleGuestVisibility(Long projectId, Long artifactId, boolean visible, Long currentUserId) {
         // Chỉ owner hoặc manager được ẩn hiện minh chứng với khách (collaborator thì không).
-        projectAuthorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
+        ensureNotArchived(projectAuthorizationService.verifyProjectOwnerOrManager(projectId, currentUserId));
 
         ArtifactEntity artifact = findArtifactInProject(projectId, artifactId);
 
@@ -224,6 +227,7 @@ public class ArtifactService {
             throw new ForbiddenException("ACCESS_DENIED", "Please sign in to change the artifact repository.");
         }
         ProjectEntity project = projectAuthorizationService.verifyProjectMemberOrOwner(projectId, currentUserId);
+        ensureNotArchived(project);
         if (project != null && currentUserId.equals(project.getOwnerId())) {
             return;
         }
@@ -234,6 +238,15 @@ public class ArtifactService {
                 .orElse(false);
         if (!canWrite) {
             throw new ForbiddenException("ACCESS_DENIED", "Viewers can view artifacts but cannot add or edit them.");
+        }
+    }
+
+    /**
+     * Dự án ARCHIVED là chỉ đọc (workflow-engine.md 5.1): thêm, sửa, xóa, ẩn hiện artifact đều trả 409 PROJECT_ARCHIVED.
+     */
+    private void ensureNotArchived(ProjectEntity project) {
+        if (project != null && project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. Artifacts can't be changed.");
         }
     }
 

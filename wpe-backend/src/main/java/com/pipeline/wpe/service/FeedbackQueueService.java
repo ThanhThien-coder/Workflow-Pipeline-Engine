@@ -2,6 +2,7 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.FeedbackStatus;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.event.NotificationEvent;
 import com.pipeline.wpe.dto.request.feedback.CreateGuestFeedbackRequest;
 import com.pipeline.wpe.dto.response.feedback.GuestFeedbackResponse;
@@ -11,6 +12,7 @@ import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectFeedbackEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.CooldownActiveException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.NodeRepository;
@@ -183,7 +185,11 @@ public class FeedbackQueueService {
     @Transactional
     public ResolveFeedbackResponse resolveFeedback(Long projectId, Long feedbackId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
+        ProjectEntity project = authorizationService.verifyProjectOwnerOrManager(projectId, currentUserId);
+        // Dự án ARCHIVED là chỉ đọc: không đánh dấu feedback đã xử lý.
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. Feedback can't be resolved.");
+        }
 
         ProjectFeedbackEntity feedback = feedbackRepository.findById(feedbackId)
             .orElseThrow(() -> new ResourceNotFoundException("Feedback not found with ID: " + feedbackId));

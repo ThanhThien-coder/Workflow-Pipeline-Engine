@@ -20,6 +20,7 @@ import com.pipeline.wpe.entity.GuestLinkEntity;
 import com.pipeline.wpe.entity.NodeEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.UserEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.exception.ResourceNotFoundException;
 import com.pipeline.wpe.repository.ArtifactRepository;
@@ -74,7 +75,7 @@ public class GuestGatewayService {
     @Transactional
     public GuestAccessResponse generateOrRenewGuestToken(Long projectId, Integer expiryDays) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         int resolvedDays = (expiryDays != null && expiryDays > 0) ? expiryDays : 30;
         Instant expiresAt = Instant.now().plus(Duration.ofDays(resolvedDays));
@@ -102,6 +103,13 @@ public class GuestGatewayService {
         return toGuestAccessResponse(guestLink);
     }
 
+    /** Dự án ARCHIVED là chỉ đọc: không tạo, gia hạn hay thu hồi link khách (409 PROJECT_ARCHIVED). */
+    private void ensureNotArchived(ProjectEntity project) {
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
+            throw new ConflictException("PROJECT_ARCHIVED", "This project is archived and read-only. The guest link can't be changed.");
+        }
+    }
+
     /**
      * Thu hồi quyền truy cập công khai của khách đối với dự án.
      * Chỉ OWNER mới có quyền thực hiện.
@@ -109,7 +117,7 @@ public class GuestGatewayService {
     @Transactional
     public GuestAccessResponse revokeGuestToken(Long projectId) {
         Long currentUserId = currentUserProvider.requireCurrentUserId();
-        authorizationService.verifyProjectOwner(projectId, currentUserId);
+        ensureNotArchived(authorizationService.verifyProjectOwner(projectId, currentUserId));
 
         Optional<GuestLinkEntity> existingOpt = guestLinkRepository.findByProjectIdAndIsRevokedFalse(projectId);
         if (existingOpt.isPresent()) {

@@ -2,12 +2,14 @@ package com.pipeline.wpe.service;
 
 import com.pipeline.wpe.common.enums.ArtifactType;
 import com.pipeline.wpe.common.enums.ProjectRole;
+import com.pipeline.wpe.common.enums.ProjectStatus;
 import com.pipeline.wpe.dto.artifact.ArtifactResponse;
 import com.pipeline.wpe.dto.artifact.CreateArtifactRequest;
 import com.pipeline.wpe.dto.artifact.UpdateArtifactRequest;
 import com.pipeline.wpe.entity.ArtifactEntity;
 import com.pipeline.wpe.entity.ProjectEntity;
 import com.pipeline.wpe.entity.ProjectMemberEntity;
+import com.pipeline.wpe.exception.ConflictException;
 import com.pipeline.wpe.exception.ForbiddenException;
 import com.pipeline.wpe.repository.ArtifactRepository;
 import com.pipeline.wpe.repository.ProjectMemberRepository;
@@ -135,6 +137,48 @@ class ArtifactServiceTest {
             ArtifactResponse response = artifactService.createArtifact(PROJECT_ID, link(null), COLLABORATOR);
 
             assertThat(response.type()).isEqualTo(ArtifactType.FIGMA);
+        }
+    }
+
+    @Nested
+    @DisplayName("Dự án ARCHIVED chỉ đọc")
+    class Archived {
+
+        @BeforeEach
+        void archive() {
+            ProjectEntity archived = ProjectEntity.builder().id(PROJECT_ID).ownerId(OWNER).name("Core Banking Pipeline")
+                .status(ProjectStatus.ARCHIVED).build();
+            when(projectAuthorizationService.verifyProjectMemberOrOwner(any(), any())).thenReturn(archived);
+            when(projectAuthorizationService.verifyProjectOwnerOrManager(any(), any())).thenReturn(archived);
+            when(projectAuthorizationService.getProjectOrThrow(PROJECT_ID)).thenReturn(archived);
+            ArtifactEntity existing = ArtifactEntity.builder().id(10L).projectId(PROJECT_ID).uploadedBy(OWNER)
+                .name("Spec").url("https://docs.example.com/spec").type(ArtifactType.OTHER_LINK).build();
+            when(artifactRepository.findById(10L)).thenReturn(Optional.of(existing));
+        }
+
+        @Test
+        @DisplayName("Thêm, sửa, xóa, bật kho, ẩn hiện với khách → 409 PROJECT_ARCHIVED, không ghi gì")
+        void allWrites_conflict() {
+            assertThatThrownBy(() -> artifactService.createArtifact(PROJECT_ID, link(null), OWNER))
+                .isInstanceOf(ConflictException.class).hasFieldOrPropertyWithValue("errorCode", "PROJECT_ARCHIVED");
+            assertThatThrownBy(() -> artifactService.updateArtifact(PROJECT_ID, 10L,
+                    new UpdateArtifactRequest("Spec 2", "https://docs.example.com/spec2"), OWNER))
+                .isInstanceOf(ConflictException.class);
+            assertThatThrownBy(() -> artifactService.deleteArtifact(PROJECT_ID, 10L, OWNER))
+                .isInstanceOf(ConflictException.class);
+            assertThatThrownBy(() -> artifactService.toggleRepositoryVisibility(PROJECT_ID, 10L, false, OWNER))
+                .isInstanceOf(ConflictException.class);
+            assertThatThrownBy(() -> artifactService.toggleGuestVisibility(PROJECT_ID, 10L, false, OWNER))
+                .isInstanceOf(ConflictException.class);
+
+            verify(artifactRepository, never()).save(any());
+            verify(artifactRepository, never()).delete(any());
+        }
+
+        @Test
+        @DisplayName("Vẫn xem được danh sách artifact")
+        void list_stillAllowed() {
+            assertThatCode(() -> artifactService.getProjectArtifacts(PROJECT_ID, null, null, OWNER)).doesNotThrowAnyException();
         }
     }
 
